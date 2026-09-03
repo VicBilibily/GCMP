@@ -8,9 +8,9 @@ import { decodeStatefulMarker } from '../statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
 import {
-    isEncryptedReasoningEnabled,
     isEncryptedReasoningOriginMatch,
     isResponsesReasoningId,
+    shouldReplayEncryptedReasoning,
     shouldReplayPlainThinking
 } from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
@@ -73,23 +73,16 @@ export class OpenAIResponsesMessageConverter {
         const out: ResponseInputItem[] = [];
         let systemMessage = '';
         const callIdResolver = new OpenAIResponsesCallIdResolver();
-        // 是否把历史加密思考项回传入 input：与请求侧 include 注入共用同一判定。
-        // 用户通过 extraBody.include 接管（如 { include: null }）时不再回传，
-        // 可避免多资源中转场景下历史残留密文跨资源校验失败且无法自愈。
+        // 历史密文回放：有密文就回传（不限 GPT）；extraBody.include 接管为关闭时不回传。
         // 未传 modelConfig 时保持既有回放行为（内部调用/测试缺省路径）。
         const replayEncryptedReasoning =
-            modelConfig === undefined ||
-            isEncryptedReasoningEnabled({
-                requestModel: modelConfig.model || modelConfig.id,
-                extraBody: modelConfig.extraBody
-            });
+            modelConfig === undefined || shouldReplayEncryptedReasoning(modelConfig.extraBody);
         // GPT 端点的历史 reasoning 只能走密文/原样回放，不能回传明文摘要。
-        const replayPlainThinking =
-            !replayEncryptedReasoning &&
-            shouldReplayPlainThinking({
-                requestModel: modelConfig?.model || modelConfig?.id || '',
-                extraBody: modelConfig?.extraBody
-            });
+        // 明文通道仅在本条消息没有发出密文项时启用，避免把 DeepSeek 等无密文历史误关掉。
+        const replayPlainThinking = shouldReplayPlainThinking({
+            requestModel: modelConfig?.model || modelConfig?.id || '',
+            extraBody: modelConfig?.extraBody
+        });
         const currentOrigin = requestOrigin;
 
         for (const [messageIndex, message] of messages.entries()) {
@@ -161,8 +154,9 @@ export class OpenAIResponsesMessageConverter {
             const joinedThinking = thinkingParts.join('').trim();
 
             if (role === 'assistant') {
+                let emittedEncrypted = false;
                 if (replayEncryptedReasoning) {
-                    // 密文通道（gpt 等）：回传密文 reasoning 项；可见 ThinkingPart 为展示用摘要，模型不消费，不回传
+                    // 密文通道：回传密文 reasoning 项；可见 ThinkingPart 为展示用摘要，模型不消费，不回传
                     // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
                     const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
                         encryptedReasonings,
@@ -178,8 +172,10 @@ export class OpenAIResponsesMessageConverter {
                             reasoningItem.id = reasoningId;
                         }
                         out.push(reasoningItem as unknown as ResponseReasoningItem);
+                        emittedEncrypted = true;
                     }
-                } else if (replayPlainThinking) {
+                }
+                if (!emittedEncrypted && replayPlainThinking) {
                     // 明文通道（DeepSeek 等无密文端点）：思维链文本以明文 reasoning 项回传，
                     // 端点将明文 content 归并到相邻 assistant 消息
                     const markerThinking = (this.getCompleteThinkingFromMarker(message.content) ?? '').trim();

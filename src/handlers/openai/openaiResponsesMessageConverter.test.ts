@@ -105,6 +105,11 @@ const handlerStub = {
     createDataUrl: () => ''
 } as never;
 
+const gptIncludeEnabled = {
+    reasoning: { effort: 'medium' },
+    include: ['reasoning.encrypted_content']
+};
+
 test('同源 ThinkingPart 密文会回传为 reasoning 项', async () => {
     const { OpenAIResponsesMessageConverter } = await getConverterModule();
     const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
@@ -127,7 +132,7 @@ test('同源 ThinkingPart 密文会回传为 reasoning 项', async () => {
             id: 'gpt-5.4',
             model: 'gpt-5.4',
             provider: 'openai',
-            extraBody: { reasoning: { effort: 'medium' } }
+            extraBody: gptIncludeEnabled
         } as never,
         { provider: 'openai', modelId: 'gpt-5.4' }
     );
@@ -166,7 +171,7 @@ test('StatefulMarker 剥离后同 provider 跨模型仍可回传密文', async (
             id: 'gpt-5.6',
             model: 'gpt-5.6',
             provider: 'openai',
-            extraBody: { reasoning: { effort: 'medium' } }
+            extraBody: gptIncludeEnabled
         } as never,
         { provider: 'openai', modelId: 'gpt-5.6' }
     );
@@ -181,7 +186,80 @@ test('StatefulMarker 剥离后同 provider 跨模型仍可回传密文', async (
     ]);
 });
 
-test('跨 provider 的密文不会回传', async () => {
+test('GPT 当前请求不区分 provider', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    createThinkingPart({
+                        redactedData: 'cipher-text',
+                        reasoningId: 'rs_1',
+                        provider: 'anthropic',
+                        modelId: 'claude-sonnet-4-5'
+                    })
+                ]
+            }
+        ] as never,
+        {
+            id: 'gpt-5.6',
+            model: 'gpt-5.6',
+            provider: 'commandcode',
+            extraBody: gptIncludeEnabled
+        } as never,
+        { provider: 'commandcode', modelId: 'gpt-5.6' }
+    );
+
+    assert.deepEqual(result.messages, [
+        {
+            type: 'reasoning',
+            summary: [],
+            encrypted_content: 'cipher-text',
+            id: 'rs_1'
+        }
+    ]);
+});
+
+test('非 GPT 同 provider 有密文则回传', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    createThinkingPart({
+                        redactedData: 'cipher-text',
+                        reasoningId: 'rs_1',
+                        provider: 'grok',
+                        modelId: 'grok-4.6'
+                    })
+                ]
+            }
+        ] as never,
+        {
+            id: 'grok-4.6',
+            model: 'grok-4.6',
+            provider: 'grok'
+        } as never,
+        { provider: 'grok', modelId: 'grok-4.6' }
+    );
+
+    assert.deepEqual(result.messages, [
+        {
+            type: 'reasoning',
+            summary: [],
+            encrypted_content: 'cipher-text',
+            id: 'rs_1'
+        }
+    ]);
+});
+
+test('非 GPT 跨 provider 的密文不会回传', async () => {
     const { OpenAIResponsesMessageConverter } = await getConverterModule();
     const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
 
@@ -208,10 +286,40 @@ test('跨 provider 的密文不会回传', async () => {
             }
         ] as never,
         {
+            id: 'grok-4.6',
+            model: 'grok-4.6',
+            provider: 'grok',
+            extraBody: gptIncludeEnabled
+        } as never,
+        { provider: 'grok', modelId: 'grok-4.6' }
+    );
+
+    assert.deepEqual(result.messages, []);
+});
+
+test('GPT 未启用 include 时不回传密文', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    createThinkingPart({
+                        redactedData: 'cipher-text',
+                        reasoningId: 'rs_1',
+                        provider: 'openai',
+                        modelId: 'gpt-5.4'
+                    })
+                ]
+            }
+        ] as never,
+        {
             id: 'gpt-5.4',
             model: 'gpt-5.4',
             provider: 'openai',
-            extraBody: { reasoning: { effort: 'medium' } }
+            extraBody: { reasoning: { effort: 'medium' }, include: null }
         } as never,
         { provider: 'openai', modelId: 'gpt-5.4' }
     );

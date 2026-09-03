@@ -6,6 +6,7 @@ import {
     isEncryptedReasoningOriginMatch,
     isIncludeOverridden,
     isResponsesReasoningId,
+    shouldReplayEncryptedReasoning,
     shouldReplayPlainThinking
 } from './encryptedReasoning';
 
@@ -59,6 +60,13 @@ test('接管 include：include 含 reasoning.encrypted_content 时启用', () =>
         }),
         true
     );
+    assert.equal(
+        isEncryptedReasoningEnabled({
+            requestModel: 'muse-spark-1.2-contributor',
+            extraBody: { include: ['reasoning.encrypted_content'] }
+        }),
+        true
+    );
 });
 
 test('接管 include：include 不含目标条目时不启用', () => {
@@ -81,6 +89,18 @@ test('isIncludeOverridden：未定义 include 键时不视为接管', () => {
     assert.equal(isIncludeOverridden({ reasoning: { effort: 'medium' } }), false);
     assert.equal(isIncludeOverridden({}), false);
     assert.equal(isIncludeOverridden(undefined), false);
+});
+
+test('shouldReplayEncryptedReasoning：未接管 include 时有密文就回传', () => {
+    assert.equal(shouldReplayEncryptedReasoning(undefined), true);
+    assert.equal(shouldReplayEncryptedReasoning({}), true);
+    assert.equal(shouldReplayEncryptedReasoning({ reasoning: { effort: 'medium' } }), true);
+});
+
+test('shouldReplayEncryptedReasoning：接管 include 后仅含密文条目才回传', () => {
+    assert.equal(shouldReplayEncryptedReasoning({ include: ['reasoning.encrypted_content'] }), true);
+    assert.equal(shouldReplayEncryptedReasoning({ include: null }), false);
+    assert.equal(shouldReplayEncryptedReasoning({ include: [] }), false);
 });
 
 test('shouldReplayPlainThinking：GPT 端点永远不回传明文（即使缺少 extraBody.reasoning）', () => {
@@ -124,11 +144,38 @@ test('isEncryptedReasoningOriginMatch：同 provider 跨模型可匹配', () => 
     );
 });
 
-test('isEncryptedReasoningOriginMatch：跨 provider 不匹配', () => {
+test('isEncryptedReasoningOriginMatch：GPT 当前请求不区分 provider', () => {
     assert.equal(
         isEncryptedReasoningOriginMatch(
             { provider: 'anthropic', modelId: 'claude-sonnet-4-5' },
-            { provider: 'openai', modelId: 'gpt-5.6' }
+            { provider: 'commandcode', modelId: 'gpt-5.6' }
+        ),
+        true
+    );
+});
+
+test('isEncryptedReasoningOriginMatch：非 GPT 同 provider 可匹配', () => {
+    assert.equal(
+        isEncryptedReasoningOriginMatch(
+            { provider: 'grok', modelId: 'grok-4.6' },
+            { provider: 'grok', modelId: 'grok-4.5' }
+        ),
+        true
+    );
+});
+
+test('isEncryptedReasoningOriginMatch：非 GPT 跨 provider 不匹配', () => {
+    assert.equal(
+        isEncryptedReasoningOriginMatch(
+            { provider: 'anthropic', modelId: 'claude-sonnet-4-5' },
+            { provider: 'grok', modelId: 'grok-4.6' }
+        ),
+        false
+    );
+    assert.equal(
+        isEncryptedReasoningOriginMatch(
+            { provider: 'grok', modelId: 'grok-4.6' },
+            { provider: 'opencode', modelId: 'grok-4.6' }
         ),
         false
     );

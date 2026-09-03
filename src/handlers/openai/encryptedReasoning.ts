@@ -19,16 +19,19 @@ export function isResponsesReasoningId(id: string | undefined): boolean {
     return typeof id === 'string' && id.startsWith('rs');
 }
 
+function isGptModel(modelId: string | undefined): boolean {
+    return typeof modelId === 'string' && modelId.toLowerCase().includes('gpt');
+}
+
 /**
- * 判定是否请求/回放加密思考项（reasoning.encrypted_content）。
+ * 判定是否请求加密思考项（reasoning.encrypted_content）。
  *
  * 规则：
  * - extraBody 显式定义 include（含 null/[]）时视为用户接管：
  *   仅当 include 数组中包含 'reasoning.encrypted_content' 时启用；
  * - 未接管时按内置规则：请求模型名包含 gpt 且配置了 extraBody.reasoning。
  *
- * 请求侧（include 自动注入）与回放侧（input 携带密文 reasoning 项）共用本判定，
- * 保证两端一致：不要求下发密文时也不把历史密文回传，反之亦然。
+ * 回放侧见 shouldReplayEncryptedReasoning：有密文就回传，不限 GPT。
  *
  * 典型用途：多资源 Azure 中转场景配置 { include: null } 后，
  * 既不要求服务端下发密文，也不回传会话历史中残留的旧密文（跨资源无法校验会 400）。
@@ -42,13 +45,22 @@ export function isEncryptedReasoningEnabled(params: {
         const include = extraBody!.include;
         return Array.isArray(include) && include.includes(ENCRYPTED_REASONING_INCLUDE);
     }
-    return requestModel.toLowerCase().includes('gpt') && !!extraBody?.reasoning;
+    return isGptModel(requestModel) && !!extraBody?.reasoning;
 }
 
 /** include 一旦显式接管，未启用密文回放时也应禁用明文回放。 */
 /** include 被显式接管时，历史思维链的明文/密文回放策略也一并由用户接管。 */
 export function isIncludeOverridden(extraBody?: Record<string, unknown>): boolean {
     return extraBody != null && 'include' in extraBody;
+}
+
+/** 历史密文回放：未接管 include 时有密文就回传；接管后仅当包含密文条目才回传。 */
+export function shouldReplayEncryptedReasoning(extraBody?: Record<string, unknown>): boolean {
+    if (!isIncludeOverridden(extraBody)) {
+        return true;
+    }
+    const include = extraBody!.include;
+    return Array.isArray(include) && include.includes(ENCRYPTED_REASONING_INCLUDE);
 }
 
 /** GPT 端点会在服务端拒绝带明文 reasoning 历史回放的输入。 */
@@ -66,10 +78,13 @@ export function shouldReplayPlainThinking(params: {
     return true;
 }
 
-/** 同 provider 即可跨模型复用密文推理。 */
+/** GPT 当前请求不区分 provider；其他模型仍按 provider 匹配。 */
 export function isEncryptedReasoningOriginMatch(
     origin: EncryptedReasoningOrigin | undefined,
     currentOrigin: Required<EncryptedReasoningOrigin>
 ): boolean {
+    if (isGptModel(currentOrigin.modelId)) {
+        return true;
+    }
     return Boolean(origin?.provider && currentOrigin.provider && origin.provider === currentOrigin.provider);
 }

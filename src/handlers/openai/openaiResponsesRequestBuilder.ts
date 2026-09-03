@@ -39,9 +39,8 @@ export function initializeResponsesRequestBody(params: {
         prompt_cache_key: sessionId
     };
 
-    // extraBody 显式定义 include（含 null/[]）时视为用户接管该字段，不再自动注入加密思考项；
-    // 例如多资源 Azure 中转场景可通过 { include: null } 关闭密文下发，避免跨资源校验失败。
-    // 回放侧（input 是否携带密文 reasoning 项）使用同一判定，见 isEncryptedReasoningEnabled。
+    // extraBody 显式定义 include（含 null/[]）时视为用户接管该字段，不再自动注入加密思考项。
+    // 回放侧见 shouldReplayEncryptedReasoning：有密文就回传，不与本自动注入绑定。
     const hasCustomInclude = extraBody != null && 'include' in extraBody;
     if (!hasCustomInclude && isEncryptedReasoningEnabled({ requestModel, extraBody })) {
         requestBody.include = [ENCRYPTED_REASONING_INCLUDE];
