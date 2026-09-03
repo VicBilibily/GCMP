@@ -460,14 +460,14 @@ export class StreamReporter {
         // 5. 结束实时指标上报
         this.finishMetrics();
 
-        return this.hasReceivedContent;
+        return this.hasReceivedContent || this.hasThinkingContent;
     }
 
     /**
      * 获取是否已接收到内容
      */
     get hasContent(): boolean {
-        return this.hasReceivedContent;
+        return this.hasReceivedContent || this.hasThinkingContent;
     }
 
     /**

@@ -79,3 +79,24 @@ test('reportEncryptedThinking：多段摘要直接拼接', async () => {
         modelId: 'test-model'
     });
 });
+
+test('reportEncryptedThinking：仅思考内容也应被视为有内容', async () => {
+    const { StreamReporter } = await getStreamReporterModule();
+    const reporter = new StreamReporter({
+        modelName: 'test-model',
+        modelId: 'test-model',
+        provider: 'test-provider',
+        sdkMode: 'openai-responses',
+        progress: {
+            report() {}
+        } as never,
+        sessionId: 'session-1',
+        requestId: 'request-1',
+        requestStartTime: Date.now()
+    });
+
+    reporter.reportEncryptedThinking('cipher-text', 'rsn_1', ['摘要']);
+
+    assert.equal(reporter.hasContent, true);
+    assert.equal(reporter.flushAll(null), true);
+});

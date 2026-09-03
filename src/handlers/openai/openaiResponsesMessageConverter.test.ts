@@ -186,6 +186,49 @@ test('StatefulMarker 剥离后同 provider 跨模型仍可回传密文', async (
     ]);
 });
 
+test('StatefulMarker 缺少 origin 元数据时仍应与同密文 ThinkingPart 合并去重', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    createThinkingPart({
+                        redactedData: 'cipher-text',
+                        reasoningId: 'rs_1',
+                        provider: 'openai',
+                        modelId: 'gpt-5.4'
+                    }),
+                    createMarkerPart({
+                        sessionId: 's-3',
+                        responseId: 'r-3',
+                        sdkMode: 'openai-responses',
+                        encryptedReasoning: [{ encryptedContent: 'cipher-text', reasoningId: 'rs_1' }]
+                    })
+                ]
+            }
+        ] as never,
+        {
+            id: 'gpt-5.6',
+            model: 'gpt-5.6',
+            provider: 'openai',
+            extraBody: gptIncludeEnabled
+        } as never,
+        { provider: 'openai', modelId: 'gpt-5.6' }
+    );
+
+    assert.deepEqual(result.messages, [
+        {
+            type: 'reasoning',
+            summary: [],
+            encrypted_content: 'cipher-text',
+            id: 'rs_1'
+        }
+    ]);
+});
+
 test('GPT 当前请求不区分 provider', async () => {
     const { OpenAIResponsesMessageConverter } = await getConverterModule();
     const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');

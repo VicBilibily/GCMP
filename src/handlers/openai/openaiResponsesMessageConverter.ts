@@ -319,47 +319,35 @@ export class OpenAIResponsesMessageConverter {
         }
 
         const merged: EncryptedReasoningItem[] = [];
-        const extractedIndicesById = new Map<string, number>();
-        const extractedIndicesByContent = new Map<string, number>();
         const usedExtractedIndices = new Set<number>();
-        const seenIds = new Set<string>();
-        const seenContents = new Set<string>();
-
-        for (const [index, item] of extracted.entries()) {
-            const originKey = this.getEncryptedReasoningOriginKey(item);
-            if (item.reasoningId) {
-                extractedIndicesById.set(`${originKey}:${item.reasoningId}`, index);
-            }
-            extractedIndicesByContent.set(`${originKey}:${item.encryptedContent}`, index);
-        }
 
         const pushMergedItem = (item: EncryptedReasoningItem) => {
-            const originKey = this.getEncryptedReasoningOriginKey(item);
-            const idKey = item.reasoningId ? `${originKey}:${item.reasoningId}` : undefined;
-            const contentKey = `${originKey}:${item.encryptedContent}`;
-            if ((idKey && seenIds.has(idKey)) || seenContents.has(contentKey)) {
+            if (merged.some(existing => this.areEncryptedReasoningsEquivalent(existing, item))) {
                 return;
             }
 
             merged.push(item);
-            if (idKey) {
-                seenIds.add(idKey);
+        };
+
+        const findMatchingExtractedIndex = (item: EncryptedReasoningItem): number | undefined => {
+            for (const [index, extractedItem] of extracted.entries()) {
+                if (usedExtractedIndices.has(index)) {
+                    continue;
+                }
+                if (this.areEncryptedReasoningsEquivalent(extractedItem, item)) {
+                    return index;
+                }
             }
-            seenContents.add(contentKey);
+            return undefined;
         };
 
         for (const item of restored) {
-            const originKey = this.getEncryptedReasoningOriginKey(item);
-            const matchedExtractedIndex =
-                (item.reasoningId ? extractedIndicesById.get(`${originKey}:${item.reasoningId}`) : undefined) ??
-                extractedIndicesByContent.get(`${originKey}:${item.encryptedContent}`);
-
+            const matchedExtractedIndex = findMatchingExtractedIndex(item);
             if (matchedExtractedIndex !== undefined) {
                 usedExtractedIndices.add(matchedExtractedIndex);
                 pushMergedItem(extracted[matchedExtractedIndex]);
                 continue;
             }
-
             pushMergedItem(item);
         }
 
@@ -373,8 +361,28 @@ export class OpenAIResponsesMessageConverter {
         return merged;
     }
 
-    private getEncryptedReasoningOriginKey(item: EncryptedReasoningItem): string {
-        return item.provider ?? '';
+    private areEncryptedReasoningsEquivalent(a: EncryptedReasoningItem, b: EncryptedReasoningItem): boolean {
+        if (this.hasEncryptedReasoningOriginConflict(a, b)) {
+            return false;
+        }
+
+        if (a.reasoningId && b.reasoningId) {
+            return a.reasoningId === b.reasoningId;
+        }
+
+        return a.encryptedContent === b.encryptedContent;
+    }
+
+    private hasEncryptedReasoningOriginConflict(a: EncryptedReasoningItem, b: EncryptedReasoningItem): boolean {
+        if (a.provider && b.provider && a.provider !== b.provider) {
+            return true;
+        }
+
+        if (a.modelId && b.modelId && a.modelId !== b.modelId) {
+            return true;
+        }
+
+        return false;
     }
 
     convertToolsToResponses(tools: readonly vscode.LanguageModelChatTool[]): FunctionTool[] {
