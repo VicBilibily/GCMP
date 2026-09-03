@@ -78,6 +78,18 @@
             "reasoningEffort": ["low", "medium", "high"]
         },
         {
+            "id": "gemini-3.8-flash",
+            "name": "Gemini 3.8 Flash (CmdC)",
+            "model": "google/gemini-3.8-flash",
+            "tooltip": "CommandCode GOAT Plan - Gemini 3.8 Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.5, 7.5, 0.15]
+        },
+        {
             "id": "glm-5",
             "name": "GLM-5 (CmdC)",
             "model": "zai-org/GLM-5",
@@ -366,6 +378,30 @@
             }
         },
         {
+            "id": "muse-spark-1.3",
+            "name": "Muse Spark 1.3 (CmdC)",
+            "model": "meta/muse-spark-1.3",
+            "tooltip": "CommandCode GOAT Plan - Muse Spark 1.3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.25, 4.25, 0.15]
+        },
+        {
+            "id": "muse-spark-1.3-contributor",
+            "name": "Muse Spark 1.3 Contributor (CmdC)",
+            "model": "meta/muse-spark-1.3-contributor",
+            "tooltip": "CommandCode GOAT Plan - Muse Spark 1.3 Contributor。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.1, 0.2, 0.002]
+        },
+        {
             "id": "nemotron-3-ultra",
             "name": "Nemotron 3 Ultra (CmdC)",
             "model": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -416,6 +452,18 @@
             "tokenPricing": [2, 6, 0.25, 2.5]
         },
         {
+            "id": "qwen-3.8-max-0902",
+            "name": "Qwen 3.8 Max 0902 (CmdC)",
+            "model": "qwen/qwen3.8-max-0902",
+            "tooltip": "CommandCode GOAT Plan - Qwen 3.8 Max 0902。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2, 6, 0.25]
+        },
+        {
             "id": "step-3.5-flash",
             "name": "Step 3.5 Flash (CmdC)",
             "model": "stepfun/Step-3.5-Flash",
@@ -461,6 +509,18 @@
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.834, 2.501, 0.042]
+        },
+        {
+            "id": "longcat-2.0-free",
+            "name": "LongCat 2.0 Free (CmdC)",
+            "model": "meituan/longcat-2.0:free",
+            "tooltip": "CommandCode GOAT Plan - LongCat 2.0 Free。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0, 0, 0]
         }
     ]
 }

@@ -198,6 +198,30 @@
             "tokenPricing": [0.3, 1.2, 0.06, 0.375]
         },
         {
+            "id": "muse-spark-1.3-contributor-go",
+            "name": "Muse Spark 1.3 Contributor (Go)",
+            "model": "muse-spark-1.3-contributor",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - Muse Spark 1.3 Contributor，仅限部分地区使用。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "xhigh", "medium", "low", "minimal"],
+            "reasoningDefault": "high",
+            "thinkingFormat": "effort-only",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.1, 0.2, 0.002],
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": {
+                    "effort": "high",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
             "id": "muse-spark-1.2-contributor-go",
             "name": "Muse Spark 1.2 Contributor (Go)",
             "model": "muse-spark-1.2-contributor",

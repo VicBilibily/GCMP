@@ -2,6 +2,29 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.14] - 2026-09-03
+
+### 新增
+
+- **DashScope 恢复 Coding Plan 编程套餐支持**：新增 Qwen3.7-Plus (CodingPlan)、Qwen3.6-Plus (CodingPlan) 模型，通过 Anthropic API 兼容协议接入。 [#394](https://github.com/VicBilibily/GCMP/issues/394)
+- **Codex 额度窗口对齐官方时长识别**：支持每日/每月/每年分类，采用 ±5% 近似匹配（对齐 openai/codex `is_approximate_window`）。
+
+### 变更
+
+- **加密推理重构**：密文回传按 provider 校验、跨模型复用；分离回放与下发判定，GPT 密文回传不依赖 provider。
+- **移除冗余 `activationEvents`**：依赖 `contributes.languageModelChatProviders` 隐式激活。
+
+---
+
+### Added
+
+- **DashScope Coding Plan support restored**: Added Qwen3.7-Plus (CodingPlan) and Qwen3.6-Plus (CodingPlan) via the Anthropic API-compatible endpoint. [#394](https://github.com/VicBilibily/GCMP/issues/394)
+- **Codex quota window aligned with official duration recognition**: Supports daily/monthly/annual classification with ±5% approximate matching (aligned with openai/codex `is_approximate_window`).
+
+### Changed
+
+- **Encrypted reasoning refactored**: Ciphertext validation is now provider-specific and reusable across models; replay and delivery logic are separated, and GPT ciphertext no longer depends on the provider.
+
 ## [0.27.13] - 2026-09-01
 
 ### 新增
