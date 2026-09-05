@@ -41,6 +41,22 @@ interface APIErrorWithError extends Error {
     error?: APIErrorDetail | string;
 }
 
+// 日志用紧凑 usage：保留标量与常见 token 明细，丢弃 attribution 等按条目展开的大对象
+function compactUsageForLog(usage: GenericUsageData | undefined): Record<string, unknown> | undefined {
+    if (!usage) {
+        return undefined;
+    }
+    const compact: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(usage)) {
+        if (typeof value === 'number' || typeof value === 'string') {
+            compact[key] = value;
+        } else if (value && typeof value === 'object' && !Array.isArray(value) && key.endsWith('_details')) {
+            compact[key] = value;
+        }
+    }
+    return compact;
+}
+
 /**
  * OpenAI Responses API 处理器
  * 专门处理 Responses API 的消息转换和请求
@@ -312,10 +328,10 @@ export class OpenAIResponsesHandler {
         if (finishReason) {
             Logger.info(
                 `📊 ${modelName} Responses API request completed with finish reason: ${finishReason}`,
-                finalUsage
+                compactUsageForLog(finalUsage)
             );
         } else {
-            Logger.info(`📊 ${modelName} Responses API request completed`, finalUsage);
+            Logger.info(`📊 ${modelName} Responses API request completed`, compactUsageForLog(finalUsage));
         }
 
         streamStartTime ??= streamReporter.getMetricStreamStartTime();
