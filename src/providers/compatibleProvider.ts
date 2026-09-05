@@ -20,7 +20,7 @@ import { KnownProviders } from '../utils/config/knownProviders';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
-import { fillCodexRequestHeaders } from '../utils/net/codexUserAgent';
+import { fillClaudeCodeRequestHeaders, fillCodexRequestHeaders } from '../utils/net/cliUserAgent';
 import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricing/pricingTierResolver';
 import { normalizeCompatibleServiceTiers } from '../utils/model/compatibleServiceTier';
 
@@ -172,6 +172,10 @@ export class CompatibleProvider extends GenericModelProvider {
                 const filledHeader = fillCodexRequestHeaders(config, effectiveCodexConfig.customHeader);
                 if (filledHeader) {
                     config.customHeader = filledHeader;
+                }
+                const filledClaudeHeader = fillClaudeCodeRequestHeaders(config);
+                if (filledClaudeHeader) {
+                    config.customHeader = filledClaudeHeader;
                 }
 
                 return config;

@@ -52,7 +52,7 @@ suite('Codex User-Agent provider integration', () => {
         assert.equal(explicit.customHeader?.['user-agent'], undefined);
     });
 
-    test('CompatibleProvider fills GPT headers and preserves explicit headers', () => {
+    test('CompatibleProvider fills Codex and Claude headers and preserves explicit headers', () => {
         const originalGetModels = CompatibleModelManager.getModels;
         const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
 
@@ -60,7 +60,12 @@ suite('Codex User-Agent provider integration', () => {
             CompatibleModelManager.getModels = () => [
                 createModel({ id: 'GPT-5.4', name: 'GPT auto' }),
                 createModel({ id: 'custom-gpt', name: 'GPT explicit', customHeader: { 'user-agent': 'custom/1.0' } }),
-                createModel({ id: 'claude-sonnet', name: 'Claude', customHeader: { 'X-Test': 'kept' } }),
+                createModel({
+                    id: 'claude-sonnet',
+                    name: 'Claude',
+                    sdkMode: 'anthropic',
+                    customHeader: { 'X-Test': 'kept' }
+                }),
                 createModel({ id: 'gpt-anthropic', name: 'GPT Anthropic', sdkMode: 'anthropic' })
             ];
             ConfigManager.getProviderOverrides = () => ({
@@ -87,7 +92,9 @@ suite('Codex User-Agent provider integration', () => {
             assert.equal(explicit?.customHeader?.['User-Agent'], undefined);
 
             const nonGpt = config.models.find(model => model.id === 'claude-sonnet');
-            assert.deepEqual(nonGpt?.customHeader, { 'X-Test': 'kept' });
+            assert.equal(nonGpt?.customHeader?.['X-Test'], 'kept');
+            assert.match(nonGpt?.customHeader?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258 \(external, cli\)$/);
+            assert.equal(nonGpt?.customHeader?.['X-Stainless-Package-Version'], undefined);
 
             const anthropic = config.models.find(model => model.id === 'gpt-anthropic');
             assert.equal(anthropic?.customHeader, undefined);

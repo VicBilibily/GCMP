@@ -6,7 +6,7 @@
 import { configProviders } from '../providers/config';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { Logger } from '../utils/runtime/logger';
-import { getCodexTuiUserAgentFromHeader } from '../utils/net/codexUserAgent';
+import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
 import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';

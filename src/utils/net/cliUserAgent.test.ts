@@ -3,11 +3,12 @@ import test from 'node:test';
 
 import {
     buildCodexUserAgent,
+    fillClaudeCodeRequestHeaders,
     fillCodexRequestHeaders,
     getCodexTuiUserAgent,
     getCodexTuiUserAgentFromHeader,
     getCodexUserAgent
-} from './codexUserAgent';
+} from './cliUserAgent';
 import {
     canonicalizeUserAgentHeader,
     ensureUserAgentHeader,
@@ -22,7 +23,6 @@ test('buildCodexUserAgent renders codex CLI style UA with explicit fields', () =
         osType: 'Windows',
         osVersion: '10.0.26200',
         architecture: 'x86_64',
-        terminalToken: 'unknown',
         suffix: 'codex-tui; 0.153.0'
     });
     assert.equal(ua, 'codex-tui/0.153.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.153.0)');
@@ -46,7 +46,6 @@ test('suffix is omitted when absent or whitespace', () => {
         osType: 'Windows',
         osVersion: '10.0.0',
         architecture: 'x86_64',
-        terminalToken: 'unknown',
         suffix: ' extra '
     });
     assert.equal(withSuffix, 'codex-tui/0.1.0 (Windows 10.0.0; x86_64) unknown (extra)');
@@ -56,8 +55,7 @@ test('suffix is omitted when absent or whitespace', () => {
         version: '0.1.0',
         osType: 'Windows',
         osVersion: '10.0.0',
-        architecture: 'x86_64',
-        terminalToken: 'unknown'
+        architecture: 'x86_64'
     });
     assert.equal(noSuffix, 'codex-tui/0.1.0 (Windows 10.0.0; x86_64) unknown');
 });
@@ -69,7 +67,6 @@ test('buildCodexUserAgent sanitizes invalid header characters', () => {
         osType: 'Windows',
         osVersion: '10.0.0',
         architecture: 'x86_64',
-        terminalToken: 'unknown',
         suffix: 'bad\rsuffix'
     });
     assert.equal(ua, 'codex-tui/0.1.0 (Windows 10.0.0; x86_64) unknown (bad_suffix)');
@@ -88,7 +85,6 @@ test('buildCodexUserAgent applies field fallbacks', () => {
         osType: '',
         osVersion: '',
         architecture: '',
-        terminalToken: '',
         suffix: '  '
     });
     assert.equal(ua, 'codex-tui/ ( ; unknown) unknown');
@@ -184,4 +180,45 @@ test('fillCodexRequestHeaders fills Codex headers for gpt models without user-ag
 
     assert.equal(fillCodexRequestHeaders({ id: 'claude-sonnet', sdkMode: 'openai' }, defaults), undefined);
     assert.equal(fillCodexRequestHeaders({ id: 'gpt-fake', sdkMode: 'anthropic' }, defaults), undefined);
+});
+
+test('fillClaudeCodeRequestHeaders fills Claude Code UA for claude models without user-agent', () => {
+    const filled = fillClaudeCodeRequestHeaders({ id: 'claude-sonnet-4-5', sdkMode: 'anthropic' });
+    assert.match(filled?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258 \(external, cli\)$/);
+    assert.equal(filled?.['X-Stainless-Package-Version'], undefined);
+
+    assert.equal(fillClaudeCodeRequestHeaders({ id: 'proxy-alias', sdkMode: 'anthropic' }), undefined);
+
+    const explicit = fillClaudeCodeRequestHeaders({
+        id: 'claude-sonnet-4-5',
+        sdkMode: 'anthropic',
+        customHeader: { 'user-agent': 'my-ua/1.0' }
+    });
+    assert.equal(explicit?.['User-Agent'], 'my-ua/1.0');
+    assert.equal(explicit?.['user-agent'], undefined);
+
+    const blankExplicit = fillClaudeCodeRequestHeaders({
+        id: 'claude-sonnet-4-5',
+        sdkMode: 'anthropic',
+        customHeader: { 'User-Agent': '  ' }
+    });
+    assert.match(blankExplicit?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258 \(external, cli\)$/);
+
+    const preservedHeader = fillClaudeCodeRequestHeaders({
+        id: 'claude-sonnet-4-5',
+        sdkMode: 'anthropic',
+        customHeader: { 'X-Stainless-Package-Version': '9.9.9' }
+    });
+    assert.match(preservedHeader?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258/);
+    assert.equal(preservedHeader?.['X-Stainless-Package-Version'], '9.9.9');
+
+    const gptModel = { 'X-Test': 'value' };
+    assert.equal(fillClaudeCodeRequestHeaders({ id: 'gpt-5.4', customHeader: gptModel }), gptModel);
+    assert.equal(fillClaudeCodeRequestHeaders({ id: 'deepseek', sdkMode: 'openai' }), undefined);
+    assert.equal(fillClaudeCodeRequestHeaders({ id: 'claude-sonnet-4-5', sdkMode: 'openai' }), undefined);
+    const nonClaudeAnthropic = { 'X-Test': 'value' };
+    assert.equal(
+        fillClaudeCodeRequestHeaders({ id: 'gpt-fake', sdkMode: 'anthropic', customHeader: nonClaudeAnthropic }),
+        nonClaudeAnthropic
+    );
 });

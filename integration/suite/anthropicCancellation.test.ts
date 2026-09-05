@@ -5,6 +5,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { AnthropicHandler } from '../../src/handlers/anthropicHandler';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import type { ModelConfig } from '../../src/types/sharedTypes';
+import { ConfigManager } from '../../src/utils/config/configManager';
 import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../../src/handlers/anthropic/anthropicRetry';
 import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
 import { RetryManager } from '../../src/utils/retry/retryManager';
@@ -45,6 +46,78 @@ suite('Anthropic cancellation', () => {
 
             assert.equal(client.maxRetries, 0);
         } finally {
+            ApiKeyManager.getApiKey = originalGetApiKey;
+        }
+    });
+
+    test('Claude User-Agent 由 GCMP 提供，Stainless 指纹由 Anthropic SDK 添加', async () => {
+        const originalGetApiKey = ApiKeyManager.getApiKey;
+        const originalCreateProxyAwareFetch = ConfigManager.createProxyAwareFetch;
+        let requestHeaders: Headers | undefined;
+        ApiKeyManager.getApiKey = async () => 'test-api-key';
+        ConfigManager.createProxyAwareFetch = (() => {
+            return async (input: RequestInfo | URL, init?: RequestInit) => {
+                const request = new Request(input, init);
+                requestHeaders = request.headers;
+                return new Response(
+                    JSON.stringify({
+                        id: 'msg_test',
+                        type: 'message',
+                        role: 'assistant',
+                        model: 'claude-sonnet-4-5',
+                        content: [{ type: 'text', text: 'ok' }],
+                        stop_reason: 'end_turn',
+                        stop_sequence: null,
+                        usage: { input_tokens: 1, output_tokens: 1 }
+                    }),
+                    { status: 200, headers: { 'content-type': 'application/json' } }
+                );
+            };
+        }) as typeof ConfigManager.createProxyAwareFetch;
+
+        try {
+            const providerInstance = {
+                provider: 'compatible-test',
+                providerConfig: {
+                    displayName: 'Compatible Test',
+                    baseUrl: 'http://127.0.0.1'
+                }
+            } as unknown as GenericModelProvider;
+            const handler = new AnthropicHandler(providerInstance) as unknown as AnthropicHandlerTestAccess;
+            const client = await handler.createAnthropicClient({
+                id: 'claude-sonnet-4-5',
+                name: 'Claude',
+                tooltip: 'Claude',
+                maxInputTokens: 1024,
+                maxOutputTokens: 128,
+                capabilities: {
+                    toolCalling: false,
+                    imageInput: false
+                },
+                sdkMode: 'anthropic',
+                provider: 'compatible-test',
+                baseUrl: 'http://127.0.0.1',
+                customHeader: {
+                    'User-Agent': 'claude-cli/2.1.258 (external, cli)'
+                },
+                proxy: 'noproxy'
+            });
+
+            await client.messages.create({
+                model: 'claude-sonnet-4-5',
+                max_tokens: 1,
+                messages: [{ role: 'user', content: 'hi' }]
+            });
+
+            assert.equal(requestHeaders?.get('user-agent'), 'claude-cli/2.1.258 (external, cli)');
+            assert.ok(requestHeaders?.get('x-stainless-lang'));
+            assert.ok(requestHeaders?.get('x-stainless-package-version'));
+            assert.ok(requestHeaders?.get('x-stainless-os'));
+            assert.ok(requestHeaders?.get('x-stainless-arch'));
+            assert.ok(requestHeaders?.get('x-stainless-runtime'));
+            assert.ok(requestHeaders?.get('x-stainless-runtime-version'));
+        } finally {
+            ConfigManager.createProxyAwareFetch = originalCreateProxyAwareFetch;
             ApiKeyManager.getApiKey = originalGetApiKey;
         }
     });

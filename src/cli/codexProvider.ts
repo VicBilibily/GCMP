@@ -12,7 +12,7 @@ import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { Logger } from '../utils/runtime/logger';
-import { getCodexTuiUserAgentFromHeader } from '../utils/net/codexUserAgent';
+import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
 import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { parseCodexModelsResponse } from '../utils/model/codexModels';
 

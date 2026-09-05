@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Codex 风格 User-Agent 生成
- *  对齐 openai/codex 中 get_codex_user_agent()：
+ *  CLI 风格 User-Agent 生成与请求头补全
+ *  Codex 部分对齐 openai/codex 的 get_codex_user_agent()：
  *  {originator}/{version} ({os_type} {os_version}; {arch}) {terminal_token} ({suffix})
- *  纯 Node 逻辑（无 vscode 依赖），可供 codexProvider 及 openai sdkMode 按需使用
+ *  纯 Node 逻辑（无 vscode 依赖），可供 codexProvider、compatibleProvider 及 openai sdkMode 按需使用
  *
  *  平台近似：Windows 的 os_type/os_version 对齐 os_info（NT 内核版本）；
  *  macOS/Linux 使用 Node 的 Darwin/内核版本，不是 os_info 的发行版号
@@ -26,8 +26,6 @@ export interface CodexUserAgentOptions {
     osVersion?: string;
     /** CPU 架构（缺省按 process.arch 映射，如 x86_64 / arm64） */
     architecture?: string;
-    /** 终端标识 token（当前不传递，缺省 unknown） */
-    terminalToken?: string;
     /** 附加到 UA 末尾的括号后缀（如 "codex-tui; 0.153.0"），缺省不带 */
     suffix?: string;
 }
@@ -78,9 +76,7 @@ export function buildCodexUserAgent(options: CodexUserAgentOptions): string {
     const osType = options.osType || '';
     const osVersion = options.osVersion || '';
     const architecture = options.architecture || 'unknown';
-    const terminalToken = options.terminalToken || 'unknown';
-
-    let ua = `${originator}/${version} (${osType} ${osVersion}; ${architecture}) ${terminalToken}`;
+    let ua = `${originator}/${version} (${osType} ${osVersion}; ${architecture}) unknown`;
     if (options.suffix && options.suffix.trim()) {
         ua += ` (${options.suffix.trim()})`;
     }
@@ -89,7 +85,7 @@ export function buildCodexUserAgent(options: CodexUserAgentOptions): string {
 
 /**
  * 生成 Codex 风格 User-Agent
- * 未显式指定的系统字段（操作系统/架构/终端）按当前运行环境自动探测
+ * 未显式指定的操作系统和架构按当前运行环境自动探测，终端标识固定为 unknown
  */
 export function getCodexUserAgent(options: CodexUserAgentOptions = {}): string {
     return buildCodexUserAgent({
@@ -98,7 +94,6 @@ export function getCodexUserAgent(options: CodexUserAgentOptions = {}): string {
         osType: options.osType ?? detectOsType(),
         osVersion: options.osVersion ?? os.release(),
         architecture: options.architecture ?? detectArchitecture(),
-        terminalToken: options.terminalToken ?? 'unknown',
         suffix: options.suffix
     });
 }
@@ -139,4 +134,24 @@ export function fillCodexRequestHeaders(
     }
     const merged = { ...defaults, ...customHeader };
     return ensureUserAgentHeader(merged, getCodexTuiUserAgentFromHeader(merged));
+}
+
+/** Claude Code CLI 默认的 User-Agent 基线 */
+const DEFAULT_CLAUDE_CODE_USER_AGENT = 'claude-cli/2.1.258 (external, cli)';
+
+/**
+ * compatible 等场景：模型走 anthropic 通道且 id 含 claude 时，
+ * 补全 Claude Code User-Agent；Stainless 指纹由 Anthropic SDK 自动携带
+ */
+export function fillClaudeCodeRequestHeaders(model: {
+    id: string;
+    sdkMode?: string;
+    customHeader?: Record<string, string>;
+}): Record<string, string> | undefined {
+    const customHeader = model.customHeader;
+    const isClaudeModel = model.sdkMode === 'anthropic' && model.id.toLowerCase().includes('claude');
+    if (!isClaudeModel) {
+        return customHeader;
+    }
+    return ensureUserAgentHeader(customHeader, DEFAULT_CLAUDE_CODE_USER_AGENT);
 }
