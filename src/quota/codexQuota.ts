@@ -6,6 +6,8 @@
 import { configProviders } from '../providers/config';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { Logger } from '../utils/runtime/logger';
+import { getCodexTuiUserAgentFromHeader } from '../utils/net/codexUserAgent';
+import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import { t } from '../utils/runtime/l10n';
@@ -173,11 +175,13 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => abortController.abort(), CODEX_USAGE_TIMEOUT_MS);
 
+        const customHeader = ConfigManager.applyProviderOverrides('codex', configProviders.codex).customHeader;
+        const requestHeaders = ensureUserAgentHeader(customHeader, getCodexTuiUserAgentFromHeader(customHeader));
         const requestOptions: RequestInit = {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${credentials.access_token}`,
-                'user-agent': configProviders.codex.customHeader?.['user-agent'] as string,
+                'User-Agent': requestHeaders['User-Agent'],
                 'chatgpt-account-id': accountId
             },
             signal: abortController.signal

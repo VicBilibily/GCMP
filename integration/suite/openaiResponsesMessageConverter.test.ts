@@ -15,6 +15,8 @@ type LanguageModelThinkingPartCtor = new (
 const LanguageModelThinkingPart = (
     vscode as typeof vscode & { LanguageModelThinkingPart: LanguageModelThinkingPartCtor }
 ).LanguageModelThinkingPart;
+const gptRequestOrigin = { provider: 'openai', modelId: 'gpt-5.4' };
+const deepseekRequestOrigin = { provider: 'deepseek', modelId: 'deepseek-v4-flash' };
 
 function createConverter() {
     return new OpenAIResponsesMessageConverter(
@@ -30,17 +32,21 @@ suite('OpenAIResponsesMessageConverter', () => {
     test('保留带 redactedData 的加密 reasoning，即使可见文本为空', () => {
         const converter = createConverter();
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [
-                    new LanguageModelThinkingPart('', undefined, {
-                        redactedData: 'cipher',
-                        reasoningId: 'rsn_123'
-                    })
-                ]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('', undefined, {
+                            redactedData: 'cipher',
+                            reasoningId: 'rsn_123'
+                        })
+                    ]
+                }
+            ] as never,
+            undefined,
+            gptRequestOrigin
+        );
 
         assert.deepEqual(result.messages, [
             {
@@ -71,7 +77,8 @@ suite('OpenAIResponsesMessageConverter', () => {
             {
                 id: 'gpt-5.6-sol',
                 extraBody: { reasoning: { effort: 'medium' }, include: null }
-            } as never
+            } as never,
+            gptRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -102,7 +109,8 @@ suite('OpenAIResponsesMessageConverter', () => {
             {
                 id: 'gpt-5.6-sol',
                 extraBody: { include: ['reasoning.encrypted_content'] }
-            } as never
+            } as never,
+            gptRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -133,7 +141,8 @@ suite('OpenAIResponsesMessageConverter', () => {
             {
                 id: 'gpt-5.6-sol',
                 extraBody: { reasoning: { effort: 'medium' }, include: null }
-            } as never
+            } as never,
+            deepseekRequestOrigin
         );
 
         // include 被显式接管（null）时密文丢弃，明文思考文本同样不回传，
@@ -162,7 +171,8 @@ suite('OpenAIResponsesMessageConverter', () => {
                     content: [markerPart]
                 }
             ] as never,
-            { id: 'deepseek-v4-flash' } as never
+            { id: 'deepseek-v4-flash' } as never,
+            deepseekRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -194,7 +204,8 @@ suite('OpenAIResponsesMessageConverter', () => {
                     content: [new LanguageModelThinkingPart('第二段摘要'), markerPart]
                 }
             ] as never,
-            { id: 'deepseek-v4-flash' } as never
+            { id: 'deepseek-v4-flash' } as never,
+            deepseekRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -214,18 +225,13 @@ suite('OpenAIResponsesMessageConverter', () => {
                 {
                     role: vscode.LanguageModelChatMessageRole.Assistant,
                     content: [
-                        new LanguageModelThinkingPart('**Planning provider module analysis**', undefined, {
-                            redactedData: 'cipher-1',
-                            reasoningId: 'rsn_a'
-                        }),
-                        new LanguageModelThinkingPart('**Gathering precise line numbers with grep**', undefined, {
-                            redactedData: 'cipher-2',
-                            reasoningId: 'rsn_b'
-                        })
+                        new LanguageModelThinkingPart('**Planning provider module analysis**'),
+                        new LanguageModelThinkingPart('**Gathering precise line numbers with grep**')
                     ]
                 }
             ] as never,
-            { id: 'deepseek-v4-flash' } as never
+            { id: 'deepseek-v4-flash' } as never,
+            deepseekRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -245,12 +251,16 @@ suite('OpenAIResponsesMessageConverter', () => {
     test('忽略没有可见内容的普通 thinking part，避免生成空 assistant message', () => {
         const converter = createConverter();
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [new LanguageModelThinkingPart('')]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [new LanguageModelThinkingPart('')]
+                }
+            ] as never,
+            undefined,
+            deepseekRequestOrigin
+        );
 
         assert.deepEqual(result.messages, []);
     });
@@ -265,7 +275,8 @@ suite('OpenAIResponsesMessageConverter', () => {
                     content: [new LanguageModelThinkingPart(['思考', '内容'])]
                 }
             ] as never,
-            { id: 'deepseek-v4-flash' } as never
+            { id: 'deepseek-v4-flash' } as never,
+            deepseekRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -277,17 +288,26 @@ suite('OpenAIResponsesMessageConverter', () => {
         ]);
     });
 
-    test('密文回放通道下可见思考文本（摘要）不回传为文本', () => {
+    test('非 GPT 明文通道下可见思考文本（摘要）会回传为文本', () => {
         const converter = createConverter();
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [new LanguageModelThinkingPart('展示用摘要'), new vscode.LanguageModelTextPart('正式回答')]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [new LanguageModelThinkingPart('展示用摘要'), new vscode.LanguageModelTextPart('正式回答')]
+                }
+            ] as never,
+            undefined,
+            deepseekRequestOrigin
+        );
 
         assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                content: [{ type: 'reasoning_text', text: '展示用摘要' }]
+            },
             {
                 type: 'message',
                 role: 'assistant',
@@ -311,7 +331,8 @@ suite('OpenAIResponsesMessageConverter', () => {
                     ]
                 }
             ] as never,
-            { id: 'gpt-5.6' } as never
+            { id: 'gpt-5.6' } as never,
+            gptRequestOrigin
         );
 
         assert.deepEqual(result.messages, [
@@ -341,12 +362,16 @@ suite('OpenAIResponsesMessageConverter', () => {
         });
         const markerPart = new vscode.LanguageModelDataPart(markerData, CustomDataPartMimeTypes.StatefulMarker);
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [markerPart]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [markerPart]
+                }
+            ] as never,
+            undefined,
+            gptRequestOrigin
+        );
 
         assert.deepEqual(result.messages, [
             { type: 'reasoning', summary: [], encrypted_content: 'cipher-1', id: 'rsn_a' },
@@ -370,18 +395,22 @@ suite('OpenAIResponsesMessageConverter', () => {
         });
         const markerPart = new vscode.LanguageModelDataPart(markerData, CustomDataPartMimeTypes.StatefulMarker);
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [
-                    new LanguageModelThinkingPart('', undefined, {
-                        redactedData: 'cipher-1',
-                        reasoningId: 'rsn_a'
-                    }),
-                    markerPart
-                ]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('', undefined, {
+                            redactedData: 'cipher-1',
+                            reasoningId: 'rsn_a'
+                        }),
+                        markerPart
+                    ]
+                }
+            ] as never,
+            undefined,
+            gptRequestOrigin
+        );
 
         assert.deepEqual(result.messages, [
             { type: 'reasoning', summary: [], encrypted_content: 'cipher-1', id: 'rsn_a' },
@@ -405,18 +434,22 @@ suite('OpenAIResponsesMessageConverter', () => {
         });
         const markerPart = new vscode.LanguageModelDataPart(markerData, CustomDataPartMimeTypes.StatefulMarker);
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [
-                    new LanguageModelThinkingPart('', undefined, {
-                        redactedData: 'cipher-2',
-                        reasoningId: 'rsn_b'
-                    }),
-                    markerPart
-                ]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('', undefined, {
+                            redactedData: 'cipher-2',
+                            reasoningId: 'rsn_b'
+                        }),
+                        markerPart
+                    ]
+                }
+            ] as never,
+            undefined,
+            gptRequestOrigin
+        );
 
         assert.deepEqual(result.messages, [
             { type: 'reasoning', summary: [], encrypted_content: 'cipher-1', id: 'rsn_a' },
@@ -437,12 +470,16 @@ suite('OpenAIResponsesMessageConverter', () => {
         });
         const markerPart = new vscode.LanguageModelDataPart(markerData, CustomDataPartMimeTypes.StatefulMarker);
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [markerPart]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [markerPart]
+                }
+            ] as never,
+            undefined,
+            gptRequestOrigin
+        );
 
         // anthropic 模式的 marker 不应被当作 openai-responses 加密 reasoning 恢复
         assert.deepEqual(result.messages, []);
@@ -451,17 +488,21 @@ suite('OpenAIResponsesMessageConverter', () => {
     test('外源 reasoning id 不回传，仅保留密文内容', () => {
         const converter = createConverter();
 
-        const result = converter.convertMessagesToOpenAIResponses([
-            {
-                role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [
-                    new LanguageModelThinkingPart('', undefined, {
-                        redactedData: 'cipher',
-                        reasoningId: 'thinking_0'
-                    })
-                ]
-            }
-        ] as never);
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('', undefined, {
+                            redactedData: 'cipher',
+                            reasoningId: 'thinking_0'
+                        })
+                    ]
+                }
+            ] as never,
+            undefined,
+            gptRequestOrigin
+        );
 
         assert.deepEqual(result.messages, [
             {

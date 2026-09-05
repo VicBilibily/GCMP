@@ -11,6 +11,7 @@ import { VersionManager } from '../utils/runtime/versionManager';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { redactHeaders } from '../utils/net/proxyAgent';
+import { canonicalizeUserAgentHeader } from '../utils/net/httpHeaders';
 import { isCancellationError } from '../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
@@ -227,6 +228,7 @@ export class OpenAIHandler {
                 `${this.displayName} applying custom headers: ${JSON.stringify(redactHeaders(mergedCustomHeader))}`
             );
         }
+        canonicalizeUserAgentHeader(defaultHeaders);
 
         const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
         let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现

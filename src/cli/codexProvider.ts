@@ -12,6 +12,8 @@ import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { Logger } from '../utils/runtime/logger';
+import { getCodexTuiUserAgentFromHeader } from '../utils/net/codexUserAgent';
+import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { parseCodexModelsResponse } from '../utils/model/codexModels';
 
 /** Codex 后端模型列表 API 地址 */
@@ -77,6 +79,20 @@ export class CodexProvider extends CliBaseProvider {
             }
         });
         context.subscriptions.push(this.codexConfigListener);
+    }
+
+    /**
+     * 每次读取都补齐 User-Agent：overrides 已配置则保留，否则按 Codex CLI 形态生成
+     */
+    override get providerConfig(): ProviderConfig {
+        const config = this.cachedProviderConfig;
+        return {
+            ...config,
+            customHeader: ensureUserAgentHeader(
+                config.customHeader,
+                getCodexTuiUserAgentFromHeader(config.customHeader)
+            )
+        };
     }
 
     /**

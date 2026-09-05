@@ -18,6 +18,7 @@ import {
 import { RetryableError } from '../utils/retry/retryManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { canonicalizeUserAgentHeader } from '../utils/net/httpHeaders';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ModelChatResponseOptions, ModelTokenPricing, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
@@ -183,6 +184,7 @@ export class OpenAICustomHandler {
 
             // 处理合并后的 customHeader 中的 API 密钥替换
             const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
+            canonicalizeUserAgentHeader(processedCustomHeader);
 
             // opencode 专有：传递请求级跟踪标识头
             if (this.provider === 'opencode') {
