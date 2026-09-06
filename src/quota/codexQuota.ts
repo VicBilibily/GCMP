@@ -8,6 +8,7 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { Logger } from '../utils/runtime/logger';
 import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
 import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
+import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import { t } from '../utils/runtime/l10n';
@@ -175,7 +176,10 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => abortController.abort(), CODEX_USAGE_TIMEOUT_MS);
 
-        const customHeader = ConfigManager.applyProviderOverrides('codex', configProviders.codex).customHeader;
+        const customHeader = ConfigManager.applyProviderOverrides(
+            'codex',
+            withCodexCliMetadata(configProviders.codex)
+        ).customHeader;
         const requestHeaders = ensureUserAgentHeader(customHeader, getCodexTuiUserAgentFromHeader(customHeader));
         const requestOptions: RequestInit = {
             method: 'GET',

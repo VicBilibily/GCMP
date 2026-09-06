@@ -9,12 +9,18 @@ import {
     getCodexTuiUserAgentFromHeader,
     getCodexUserAgent
 } from './cliUserAgent';
+import { setRemoteCliMetadata } from '../metadata/metadataResolver';
+import builtinMetadata from '../metadata/gcmp-metadata.json';
 import {
     canonicalizeUserAgentHeader,
     ensureUserAgentHeader,
     getUserAgentHeaderValue,
     withUserAgentHeader
 } from './httpHeaders';
+
+// 内置兜底版本断言统一引用共享元数据源文件，避免 update:metadata 升级后测试失效
+const claudeCodeVersionEscaped = builtinMetadata.cli.claudeCode.version.replace(/\./g, '\\.');
+const claudeCliUaPattern = new RegExp(`^claude-cli/${claudeCodeVersionEscaped} \\(external, cli\\)$`);
 
 test('buildCodexUserAgent renders codex CLI style UA with explicit fields', () => {
     const ua = buildCodexUserAgent({
@@ -184,7 +190,7 @@ test('fillCodexRequestHeaders fills Codex headers for gpt models without user-ag
 
 test('fillClaudeCodeRequestHeaders fills Claude Code UA for claude models without user-agent', () => {
     const filled = fillClaudeCodeRequestHeaders({ id: 'claude-sonnet-4-5', sdkMode: 'anthropic' });
-    assert.match(filled?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258 \(external, cli\)$/);
+    assert.match(filled?.['User-Agent'] ?? '', claudeCliUaPattern);
     assert.equal(filled?.['X-Stainless-Package-Version'], undefined);
 
     assert.equal(fillClaudeCodeRequestHeaders({ id: 'proxy-alias', sdkMode: 'anthropic' }), undefined);
@@ -202,14 +208,14 @@ test('fillClaudeCodeRequestHeaders fills Claude Code UA for claude models withou
         sdkMode: 'anthropic',
         customHeader: { 'User-Agent': '  ' }
     });
-    assert.match(blankExplicit?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258 \(external, cli\)$/);
+    assert.match(blankExplicit?.['User-Agent'] ?? '', claudeCliUaPattern);
 
     const preservedHeader = fillClaudeCodeRequestHeaders({
         id: 'claude-sonnet-4-5',
         sdkMode: 'anthropic',
         customHeader: { 'X-Stainless-Package-Version': '9.9.9' }
     });
-    assert.match(preservedHeader?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258/);
+    assert.match(preservedHeader?.['User-Agent'] ?? '', new RegExp(`^claude-cli/${claudeCodeVersionEscaped}`));
     assert.equal(preservedHeader?.['X-Stainless-Package-Version'], '9.9.9');
 
     const gptModel = { 'X-Test': 'value' };
@@ -221,4 +227,16 @@ test('fillClaudeCodeRequestHeaders fills Claude Code UA for claude models withou
         fillClaudeCodeRequestHeaders({ id: 'gpt-fake', sdkMode: 'anthropic', customHeader: nonClaudeAnthropic }),
         nonClaudeAnthropic
     );
+});
+
+test('fillClaudeCodeRequestHeaders follows remote metadata version and restores fallback', () => {
+    setRemoteCliMetadata({ claudeCodeVersion: '9.9.9' });
+    try {
+        const filled = fillClaudeCodeRequestHeaders({ id: 'claude-sonnet-4-5', sdkMode: 'anthropic' });
+        assert.match(filled?.['User-Agent'] ?? '', /^claude-cli\/9\.9\.9 \(external, cli\)$/);
+    } finally {
+        setRemoteCliMetadata(undefined);
+    }
+    const restored = fillClaudeCodeRequestHeaders({ id: 'claude-sonnet-4-5', sdkMode: 'anthropic' });
+    assert.match(restored?.['User-Agent'] ?? '', claudeCliUaPattern);
 });

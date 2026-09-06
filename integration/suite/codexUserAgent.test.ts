@@ -6,7 +6,12 @@ import { CliAuthFactory } from '../../src/cli/auth/cliAuthFactory';
 import { CompatibleModelManager, type CompatibleModelConfig } from '../../src/utils/config/compatibleModelManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import { queryCodexUsage } from '../../src/quota/codexQuota';
+import { getClaudeCodeCliVersion, getCodexTuiCliHeader } from '../../src/utils/metadata/metadataResolver';
 import type { ProviderConfig } from '../../src/types/sharedTypes';
+
+// 版本断言跟随共享元数据源文件，update:metadata 升级后无需改测试
+const escRegExp = (value: string): string => value.replace(/\./g, '\\.');
+const claudeCliUaPattern = new RegExp(`^claude-cli/${escRegExp(getClaudeCodeCliVersion())} \\(external, cli\\)$`);
 
 function createModel(overrides: Partial<CompatibleModelConfig> = {}): CompatibleModelConfig {
     return {
@@ -93,7 +98,7 @@ suite('Codex User-Agent provider integration', () => {
 
             const nonGpt = config.models.find(model => model.id === 'claude-sonnet');
             assert.equal(nonGpt?.customHeader?.['X-Test'], 'kept');
-            assert.match(nonGpt?.customHeader?.['User-Agent'] ?? '', /^claude-cli\/2\.1\.258 \(external, cli\)$/);
+            assert.match(nonGpt?.customHeader?.['User-Agent'] ?? '', claudeCliUaPattern);
             assert.equal(nonGpt?.customHeader?.['X-Stainless-Package-Version'], undefined);
 
             const anthropic = config.models.find(model => model.id === 'gpt-anthropic');
@@ -157,7 +162,10 @@ suite('Codex User-Agent provider integration', () => {
             const generatedResult = await queryCodexUsage();
             assert.equal(generatedResult.success, true);
             const generatedHeaders = requestInit?.headers as Record<string, string>;
-            assert.match(generatedHeaders['User-Agent'], /^codex-tui\/0\.153\.2 /);
+            assert.match(
+                generatedHeaders['User-Agent'],
+                new RegExp(`^codex-tui/${escRegExp(getCodexTuiCliHeader().version)} `)
+            );
             assert.equal(generatedHeaders['user-agent'], undefined);
             assert.equal(generatedHeaders['chatgpt-account-id'], 'account-1');
 

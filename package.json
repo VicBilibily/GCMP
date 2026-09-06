@@ -308,6 +308,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.metadata.refresh",
+                "title": "%command.metadata.refresh%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.commit.generateMessage",
                 "title": "%command.commit.generateMessage%",
                 "category": "GCMP",
@@ -1585,7 +1590,8 @@
         "pretest": "npm run compile:dev",
         "test": "node --import=tsx --test src/**/*.test.ts",
         "pretest:vscode": "npm run typecheck:vscode-test && npm run compile:vscode-test",
-        "test:vscode": "vscode-test"
+        "test:vscode": "vscode-test",
+        "update:metadata": "node --import=tsx scripts/update-cli-metadata.ts"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.80.0",

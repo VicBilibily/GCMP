@@ -23,6 +23,7 @@ import { ConfigManager } from './utils/config/configManager';
 import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
 import { closeProxyAgents } from './utils/net/proxyAgent';
 import { HarRecorder } from './utils/net/harRecorder';
+import { RemoteMetadataService } from './utils/metadata/remoteMetadataService';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { ConfigSetManagerPanel } from './ui/configSetManager';
 import { ConfigSetStore } from './utils/config/configSetStore';
@@ -379,6 +380,10 @@ export async function activate(context: vscode.ExtensionContext) {
         const configDisposable = ConfigManager.initialize(context);
         context.subscriptions.push(configDisposable);
         Logger.trace(`Configuration manager initialized (${Date.now() - stepStartTime}ms)`);
+        // 步骤2.0: 初始化远程元数据服务（同步段仅读缓存，随后每 2 小时定时刷新）
+        stepStartTime = Date.now();
+        await RemoteMetadataService.initialize(context);
+        Logger.trace(`Remote metadata service initialized (${Date.now() - stepStartTime}ms)`);
         // 步骤2.1: 初始化 JSON Schema 提供者
         stepStartTime = Date.now();
         JsonSchemaProvider.initialize();

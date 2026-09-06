@@ -14,6 +14,7 @@ import { ConfigManager } from '../utils/config/configManager';
 import { Logger } from '../utils/runtime/logger';
 import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
 import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
+import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { parseCodexModelsResponse } from '../utils/model/codexModels';
 
 /** Codex 后端模型列表 API 地址 */
@@ -79,6 +80,11 @@ export class CodexProvider extends CliBaseProvider {
             }
         });
         context.subscriptions.push(this.codexConfigListener);
+    }
+
+    /** 用户覆盖前注入远程 codex-tui 元数据，保证优先级链：用户 > 远程 > 内置 */
+    protected override applyProviderConfigOverrides(config: ProviderConfig): ProviderConfig {
+        return super.applyProviderConfigOverrides(withCodexCliMetadata(config));
     }
 
     /**
@@ -351,7 +357,7 @@ export class CodexProvider extends CliBaseProvider {
      * 应用模型列表到 providerConfig，并执行 providerOverrides 覆盖
      */
     private applyModels(models: ModelConfig[]): void {
-        this.cachedProviderConfig = ConfigManager.applyProviderOverrides(this.providerKey, {
+        this.cachedProviderConfig = this.applyProviderConfigOverrides({
             ...this.staticProviderConfig,
             models
         });

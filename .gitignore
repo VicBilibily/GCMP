@@ -6,3 +6,8 @@ node_modules
 *.vsix
 extension.js*
 /.claude
+/discuss
+# website 的配置分发目录由 scripts/generate-config-index.mjs 从 src/providers/config 同步生成，不入库
+website/public/configs/
+# 远程元数据由 scripts/generate-config-index.mjs 从 src/utils/metadata/gcmp-metadata.json 同步生成，不入库
+website/public/gcmp-metadata.json

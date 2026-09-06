@@ -10,6 +10,7 @@
 
 import * as os from 'os';
 import { ensureUserAgentHeader, getUserAgentHeaderValue } from './httpHeaders';
+import { getClaudeCodeCliVersion } from '../metadata/metadataResolver';
 
 /**
  * 生成 User-Agent 所需的字段
@@ -136,8 +137,10 @@ export function fillCodexRequestHeaders(
     return ensureUserAgentHeader(merged, getCodexTuiUserAgentFromHeader(merged));
 }
 
-/** Claude Code CLI 默认的 User-Agent 基线 */
-const DEFAULT_CLAUDE_CODE_USER_AGENT = 'claude-cli/2.1.258 (external, cli)';
+/** Claude Code CLI 默认 User-Agent：版本号按远程元数据动态取值，缺失时回退内置配置 */
+function getDefaultClaudeCodeUserAgent(): string {
+    return `claude-cli/${getClaudeCodeCliVersion()} (external, cli)`;
+}
 
 /**
  * compatible 等场景：模型走 anthropic 通道且 id 含 claude 时，
@@ -153,5 +156,5 @@ export function fillClaudeCodeRequestHeaders(model: {
     if (!isClaudeModel) {
         return customHeader;
     }
-    return ensureUserAgentHeader(customHeader, DEFAULT_CLAUDE_CODE_USER_AGENT);
+    return ensureUserAgentHeader(customHeader, getDefaultClaudeCodeUserAgent());
 }

@@ -9,6 +9,7 @@ export default defineConfig(
         ignores: [
             '.vscode-test',
             'scripts',
+            'website',
             'out',
             'dist',
             'node_modules',

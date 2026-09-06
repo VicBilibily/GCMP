@@ -1,0 +1,251 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  background: #f6f7f9;
+  color: #1f2328;
+}
+a {
+  color: #0969da;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+code {
+  background: #eff1f3;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.9em;
+}
+pre {
+  background: #161b22;
+  color: #e6edf3;
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+pre code {
+  background: none;
+  padding: 0;
+}
+.site {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 960px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 16px;
+}
+.brand {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2328;
+}
+.site-header nav {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.site-main {
+  flex: 1;
+  max-width: 960px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 16px 16px 64px;
+}
+.site-footer {
+  border-top: 1px solid #e4e7ec;
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #656d76;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.btn {
+  display: inline-block;
+  background: #0969da;
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-weight: 500;
+}
+.btn:hover {
+  background: #0757ba;
+  text-decoration: none;
+}
+.btn-secondary {
+  display: inline-block;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 8px 18px;
+  color: #1f2328;
+}
+.btn-secondary:hover {
+  background: #f3f4f6;
+  text-decoration: none;
+}
+.install-group {
+  position: relative;
+  display: inline-flex;
+}
+.install-group .btn:not(.install-caret) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.install-caret {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
+.install-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 210px;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+  padding: 4px;
+  z-index: 10;
+}
+.install-menu a {
+  display: block;
+  padding: 7px 12px;
+  border-radius: 4px;
+  color: #1f2328;
+  font-size: 14px;
+}
+.install-menu a:hover {
+  background: #0969da;
+  color: #fff;
+  text-decoration: none;
+}
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 1px 10px;
+  border: 1px solid #d0d7de;
+  color: #656d76;
+  margin-right: 6px;
+}
+.tag-on {
+  background: #dafbe1;
+  border-color: #aceebb;
+  color: #116329;
+}
+.hero {
+  padding: 40px 0 24px;
+}
+.hero-badges {
+  margin-bottom: 12px;
+}
+.hero h1 {
+  font-size: 34px;
+  margin: 0 0 12px;
+}
+.hero-sub {
+  font-size: 17px;
+  color: #57606a;
+  max-width: 640px;
+  line-height: 1.7;
+}
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.feature-card {
+  margin-bottom: 0;
+}
+.feature-card h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.feature-card p {
+  margin: 0;
+  font-size: 13px;
+  color: #57606a;
+  line-height: 1.7;
+}
+.provider-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.provider-chip {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.chip-count {
+  font-size: 12px;
+  color: #656d76;
+  background: #f6f7f9;
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.steps li {
+  margin-bottom: 12px;
+  line-height: 1.7;
+}
+.steps p {
+  margin: 4px 0 0;
+  color: #57606a;
+}
+.muted {
+  color: #57606a;
+  font-size: 14px;
+}
+@media (max-width: 720px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.lang-switch {
+  background: none;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2328;
+  cursor: pointer;
+  line-height: 1;
+}
+.lang-switch:hover {
+  background: #f3f4f6;
+}

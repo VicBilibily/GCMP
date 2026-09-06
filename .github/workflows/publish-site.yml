@@ -1,0 +1,62 @@
+name: Publish website to GitHub Pages
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'website/**'
+            - 'src/providers/config/**'
+            - 'src/utils/metadata/**'
+            - 'package.json'
+            - '.github/workflows/publish-site.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+concurrency:
+    group: pages-website
+    cancel-in-progress: true
+
+jobs:
+    build-deploy:
+        environment:
+            name: github-pages
+            url: https://gcmp.dev
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: website
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js 22.22.3
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22.22.3'
+                  cache: 'npm'
+                  cache-dependency-path: website/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Build static site
+              run: npm run build
+
+            # 前提：Settings → Pages 已将 Source 设为 GitHub Actions（创建站点需管理员操作，workflow token 无法代劳）
+            - name: Setup Pages
+              uses: actions/configure-pages@v5
+
+            - name: Upload site artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: website/dist/client
+
+            - name: Deploy to GitHub Pages
+              uses: actions/deploy-pages@v4

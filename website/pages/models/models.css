@@ -1,0 +1,53 @@
+.provider-section {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.provider-section summary {
+  cursor: pointer;
+  padding: 14px 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  list-style: none;
+}
+.provider-section summary::before {
+  content: '▸';
+  color: #656d76;
+  transition: transform 0.15s;
+}
+.provider-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+.table-wrap {
+  overflow-x: auto;
+  padding: 0 20px 16px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th,
+td {
+  border-top: 1px solid #eef0f2;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+th {
+  color: #57606a;
+  font-weight: 500;
+  border-top: none;
+}
+.model-name {
+  font-weight: 500;
+}
+.model-id {
+  color: #656d76;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+}

@@ -131,12 +131,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
     readonly onDidChangeLanguageModelChatInformation = this._onDidChangeLanguageModelChatInformation.event;
 
+    /** 应用用户 providerOverrides 生成生效配置；子类可覆盖以在覆盖前注入基线（如 Codex 远程元数据） */
+    protected applyProviderConfigOverrides(config: ProviderConfig): ProviderConfig {
+        return ConfigManager.applyProviderOverrides(this.providerKey, config);
+    }
+
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
         // 保存原始配置（不应用覆盖）
         this.baseProviderConfig = providerConfig;
         // 初始化缓存配置（应用覆盖）
-        this.cachedProviderConfig = ConfigManager.applyProviderOverrides(this.providerKey, this.baseProviderConfig);
+        this.cachedProviderConfig = this.applyProviderConfigOverrides(this.baseProviderConfig);
         // 初始化模型信息缓存
         this.modelInfoCache = new ModelInfoCache(context);
         // 初始化图片缓存
@@ -149,10 +154,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 检查是否是 providerOverrides 的变更
             if (e.affectsConfiguration('gcmp.providerOverrides') && providerKey !== 'compatible') {
                 // 重新计算配置
-                this.cachedProviderConfig = ConfigManager.applyProviderOverrides(
-                    this.providerKey,
-                    this.baseProviderConfig
-                );
+                this.cachedProviderConfig = this.applyProviderConfigOverrides(this.baseProviderConfig);
                 // 清除缓存
                 this.modelInfoCache
                     ?.invalidateCache(this.providerKey)

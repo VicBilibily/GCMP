@@ -2,10 +2,6 @@
     "displayName": "Codex",
     "baseUrl": "https://chatgpt.com/backend-api/codex",
     "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
-    "customHeader": {
-        "version": "0.153.2",
-        "originator": "codex-tui"
-    },
     "models": [
         {
             "id": "gpt-5.4",

@@ -1,0 +1,12 @@
+h1 {
+  margin: 16px 0;
+}
+.card h2 {
+  font-size: 17px;
+  margin: 0 0 12px;
+}
+.card p,
+.card li {
+  line-height: 1.8;
+  font-size: 14px;
+}

@@ -21,6 +21,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
 import { fillClaudeCodeRequestHeaders, fillCodexRequestHeaders } from '../utils/net/cliUserAgent';
+import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricing/pricingTierResolver';
 import { normalizeCompatibleServiceTiers } from '../utils/model/compatibleServiceTier';
 
@@ -69,7 +70,10 @@ export class CompatibleProvider extends GenericModelProvider {
         try {
             const models = CompatibleModelManager.getModels();
             const allOverrides = ConfigManager.getProviderOverrides();
-            const effectiveCodexConfig = ConfigManager.applyProviderOverrides('codex', configProviders.codex);
+            const effectiveCodexConfig = ConfigManager.applyProviderOverrides(
+                'codex',
+                withCodexCliMetadata(configProviders.codex)
+            );
             // 将 CompatibleModelManager 的模型转换为 ModelConfig 格式
             const modelConfigs: ModelConfig[] = models.map(model => {
                 let customHeader = model.customHeader;
