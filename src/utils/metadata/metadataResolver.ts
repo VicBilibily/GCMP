@@ -26,6 +26,8 @@ export interface GcmpMetadata {
     schemaVersion: number;
     /** 内容哈希（cli 分组的版本标识，仅作展示/区分，不参与新鲜度判定） */
     contentHash?: string;
+    /** 站点分发时间戳（毫秒）；缺失时不做旧响应保护 */
+    generatedAt?: number;
     cli: GcmpCliMetadata;
 }
 
@@ -51,6 +53,14 @@ function asRecord(value: unknown): Record<string, unknown> {
     return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+function parseGeneratedAt(value: unknown): number | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
 /**
  * 解析远程元数据文本
  * schemaVersion 不受支持或 JSON 非法时整体拒绝（返回 undefined）；
@@ -73,12 +83,21 @@ export function parseGcmpMetadata(text: string): GcmpMetadata | undefined {
     return {
         schemaVersion: SUPPORTED_SCHEMA_VERSION,
         contentHash: asNonEmptyString(root.contentHash),
+        generatedAt: parseGeneratedAt(root.generatedAt),
         cli: {
             claudeCodeVersion: asCliVersion(claudeCode.version),
             codexTuiVersion: asCliVersion(codexTui.version),
             codexTuiOriginator: asCliOriginator(codexTui.originator)
         }
     };
+}
+
+/** 已有时间戳时拒绝更旧或无有效时间戳的响应；兼容首次加载旧缓存 */
+export function isOlderGcmpMetadata(incoming: GcmpMetadata, existing: GcmpMetadata): boolean {
+    return (
+        existing.generatedAt !== undefined &&
+        (incoming.generatedAt === undefined || incoming.generatedAt < existing.generatedAt)
+    );
 }
 
 /** 当前生效的远程/本地 cli 元数据快照（由宿主层写入；undefined 表示无远程值） */

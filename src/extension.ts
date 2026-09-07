@@ -24,6 +24,7 @@ import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
 import { closeProxyAgents } from './utils/net/proxyAgent';
 import { HarRecorder } from './utils/net/harRecorder';
 import { RemoteMetadataService } from './utils/metadata/remoteMetadataService';
+import { RemoteModelsService } from './utils/metadata/remoteModelsService';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { ConfigSetManagerPanel } from './ui/configSetManager';
 import { ConfigSetStore } from './utils/config/configSetStore';
@@ -384,6 +385,10 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await RemoteMetadataService.initialize(context);
         Logger.trace(`Remote metadata service initialized (${Date.now() - stepStartTime}ms)`);
+        // 步骤2.0.1: 初始化模型清单远程更新服务（同步段仅读缓存，随后每 2 小时定时刷新）
+        stepStartTime = Date.now();
+        await RemoteModelsService.initialize(context);
+        Logger.trace(`Remote models service initialized (${Date.now() - stepStartTime}ms)`);
         // 步骤2.1: 初始化 JSON Schema 提供者
         stepStartTime = Date.now();
         JsonSchemaProvider.initialize();
@@ -505,6 +510,7 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateProviders(context);
         Logger.trace(`Model providers registered (${Date.now() - stepStartTime}ms)`);
+        RemoteModelsService.startAfterProvidersRegistered();
         // 步骤3.1: 激活兼容提供商
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);

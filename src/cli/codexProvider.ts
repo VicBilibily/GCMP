@@ -25,6 +25,7 @@ const CACHE_KEY = 'gcmp_codex_models_v1';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 /** 内存缓存有效期（3 分钟）：同一账号短时间内复用上次成功拉取结果，避免高频重复请求 */
 const MEMORY_CACHE_TTL_MS = 3 * 60 * 1000;
+const CODEX_MODELS_TIMEOUT_MS = 10_000;
 
 /** 缓存在 globalState 中的远端模型数据快照 */
 interface CachedCodexModels {
@@ -38,6 +39,8 @@ interface CachedCodexModels {
     models: ModelConfig[];
 }
 
+class StaleCodexModelsError extends Error {}
+
 /**
  * Codex 模型提供商
  *
@@ -50,8 +53,8 @@ interface CachedCodexModels {
 export class CodexProvider extends CliBaseProvider {
     /** 扩展上下文，用于访问 globalState 缓存 */
     private readonly context: vscode.ExtensionContext;
-    /** 本地预置的静态模型配置（codex.json），远端失败时回退到此配置 */
-    private readonly staticProviderConfig: ProviderConfig;
+    /** 本地预置的静态模型配置（codex.json），远端失败时回退到此配置；远程清单热更新时同步替换 */
+    private staticProviderConfig: ProviderConfig;
     /** 监听 gcmp.providerOverrides 配置变更，变更时清除缓存 */
     private readonly codexConfigListener: vscode.Disposable;
     /** 并发拉取模型列表的去重 Promise，避免重复请求 */
@@ -62,6 +65,10 @@ export class CodexProvider extends CliBaseProvider {
     private currentAbortController?: AbortController;
     /** 最近一次成功拉取的内存缓存，3 分钟内的后续请求直接复用，跳过 HTTP */
     private lastSuccessfulFetch?: { models: ModelConfig[]; timestamp: number; apiKeyHash: string };
+    /** 动态模型代际号：远程清单热更新时递增，在途请求仅当代际一致才能提交结果 */
+    private dynamicModelGeneration = 0;
+    /** 当前共享刷新是否已无等待者；刷新完成前不启动新的刷新 */
+    private refreshCancellationRequested = false;
 
     /**
      * @param context 扩展上下文
@@ -85,6 +92,19 @@ export class CodexProvider extends CliBaseProvider {
     /** 用户覆盖前注入远程 codex-tui 元数据，保证优先级链：用户 > 远程 > 内置 */
     protected override applyProviderConfigOverrides(config: ProviderConfig): ProviderConfig {
         return super.applyProviderConfigOverrides(withCodexCliMetadata(config));
+    }
+
+    /** 远程清单热更新：额外同步回退基线；运行时仍以 ChatGPT 后端动态拉取为准 */
+    override updateRemoteModels(models: ModelConfig[]): void {
+        if (JSON.stringify(this.staticProviderConfig.models) === JSON.stringify(models)) {
+            return;
+        }
+        this.staticProviderConfig = { ...this.staticProviderConfig, models };
+        this.lastSuccessfulFetch = undefined;
+        this.dynamicModelGeneration++;
+        this.currentAbortController?.abort();
+        void this.context.globalState.update(CACHE_KEY, undefined);
+        super.updateRemoteModels(models);
     }
 
     /**
@@ -142,15 +162,27 @@ export class CodexProvider extends CliBaseProvider {
             return initialModels;
         }
 
+        const generation = this.dynamicModelGeneration;
         try {
             // 远端拉取成功：应用远端模型列表并缓存
             const models = await this.waitForDynamicModels(token);
+            if (generation !== this.dynamicModelGeneration) {
+                throw new StaleCodexModelsError();
+            }
             const previousModels = this.providerConfig.models;
             this.applyModels(models);
             const modelsChanged = this.haveModelsChanged(previousModels, this.providerConfig.models);
             const apiKeyHash = await this.getApiKeyHash();
+            if (generation !== this.dynamicModelGeneration) {
+                await this.modelInfoCache?.invalidateCache(this.providerKey);
+                return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+            }
             const infos = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
             await this.modelInfoCache?.cacheModels(this.providerKey, infos, apiKeyHash);
+            if (generation !== this.dynamicModelGeneration) {
+                await this.modelInfoCache?.invalidateCache(this.providerKey);
+                return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+            }
             if (modelsChanged) {
                 queueMicrotask(() => this._onDidChangeLanguageModelChatInformation.fire());
             }
@@ -160,17 +192,30 @@ export class CodexProvider extends CliBaseProvider {
             if (token.isCancellationRequested) {
                 return initialModels;
             }
+            const staleResult = generation !== this.dynamicModelGeneration || error instanceof StaleCodexModelsError;
             const previousModels = this.providerConfig.models;
             this.applyModels(this.staticProviderConfig.models);
             const modelsChanged = this.haveModelsChanged(previousModels, this.providerConfig.models);
-            Logger.warn(
-                '[codex] Failed to refresh remote model list; using bundled models:',
-                error instanceof Error ? error.message : String(error)
-            );
+            if (!staleResult) {
+                Logger.warn(
+                    '[codex] Failed to refresh remote model list; using bundled models:',
+                    error instanceof Error ? error.message : String(error)
+                );
+            }
             const infos = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-            const apiKeyHash = await this.getApiKeyHash();
-            await this.modelInfoCache?.cacheModels(this.providerKey, infos, apiKeyHash);
-            if (modelsChanged) {
+            if (!staleResult) {
+                const apiKeyHash = await this.getApiKeyHash();
+                if (generation !== this.dynamicModelGeneration) {
+                    await this.modelInfoCache?.invalidateCache(this.providerKey);
+                    return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+                }
+                await this.modelInfoCache?.cacheModels(this.providerKey, infos, apiKeyHash);
+                if (generation !== this.dynamicModelGeneration) {
+                    await this.modelInfoCache?.invalidateCache(this.providerKey);
+                    return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+                }
+            }
+            if (modelsChanged || staleResult) {
                 queueMicrotask(() => this._onDidChangeLanguageModelChatInformation.fire());
             }
             return infos;
@@ -187,7 +232,17 @@ export class CodexProvider extends CliBaseProvider {
             return Promise.reject(new vscode.CancellationError());
         }
 
-        const refresh = this.getDynamicModels();
+        const refresh =
+            this.refreshPromise && this.refreshCancellationRequested ?
+                this.refreshPromise
+                    .catch(() => undefined)
+                    .then(() => {
+                        if (token.isCancellationRequested) {
+                            throw new vscode.CancellationError();
+                        }
+                        return this.getDynamicModels();
+                    })
+            :   this.getDynamicModels();
         this.dynamicModelWaiterCount += 1;
 
         return new Promise<ModelConfig[]>((resolve, reject) => {
@@ -198,7 +253,8 @@ export class CodexProvider extends CliBaseProvider {
                 }
                 released = true;
                 this.dynamicModelWaiterCount = Math.max(0, this.dynamicModelWaiterCount - 1);
-                if (abortIfLast && this.dynamicModelWaiterCount === 0 && this.refreshPromise === refresh) {
+                if (abortIfLast && this.dynamicModelWaiterCount === 0 && this.refreshPromise) {
+                    this.refreshCancellationRequested = true;
                     this.currentAbortController?.abort();
                 }
             };
@@ -234,30 +290,43 @@ export class CodexProvider extends CliBaseProvider {
      * 内存缓存绑定 apiKeyHash：token/账户变化（OAuth refresh、重新登录）时立即失效，
      * 与 globalState 缓存的校验逻辑保持一致。
      */
-    private async getDynamicModels(): Promise<ModelConfig[]> {
+    private getDynamicModels(): Promise<ModelConfig[]> {
+        if (this.refreshPromise) {
+            return this.refreshPromise;
+        }
+        const generation = this.dynamicModelGeneration;
+        this.refreshCancellationRequested = false;
+        const refresh = this.resolveDynamicModels(generation).finally(() => {
+            if (this.refreshPromise === refresh) {
+                this.refreshPromise = undefined;
+            }
+        });
+        this.refreshPromise = refresh;
+        return refresh;
+    }
+
+    private async resolveDynamicModels(generation: number): Promise<ModelConfig[]> {
         if (this.lastSuccessfulFetch && Date.now() - this.lastSuccessfulFetch.timestamp < MEMORY_CACHE_TTL_MS) {
             const currentApiKeyHash = await this.getApiKeyHash();
+            if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+                throw new StaleCodexModelsError();
+            }
             if (currentApiKeyHash === this.lastSuccessfulFetch.apiKeyHash) {
                 return this.lastSuccessfulFetch.models;
             }
             // token 已变化（OAuth refresh 或账户切换），内存缓存失效
             this.lastSuccessfulFetch = undefined;
         }
-        if (!this.refreshPromise) {
-            this.refreshPromise = this.refreshModels()
-                .then(async models => {
-                    this.lastSuccessfulFetch = {
-                        models,
-                        timestamp: Date.now(),
-                        apiKeyHash: await this.getApiKeyHash()
-                    };
-                    return models;
-                })
-                .finally(() => {
-                    this.refreshPromise = undefined;
-                });
+        const models = await this.refreshModels(generation);
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
         }
-        return this.refreshPromise;
+        const apiKeyHash = await this.getApiKeyHash();
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
+        }
+        this.lastSuccessfulFetch = { models, timestamp: Date.now(), apiKeyHash };
+        return models;
     }
 
     /**
@@ -267,10 +336,13 @@ export class CodexProvider extends CliBaseProvider {
      * 1. 通过 CliAuthFactory 获取或刷新 OAuth 凭证
      * 2. 获取 API Key 哈希，检查 globalState 缓存（开发模式下跳过）
      * 3. 发送 HTTP GET 请求到 CODEX_MODELS_URL，携带 OAuth 令牌和 account ID
-     * 4. 解析响应并写入缓存
+     * 4. 解析响应并写入缓存（代际已过期时跳过缓存提交，结果仍可返回给在途等待者）
      */
-    private async refreshModels(): Promise<ModelConfig[]> {
+    private async refreshModels(generation: number): Promise<ModelConfig[]> {
         const credentials = await CliAuthFactory.ensureAuthenticated('codex');
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
+        }
         const accessToken = credentials?.access_token;
         if (!accessToken) {
             throw new Error('Codex access token is unavailable');
@@ -278,14 +350,23 @@ export class CodexProvider extends CliBaseProvider {
         // 同步最新 OAuth 令牌到共享密钥存储：请求鉴权与缓存哈希均从 ApiKeyManager 读取，
         // 本次刷新出的新令牌需立即写入，避免后续请求携带已过期的旧令牌
         await ApiKeyManager.setApiKey('codex', accessToken);
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
+        }
 
         const apiKeyHash = await this.getApiKeyHash();
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
+        }
         const cached = this.getCachedModelConfigs(apiKeyHash);
         if (cached) {
             return cached;
         }
 
         const accountId = await CliAuthFactory.getCodexAccountId();
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
+        }
         if (!accountId) {
             throw new Error('ChatGPT account ID is unavailable; run Codex CLI login again');
         }
@@ -302,11 +383,14 @@ export class CodexProvider extends CliBaseProvider {
             'chatgpt-account-id': accountId
         };
 
-        this.currentAbortController = new AbortController();
+        const abortController = new AbortController();
+        const timeout = setTimeout(() => abortController.abort(), CODEX_MODELS_TIMEOUT_MS);
+        timeout.unref();
+        this.currentAbortController = abortController;
         try {
             const response = await ConfigManager.fetchWithProxy(
                 modelsUrl,
-                { method: 'GET', headers, signal: this.currentAbortController.signal },
+                { method: 'GET', headers, signal: abortController.signal },
                 { providerKey: 'codex' }
             );
             if (!response.ok) {
@@ -318,16 +402,24 @@ export class CodexProvider extends CliBaseProvider {
                 throw new Error('Codex models response contains no selectable models');
             }
 
-            await this.context.globalState.update(CACHE_KEY, {
-                extensionVersion: this.extensionVersion,
-                apiKeyHash,
-                timestamp: Date.now(),
-                models
-            } satisfies CachedCodexModels);
+            if (generation === this.dynamicModelGeneration && !this.refreshCancellationRequested) {
+                await this.context.globalState.update(CACHE_KEY, {
+                    extensionVersion: this.extensionVersion,
+                    apiKeyHash,
+                    timestamp: Date.now(),
+                    models
+                } satisfies CachedCodexModels);
+                if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+                    await this.context.globalState.update(CACHE_KEY, undefined);
+                }
+            }
             Logger.debug(`[codex] Remote model list updated (${models.length} models)`);
             return models;
         } finally {
-            this.currentAbortController = undefined;
+            clearTimeout(timeout);
+            if (this.currentAbortController === abortController) {
+                this.currentAbortController = undefined;
+            }
         }
     }
 

@@ -1,6 +1,8 @@
 // 以扩展内置配置为唯一数据源：先把 ../src/providers/config/*.json 同步到 public/configs/，
 // 再重新生成 index.json 分发清单（dev/build 前由 npm 脚本触发）
+// contentHash 为各 provider 文件原文文本的 sha256 前 12 位，供插件按哈希条件拉取
 // gcmpVersion 取自仓库根 package.json，可用 GCMP_VERSION 环境变量或命令行参数覆盖
+import { createHash } from 'node:crypto'
 import { cp, copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -16,11 +18,17 @@ await rm(configsDir, { recursive: true, force: true })
 await mkdir(configsDir, { recursive: true })
 await cp(sourceDir, configsDir, { recursive: true })
 
+const generatedAt = new Date().toISOString()
+
 // 远程元数据与扩展内置兜底共用同一源文件，同步进 public/ 供 Pages 分发
+const metadataPath = path.join(root, 'public', 'gcmp-metadata.json')
 await copyFile(
     path.join(repoRoot, 'src', 'utils', 'metadata', 'gcmp-metadata.json'),
-    path.join(root, 'public', 'gcmp-metadata.json')
+    metadataPath
 )
+const metadata = JSON.parse(await readFile(metadataPath, 'utf8'))
+metadata.generatedAt = generatedAt
+await writeFile(metadataPath, JSON.stringify(metadata, null, 2) + '\n')
 
 const files = (await readdir(configsDir))
     .filter(f => f.endsWith('.json') && f !== 'index.json')
@@ -28,11 +36,13 @@ const files = (await readdir(configsDir))
 
 const providers = []
 for (const file of files) {
-    const config = JSON.parse(await readFile(path.join(configsDir, file), 'utf8'))
+    const text = await readFile(path.join(configsDir, file), 'utf8')
+    const config = JSON.parse(text)
     providers.push({
         id: file.replace(/\.json$/, ''),
         displayName: config.displayName,
-        modelCount: config.models.length
+        modelCount: config.models.length,
+        contentHash: createHash('sha256').update(text).digest('hex').slice(0, 12)
     })
 }
 
@@ -44,7 +54,7 @@ const gcmpVersion =
 const manifest = {
     schemaVersion: 1,
     gcmpVersion,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     providers
 }
 

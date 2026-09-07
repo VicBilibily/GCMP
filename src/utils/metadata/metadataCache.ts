@@ -13,6 +13,7 @@ import type { GcmpCliMetadata } from './metadataResolver';
 export interface MetadataSnapshot {
     cli: GcmpCliMetadata;
     contentHash: string;
+    generatedAt?: number;
 }
 
 /** 读取并解析元数据文件（本地源文件或磁盘缓存）；文件缺失/内容非法均返回 undefined */
@@ -24,7 +25,7 @@ export async function readMetadataSnapshot(filePath: string): Promise<MetadataSn
         if (!parsed) {
             return undefined;
         }
-        return { cli: parsed.cli, contentHash: hashCliMetadata(parsed.cli) };
+        return { cli: parsed.cli, contentHash: hashCliMetadata(parsed.cli), generatedAt: parsed.generatedAt };
     } catch {
         return undefined;
     }

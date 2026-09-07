@@ -97,6 +97,20 @@ export interface SyncCompletedEvent extends InterInstanceEventBase {
 }
 
 /**
+ * 远程元数据缓存已更新
+ * 仅主实例执行远程同步，成功后通知其他实例重读共享磁盘缓存。
+ */
+export interface RemoteMetadataUpdatedEvent extends InterInstanceEventBase {
+    type: 'remoteMetadataUpdated';
+    payload: {
+        /** 更新目标 */
+        target: 'cli' | 'models';
+        /** 已提交内容哈希 */
+        contentHash: string;
+    };
+}
+
+/**
  * Leader 已变更
  */
 export interface LeaderChangedEvent extends InterInstanceEventBase {
@@ -366,6 +380,7 @@ export type InterInstanceEvent =
     | ConfigChangedEvent
     | TokenUsageUpdatedEvent
     | SyncCompletedEvent
+    | RemoteMetadataUpdatedEvent
     | LeaderChangedEvent
     | LeaderResigningEvent
     | LiveMetricsUpdatedEvent
@@ -393,6 +408,7 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'configChanged',
     'tokenUsageUpdated',
     'syncCompleted',
+    'remoteMetadataUpdated',
     'leaderChanged',
     'leaderResigning',
     'liveMetricsUpdated',

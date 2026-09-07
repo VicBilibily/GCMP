@@ -19,6 +19,7 @@ import {
 } from '../../types/sharedTypes';
 import { collectInvalidTierCrons, normalizeTokenPricing } from '../pricing/pricingTierResolver';
 import { configProviders } from '../../providers/config';
+import { getRemoteModelsOverlay } from '../metadata/modelsResolver';
 import { CommitFormat, CommitLanguage, ModelSelection } from '../../commit/types';
 import { InterInstanceBus } from '../../interInstance';
 import { t } from '../runtime/l10n';
@@ -650,14 +651,15 @@ export class ConfigManager {
      *
      * 查找顺序沿 lookupKeys（精确 key → 根 provider → compatible）逐层查找模型：
      * 每层先查该 key 的 overrides.models（可覆盖或新增模型，与 applyProviderOverrides 语义一致），
-     * 再查 configProviders 预置模型；首个命中即返回。
+     * 再查远程覆盖或内置模型基线；首个命中即返回。
      */
     static getModelRateLimitConfig(providerKey: string, modelId: string): RateLimitConfig | undefined {
         const overrides = this.getProviderOverrides();
         for (const key of this.getProxyLookupKeys(providerKey)) {
             const overrideLimit = overrides[key]?.models?.find(model => model.id === modelId)?.limit;
             const baseConfig = configProviders[key as keyof typeof configProviders] as ProviderConfig | undefined;
-            const baseLimit = baseConfig?.models.find(model => model.id === modelId)?.limit;
+            const baseModels = getRemoteModelsOverlay().get(key) ?? baseConfig?.models;
+            const baseLimit = baseModels?.find(model => model.id === modelId)?.limit;
             if (overrideLimit !== undefined) {
                 return baseLimit ? { ...baseLimit, ...overrideLimit } : overrideLimit;
             }
@@ -998,10 +1000,14 @@ export class ConfigManager {
      * 在返回前对 tokenPricing 做归一化，确保消费方拿到的始终是对象形式。
      */
     static getConfigProvider(): ConfigProvider {
+        const modelsOverlay = getRemoteModelsOverlay();
         const normalized: ConfigProvider = {};
         for (const [key, config] of Object.entries(configProviders)) {
+            // 远程模型清单覆盖层：仅替换 models，提供商级字段（baseUrl/apiKeyTemplate 等）始终保持内置
+            const remoteModels = modelsOverlay.get(key);
+            const effective = remoteModels ? { ...config, models: remoteModels } : config;
             normalized[key] = this.normalizeProviderPricing(
-                config as unknown as { models?: readonly Record<string, unknown>[] }
+                effective as unknown as { models?: readonly Record<string, unknown>[] }
             ) as unknown as ProviderConfig;
         }
         return normalized;

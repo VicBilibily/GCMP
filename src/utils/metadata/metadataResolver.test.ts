@@ -7,6 +7,7 @@ import {
     getClaudeCodeCliVersion,
     getCodexTuiCliHeader,
     hashCliMetadata,
+    isOlderGcmpMetadata,
     parseGcmpMetadata,
     setRemoteCliMetadata,
     withCodexCliMetadata
@@ -32,6 +33,39 @@ test('parseGcmpMetadata parses a valid payload', () => {
     assert.equal(parsed?.cli.claudeCodeVersion, '2.1.300');
     assert.equal(parsed?.cli.codexTuiVersion, '0.200.0');
     assert.equal(parsed?.cli.codexTuiOriginator, 'codex-tui');
+});
+
+test('parseGcmpMetadata reads generatedAt and isOlderGcmpMetadata compares timestamps', () => {
+    const older = parseGcmpMetadata(
+        JSON.stringify({
+            schemaVersion: 1,
+            generatedAt: '2026-09-01T00:00:00.000Z',
+            cli: { claudeCode: { version: '2.1.263' } }
+        })
+    );
+    const newer = parseGcmpMetadata(
+        JSON.stringify({
+            schemaVersion: 1,
+            generatedAt: '2026-09-07T00:00:00.000Z',
+            cli: { claudeCode: { version: '2.1.300' } }
+        })
+    );
+    const untimed = parseGcmpMetadata(JSON.stringify({ schemaVersion: 1, cli: {} }));
+    assert.equal(older?.generatedAt, Date.parse('2026-09-01T00:00:00.000Z'));
+    assert.equal(newer?.generatedAt, Date.parse('2026-09-07T00:00:00.000Z'));
+    assert.equal(untimed?.generatedAt, undefined);
+    assert.equal(
+        parseGcmpMetadata(JSON.stringify({ schemaVersion: 1, generatedAt: 'not-a-date', cli: {} }))?.generatedAt,
+        undefined
+    );
+    assert.equal(isOlderGcmpMetadata(older!, newer!), true);
+    assert.equal(isOlderGcmpMetadata(newer!, older!), false);
+    assert.equal(isOlderGcmpMetadata(older!, untimed!), false);
+    assert.equal(isOlderGcmpMetadata(untimed!, newer!), true);
+    assert.equal(isOlderGcmpMetadata(newer!, newer!), false);
+    assert.equal(isOlderGcmpMetadata(untimed!, untimed!), false);
+    const invalid = parseGcmpMetadata(JSON.stringify({ schemaVersion: 1, generatedAt: 'invalid', cli: {} }));
+    assert.equal(isOlderGcmpMetadata(invalid!, newer!), true);
 });
 
 test('parseGcmpMetadata rejects invalid JSON and unsupported schemaVersion', () => {

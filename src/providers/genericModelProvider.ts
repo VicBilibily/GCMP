@@ -205,6 +205,23 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this._onDidChangeLanguageModelChatInformation.fire();
     }
 
+    /**
+     * 远程模型清单热更新（RemoteModelsService 推送）：替换基线 models，
+     * 重算覆盖配置并清缓存、通知 VS Code；优先级链保持 用户覆盖 > 远程 > 内置
+     */
+    updateRemoteModels(models: ModelConfig[]): void {
+        if (JSON.stringify(this.baseProviderConfig.models) === JSON.stringify(models)) {
+            return;
+        }
+        this.baseProviderConfig = { ...this.baseProviderConfig, models };
+        this.cachedProviderConfig = this.applyProviderConfigOverrides(this.baseProviderConfig);
+        this.modelInfoCache
+            ?.invalidateCache(this.providerKey)
+            .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache for remote models:`, err));
+        Logger.debug(`[${this.providerKey}] Remote models updated (${models.length} models)`);
+        this._onDidChangeLanguageModelChatInformation.fire();
+    }
+
     /** 获取 providerKey */
     get provider(): string {
         return this.providerKey;

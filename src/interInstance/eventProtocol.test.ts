@@ -27,6 +27,17 @@ test('parseIncrementalEvents reconstructs a split NDJSON event across chunks', (
     assert.equal(second.remaining, '');
 });
 
+test('remote metadata update event is registered and parses', () => {
+    assert.ok(INTER_INSTANCE_EVENT_TYPES.includes('remoteMetadataUpdated'));
+    const { events, remaining } = parseEventsFromBuffer(
+        '{"type":"remoteMetadataUpdated","payload":{"target":"models","contentHash":"abc123"},"timestamp":1,"senderInstanceId":"leader"}\n'
+    );
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.type, 'remoteMetadataUpdated');
+    assert.equal(remaining, '');
+});
+
 test('rate limit event types are registered in the event type set', () => {
     for (const type of [
         'liveMetricsSnapshotRequested',
