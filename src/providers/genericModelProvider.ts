@@ -215,11 +215,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
         this.baseProviderConfig = { ...this.baseProviderConfig, models };
         this.cachedProviderConfig = this.applyProviderConfigOverrides(this.baseProviderConfig);
-        this.modelInfoCache
-            ?.invalidateCache(this.providerKey)
-            .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache for remote models:`, err));
         Logger.debug(`[${this.providerKey}] Remote models updated (${models.length} models)`);
-        this._onDidChangeLanguageModelChatInformation.fire();
+        void (this.modelInfoCache?.invalidateCache(this.providerKey) ?? Promise.resolve()).then(
+            () => this._onDidChangeLanguageModelChatInformation.fire(),
+            err => {
+                Logger.warn(`[${this.providerKey}] Failed to clear cache for remote models:`, err);
+                this._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
     }
 
     /** 获取 providerKey */

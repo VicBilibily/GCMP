@@ -187,6 +187,17 @@ function asCleanString(value: unknown, maxLength: number): string | undefined {
     return hasControlChars(trimmed) ? undefined : trimmed;
 }
 
+function collectTrustedModelValues(
+    models: readonly ModelConfig[],
+    field: 'baseUrl' | 'endpoint' | 'provider'
+): Set<string> {
+    return new Set(
+        models
+            .map(model => model[field])
+            .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    );
+}
+
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS_PATTERN = /[\x00-\x1f\x7f]/;
 
@@ -382,6 +393,9 @@ export function sanitizeProviderModels(
         return undefined;
     }
     const builtinById = new Map((builtinModels ?? []).map(model => [model.id, model]));
+    const trustedBaseUrls = collectTrustedModelValues(builtinModels ?? [], 'baseUrl');
+    const trustedEndpoints = collectTrustedModelValues(builtinModels ?? [], 'endpoint');
+    const trustedProviders = collectTrustedModelValues(builtinModels ?? [], 'provider');
     const remoteModelsById = new Map<string, ModelConfig>();
     const stripped = new Set<string>();
     let droppedModels = 0;
@@ -416,6 +430,19 @@ export function sanitizeProviderModels(
                 imageInput: asRecord(input.capabilities).imageInput === true
             }
         };
+
+        const remoteBaseUrl = asCleanString(input.baseUrl, 2048);
+        if (remoteBaseUrl && trustedBaseUrls.has(remoteBaseUrl)) {
+            model.baseUrl = remoteBaseUrl;
+        }
+        const remoteEndpoint = asCleanString(input.endpoint, 2048);
+        if (remoteEndpoint && trustedEndpoints.has(remoteEndpoint)) {
+            model.endpoint = remoteEndpoint;
+        }
+        const remoteProvider = asCleanString(input.provider, 128);
+        if (remoteProvider && trustedProviders.has(remoteProvider)) {
+            model.provider = remoteProvider;
+        }
 
         const version = asCleanString(input.version, 64);
         if (version) {

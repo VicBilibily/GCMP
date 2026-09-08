@@ -23,10 +23,10 @@ import type { ModelConfig } from '../../types/sharedTypes';
 import {
     compareGcmpVersions,
     hashModelsText,
-    isRemoteManifestFresh,
     parseModelsManifest,
     sanitizeProviderModels,
-    setRemoteProviderModels
+    setRemoteProviderModels,
+    getRemoteModelsOverlay
 } from './modelsResolver';
 import type { ModelsManifest } from './modelsResolver';
 
@@ -42,7 +42,6 @@ export class RemoteModelsService {
     private static cacheDir = '';
     private static localDir = '';
     private static isDevelopment = false;
-    private static extensionVersion = '';
     private static refreshPromise?: Promise<void>;
     private static cacheLoadGeneration = 0;
     /** 各 provider 当前生效快照的文本哈希，用于刷新时跳过无变化的下载与写盘 */
@@ -54,7 +53,6 @@ export class RemoteModelsService {
         this.isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         this.cacheDir = path.join(context.globalStorageUri.fsPath, 'models');
         this.localDir = path.join(context.extensionPath, 'src', 'providers', 'config');
-        this.extensionVersion = String(context.extension.packageJSON.version ?? '');
 
         await this.loadInitial();
 
@@ -76,7 +74,15 @@ export class RemoteModelsService {
 
     /** 提供商注册完成后启动首次网络刷新，避免热推送早于注册表初始化而丢失 */
     static startAfterProvidersRegistered(): void {
+        this.pushLoadedModelsToProviders();
         void this.refresh();
+    }
+
+    private static pushLoadedModelsToProviders(): void {
+        const loadedModels = getRemoteModelsOverlay();
+        if (loadedModels.size > 0) {
+            this.pushToProviders(new Map([...loadedModels].map(([providerKey, models]) => [providerKey, [...models]])));
+        }
     }
 
     private static handleLeaderChanged(isLeader: boolean): void {
@@ -315,7 +321,7 @@ export class RemoteModelsService {
             return false;
         }
         const manifest = parseModelsManifest(manifestText);
-        if (!manifest || !isRemoteManifestFresh(manifest.gcmpVersion, this.extensionVersion)) {
+        if (!manifest) {
             return false;
         }
         const manifestHash = hashModelsText(manifestText);
@@ -408,12 +414,6 @@ export class RemoteModelsService {
             const manifest = parseModelsManifest(manifestText);
             if (!manifest) {
                 Logger.warn('[Models] Remote manifest content invalid, keeping current values');
-                return;
-            }
-            if (!isRemoteManifestFresh(manifest.gcmpVersion, this.extensionVersion)) {
-                Logger.trace(
-                    `[Models] Remote manifest ${manifest.gcmpVersion} older than extension ${this.extensionVersion}, skipped`
-                );
                 return;
             }
             const manifestHash = hashModelsText(manifestText);
