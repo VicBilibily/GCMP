@@ -756,7 +756,7 @@ export class OpenAIResponsesStreamProcessor {
             throw this.streamError;
         }
         if (!this.hasFinalizedResponse) {
-            this.flushPendingToolCalls();
+            this.finalizeResponse({});
         }
     }
 
@@ -766,6 +766,10 @@ export class OpenAIResponsesStreamProcessor {
 
     getFinishReason(): OpenAIResponsesFinishReason {
         return this.finishReason;
+    }
+
+    isResponseFinalized(): boolean {
+        return this.hasFinalizedResponse;
     }
 
     getStreamStartTime(): number | undefined {

@@ -53,6 +53,7 @@ class MockOpenAIResponsesRequestBuilder {
 
 class MockOpenAIResponsesStreamProcessor {
     private finalUsage: { total_tokens: number } | undefined = { total_tokens: 12 };
+    private finalized = false;
 
     constructor(_options: unknown) {}
 
@@ -61,6 +62,7 @@ class MockOpenAIResponsesStreamProcessor {
     async consume(stream: unknown): Promise<void> {
         consumedStreams.push(stream);
         this.finalUsage = (stream as { noUsage?: boolean }).noUsage ? undefined : { total_tokens: 12 };
+        this.finalized = (stream as { responseFinalized?: boolean }).responseFinalized === true;
         if ((stream as { shouldFail?: boolean }).shouldFail) {
             throw new Error('stream failed');
         }
@@ -80,6 +82,10 @@ class MockOpenAIResponsesStreamProcessor {
 
     getStreamEndTime(): number {
         return 200;
+    }
+
+    isResponseFinalized(): boolean {
+        return this.finalized;
     }
 }
 
@@ -396,4 +402,56 @@ test('handleResponsesRequest：流处理失败且无 usage 时仍记录 failed �
         }
     );
     assert.equal(typeof updateActualTokensCalls[0]?.requestMetricStartTime, 'number');
+});
+
+test('handleResponsesRequest：processor 已收口时不重复 flush reporter', async () => {
+    loggerInfoCalls.length = 0;
+    updateActualTokensCalls.length = 0;
+    consumedStreams.length = 0;
+    reportUsageCalls.length = 0;
+    flushAllCalls.length = 0;
+
+    const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+    const fakeStream = { tag: 'responses-stream', shouldFail: true, responseFinalized: true };
+    const client = {
+        _options: { defaultHeaders: {} as Record<string, string> },
+        responses: {
+            async create(_body: unknown, _options: unknown) {
+                return fakeStream;
+            }
+        }
+    };
+    const handler = new OpenAIResponsesHandler(
+        {
+            provider: 'openai',
+            providerConfig: { displayName: 'Test Provider' }
+        } as never,
+        {
+            async createOpenAIClient() {
+                return client;
+            }
+        } as never
+    );
+
+    await assert.rejects(
+        handler.handleResponsesRequest(
+            { id: 'model-id', name: 'test-model' } as never,
+            {} as never,
+            [] as never,
+            { modelConfiguration: {} } as never,
+            { report() {} } as never,
+            'request-1',
+            'session-1',
+            {
+                isCancellationRequested: false,
+                onCancellationRequested() {
+                    return { dispose() {} };
+                }
+            } as never,
+            123
+        ),
+        /stream failed/
+    );
+
+    assert.deepEqual(flushAllCalls, []);
 });

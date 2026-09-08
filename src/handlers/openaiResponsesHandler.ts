@@ -228,7 +228,9 @@ export class OpenAIResponsesHandler {
                             }
                         }
                         reporter.reportUsage(finalUsage, costNanoAiu);
-                        reporter.flushAll(null, undefined, finalUsage);
+                        if (!streamProcessor?.isResponseFinalized()) {
+                            reporter.flushAll(null, undefined, finalUsage);
+                        }
                         TokenUsagesManager.instance.updateActualTokens({
                             requestId,
                             sessionId,

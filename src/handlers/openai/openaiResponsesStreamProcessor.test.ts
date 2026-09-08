@@ -333,6 +333,25 @@ test('consume：只有 arguments.done 时流末回退，取消和失败不执行
     }
 });
 
+test('consume：无终态事件时统一收口并刷新 marker', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor, flushed } = createProcessor(OpenAIResponsesStreamProcessor);
+
+    await processor.consume(
+        eventsFrom([
+            {
+                type: 'response.output_text.delta',
+                item_id: 'message-1',
+                content_index: 0,
+                delta: 'partial'
+            }
+        ]) as never
+    );
+
+    assert.deepEqual(flushed, [{ finishReason: null, responseId: undefined, usage: undefined }]);
+    assert.equal(processor.isResponseFinalized(), true);
+});
+
 test('consume：终态保留已知身份后才按内容匹配重写项', async () => {
     const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
     const calls: unknown[] = [];

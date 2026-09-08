@@ -6,7 +6,11 @@ import { CliAuthFactory } from '../../src/cli/auth/cliAuthFactory';
 import { CompatibleModelManager, type CompatibleModelConfig } from '../../src/utils/config/compatibleModelManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import { queryCodexUsage } from '../../src/quota/codexQuota';
-import { getClaudeCodeCliVersion, getCodexTuiCliHeader } from '../../src/utils/metadata/metadataResolver';
+import {
+    getClaudeCodeCliVersion,
+    getCodexTuiCliHeader,
+    setRemoteCliMetadata
+} from '../../src/utils/metadata/metadataResolver';
 import type { ProviderConfig } from '../../src/types/sharedTypes';
 
 // 版本断言跟随共享元数据源文件，update:metadata 升级后无需改测试
@@ -45,7 +49,10 @@ suite('Codex User-Agent provider integration', () => {
         };
 
         const generated = provider.providerConfig;
-        assert.match(generated.customHeader?.['User-Agent'] ?? '', /^codex-tui\/0\.153\.2 /);
+        assert.match(
+            generated.customHeader?.['User-Agent'] ?? '',
+            new RegExp(`^codex-tui/${escRegExp(getCodexTuiCliHeader().version)} `)
+        );
 
         state.cachedProviderConfig.customHeader = {
             version: '0.153.2',
@@ -55,6 +62,35 @@ suite('Codex User-Agent provider integration', () => {
         const explicit = provider.providerConfig;
         assert.equal(explicit.customHeader?.['User-Agent'], 'custom/1.0');
         assert.equal(explicit.customHeader?.['user-agent'], undefined);
+    });
+
+    test('CodexProvider getter reflects updated remote metadata', () => {
+        const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
+        const provider = Object.create(CodexProvider.prototype) as CodexProvider;
+        const state = provider as unknown as { cachedProviderConfig: ProviderConfig };
+        state.cachedProviderConfig = {
+            displayName: 'Codex',
+            baseUrl: 'https://chatgpt.com/backend-api/codex',
+            apiKeyTemplate: 'token',
+            customHeader: {
+                version: '0.153.0',
+                originator: 'codex-tui'
+            },
+            models: []
+        };
+
+        try {
+            ConfigManager.getProviderOverrides = () => ({}) as ReturnType<typeof ConfigManager.getProviderOverrides>;
+            setRemoteCliMetadata({ codexTuiVersion: '0.200.0', codexTuiOriginator: 'codex-vscode' });
+            const generated = provider.providerConfig;
+
+            assert.equal(generated.customHeader?.version, '0.200.0');
+            assert.equal(generated.customHeader?.originator, 'codex-vscode');
+            assert.match(generated.customHeader?.['User-Agent'] ?? '', /^codex-vscode\/0\.200\.0 /);
+        } finally {
+            ConfigManager.getProviderOverrides = originalGetProviderOverrides;
+            setRemoteCliMetadata(undefined);
+        }
     });
 
     test('CompatibleProvider fills Codex and Claude headers and preserves explicit headers', () => {

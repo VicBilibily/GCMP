@@ -111,13 +111,14 @@ export class CodexProvider extends CliBaseProvider {
      * 每次读取都补齐 User-Agent：overrides 已配置则保留，否则按 Codex CLI 形态生成
      */
     override get providerConfig(): ProviderConfig {
-        const config = this.cachedProviderConfig;
+        const config = withCodexCliMetadata(this.cachedProviderConfig);
+        const customHeader = {
+            ...config.customHeader,
+            ...ConfigManager.getProviderOverrides().codex?.customHeader
+        };
         return {
             ...config,
-            customHeader: ensureUserAgentHeader(
-                config.customHeader,
-                getCodexTuiUserAgentFromHeader(config.customHeader)
-            )
+            customHeader: ensureUserAgentHeader(customHeader, getCodexTuiUserAgentFromHeader(customHeader))
         };
     }
 
