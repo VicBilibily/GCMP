@@ -13,6 +13,7 @@ import { CustomDataPartMimeTypes } from './types';
 import { ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
 import { LiveMetricsTracker } from './liveMetricsTracker';
 import type { LiveStreamMetricEvent } from './liveMetrics';
+import { uniquifyCallId } from './toolCallIdUtils';
 import { TokenCounter } from '../utils/model/tokenCounter';
 import type { TikTokenizer } from '@microsoft/tiktokenizer';
 
@@ -68,7 +69,7 @@ export interface StreamReporterOptions {
  * src/handlers/buffers/ 下的四个专用 Buffer 类：
  * - ThinkingBuffer: 思考链缓冲，管理 thinking id 生命周期，输出 LanguageModelThinkingPart
  * - SignatureBuffer: 签名缓冲，累积 signature 供 StatefulMarker 持久化
- * - ToolCallAccumulator: 工具调用分片累积，检测完整 JSON 后输出 CompletedToolCall
+ * - ToolCallAccumulator: 工具调用分片累积，结束时输出 CompletedToolCall
  *
  * 核心流程：
  * 1. Handler 持续调用 bufferThinking / reportText / accumulateToolCall / bufferSignature 等方法
@@ -78,7 +79,7 @@ export interface StreamReporterOptions {
  *
  * 关键实现约定：
  * - accumulateToolCall 首次创建某 index 的 buffer 时立即 endThinkingChain
- * - 工具调用完成时只 flushSignature，不主动 endThinkingChain
+ * - 工具调用完成时先 flushSignature，再结束思维链并输出调用
  * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
  * - flushAll 中 signature 在 endThinkingChain 之前输出
  */
@@ -93,6 +94,8 @@ export class StreamReporter {
     private readonly thinkingBuffer = new ThinkingBuffer();
     private readonly signatureBuffer = new SignatureBuffer();
     private readonly toolCallAccumulator = new ToolCallAccumulator();
+    /** 响应级工具调用 id 去重集合：重复 id 改名，避免重复 id 沉淀进聊天历史 */
+    private readonly reportedToolCallIds = new Set<string>();
 
     private readonly sessionId: string;
     private responseId: string | null = null;
@@ -199,6 +202,8 @@ export class StreamReporter {
     ): void {
         this.endThinkingChain();
 
+        const uniqueCallId = this.dedupeToolCallId(callId);
+
         // 完整 tool arguments 也是 provider 实际回传的一部分；
         // 用于不提供 argument delta、只提供完整 tool call 的 provider/SDK 路径。
         const argsJson = stringifyToolArgs(args);
@@ -211,11 +216,22 @@ export class StreamReporter {
             this.tracker.reportToolCallOverhead(this.sdkMode, name, argsJson);
         }
 
-        this.progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
+        this.progress.report(new vscode.LanguageModelToolCallPart(uniqueCallId, name, args));
         this.hasReceivedContent = true;
         this.hasToolCalls = true;
 
-        Logger.info(`[${this.modelName}] Successfully processed tool call: ${name} toolCallId: ${callId}`);
+        Logger.info(`[${this.modelName}] Successfully processed tool call: ${name} toolCallId: ${uniqueCallId}`);
+    }
+
+    /** 上游在同一响应内重复下发相同工具调用 id 时改写为唯一 id */
+    private dedupeToolCallId(callId: string): string {
+        const uniqueCallId = uniquifyCallId(this.reportedToolCallIds, callId);
+        if (uniqueCallId !== callId) {
+            Logger.warn(
+                `[${this.modelName}] duplicate tool call id ${callId} in one response, renamed to ${uniqueCallId}`
+            );
+        }
+        return uniqueCallId;
     }
 
     /**
@@ -274,22 +290,17 @@ export class StreamReporter {
         }
     }
 
-    /**
-     * 累积工具调用数据（去重处理）
-     * 当检测到工具调用完成时，立即报告
-     *
-     * 关键实现约定：
-     * - 首次为某 index 创建工具调用 buffer 时：endThinkingChain
-     * - 工具完成时：flushSignature
-     *   （不调用 endThinkingChain，思维链的结束留给后续 reportText / flushAll 处理）
-     */
     accumulateToolCall(
         index: number,
         id: string | undefined,
         name: string | undefined,
-        argsFragment: string | undefined
+        argsFragment: string | undefined,
+        choiceIndex = 0
     ): void {
-        const { isNew, completed } = this.toolCallAccumulator.accumulate(index, id, name, argsFragment);
+        if (this.toolCallAccumulator.isCompleted(index, choiceIndex)) {
+            return;
+        }
+        const { isNew } = this.toolCallAccumulator.accumulate(index, id, name, argsFragment, choiceIndex);
 
         // 首次为该 index 创建工具调用 buffer 时，直接结束思维链。
         if (isNew) {
@@ -300,30 +311,17 @@ export class StreamReporter {
         if (argsFragment) {
             this.tracker.reportOutput(argsFragment);
         }
+    }
 
-        if (!completed) {
-            return;
-        }
+    discardToolCalls(choiceIndex?: number): void {
+        this.toolCallAccumulator.discard(choiceIndex);
+    }
 
-        // 工具调用完成，输出已缓冲的签名。
+    flushToolCalls(choiceIndex?: number): void {
         this.flushSignature();
-
-        // 补回 name + id + type + JSON 结构开销：args 已通过 argsFragment 分片累计，
-        // 这里只补非 args 部分，让预估 token 接近 provider 实际计费值
-        const completedArgsJson = stringifyToolArgs(completed.args);
-        if (completedArgsJson) {
-            this.tracker.reportToolCallOverhead(this.sdkMode, completed.name, completedArgsJson);
+        for (const tool of this.toolCallAccumulator.flushAll(choiceIndex)) {
+            this.reportToolCall(tool.toolCallId, tool.name, tool.args, { countArgs: false });
         }
-
-        this.progress.report(
-            new vscode.LanguageModelToolCallPart(completed.toolCallId, completed.name, completed.args)
-        );
-        this.hasReceivedContent = true;
-        this.hasToolCalls = true;
-
-        Logger.info(
-            `[${this.modelName}] Successfully processed tool call: ${completed.name} toolCallId: ${completed.toolCallId}`
-        );
     }
 
     /**
@@ -439,20 +437,7 @@ export class StreamReporter {
         this.endThinkingChain();
 
         // 3. 处理未完成的工具调用（如果有）
-        if (this.toolCallAccumulator.hasPending) {
-            Logger.warn(
-                `[${this.modelName}] Stream ended with ${this.toolCallAccumulator.pendingCount} unfinished tool calls`
-            );
-            for (const tool of this.toolCallAccumulator.flushAll()) {
-                // 同步补回 name + id + type + JSON 结构开销，与正常完成路径保持一致
-                const flushArgsJson = stringifyToolArgs(tool.args);
-                if (flushArgsJson) {
-                    this.tracker.reportToolCallOverhead(this.sdkMode, tool.name, flushArgsJson);
-                }
-                this.progress.report(new vscode.LanguageModelToolCallPart(tool.toolCallId, tool.name, tool.args));
-                this.hasToolCalls = true;
-            }
-        }
+        this.flushToolCalls();
 
         // 4. 报告 StatefulMarker
         this.reportStatefulMarker(customStatefulData, finalUsage);

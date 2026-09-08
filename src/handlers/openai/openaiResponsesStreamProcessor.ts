@@ -5,6 +5,7 @@ import type { GenericUsageData } from '../../usages/fileLogger/types';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import { StreamReporter } from '../streamReporter';
+import { canonicalizeJsonString } from './openaiChatRequestPreprocessor';
 import type { Stream } from 'openai/streaming';
 import type { ResponseStreamEvent } from 'openai/resources/responses/responses';
 
@@ -99,7 +100,11 @@ export class OpenAIResponsesStreamState {
     private readonly completedToolCallIndices = new Set<number>();
     private readonly deltaCountedToolCallIndices = new Set<number>();
     private readonly toolCallIdToIndex = new Map<string, number>();
+    private readonly callIdAliases = new Map<string, number | null>();
+    private readonly provisionalCallIds = new Set<string>();
     private readonly completedWebSearchCallIds = new Set<string>();
+    private readonly outputIndices = new Map<number, number>();
+    private completedPhaseCandidates = new Map<number, OpenAIResponsesToolCallBuffer>();
     private nextToolCallIndex = 0;
     private lastTextDeltaOutputIndex: number | undefined;
 
@@ -170,23 +175,127 @@ export class OpenAIResponsesStreamState {
     }
 
     linkToolCallId(callId: string, idx: number): void {
-        this.toolCallIdToIndex.set(callId, idx);
+        const existing = this.callIdAliases.get(callId);
+        this.callIdAliases.set(callId, existing === undefined || existing === idx ? idx : null);
+        if ([...this.toolCallIdToIndex.values()].includes(idx)) {
+            this.provisionalCallIds.delete(callId);
+        }
     }
 
-    getStableToolCallIndex(itemId?: string, callId?: string): number | undefined {
-        const primaryId = callId || itemId;
-        if (!primaryId) {
+    getStableToolCallIndex(itemId?: string, callId?: string, outputIndex?: number): number | undefined {
+        if (outputIndex !== undefined) {
+            const existing = this.outputIndices.get(outputIndex);
+            if (existing !== undefined) {
+                if (itemId) {
+                    this.toolCallIdToIndex.set(itemId, existing);
+                }
+                if (callId) {
+                    this.linkToolCallId(callId, existing);
+                }
+                return existing;
+            }
+            const alias = callId ? this.callIdAliases.get(callId) : undefined;
+            const aliasAlreadyIndexed = typeof alias === 'number' && [...this.outputIndices.values()].includes(alias);
+            const idx =
+                !itemId && aliasAlreadyIndexed ?
+                    this.nextToolCallIndex++
+                :   (this.getStableToolCallIndex(itemId, callId) ?? this.nextToolCallIndex++);
+            this.outputIndices.set(outputIndex, idx);
+            if (callId) {
+                this.linkToolCallId(callId, idx);
+            }
+            return idx;
+        }
+        if (itemId) {
+            const provisionalIndex =
+                callId && this.provisionalCallIds.has(callId) ? this.callIdAliases.get(callId) : undefined;
+            if (provisionalIndex !== undefined && provisionalIndex !== null && !this.toolCallIdToIndex.has(itemId)) {
+                this.toolCallIdToIndex.set(itemId, provisionalIndex);
+                this.provisionalCallIds.delete(callId!);
+                return provisionalIndex;
+            }
+
+            const idx = this.getToolCallIndex(itemId);
+            if (callId) {
+                this.linkToolCallId(callId, idx);
+            }
+            return idx;
+        }
+        if (!callId) {
             return undefined;
         }
 
-        const idx = this.getToolCallIndex(primaryId);
-        if (itemId && itemId !== primaryId) {
-            this.linkToolCallId(itemId, idx);
+        const existingIndex = this.callIdAliases.get(callId);
+        if (existingIndex !== undefined) {
+            return existingIndex ?? undefined;
         }
-        if (callId && callId !== primaryId) {
+
+        const provisionalIndex = this.nextToolCallIndex++;
+        this.callIdAliases.set(callId, provisionalIndex);
+        this.provisionalCallIds.add(callId);
+        return provisionalIndex;
+    }
+
+    beginCompletedPhase(items: Array<{ id?: string }>): void {
+        this.completedPhaseCandidates = new Map(this.toolCallBuffers);
+        for (const [outputIndex, item] of items.entries()) {
+            const idx =
+                (item.id ? this.toolCallIdToIndex.get(item.id) : undefined) ?? this.outputIndices.get(outputIndex);
+            if (idx !== undefined) {
+                this.completedPhaseCandidates.delete(idx);
+            }
+        }
+    }
+
+    getCompletedPhaseToolCallIndex(
+        itemId?: string,
+        callId?: string,
+        name?: string,
+        args?: string,
+        outputIndex?: number
+    ): number | undefined {
+        const known =
+            (itemId ? this.toolCallIdToIndex.get(itemId) : undefined) ??
+            (outputIndex !== undefined ? this.outputIndices.get(outputIndex) : undefined);
+        if (known !== undefined) {
+            this.completedPhaseCandidates.delete(known);
+            return known;
+        }
+        const candidates = [...this.completedPhaseCandidates].filter(
+            ([, buffer]) =>
+                buffer.id === callId &&
+                buffer.name === name &&
+                (args === undefined || canonicalizeJsonString(buffer.args) === canonicalizeJsonString(args || '{}'))
+        );
+        if (args === undefined && candidates.length > 1) {
+            Logger.warn(`Ambiguous completed tool call without arguments: ${callId}`);
+            return undefined;
+        }
+        // 只消费终态前的记录，终态新项即使内容完全相同也保留。
+        const candidate = candidates[0];
+        if (candidate) {
+            const [idx] = candidate;
+            this.completedPhaseCandidates.delete(idx);
+            if (itemId) {
+                this.toolCallIdToIndex.set(itemId, idx);
+            }
+            if (outputIndex !== undefined) {
+                this.outputIndices.set(outputIndex, idx);
+            }
+            return idx;
+        }
+        const idx = itemId ? this.getToolCallIndex(itemId) : this.nextToolCallIndex++;
+        if (callId) {
             this.linkToolCallId(callId, idx);
         }
+        if (outputIndex !== undefined) {
+            this.outputIndices.set(outputIndex, idx);
+        }
         return idx;
+    }
+
+    getPendingToolCalls(): Array<[number, OpenAIResponsesToolCallBuffer]> {
+        return [...this.toolCallBuffers].filter(([idx]) => !this.isToolCallCompleted(idx));
     }
 
     getToolCallBuffer(idx: number): OpenAIResponsesToolCallBuffer | undefined {
@@ -408,22 +517,18 @@ export class OpenAIResponsesStreamProcessor {
                 this.state.rememberReasoningSummaryItem(event.item_id);
             })
             .on('response.function_call_arguments.delta', event => {
-                // 仅当 arguments 增量能映射到稳定的工具调用身份时，才计入实时 chars/s。
-                // 优先使用服务端返回的 call_id；只有兼容网关缺失时才退回 item_id。
-                // 这里宁可少记，也不要重复计数。
+                // 歧义 call_id 缺少 item/index 身份时宁可少计，不混入其他调用。
                 if (this.token.isCancellationRequested) {
                     return;
                 }
 
                 const itemId = typeof event.item_id === 'string' ? event.item_id : undefined;
                 const callId = this.getEventCallId(event);
-                const idx = this.state.getStableToolCallIndex(itemId, callId);
+                const idx = this.state.getStableToolCallIndex(itemId, callId, event.output_index);
                 if (idx === undefined) {
                     return;
                 }
 
-                // 某些兼容网关可能在 output_item.added 已带完整 args 后又补发 delta，
-                // 此时该 call 已 completed，跳过避免重复计数
                 if (this.state.isToolCallCompleted(idx)) {
                     return;
                 }
@@ -431,6 +536,10 @@ export class OpenAIResponsesStreamProcessor {
                 const delta = typeof event.delta === 'string' ? event.delta : '';
                 if (delta.length > 0) {
                     this.streamReporter.reportToolArgDelta(delta);
+                    const buffer = this.state.getToolCallBuffer(idx);
+                    if (buffer) {
+                        buffer.args = (this.state.wasToolCallDeltaCounted(idx) ? buffer.args : '') + delta;
+                    }
                     this.state.markToolCallDeltaCounted(idx);
                 }
             })
@@ -443,7 +552,7 @@ export class OpenAIResponsesStreamProcessor {
                 const eventCallId = this.getEventCallId(event);
                 const args = event.arguments || '';
 
-                const idx = this.state.getStableToolCallIndex(itemId, eventCallId);
+                const idx = this.state.getStableToolCallIndex(itemId, eventCallId, event.output_index);
                 if (idx === undefined) {
                     return;
                 }
@@ -467,7 +576,6 @@ export class OpenAIResponsesStreamProcessor {
 
                 // 使用 done 事件的完整参数
                 this.state.setToolCallBuffer(idx, { id: callId, name, args });
-                this.reportToolCallFromArguments(callId, name, args, idx);
             })
             .on('response.output_item.added', event => {
                 // 处理输出项添加事件
@@ -478,24 +586,23 @@ export class OpenAIResponsesStreamProcessor {
                 // 官方实现：output_item.added 仅处理 function_call，reasoning 在 output_item.done 中处理
                 if (item && item.type === 'function_call') {
                     const itemId = item.id;
-                    if (!itemId) {
+                    if (!itemId && !item.call_id && event.output_index === undefined) {
                         return;
                     }
 
                     // call_id 可能不存在，此时使用 itemId
-                    const callId = item.call_id || itemId;
+                    const callId = item.call_id || itemId || `call_output_${event.output_index}`;
                     const name = item.name || '';
                     const args = item.arguments || '';
 
                     // 使用 item.id 作为索引（delta/done 事件中的 item_id 对应这里）
-                    const idx = this.state.getToolCallIndex(itemId);
-                    if (this.state.isToolCallCompleted(idx)) {
+                    const idx = this.state.getStableToolCallIndex(
+                        itemId,
+                        item.call_id || undefined,
+                        event.output_index
+                    );
+                    if (idx === undefined || this.state.isToolCallCompleted(idx)) {
                         return;
-                    }
-
-                    // 如果 call_id 和 item.id 不同，也建立 call_id 的映射
-                    if (item.call_id && item.call_id !== itemId) {
-                        this.state.linkToolCallId(item.call_id, idx);
                     }
 
                     // 初始化或更新工具调用缓冲区
@@ -510,12 +617,6 @@ export class OpenAIResponsesStreamProcessor {
                         buf.args = args;
                     }
                     this.state.setToolCallBuffer(idx, buf);
-
-                    // 只有当参数完整时才发送工具调用
-                    // 否则等待后续的 delta/done 事件
-                    if (args && name) {
-                        this.reportToolCallFromArguments(callId, name, args, idx);
-                    }
                 }
             })
             .on('response.output_item.done', event => {
@@ -548,18 +649,27 @@ export class OpenAIResponsesStreamProcessor {
                     const itemId = typeof itemObj.id === 'string' ? itemObj.id : '';
                     const callId = itemObj.call_id || itemObj.id;
                     const name = typeof itemObj.name === 'string' ? itemObj.name : '';
-                    const args = typeof itemObj.arguments === 'string' ? itemObj.arguments : '';
+                    const args = typeof itemObj.arguments === 'string' ? itemObj.arguments : undefined;
 
-                    if (!itemId || !callId || !name || !args) {
+                    if (!callId || !name) {
                         return;
                     }
 
-                    const idx = this.state.getToolCallIndex(itemId);
-                    if (this.state.isToolCallCompleted(idx)) {
+                    const idx = this.state.getStableToolCallIndex(
+                        itemId,
+                        typeof itemObj.call_id === 'string' ? itemObj.call_id : undefined,
+                        event.output_index
+                    );
+                    if (idx === undefined || this.state.isToolCallCompleted(idx)) {
                         return;
                     }
 
-                    this.reportToolCallFromArguments(callId as string, name, args, idx);
+                    this.reportToolCallFromArguments(
+                        callId as string,
+                        name,
+                        args ?? this.state.getToolCallBuffer(idx)?.args ?? '{}',
+                        idx
+                    );
                 }
                 // 处理内置 web_search_call：在 output_item.done 上报（此时 item 含完整 action）
                 // 抓包验证：output_item.added 时 item 仅含 id/type/status，无 action；
@@ -587,7 +697,7 @@ export class OpenAIResponsesStreamProcessor {
                     reason === 'max_output_tokens' ? 'length'
                     : typeof reason === 'string' ? reason
                     : null;
-                this.finalizeResponse(event.response, finishReason);
+                this.finalizeResponse(event.response, finishReason, reason === 'content_filter');
                 if (finishReason === 'length') {
                     Logger.warn(`${this.modelName} Responses API response.incomplete: max_output_tokens`);
                     return;
@@ -620,6 +730,9 @@ export class OpenAIResponsesStreamProcessor {
     async consume(stream: Stream<ResponseStreamEvent>): Promise<void> {
         try {
             for await (const event of stream) {
+                if (this.token.isCancellationRequested && event.type !== 'response.failed' && event.type !== 'error') {
+                    throw new APIUserAbortError();
+                }
                 this.events.dispatch(event);
                 // 终态或错误后提前结束消费，避免对端继续保持连接造成的无效等待
                 if (this.streamError || this.hasFinalizedResponse) {
@@ -641,6 +754,9 @@ export class OpenAIResponsesStreamProcessor {
 
         if (this.streamError) {
             throw this.streamError;
+        }
+        if (!this.hasFinalizedResponse) {
+            this.flushPendingToolCalls();
         }
     }
 
@@ -685,7 +801,8 @@ export class OpenAIResponsesStreamProcessor {
                 arguments?: string;
             }>;
         },
-        finishReason: OpenAIResponsesFinishReason = null
+        finishReason: OpenAIResponsesFinishReason = null,
+        suppressPendingTools = false
     ): void {
         this.streamEndTime = Date.now();
         this.hasFinalizedResponse = true;
@@ -696,21 +813,37 @@ export class OpenAIResponsesStreamProcessor {
         }
 
         const output = response.output;
-        if (Array.isArray(output)) {
-            for (const item of output) {
-                if (item.type === 'function_call' && item.id && item.name) {
-                    const callId = item.call_id || item.id;
-                    const idx = this.state.getToolCallIndex(item.id);
-                    if (this.state.isToolCallCompleted(idx)) {
+        if (Array.isArray(output) && !suppressPendingTools) {
+            this.state.beginCompletedPhase(output);
+            for (const [outputIndex, item] of output.entries()) {
+                if (item.type === 'function_call' && (item.id || item.call_id) && item.name) {
+                    const callId = item.call_id || item.id!;
+                    const idx = this.state.getCompletedPhaseToolCallIndex(
+                        item.id,
+                        item.call_id,
+                        item.name,
+                        item.arguments,
+                        outputIndex
+                    );
+                    if (idx === undefined || this.state.isToolCallCompleted(idx)) {
                         continue;
                     }
 
-                    this.reportToolCallFromArguments(callId, item.name, item.arguments || '{}', idx);
+                    this.reportToolCallFromArguments(
+                        callId,
+                        item.name,
+                        item.arguments ?? this.state.getToolCallBuffer(idx)?.args ?? '{}',
+                        idx
+                    );
                 }
                 if (item.type === 'web_search_call' && item.id) {
                     this.reportWebSearchCall(item as unknown as Record<string, unknown>, 'completed');
                 }
             }
+        }
+
+        if (finishReason === null && !suppressPendingTools) {
+            this.flushPendingToolCalls();
         }
 
         const responseId = response.id;
@@ -732,14 +865,26 @@ export class OpenAIResponsesStreamProcessor {
     }
 
     private reportToolCallFromArguments(callId: string, name: string, args: string, idx: number): void {
+        if (this.token.isCancellationRequested || this.streamError) {
+            return;
+        }
         try {
             const input = JSON.parse(args || '{}');
+            this.state.setToolCallBuffer(idx, { id: callId, name, args });
             this.streamReporter.reportToolCall(callId, name, input, {
                 countArgs: !this.state.wasToolCallDeltaCounted(idx)
             });
             this.state.markToolCallCompleted(idx);
         } catch (error) {
             Logger.warn(`Failed to parse tool call arguments: ${args}`, error);
+        }
+    }
+
+    private flushPendingToolCalls(): void {
+        for (const [idx, buffer] of this.state.getPendingToolCalls()) {
+            if (buffer.name && buffer.args) {
+                this.reportToolCallFromArguments(buffer.id, buffer.name, buffer.args, idx);
+            }
         }
     }
 

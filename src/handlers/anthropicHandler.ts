@@ -456,7 +456,11 @@ export class AnthropicHandler {
         streamStartTime?: number;
         streamEndTime?: number;
     }> {
-        let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
+        const pendingToolCalls = new Map<
+            number,
+            { toolId: string; name: string; jsonInput: string; initialInput: unknown }
+        >();
+        const completedToolIndices = new Set<number>();
         let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
         const completedServerToolCalls = new Map<string, { toolId?: string; name?: string; jsonInput?: string }>();
         let usage: Anthropic.Messages.Usage | undefined;
@@ -475,6 +479,11 @@ export class AnthropicHandler {
                 if (token.isCancellationRequested) {
                     Logger.debug('Stream processing cancelled');
                     throw new vscode.CancellationError();
+                }
+
+                const pendingToolCall = 'index' in chunk ? pendingToolCalls.get(chunk.index) : undefined;
+                if ('index' in chunk && completedToolIndices.has(chunk.index)) {
+                    continue;
                 }
 
                 switch (chunk.type) {
@@ -499,11 +508,15 @@ export class AnthropicHandler {
                     case 'content_block_start':
                         // 内容块开始
                         if (chunk.content_block.type === 'tool_use') {
-                            pendingToolCall = {
+                            if (pendingToolCall) {
+                                break;
+                            }
+                            pendingToolCalls.set(chunk.index, {
                                 toolId: chunk.content_block.id,
                                 name: chunk.content_block.name,
-                                jsonInput: ''
-                            };
+                                jsonInput: '',
+                                initialInput: chunk.content_block.input ?? {}
+                            });
                         } else if (chunk.content_block.type === 'redacted_thinking') {
                             // redacted_thinking 加密思考块：原样输出并累积供 marker 持久化
                             reporter.reportRedactedThinking(chunk.content_block.data);
@@ -556,21 +569,6 @@ export class AnthropicHandler {
 
                             // tool argument delta 是 provider 实际回传的一部分，即使 Chat 面板隐藏也应计入 token 估算
                             reporter.reportToolArgDelta(partialJson);
-
-                            // 尝试立即解析并报告工具调用（如果 JSON 已完整）
-                            try {
-                                const parsedJson = JSON.parse(pendingToolCall.jsonInput);
-                                // JSON 解析成功，立即报告工具调用（countArgs: false，已通过 reportToolArgDelta 统计）
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, {
-                                    countArgs: false
-                                });
-                                Logger.trace(
-                                    `[${reporter.getModelName()}] Tool call completed: ${pendingToolCall.name}`
-                                );
-                                pendingToolCall = undefined; // 清除待处理的工具调用
-                            } catch {
-                                // JSON 还不完整，继续累积
-                            }
                         } else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
                             const partialJson = chunk.delta.partial_json ?? '';
                             pendingServerToolCall.jsonInput = (pendingServerToolCall.jsonInput || '') + partialJson;
@@ -602,29 +600,19 @@ export class AnthropicHandler {
                     case 'content_block_stop':
                         // 内容块停止（兜底处理）
                         if (pendingToolCall) {
-                            // 如果还有未处理的工具调用，尝试最后一次解析
+                            completedToolIndices.add(chunk.index);
+                            pendingToolCalls.delete(chunk.index);
                             try {
-                                const jsonInput = pendingToolCall.jsonInput || '{}';
-                                Logger.trace(
-                                    `[${reporter.getModelName()}] Fallback tool call handling on content_block_stop (${pendingToolCall.name}): ${jsonInput}`
-                                );
-
-                                let parsedJson: Record<string, unknown>;
-                                try {
-                                    parsedJson = JSON.parse(jsonInput);
-                                } catch {
-                                    // JSON 解析失败，使用空对象
-                                    Logger.warn(`Tool call JSON is incomplete, using an empty object: ${jsonInput}`);
-                                    parsedJson = {};
-                                }
-
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, {
-                                    countArgs: false
+                                const parsedJson =
+                                    pendingToolCall.jsonInput ?
+                                        JSON.parse(pendingToolCall.jsonInput)
+                                    :   pendingToolCall.initialInput;
+                                reporter.reportToolCall(pendingToolCall.toolId, pendingToolCall.name, parsedJson, {
+                                    countArgs: !pendingToolCall.jsonInput
                                 });
                             } catch (e) {
-                                Logger.error(`Fallback tool call handling failed (${pendingToolCall.name}):`, e);
+                                Logger.error(`Tool call arguments invalid (${pendingToolCall.name}):`, e);
                             }
-                            pendingToolCall = undefined;
                         } else if (pendingServerToolCall) {
                             const jsonInput = pendingServerToolCall.jsonInput || '{}';
                             Logger.trace(

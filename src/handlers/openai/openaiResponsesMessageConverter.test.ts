@@ -369,3 +369,65 @@ test('GPT 未启用 include 时不回传密文', async () => {
 
     assert.deepEqual(result.messages, []);
 });
+
+test('历史中重复 callId 被唯一化且 function_call_output 成对改写', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [{ callId: 'apply_patch:31', name: 'apply_patch', input: { a: 1 } }]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.User,
+                content: [{ callId: 'apply_patch:31', content: [{ value: 'done' }] }]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [{ callId: 'apply_patch:31', name: 'apply_patch', input: { a: 2 } }]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.User,
+                content: [{ callId: 'apply_patch:31', content: [{ value: 'done' }] }]
+            }
+        ] as never,
+        undefined,
+        { provider: 'openai', modelId: 'gpt-5.4' }
+    );
+
+    assert.deepEqual(result.messages, [
+        {
+            type: 'function_call',
+            call_id: 'apply_patch:31',
+            name: 'apply_patch',
+            arguments: '{"a":1}',
+            status: 'completed'
+        },
+        {
+            type: 'function_call_output',
+            call_id: 'apply_patch:31',
+            output: 'done',
+            status: 'completed'
+        },
+        {
+            type: 'function_call',
+            call_id: 'apply_patch:31__gcmpDup2',
+            name: 'apply_patch',
+            arguments: '{"a":2}',
+            status: 'completed'
+        },
+        {
+            type: 'function_call_output',
+            call_id: 'apply_patch:31__gcmpDup2',
+            output: 'done',
+            status: 'completed'
+        }
+    ]);
+
+    const callIds = result.messages
+        .filter(item => (item as { type?: string }).type === 'function_call')
+        .map(item => (item as { call_id: string }).call_id);
+    assert.equal(new Set(callIds).size, callIds.length);
+});

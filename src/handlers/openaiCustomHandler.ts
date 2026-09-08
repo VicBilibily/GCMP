@@ -295,6 +295,7 @@ export class OpenAICustomHandler {
             }
             if (requestId && reporter?.hasContent) {
                 if (!hasFinalStatusRecorded(error)) {
+                    reporter.discardToolCalls();
                     reporter.flushAll(null);
                     TokenUsagesManager.instance.updateActualTokens({
                         requestId: requestId || '',
@@ -346,6 +347,9 @@ export class OpenAICustomHandler {
                 }
 
                 const { done, value } = await reader.read();
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
+                }
                 if (done) {
                     break;
                 }
@@ -359,6 +363,9 @@ export class OpenAICustomHandler {
                 buffer = lines.pop() || '';
 
                 for (const line of lines) {
+                    if (token.isCancellationRequested) {
+                        throw new vscode.CancellationError();
+                    }
                     if (!line.trim() || line.trim() === '') {
                         continue;
                     }
@@ -372,69 +379,99 @@ export class OpenAICustomHandler {
                             continue;
                         }
 
+                        let chunk: Omit<OpenAI.Chat.ChatCompletionChunk, 'usage'> & {
+                            usage?: ExtendedCompletionUsage;
+                            error?: unknown;
+                        };
                         try {
-                            const chunk = JSON.parse(data);
-                            chunkCount++;
-
-                            // 首个有效 JSON chunk 到达时固定首流时间
-                            if (streamStartTime === undefined) {
-                                const now = Date.now();
-                                streamStartTime = now;
-                                reporter.markStreamStarted(now);
-                            }
-
-                            // 提取响应 ID（从首个 chunk）
-                            if (chunk.id && typeof chunk.id === 'string') {
-                                reporter.setResponseId(chunk.id);
-                            }
-
-                            // 检查是否是包含 usage 信息的最终 chunk
-                            if (chunk.usage) {
-                                finalUsage = chunk.usage;
-                            }
-
-                            // 处理正常的 choices
-                            for (const choice of chunk.choices || []) {
-                                const delta = choice.delta as ExtendedDelta | undefined;
-
-                                // 处理思考内容（reasoning_content / reasoning）
-                                const reasoningContent = delta?.reasoning_content ?? delta?.reasoning;
-                                if (reasoningContent && typeof reasoningContent === 'string') {
-                                    reporter.bufferThinking(reasoningContent);
-                                } else {
-                                    // reasoning_details 作为 fallback，仅在主源为空时使用，避免重复
-                                    const detailsContent = extractReasoningDetailsText(delta?.reasoning_details);
-                                    if (detailsContent) {
-                                        reporter.bufferThinking(detailsContent);
-                                    }
-                                }
-
-                                // 处理文本内容
-                                if (delta && delta.content && typeof delta.content === 'string') {
-                                    reporter.reportText(delta.content);
-                                }
-
-                                // 处理工具调用 - 支持分块数据的累积处理
-                                if (delta && delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                                    for (const toolCall of delta.tool_calls) {
-                                        const toolIndex = toolCall.index ?? 0;
-                                        reporter.accumulateToolCall(
-                                            toolIndex,
-                                            toolCall.id,
-                                            toolCall.function?.name,
-                                            toolCall.function?.arguments
-                                        );
-                                    }
-                                }
-
-                                // 注意：不在这里调用 flushAll，统一在流结束时处理
-                            }
+                            chunk = JSON.parse(data) as typeof chunk;
                         } catch (error) {
                             Logger.error(`[${model.name}] Failed to parse JSON: ${data}`, error);
+                            continue;
+                        }
+                        if (!chunk || typeof chunk !== 'object') {
+                            continue;
+                        }
+                        if (chunk.error !== undefined && chunk.error !== null) {
+                            const error = chunk.error;
+                            const message =
+                                typeof error === 'string' ? error
+                                : typeof error === 'object' && 'message' in error && typeof error.message === 'string' ?
+                                    error.message
+                                :   'SSE response error';
+                            throw new Error(message);
+                        }
+                        chunkCount++;
+
+                        // 首个有效 JSON chunk 到达时固定首流时间
+                        if (streamStartTime === undefined) {
+                            const now = Date.now();
+                            streamStartTime = now;
+                            reporter.markStreamStarted(now);
+                        }
+
+                        // 提取响应 ID（从首个 chunk）
+                        if (chunk.id && typeof chunk.id === 'string') {
+                            reporter.setResponseId(chunk.id);
+                        }
+
+                        // 检查是否是包含 usage 信息的最终 chunk
+                        if (chunk.usage) {
+                            finalUsage = chunk.usage;
+                        }
+
+                        // 处理正常的 choices
+                        for (const choice of chunk.choices || []) {
+                            const delta = choice.delta as ExtendedDelta | undefined;
+
+                            // 处理思考内容（reasoning_content / reasoning）
+                            const reasoningContent = delta?.reasoning_content ?? delta?.reasoning;
+                            if (reasoningContent && typeof reasoningContent === 'string') {
+                                reporter.bufferThinking(reasoningContent);
+                            } else {
+                                // reasoning_details 作为 fallback，仅在主源为空时使用，避免重复
+                                const detailsContent = extractReasoningDetailsText(delta?.reasoning_details);
+                                if (detailsContent) {
+                                    reporter.bufferThinking(detailsContent);
+                                }
+                            }
+
+                            // 处理文本内容
+                            if (delta && delta.content && typeof delta.content === 'string') {
+                                reporter.reportText(delta.content);
+                            }
+
+                            // 处理工具调用 - 支持分块数据的累积处理
+                            if (delta && delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                                for (const toolCall of delta.tool_calls) {
+                                    const toolIndex = toolCall.index ?? 0;
+                                    reporter.accumulateToolCall(
+                                        toolIndex,
+                                        toolCall.id,
+                                        toolCall.function?.name,
+                                        toolCall.function?.arguments,
+                                        choice.index ?? 0
+                                    );
+                                }
+                            }
+
+                            if (choice.finish_reason) {
+                                if (choice.finish_reason === 'content_filter' || choice.finish_reason === 'length') {
+                                    reporter.discardToolCalls(choice.index ?? 0);
+                                } else {
+                                    reporter.flushToolCalls(choice.index ?? 0);
+                                }
+                            }
                         }
                     }
                 }
             }
+            if (token.isCancellationRequested) {
+                throw new vscode.CancellationError();
+            }
+        } catch (error) {
+            reporter.discardToolCalls();
+            throw error;
         } finally {
             reader.releaseLock();
         }

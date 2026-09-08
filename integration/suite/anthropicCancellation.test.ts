@@ -12,9 +12,58 @@ import { RetryManager } from '../../src/utils/retry/retryManager';
 
 interface AnthropicHandlerTestAccess {
     createAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic>;
+    handleAnthropicStream(stream: AsyncIterable<unknown>, reporter: unknown, token: unknown): Promise<unknown>;
 }
 
 suite('Anthropic cancellation', () => {
+    test('工具等待对应 block stop、抑制重放且丢弃不完整 JSON', async () => {
+        const handler = new AnthropicHandler({} as GenericModelProvider) as unknown as AnthropicHandlerTestAccess;
+        const calls: unknown[] = [];
+        const reporter = {
+            heartbeat() {},
+            reportToolArgDelta() {},
+            flushSignature() {},
+            getModelName() {
+                return 'test';
+            },
+            getMetricStreamStartTime() {
+                return undefined;
+            },
+            reportToolCall(_id: string, _name: string, args: unknown) {
+                calls.push(args);
+            }
+        };
+        const start = (index: number) => ({
+            type: 'content_block_start',
+            index,
+            content_block: { type: 'tool_use', id: 'same', name: 'read_file', input: {} }
+        });
+        const delta = (index: number, partial_json: string) => ({
+            type: 'content_block_delta',
+            index,
+            delta: { type: 'input_json_delta', partial_json }
+        });
+        const stop = (index: number) => ({ type: 'content_block_stop', index });
+        async function* stream() {
+            yield start(0);
+            yield delta(0, '{"a":1}');
+            assert.equal(calls.length, 0);
+            yield start(1);
+            yield delta(1, '{"b":2}');
+            yield stop(0);
+            yield stop(1);
+            yield start(0);
+            yield delta(0, '{"a":1}');
+            yield stop(0);
+            yield start(2);
+            yield delta(2, '{"broken":');
+            yield stop(2);
+            yield start(3);
+            yield stop(3);
+        }
+        await handler.handleAnthropicStream(stream(), reporter, { isCancellationRequested: false });
+        assert.deepEqual(calls, [{ a: 1 }, { b: 2 }, {}]);
+    });
     test('禁用 SDK 内部重试，由外层重试链统一处理', async () => {
         const originalGetApiKey = ApiKeyManager.getApiKey;
         ApiKeyManager.getApiKey = async () => 'test-api-key';

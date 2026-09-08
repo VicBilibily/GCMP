@@ -47,7 +47,7 @@ test('输出文本 delta 与 done 按 item/content 粒度去重', async () => {
     assert.equal(state.shouldSkipOutputTextDone('item-2', 0), false);
 });
 
-test('工具调用索引优先绑定 call_id，并复用 item_id 映射', async () => {
+test('工具调用索引绑定 item_id，并支持无歧义 call_id 回退', async () => {
     const { OpenAIResponsesStreamState } = await getStreamProcessorModule();
     const state = new OpenAIResponsesStreamState();
 
@@ -64,6 +64,47 @@ test('工具调用索引优先绑定 call_id，并复用 item_id 映射', async 
 
     assert.equal(state.wasToolCallDeltaCounted(stableIndex!), true);
     assert.equal(state.isToolCallCompleted(stableIndex!), true);
+});
+
+test('缺少 item_id 时首次使用无歧义 call_id 建立临时索引', async () => {
+    const { OpenAIResponsesStreamState } = await getStreamProcessorModule();
+    const state = new OpenAIResponsesStreamState();
+
+    const first = state.getStableToolCallIndex(undefined, 'call_only');
+    assert.equal(first, 0);
+    assert.equal(state.getStableToolCallIndex(undefined, 'call_only'), first);
+});
+
+test('重复 call_id 不覆盖 item_id 索引，歧义别名禁止回退', async () => {
+    const { OpenAIResponsesStreamState } = await getStreamProcessorModule();
+    const state = new OpenAIResponsesStreamState();
+    const first = state.getStableToolCallIndex('item1', 'shared');
+    const second = state.getStableToolCallIndex('item2', 'shared');
+    assert.notEqual(first, second);
+    assert.equal(state.getStableToolCallIndex('item1', 'shared'), first);
+    assert.equal(state.getStableToolCallIndex('item2', 'shared'), second);
+    assert.equal(state.getStableToolCallIndex(undefined, 'shared'), undefined);
+});
+
+test('completed 阶段仅匹配终态前参数与名称一致的记录', async () => {
+    const { OpenAIResponsesStreamState } = await getStreamProcessorModule();
+    const state = new OpenAIResponsesStreamState();
+
+    const streamed = state.getStableToolCallIndex('item_streamed', 'call_1');
+    state.markToolCallCompleted(streamed!);
+    state.setToolCallBuffer(streamed!, { id: 'call_1', name: 'read_file', args: '{}' });
+    state.beginCompletedPhase([{ id: 'item_completed' }]);
+
+    // 网关在 response.completed 中重写 item id（call_id 不变）：归并为同一调用
+    assert.equal(state.getCompletedPhaseToolCallIndex('item_completed', 'call_1', 'read_file', '{}'), streamed);
+    assert.equal(state.getToolCallIndex('item_completed'), streamed);
+
+    // call_id 别名歧义（已置空）时不归并，分配独立索引
+    const first = state.getStableToolCallIndex('itemA', 'shared');
+    const second = state.getStableToolCallIndex('itemB', 'shared');
+    const fallback = state.getCompletedPhaseToolCallIndex('itemC', 'shared');
+    assert.notEqual(fallback, first);
+    assert.notEqual(fallback, second);
 });
 
 test('web_search_call 内容提取覆盖 search/open_page/find_in_page 并避免重复上报', async () => {

@@ -76,6 +76,457 @@ async function* eventsFrom(events: unknown[]) {
     }
 }
 
+for (const completed of [false, true]) {
+    for (const count of [1, 2]) {
+        test(`consume：completed 重写 id 且缺参，已完成=${completed}，候选数=${count}`, async () => {
+            const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+            const calls: unknown[] = [];
+            const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+                reportToolCall(_id: string, _name: string, input: unknown) {
+                    calls.push(input);
+                }
+            });
+            const items = Array.from({ length: count }, (_, index) => ({
+                type: 'function_call',
+                id: `old_${index}`,
+                call_id: 'shared',
+                name: 'read_file',
+                arguments: JSON.stringify({ path: `${index}.ts` })
+            }));
+            await processor.consume(
+                eventsFrom([
+                    ...items.map(item => ({ type: 'response.output_item.added', item })),
+                    ...(completed ? items.map(item => ({ type: 'response.output_item.done', item })) : []),
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'r',
+                            output: items.map((item, index) => ({
+                                type: item.type,
+                                id: `new_${index}`,
+                                call_id: item.call_id,
+                                name: item.name
+                            }))
+                        }
+                    }
+                ]) as never
+            );
+            assert.deepEqual(
+                calls,
+                items.map(item => JSON.parse(item.arguments))
+            );
+        });
+    }
+}
+
+test('consume：取消后到达 completed 不提交缓存', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const token = { isCancellationRequested: false };
+    const { processor } = createProcessor(
+        OpenAIResponsesStreamProcessor,
+        {
+            reportToolCall(...args: unknown[]) {
+                calls.push(args);
+            },
+            reportToolArgDelta() {}
+        },
+        { token }
+    );
+    async function* stream() {
+        yield {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: { type: 'function_call', id: 'i', call_id: 'c', name: 'read_file', arguments: '{"path":"a.ts"}' }
+        };
+        token.isCancellationRequested = true;
+        yield { type: 'response.completed', response: { id: 'r', output: [] } };
+    }
+    await assert.rejects(processor.consume(stream() as never), /abort/i);
+    assert.deepEqual(calls, []);
+});
+
+for (const terminal of ['response.output_item.done', 'response.completed']) {
+    test(`consume：${terminal} 省略参数保留缓存`, async () => {
+        const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+        const calls: unknown[] = [];
+        const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+            reportToolCall(_id: string, _name: string, input: unknown) {
+                calls.push(input);
+            },
+            reportToolArgDelta() {}
+        });
+        const item = { type: 'function_call', id: 'i', call_id: 'c', name: 'read_file' };
+        await processor.consume(
+            eventsFrom([
+                { type: 'response.output_item.added', output_index: 0, item: { ...item, arguments: '' } },
+                {
+                    type: 'response.function_call_arguments.delta',
+                    item_id: 'i',
+                    output_index: 0,
+                    delta: '{"path":"a.ts"}'
+                },
+                {
+                    type: 'response.function_call_arguments.done',
+                    item_id: 'i',
+                    output_index: 0,
+                    arguments: '{"path":"a.ts"}'
+                },
+                terminal === 'response.completed' ?
+                    { type: terminal, response: { id: 'r', output: [item] } }
+                :   { type: terminal, output_index: 0, item }
+            ]) as never
+        );
+        assert.deepEqual(calls, [{ path: 'a.ts' }]);
+    });
+}
+
+test('consume：index 和 item id 分阶段提供只上报一次', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(...args: unknown[]) {
+            calls.push(args);
+        }
+    });
+    const item = { type: 'function_call', call_id: 'c', name: 'read_file', arguments: '{"path":"a.ts"}' };
+    await processor.consume(
+        eventsFrom([
+            { type: 'response.output_item.added', output_index: 0, item },
+            { type: 'response.output_item.done', item: { ...item, id: 'i' } }
+        ]) as never
+    );
+    assert.equal(calls.length, 1);
+});
+
+test('consume：终态内同 id 同参数的独立 item 不得归并', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(...args: unknown[]) {
+            calls.push(args);
+        }
+    });
+    await processor.consume(
+        eventsFrom([
+            {
+                type: 'response.completed',
+                response: {
+                    output: ['a', 'b'].map(id => ({
+                        type: 'function_call',
+                        id,
+                        call_id: 'shared',
+                        name: 'read_file',
+                        arguments: '{}'
+                    }))
+                }
+            }
+        ]) as never
+    );
+    assert.equal(calls.length, 2);
+});
+
+test('consume：终态重写只能一对一消费终态前记录', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(...args: unknown[]) {
+            calls.push(args);
+        }
+    });
+    const item = { type: 'function_call', call_id: 'shared', name: 'read_file', arguments: '{"a":1,"b":2}' };
+    await processor.consume(
+        eventsFrom([
+            ...['a', 'b'].map(id => ({ type: 'response.output_item.done', item: { ...item, id } })),
+            {
+                type: 'response.completed',
+                response: {
+                    output: ['c', 'd', 'e'].map(id => ({
+                        ...item,
+                        id,
+                        arguments: '{"b":2, "a":1}'
+                    }))
+                }
+            }
+        ]) as never
+    );
+    assert.equal(calls.length, 3);
+});
+
+test('consume：arguments.done 只缓存，output_item.done 才执行最终参数', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(_id: string, _name: string, input: unknown) {
+            calls.push(input);
+        }
+    });
+    async function* stream() {
+        yield {
+            type: 'response.function_call_arguments.done',
+            item_id: 'a',
+            call_id: 'c',
+            name: 'read_file',
+            arguments: '{}'
+        };
+        assert.equal(calls.length, 0);
+        yield {
+            type: 'response.output_item.done',
+            item: { type: 'function_call', id: 'a', call_id: 'c', name: 'read_file', arguments: '{"a":1}' }
+        };
+    }
+    await processor.consume(stream() as never);
+    assert.deepEqual(calls, [{ a: 1 }]);
+});
+
+test('consume：缺少 item id 的不同 output index 与 completed-only 调用仍独立', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    for (const streamed of [false, true]) {
+        const calls: unknown[] = [];
+        const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+            reportToolCall(...args: unknown[]) {
+                calls.push(args);
+            }
+        });
+        const item = { type: 'function_call', call_id: 'same', name: 'read_file', arguments: '{}' };
+        await processor.consume(
+            eventsFrom([
+                ...(streamed ?
+                    [0, 1].map(output_index => ({ type: 'response.output_item.done', output_index, item }))
+                :   []),
+                { type: 'response.completed', response: { output: [item, item] } }
+            ]) as never
+        );
+        assert.equal(calls.length, 2);
+    }
+});
+
+test('consume：只有 arguments.done 时流末回退，取消和失败不执行缓存', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    for (const ending of ['eof', 'failed', 'cancelled']) {
+        const calls: unknown[] = [];
+        const token = { isCancellationRequested: false };
+        const { processor } = createProcessor(
+            OpenAIResponsesStreamProcessor,
+            {
+                reportToolCall(...args: unknown[]) {
+                    calls.push(args);
+                }
+            },
+            { token }
+        );
+        async function* stream() {
+            yield { type: 'response.function_call_arguments.done', call_id: 'c', name: 'read_file', arguments: '{}' };
+            if (ending === 'failed') {
+                yield { type: 'response.failed', response: { error: { message: 'failed' } } };
+            }
+            if (ending === 'cancelled') {
+                token.isCancellationRequested = true;
+            }
+        }
+        if (ending === 'eof') {
+            await processor.consume(stream() as never);
+        } else {
+            await assert.rejects(processor.consume(stream() as never));
+        }
+        assert.equal(calls.length, ending === 'eof' ? 1 : 0);
+    }
+});
+
+test('consume：终态保留已知身份后才按内容匹配重写项', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(...args: unknown[]) {
+            calls.push(args);
+        }
+    });
+    const item = { type: 'function_call', call_id: 'same', name: 'read_file', arguments: '{}' };
+    await processor.consume(
+        eventsFrom([
+            { type: 'response.output_item.done', item: { ...item, id: 'known' } },
+            {
+                type: 'response.completed',
+                response: {
+                    output: [
+                        { ...item, id: 'new' },
+                        { ...item, id: 'known' }
+                    ]
+                }
+            }
+        ]) as never
+    );
+    assert.equal(calls.length, 2);
+});
+
+test('consume：added 完整参数不提前执行，delta 计数且流末可回退', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const deltas: string[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(_id: string, _name: string, args: unknown, options: unknown) {
+            calls.push({ args, options });
+        },
+        reportToolArgDelta(delta: string) {
+            deltas.push(delta);
+        }
+    });
+    async function* stream() {
+        yield {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: {
+                type: 'function_call',
+                id: 'a',
+                call_id: 'c',
+                name: 'read_file',
+                arguments: '{}'
+            }
+        };
+        assert.equal(calls.length, 0);
+        yield { type: 'response.function_call_arguments.delta', item_id: 'a', output_index: 0, delta: '{}' };
+    }
+    await processor.consume(stream() as never);
+    assert.deepEqual(deltas, ['{}']);
+    assert.deepEqual(calls, [{ args: {}, options: { countArgs: false } }]);
+});
+
+test('consume：相同 call_id 的交错工具事件保持参数归属且各上报一次', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: Array<{ id: string; name: string; input: unknown }> = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(id: string, name: string, input: unknown) {
+            calls.push({ id, name, input });
+        },
+        reportToolArgDelta() {}
+    });
+    const items = [
+        { type: 'function_call', id: 'item1', call_id: 'shared', name: 'read_file', arguments: '{"path":"a.ts"}' },
+        { type: 'function_call', id: 'item2', call_id: 'shared', name: 'apply_patch', arguments: '{"patch":"change"}' }
+    ];
+    await processor.consume(
+        eventsFrom([
+            ...items.map(item => ({ type: 'response.output_item.added', item: { ...item, arguments: '' } })),
+            ...items.map(item => ({
+                type: 'response.function_call_arguments.delta',
+                item_id: item.id,
+                call_id: item.call_id,
+                delta: item.arguments
+            })),
+            ...items.map(item => ({
+                type: 'response.function_call_arguments.done',
+                item_id: item.id,
+                call_id: item.call_id,
+                name: item.name,
+                arguments: item.arguments
+            })),
+            ...items.map(item => ({ type: 'response.output_item.done', item })),
+            { type: 'response.completed', response: { id: 'resp1', output: items } }
+        ]) as never
+    );
+    assert.deepEqual(calls, [
+        { id: 'shared', name: 'read_file', input: { path: 'a.ts' } },
+        { id: 'shared', name: 'apply_patch', input: { patch: 'change' } }
+    ]);
+});
+
+test('consume：缺少 item_id 时仍会上报只有 call_id 的完整工具调用', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: Array<{ id: string; name: string; input: unknown }> = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(id: string, name: string, input: unknown) {
+            calls.push({ id, name, input });
+        }
+    });
+
+    await processor.consume(
+        eventsFrom([
+            {
+                type: 'response.function_call_arguments.done',
+                call_id: 'call_only',
+                name: 'read_file',
+                arguments: '{"path":"a.ts"}'
+            },
+            { type: 'response.completed', response: { id: 'resp_only', output: [] } }
+        ]) as never
+    );
+
+    assert.deepEqual(calls, [{ id: 'call_only', name: 'read_file', input: { path: 'a.ts' } }]);
+});
+
+test('consume：response.completed 重写 item id 时不重复上报工具调用', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: Array<{ id: string; name: string; input: unknown }> = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(id: string, name: string, input: unknown) {
+            calls.push({ id, name, input });
+        },
+        reportToolArgDelta() {}
+    });
+
+    const streamedItem = {
+        type: 'function_call',
+        id: 'item_streamed',
+        call_id: 'call_1',
+        name: 'read_file',
+        arguments: '{"path":"a.ts"}'
+    };
+    await processor.consume(
+        eventsFrom([
+            { type: 'response.output_item.added', item: { ...streamedItem, arguments: '' } },
+            {
+                type: 'response.function_call_arguments.done',
+                item_id: 'item_streamed',
+                call_id: 'call_1',
+                name: 'read_file',
+                arguments: '{"path":"a.ts"}'
+            },
+            { type: 'response.output_item.done', item: streamedItem },
+            // 网关在 completed 中重写 item id（call_id 不变）
+            {
+                type: 'response.completed',
+                response: { id: 'resp1', output: [{ ...streamedItem, id: 'item_completed' }] }
+            }
+        ]) as never
+    );
+
+    assert.deepEqual(calls, [{ id: 'call_1', name: 'read_file', input: { path: 'a.ts' } }]);
+});
+
+test('consume：先收到无 item_id 的 arguments.done 再收到完整事件时不重复上报', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: Array<{ id: string; name: string; input: unknown }> = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(id: string, name: string, input: unknown) {
+            calls.push({ id, name, input });
+        },
+        reportToolArgDelta() {}
+    });
+
+    const fullItem = {
+        type: 'function_call',
+        id: 'item1',
+        call_id: 'call_1',
+        name: 'read_file',
+        arguments: '{"path":"a.ts"}'
+    };
+    await processor.consume(
+        eventsFrom([
+            {
+                type: 'response.function_call_arguments.done',
+                call_id: 'call_1',
+                name: 'read_file',
+                arguments: '{"path":"a.ts"}'
+            },
+            { type: 'response.output_item.added', item: fullItem },
+            { type: 'response.output_item.done', item: fullItem },
+            { type: 'response.completed', response: { id: 'resp1', output: [fullItem] } }
+        ]) as never
+    );
+
+    assert.deepEqual(calls, [{ id: 'call_1', name: 'read_file', input: { path: 'a.ts' } }]);
+});
+
 test('consume：response.failed 先于 response.created 时抛出服务端真实错误消息', async () => {
     const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
     const { processor } = createProcessor(OpenAIResponsesStreamProcessor);
@@ -302,6 +753,39 @@ test('consume：response.incomplete 因 content_filter 抛错但仍 flush marker
         return true;
     });
     assert.deepEqual(flushed, [{ finishReason: 'content_filter', responseId: 'resp_2', usage: { total_tokens: 3 } }]);
+});
+
+test('consume：content_filter 不提交尚未上报的工具调用', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const calls: unknown[] = [];
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(...args: unknown[]) {
+            calls.push(args);
+        }
+    });
+    await assert.rejects(
+        processor.consume(
+            eventsFrom([
+                {
+                    type: 'response.incomplete',
+                    response: {
+                        id: 'resp-filtered',
+                        incomplete_details: { reason: 'content_filter' },
+                        output: [
+                            {
+                                type: 'function_call',
+                                id: 'item-1',
+                                call_id: 'call-1',
+                                name: 'read_file',
+                                arguments: '{}'
+                            }
+                        ]
+                    }
+                }
+            ]) as never
+        )
+    );
+    assert.deepEqual(calls, []);
 });
 
 test('consume：response.completed 兜底补发 function_call 与 web_search_call', async () => {

@@ -1,6 +1,7 @@
 ﻿import * as crypto from 'node:crypto';
 
 import { canonicalizeJsonString } from './openaiChatRequestPreprocessor';
+import { uniquifyCallId } from '../toolCallIdUtils';
 
 interface ResolveToolCallIdParams {
     callId?: string;
@@ -32,28 +33,24 @@ function buildDeterministicCallId(params: ResolveToolCallIdParams): string {
 }
 
 export class OpenAIResponsesCallIdResolver {
-    private pendingCallIds: string[] = [];
+    private readonly pendingCalls: Array<{ originalCallId?: string; resolvedCallId: string }> = [];
+    private readonly usedCallIds = new Set<string>();
 
     resolveToolCallId(params: ResolveToolCallIdParams): string {
-        const resolvedCallId = normalizeCallId(params.callId) || buildDeterministicCallId(params);
-        this.pendingCallIds.push(resolvedCallId);
+        const originalCallId = normalizeCallId(params.callId);
+        const resolvedCallId = uniquifyCallId(this.usedCallIds, originalCallId || buildDeterministicCallId(params));
+        this.pendingCalls.push({ originalCallId, resolvedCallId });
         return resolvedCallId;
     }
 
     resolveToolResultCallId(params: ResolveToolResultCallIdParams): string | undefined {
-        const resolvedCallId = normalizeCallId(params.callId);
-        if (resolvedCallId) {
-            this.removePendingCallId(resolvedCallId);
-            return resolvedCallId;
+        const originalCallId = normalizeCallId(params.callId);
+        if (!originalCallId) {
+            return this.pendingCalls.shift()?.resolvedCallId;
         }
-
-        return this.pendingCallIds.shift();
-    }
-
-    private removePendingCallId(callId: string): void {
-        const index = this.pendingCallIds.indexOf(callId);
-        if (index >= 0) {
-            this.pendingCallIds.splice(index, 1);
-        }
+        const index = this.pendingCalls.findIndex(
+            call => (call.originalCallId ?? call.resolvedCallId) === originalCallId
+        );
+        return index >= 0 ? this.pendingCalls.splice(index, 1)[0].resolvedCallId : originalCallId;
     }
 }

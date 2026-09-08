@@ -12,6 +12,7 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
+import { Logger } from '../utils/runtime/logger';
 import { decodeStatefulMarker } from './statefulMarker';
 import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
 import { isEncryptedReasoningOriginMatch } from './openai/encryptedReasoning';
@@ -397,6 +398,30 @@ export function apiMessageToAnthropicMessage(
                 (prevMessage.content as ContentBlockParam[]).push(...(message.content as ContentBlockParam[]));
             }
         }
+    }
+
+    for (const message of mergedMessages) {
+        if (!Array.isArray(message.content)) {
+            continue;
+        }
+        const seenCalls = new Set<string>();
+        const seenResults = new Set<string>();
+        message.content = message.content.filter(block => {
+            const id =
+                block.type === 'tool_use' ? block.id
+                : block.type === 'tool_result' ? block.tool_use_id
+                : undefined;
+            if (id === undefined) {
+                return true;
+            }
+            const seen = block.type === 'tool_use' ? seenCalls : seenResults;
+            if (seen.has(id)) {
+                Logger.warn(`Skipping duplicate ${block.type} id: ${id}`);
+                return false;
+            }
+            seen.add(id);
+            return true;
+        });
     }
 
     // 清理 cache_control 的统一逻辑

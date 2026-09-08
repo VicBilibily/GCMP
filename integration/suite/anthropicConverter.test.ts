@@ -7,6 +7,32 @@ import { encodeStatefulMarker } from '../../src/handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 
 suite('anthropicConverter', () => {
+    test('连续同角色消息合并后调用与结果分别去重，后续轮次保留', () => {
+        const assistant = (n: number) => ({
+            role: vscode.LanguageModelChatMessageRole.Assistant,
+            content: [new vscode.LanguageModelToolCallPart('same', 'read_file', { n })]
+        });
+        const user = (text: string) => ({
+            role: vscode.LanguageModelChatMessageRole.User,
+            content: [new vscode.LanguageModelToolResultPart('same', [new vscode.LanguageModelTextPart(text)])]
+        });
+        const result = apiMessageToAnthropicMessage(
+            { id: 'test' } as never,
+            [assistant(1), assistant(2), user('first'), user('second'), assistant(3), user('third')] as never
+        );
+        assert.deepEqual(result.messages, [
+            { role: 'assistant', content: [{ type: 'tool_use', id: 'same', name: 'read_file', input: { n: 1 } }] },
+            {
+                role: 'user',
+                content: [{ type: 'tool_result', tool_use_id: 'same', content: [{ type: 'text', text: 'first' }] }]
+            },
+            { role: 'assistant', content: [{ type: 'tool_use', id: 'same', name: 'read_file', input: { n: 3 } }] },
+            {
+                role: 'user',
+                content: [{ type: 'tool_result', tool_use_id: 'same', content: [{ type: 'text', text: 'third' }] }]
+            }
+        ]);
+    });
     test('ThinkingPart 被剥离时从 StatefulMarker 恢复多个 redacted_thinking 块', () => {
         const markerData = encodeStatefulMarker('claude-sonnet-4-5', {
             provider: 'anthropic',

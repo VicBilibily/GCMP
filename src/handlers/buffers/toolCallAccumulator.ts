@@ -1,18 +1,15 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  工具调用累积器
- *  累积流式工具调用分片，检测完整 JSON 后输出 CompletedToolCall
+ *  累积流式工具调用分片，在结束时输出 CompletedToolCall
  *
  * 实现流程：
  * 1. accumulate(index, id, name, argsFragment) 接收单个工具调用的增量分片
- *    - 若 id/name/argsFragment 全为空则忽略，返回 { isNew: false, completed: null }
+ *    - 若 id/name/argsFragment 全为空则忽略，返回 { isNew: false }
  *    - 首次为某 index 创建 buffer 时返回 isNew = true，StreamReporter 据此执行
  *      endThinkingChain 清理逻辑
  *    - 将 id/name 更新到 buffer，argsFragment 经 mergeArguments 合并到 buffer.arguments
  *      （合并策略：优先保留追加形式，遇到快照形式则替换，避免服务端重发导致重复）
- * 2. 当 buffer 中同时存在 name 和 arguments 时尝试 JSON.parse：
- *    - 解析成功表示工具调用完成，生成 toolCallId（优先使用 buffer.id，缺失则随机 UUID），
- *      从 buffer 删除该 index，返回 completed
- *    - 解析失败表示参数未完整，返回 completed: null，继续等待下一分片
+ * 2. 参数可解析不代表调用结束，等待 flushAll。
  * 3. flushAll() 在流结束时被调用，强制输出所有未完成的工具调用：
  *    - 能解析的完整 tool call 直接输出
  *    - 不完整的 tool call 记录警告日志
@@ -23,6 +20,7 @@ import * as crypto from 'node:crypto';
 import { Logger } from '../../utils/runtime/logger';
 
 interface ToolCallBuffer {
+    choiceIndex: number;
     id?: string;
     name?: string;
     arguments: string;
@@ -38,30 +36,35 @@ export interface CompletedToolCall {
 export interface AccumulateResult {
     /** 是否为该 index 首次创建工具调用 buffer */
     isNew: boolean;
-    /** 如果工具调用已完成，则返回完整工具调用；否则为 null */
-    completed: CompletedToolCall | null;
 }
 
 export class ToolCallAccumulator {
-    private readonly buffer = new Map<number, ToolCallBuffer>();
+    private readonly buffer = new Map<string, ToolCallBuffer>();
+    private readonly completedIndices = new Set<string>();
+
+    isCompleted(index: number, choiceIndex = 0): boolean {
+        return this.completedIndices.has(`${choiceIndex}:${index}`);
+    }
 
     accumulate(
         index: number,
         id: string | undefined,
         name: string | undefined,
-        argsFragment: string | undefined
+        argsFragment: string | undefined,
+        choiceIndex = 0
     ): AccumulateResult {
         // 跳过空值，不创建无效的工具调用缓存
-        if (!id && !name && !argsFragment) {
-            return { isNew: false, completed: null };
+        if (this.isCompleted(index, choiceIndex) || (!id && !name && !argsFragment)) {
+            return { isNew: false };
         }
 
         // 获取或创建工具调用缓存
         let isNew = false;
-        let tool = this.buffer.get(index);
+        const key = `${choiceIndex}:${index}`;
+        let tool = this.buffer.get(key);
         if (!tool) {
-            tool = { arguments: '' };
-            this.buffer.set(index, tool);
+            tool = { arguments: '', choiceIndex };
+            this.buffer.set(key, tool);
             isNew = true;
         }
 
@@ -75,18 +78,7 @@ export class ToolCallAccumulator {
             tool.arguments = this.mergeArguments(tool.arguments, argsFragment);
         }
 
-        if (!tool.name || !tool.arguments) {
-            return { isNew, completed: null };
-        }
-
-        try {
-            const args = JSON.parse(tool.arguments);
-            const toolCallId = tool.id || crypto.randomUUID();
-            this.buffer.delete(index);
-            return { isNew, completed: { toolCallId, name: tool.name, args } };
-        } catch {
-            return { isNew, completed: null };
-        }
+        return { isNew };
     }
 
     private mergeArguments(existing: string, newArgs: string): string {
@@ -102,9 +94,23 @@ export class ToolCallAccumulator {
         return existing + newArgs;
     }
 
-    flushAll(): CompletedToolCall[] {
+    discard(choiceIndex?: number): void {
+        for (const [key, tool] of this.buffer) {
+            if (choiceIndex === undefined || tool.choiceIndex === choiceIndex) {
+                this.completedIndices.add(key);
+                this.buffer.delete(key);
+            }
+        }
+    }
+
+    flushAll(choiceIndex?: number): CompletedToolCall[] {
         const result: CompletedToolCall[] = [];
         for (const [index, tool] of this.buffer.entries()) {
+            if (choiceIndex !== undefined && tool.choiceIndex !== choiceIndex) {
+                continue;
+            }
+            this.completedIndices.add(index);
+            this.buffer.delete(index);
             if (tool.name && tool.arguments) {
                 try {
                     const args = JSON.parse(tool.arguments);
@@ -118,15 +124,6 @@ export class ToolCallAccumulator {
                 );
             }
         }
-        this.buffer.clear();
         return result;
-    }
-
-    get hasPending(): boolean {
-        return this.buffer.size > 0;
-    }
-
-    get pendingCount(): number {
-        return this.buffer.size;
     }
 }

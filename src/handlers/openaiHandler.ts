@@ -1096,8 +1096,20 @@ export class OpenAIHandler {
                                             toolIndex,
                                             toolCall.id,
                                             toolCall.function?.name,
-                                            toolCall.function?.arguments
+                                            toolCall.function?.arguments,
+                                            choice.index ?? 0
                                         );
+                                    }
+                                }
+
+                                if (choice.finish_reason) {
+                                    if (
+                                        choice.finish_reason === 'content_filter' ||
+                                        choice.finish_reason === 'length'
+                                    ) {
+                                        streamReporter.discardToolCalls(choice.index ?? 0);
+                                    } else {
+                                        streamReporter.flushToolCalls(choice.index ?? 0);
                                     }
                                 }
 
@@ -1242,6 +1254,7 @@ export class OpenAIHandler {
                             }
                         }
                         reporter.reportUsage(finalUsage, costNanoAiu);
+                        reporter.discardToolCalls();
                         reporter.flushAll(null, undefined, finalUsage);
                         TokenUsagesManager.instance.updateActualTokens({
                             requestId,
