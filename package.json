@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.27.14",
+    "version": "0.28.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -344,12 +344,6 @@
                 "command": "gcmp.modelSettings.wizard",
                 "title": "%command.modelSettings.wizard%",
                 "category": "GCMP"
-            },
-            {
-                "command": "gcmp.sync.configure",
-                "title": "%command.sync.configure%",
-                "category": "GCMP",
-                "description": "%command.sync.configure.description%"
             },
             {
                 "command": "gcmp.configSet.manage",

@@ -1102,11 +1102,8 @@ suite('config set label behavior', () => {
 
     test('runSetPassphraseFlow aborts reupload when config set snapshot still has skipped items', async () => {
         const mutableGist = GistSyncService as unknown as {
-            getGistId: typeof GistSyncService.getGistId;
-            getStatus: typeof GistSyncService.getStatus;
             getUserInfo: typeof GistSyncService.getUserInfo;
             hasCustomPassphrase: typeof GistSyncService.hasCustomPassphrase;
-            readDecryptedSyncData: typeof GistSyncService.readDecryptedSyncData;
             saveConfigSetGistId: typeof GistSyncService.saveConfigSetGistId;
             getConfigSetGistId: typeof GistSyncService.getConfigSetGistId;
             createBatchDecryptor: typeof GistSyncService.createBatchDecryptor;
@@ -1119,11 +1116,8 @@ suite('config set label behavior', () => {
             showInputBox: typeof vscode.window.showInputBox;
             showWarningMessage: typeof vscode.window.showWarningMessage;
         };
-        const originalGetGistId = mutableGist.getGistId;
-        const originalGetStatus = mutableGist.getStatus;
         const originalGetUserInfo = mutableGist.getUserInfo;
         const originalHasCustomPassphrase = mutableGist.hasCustomPassphrase;
-        const originalReadDecryptedSyncData = mutableGist.readDecryptedSyncData;
         const originalSaveConfigSetGistId = mutableGist.saveConfigSetGistId;
         const originalGetConfigSetGistId = mutableGist.getConfigSetGistId;
         const originalCreateBatchDecryptor = mutableGist.createBatchDecryptor;
@@ -1138,24 +1132,12 @@ suite('config set label behavior', () => {
         let setPassphraseCalled = false;
         let inputCallCount = 0;
 
-        mutableGist.getGistId = () => 'legacy-gist';
-        mutableGist.getStatus = (async () => ({
-            isLoggedIn: true,
-            githubUser: 'tester',
-            hasGist: true,
-            hasCustomPassphrase: true
-        })) as typeof GistSyncService.getStatus;
         mutableGist.getUserInfo = (async () => ({
             id: 1,
             login: 'tester',
             token: 'token'
         })) as typeof GistSyncService.getUserInfo;
         mutableGist.hasCustomPassphrase = (async () => true) as typeof GistSyncService.hasCustomPassphrase;
-        mutableGist.readDecryptedSyncData = (async () => ({
-            version: 1,
-            timestamp: '2026-08-18T00:00:00.000Z',
-            keys: {}
-        })) as typeof GistSyncService.readDecryptedSyncData;
         mutableGist.saveConfigSetGistId = (async () => {}) as typeof GistSyncService.saveConfigSetGistId;
         mutableGist.getConfigSetGistId = () => 'config-gist';
         mutableGist.createBatchDecryptor = (async () =>
@@ -1217,11 +1199,8 @@ suite('config set label behavior', () => {
         try {
             await runSetPassphraseFlow(true);
         } finally {
-            mutableGist.getGistId = originalGetGistId;
-            mutableGist.getStatus = originalGetStatus;
             mutableGist.getUserInfo = originalGetUserInfo;
             mutableGist.hasCustomPassphrase = originalHasCustomPassphrase;
-            mutableGist.readDecryptedSyncData = originalReadDecryptedSyncData;
             mutableGist.saveConfigSetGistId = originalSaveConfigSetGistId;
             mutableGist.getConfigSetGistId = originalGetConfigSetGistId;
             mutableGist.createBatchDecryptor = originalCreateBatchDecryptor;
@@ -1289,12 +1268,12 @@ suite('config set label behavior', () => {
     test('runClearPassphraseFlow rolls back remote data when clearing the local passphrase fails', async () => {
         const mutableGist = GistSyncService as unknown as {
             clearCustomPassphrase: typeof GistSyncService.clearCustomPassphrase;
+            createBatchDecryptor: typeof GistSyncService.createBatchDecryptor;
+            createBatchEncryptorWithPassphrase: typeof GistSyncService.createBatchEncryptorWithPassphrase;
             getConfigSetGistId: typeof GistSyncService.getConfigSetGistId;
             getCustomPassphrase: typeof GistSyncService.getCustomPassphrase;
-            getGistId: typeof GistSyncService.getGistId;
             getUserInfo: typeof GistSyncService.getUserInfo;
-            readDecryptedSyncData: typeof GistSyncService.readDecryptedSyncData;
-            writeSyncDataWithPassphrase: typeof GistSyncService.writeSyncDataWithPassphrase;
+            saveConfigSetGistId: typeof GistSyncService.saveConfigSetGistId;
         };
         const mutableWindow = vscode.window as unknown as {
             showErrorMessage: typeof vscode.window.showErrorMessage;
@@ -1302,12 +1281,12 @@ suite('config set label behavior', () => {
             showWarningMessage: typeof vscode.window.showWarningMessage;
         };
         const originalClearCustomPassphrase = mutableGist.clearCustomPassphrase;
+        const originalCreateBatchDecryptor = mutableGist.createBatchDecryptor;
+        const originalCreateBatchEncryptorWithPassphrase = mutableGist.createBatchEncryptorWithPassphrase;
         const originalGetConfigSetGistId = mutableGist.getConfigSetGistId;
         const originalGetCustomPassphrase = mutableGist.getCustomPassphrase;
-        const originalGetGistId = mutableGist.getGistId;
         const originalGetUserInfo = mutableGist.getUserInfo;
-        const originalReadDecryptedSyncData = mutableGist.readDecryptedSyncData;
-        const originalWriteSyncDataWithPassphrase = mutableGist.writeSyncDataWithPassphrase;
+        const originalSaveConfigSetGistId = mutableGist.saveConfigSetGistId;
         const originalFetchWithProxy = ConfigManager.fetchWithProxy;
         const originalShowErrorMessage = mutableWindow.showErrorMessage;
         const originalShowInformationMessage = mutableWindow.showInformationMessage;
@@ -1322,32 +1301,49 @@ suite('config set label behavior', () => {
             login: 'tester',
             token: 'token'
         })) as typeof GistSyncService.getUserInfo;
-        mutableGist.getGistId = () => 'legacy-gist';
-        mutableGist.getConfigSetGistId = () => undefined;
-        mutableGist.readDecryptedSyncData = (async () => ({
-            version: 1,
-            timestamp: '2026-08-18T00:00:00.000Z',
-            keys: {}
-        })) as typeof GistSyncService.readDecryptedSyncData;
-        mutableGist.writeSyncDataWithPassphrase = (async (
-            _token: string,
-            _gistId: string,
-            _data: unknown,
-            passphrase?: string
-        ) => {
+        mutableGist.getConfigSetGistId = () => 'config-gist';
+        mutableGist.saveConfigSetGistId = (async () => {}) as typeof GistSyncService.saveConfigSetGistId;
+        mutableGist.createBatchDecryptor = (async () =>
+            Object.assign(async (payload: string) => (payload === 'enc-ok' ? 'plain-ok' : undefined), {
+                dispose(): void {}
+            })) as typeof GistSyncService.createBatchDecryptor;
+        mutableGist.createBatchEncryptorWithPassphrase = (async (passphrase?: string) => {
             writePassphrases.push(passphrase);
-            return true;
-        }) as typeof GistSyncService.writeSyncDataWithPassphrase;
+            return Object.assign((plain: string) => `enc(${plain})`, {
+                dispose(): void {}
+            });
+        }) as typeof GistSyncService.createBatchEncryptorWithPassphrase;
         mutableGist.clearCustomPassphrase = (async () => {
             throw new Error('secret storage unavailable');
         }) as typeof GistSyncService.clearCustomPassphrase;
-        ConfigManager.fetchWithProxy = (async url => {
+        ConfigManager.fetchWithProxy = (async (url: string | URL | Request, options?: { method?: string }) => {
             const href = String(url);
-            if (href.includes('per_page=100')) {
-                return { ok: true, status: 200, json: async () => [] } as never;
+            if (options?.method === 'PATCH') {
+                return { ok: true, status: 200, text: async () => '' } as never;
             }
-            return { ok: true, status: 200, json: async () => ({ files: {} }) } as never;
-        }) as typeof ConfigManager.fetchWithProxy;
+            if (href.includes('/gists/config-gist')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        files: {
+                            'gcmp-configsets.json': {
+                                content: JSON.stringify({
+                                    version: 1,
+                                    timestamp: '2026-08-18T00:00:00.000Z',
+                                    slots: {
+                                        'slot-sync': {
+                                            items: [{ id: 'remote-a', label: 'Remote A', apiKey: 'enc-ok' }]
+                                        }
+                                    }
+                                })
+                            }
+                        }
+                    })
+                } as never;
+            }
+            return { ok: true, status: 200, json: async () => [] } as never;
+        }) as unknown as typeof ConfigManager.fetchWithProxy;
         mutableWindow.showWarningMessage = (async (
             _message: string,
             _options: vscode.MessageOptions | undefined,
@@ -1366,12 +1362,12 @@ suite('config set label behavior', () => {
             await runClearPassphraseFlow();
         } finally {
             mutableGist.clearCustomPassphrase = originalClearCustomPassphrase;
+            mutableGist.createBatchDecryptor = originalCreateBatchDecryptor;
+            mutableGist.createBatchEncryptorWithPassphrase = originalCreateBatchEncryptorWithPassphrase;
             mutableGist.getConfigSetGistId = originalGetConfigSetGistId;
             mutableGist.getCustomPassphrase = originalGetCustomPassphrase;
-            mutableGist.getGistId = originalGetGistId;
             mutableGist.getUserInfo = originalGetUserInfo;
-            mutableGist.readDecryptedSyncData = originalReadDecryptedSyncData;
-            mutableGist.writeSyncDataWithPassphrase = originalWriteSyncDataWithPassphrase;
+            mutableGist.saveConfigSetGistId = originalSaveConfigSetGistId;
             ConfigManager.fetchWithProxy = originalFetchWithProxy;
             mutableWindow.showErrorMessage = originalShowErrorMessage;
             mutableWindow.showInformationMessage = originalShowInformationMessage;
@@ -1386,51 +1382,7 @@ suite('config set label behavior', () => {
         assert.equal(infoMessages.length, 0);
     });
 
-    test('ConfigSetSyncHost.resolveGistId ignores the legacy API key gist when no config-set gist exists', async () => {
-        const host = new ConfigSetSyncHost({
-            post() {},
-            async sendStates(): Promise<void> {}
-        });
-        const mutableHost = host as unknown as {
-            resolveGistId: (token: string) => Promise<string | undefined>;
-        };
-        const mutableGist = GistSyncService as unknown as {
-            getConfigSetGistId: typeof GistSyncService.getConfigSetGistId;
-            getGistId: typeof GistSyncService.getGistId;
-            saveConfigSetGistId: typeof GistSyncService.saveConfigSetGistId;
-        };
-        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
-        const originalGetConfigSetGistId = mutableGist.getConfigSetGistId;
-        const originalGetGistId = mutableGist.getGistId;
-        const originalSaveConfigSetGistId = mutableGist.saveConfigSetGistId;
-        let fetchCalls = 0;
-        let savedGistId: string | undefined;
-
-        ConfigManager.fetchWithProxy = (async () => {
-            fetchCalls += 1;
-            return { ok: true, json: async () => [] } as never;
-        }) as unknown as typeof ConfigManager.fetchWithProxy;
-        mutableGist.getConfigSetGistId = () => undefined;
-        mutableGist.getGistId = () => 'legacy-gist';
-        mutableGist.saveConfigSetGistId = (async (gistId: string) => {
-            savedGistId = gistId;
-        }) as typeof GistSyncService.saveConfigSetGistId;
-
-        try {
-            const gistId = await mutableHost.resolveGistId('token');
-            assert.equal(gistId, undefined);
-        } finally {
-            ConfigManager.fetchWithProxy = originalFetchWithProxy;
-            mutableGist.getConfigSetGistId = originalGetConfigSetGistId;
-            mutableGist.getGistId = originalGetGistId;
-            mutableGist.saveConfigSetGistId = originalSaveConfigSetGistId;
-        }
-
-        assert.equal(fetchCalls, 1);
-        assert.equal(savedGistId, undefined);
-    });
-
-    test('ConfigSetSyncHost.resolveGistId discovers config-set data stored on a legacy gist', async () => {
+    test('ConfigSetSyncHost.resolveGistId discovers config-set data stored on an existing gist', async () => {
         const host = new ConfigSetSyncHost({
             post() {},
             async sendStates(): Promise<void> {}
@@ -1441,13 +1393,11 @@ suite('config set label behavior', () => {
         const mutableGist = GistSyncService as unknown as {
             createBatchDecryptor: typeof GistSyncService.createBatchDecryptor;
             getConfigSetGistId: typeof GistSyncService.getConfigSetGistId;
-            getGistId: typeof GistSyncService.getGistId;
             saveConfigSetGistId: typeof GistSyncService.saveConfigSetGistId;
         };
         const originalFetchWithProxy = ConfigManager.fetchWithProxy;
         const originalCreateBatchDecryptor = mutableGist.createBatchDecryptor;
         const originalGetConfigSetGistId = mutableGist.getConfigSetGistId;
-        const originalGetGistId = mutableGist.getGistId;
         const originalSaveConfigSetGistId = mutableGist.saveConfigSetGistId;
         let savedGistId: string | undefined;
 
@@ -1494,7 +1444,6 @@ suite('config set label behavior', () => {
                 dispose(): void {}
             })) as typeof GistSyncService.createBatchDecryptor;
         mutableGist.getConfigSetGistId = () => undefined;
-        mutableGist.getGistId = () => 'legacy-gist';
         mutableGist.saveConfigSetGistId = (async (gistId: string) => {
             savedGistId = gistId;
         }) as typeof GistSyncService.saveConfigSetGistId;
@@ -1506,7 +1455,6 @@ suite('config set label behavior', () => {
             ConfigManager.fetchWithProxy = originalFetchWithProxy;
             mutableGist.createBatchDecryptor = originalCreateBatchDecryptor;
             mutableGist.getConfigSetGistId = originalGetConfigSetGistId;
-            mutableGist.getGistId = originalGetGistId;
             mutableGist.saveConfigSetGistId = originalSaveConfigSetGistId;
         }
 

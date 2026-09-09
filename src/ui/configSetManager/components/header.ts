@@ -168,14 +168,6 @@ function fillPopover(render: () => void, pop: HTMLElement): void {
         clearMessage();
         postToVSCode({ command: 'manageRemoteConfigs' });
     });
-    addItem(t('Migrate legacy Gist data', '迁移旧版 Gist 数据'), () => {
-        clearMessage();
-        postToVSCode({ command: 'migrateLegacyGist' });
-    });
-    addItem(t('Legacy key sync (will remove in 0.28)', '旧版密钥同步（0.28 移除）'), () => {
-        clearMessage();
-        postToVSCode({ command: 'openLegacySync' });
-    });
 
     const sep = el('div', 'csm-gistmenu-sep');
     sep.setAttribute('role', 'separator');

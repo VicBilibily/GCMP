@@ -82,21 +82,6 @@ export interface TokenUsageUpdatedEvent extends InterInstanceEventBase {
 }
 
 /**
- * Gist 同步已完成
- */
-export interface SyncCompletedEvent extends InterInstanceEventBase {
-    type: 'syncCompleted';
-    payload: {
-        /** 同步方向 */
-        direction: 'upload' | 'download';
-        /** 是否成功 */
-        success: boolean;
-        /** 涉及/应用的密钥数量 */
-        keyCount?: number;
-    };
-}
-
-/**
  * 远程元数据缓存已更新
  * 仅主实例执行远程同步，成功后通知其他实例重读共享磁盘缓存。
  */
@@ -379,7 +364,6 @@ export type InterInstanceEvent =
     | ApiKeyChangedEvent
     | ConfigChangedEvent
     | TokenUsageUpdatedEvent
-    | SyncCompletedEvent
     | RemoteMetadataUpdatedEvent
     | LeaderChangedEvent
     | LeaderResigningEvent
@@ -407,7 +391,6 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'apiKeyChanged',
     'configChanged',
     'tokenUsageUpdated',
-    'syncCompleted',
     'remoteMetadataUpdated',
     'leaderChanged',
     'leaderResigning',

@@ -7,7 +7,6 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
-import { migrateLegacyGistToConfigSets, promptLegacyGistMigrationOnFirstOpen } from '../../sync/legacyGistMigration';
 import { buildCliProviderPlaceholders } from './cliHost';
 import { buildWebviewHtml } from './webviewHtml';
 import { ConfigSetSyncHost } from './syncHost';
@@ -241,34 +240,6 @@ export class ConfigSetManagerPanel implements PanelContext {
                 case 'clearPassphrase':
                     await this.syncHost.handleClearPassphrase();
                     return;
-                case 'openLegacySync':
-                    // 旧版 QuickPick 同步界面，保留一个主版本供用户迁移（0.28 移除）
-                    await vscode.commands.executeCommand('gcmp.sync.configure');
-                    await this.syncHost.postSyncState();
-                    return;
-                case 'migrateLegacyGist': {
-                    this.post({ command: 'syncStatus', busy: true });
-                    try {
-                        const migrated = await migrateLegacyGistToConfigSets(this.context);
-                        if (migrated !== undefined) {
-                            await this.sendStates();
-                            // 迁移可能把验证通过的旧口令写入存储，口令状态需同步刷新
-                            await this.syncHost.postSyncState();
-                            if (migrated > 0) {
-                                vscode.window.showInformationMessage(
-                                    t('Migrated {0} legacy key(s).', '已迁移 {0} 个旧版 API Key。', String(migrated))
-                                );
-                            } else {
-                                vscode.window.showInformationMessage(
-                                    t('No legacy keys were migrated.', '没有可迁移的旧版 API Key。')
-                                );
-                            }
-                        }
-                    } finally {
-                        this.post({ command: 'syncStatus', busy: false });
-                    }
-                    return;
-                }
                 default:
                     Logger.warn(`[ConfigSetManager] Unhandled webview command: ${command}`);
                     return;
@@ -294,14 +265,5 @@ export class ConfigSetManagerPanel implements PanelContext {
             initialProvider: this.initialProvider
         });
         void this.refreshCliProviders();
-        void this.maybePromptLegacyGistMigration();
-    }
-
-    private async maybePromptLegacyGistMigration(): Promise<void> {
-        const migrated = await promptLegacyGistMigrationOnFirstOpen(this.context);
-        if (migrated !== undefined) {
-            await this.sendStates();
-            await this.syncHost.postSyncState();
-        }
     }
 }

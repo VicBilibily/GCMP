@@ -28,7 +28,7 @@ import { RemoteModelsService } from './utils/metadata/remoteModelsService';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { ConfigSetManagerPanel } from './ui/configSetManager';
 import { ConfigSetStore } from './utils/config/configSetStore';
-import { SyncManager } from './sync/syncManager';
+import { GistSyncService } from './sync/gistSyncService';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { DateUtils } from './usages/fileLogger/dateUtils';
 import { TokenUsagesView } from './ui/usagesView';
@@ -571,13 +571,10 @@ export async function activate(context: vscode.ExtensionContext) {
         );
         Logger.trace('Config set manager registered');
 
-        // 步骤8: 初始化与注册 GitHub Gist 同步命令（统一入口）
+        // 步骤8: 初始化 GitHub Gist 同步服务（供配置集同步共用认证/加密基础设施）
         stepStartTime = Date.now();
-        SyncManager.initialize(context);
-        context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.sync.configure', () => SyncManager.configure())
-        );
-        Logger.trace(`GitHub Gist sync commands registered (${Date.now() - stepStartTime}ms)`);
+        GistSyncService.initialize(context);
+        Logger.trace(`GitHub Gist sync service initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤8.1: 注册 HAR 记录文件定位命令（仅供 tooltip 内部快捷入口调用，不作为命令面板入口）
         // 在系统文件管理器中显示最新 HAR 文件；当当前 HAR 文件尚未落盘时，回退到目录中最近的 .har 文件；都没有则打开 HAR 目录

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Gist 加密口令用户流程（公共）
- *  SyncManager（API Key 同步）与配置集面板共用，避免两处复制同一套输入/确认/重传逻辑
+ *  Gist 加密口令用户流程
+ *  配置集面板的口令设置/更改/清除：输入确认 + 远端数据重传 + 失败回滚
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -16,7 +16,6 @@ import { GistSyncService } from './gistSyncService';
 
 interface PassphraseReuploadSnapshot {
     token: string;
-    legacy?: { gistId: string; data: Awaited<ReturnType<typeof GistSyncService.readDecryptedSyncData>> };
     configSets?: { gistId: string; data: ConfigSetSyncData };
 }
 
@@ -37,24 +36,12 @@ async function prepareReuploadSnapshot(): Promise<PassphraseReuploadSnapshot | u
         return undefined;
     }
 
-    const legacyGistId = GistSyncService.getGistId() ?? (await GistSyncService.findExistingSyncGist(userInfo.token));
     const snapshot: PassphraseReuploadSnapshot = { token: userInfo.token };
-
-    if (legacyGistId) {
-        const data = await GistSyncService.readDecryptedSyncData(userInfo.token, legacyGistId);
-        if (!data) {
-            return undefined;
-        }
-        snapshot.legacy = { gistId: legacyGistId, data };
-    }
 
     const configSetCandidates = new Set<string>();
     const savedConfigSetGistId = GistSyncService.getConfigSetGistId();
     if (savedConfigSetGistId) {
         configSetCandidates.add(savedConfigSetGistId);
-    }
-    if (legacyGistId) {
-        configSetCandidates.add(legacyGistId);
     }
 
     let blockedConfigSetSnapshot = false;
@@ -91,51 +78,25 @@ async function prepareReuploadSnapshot(): Promise<PassphraseReuploadSnapshot | u
 async function writeSnapshot(
     snapshot: PassphraseReuploadSnapshot,
     passphrase: string | undefined
-): Promise<{ success: boolean; legacyWritten: boolean; configSetsWritten: boolean }> {
-    let legacyAttempted = false;
-    let configSetsAttempted = false;
-    if (snapshot.legacy?.data) {
-        legacyAttempted = true;
-        const legacyWritten = await GistSyncService.writeSyncDataWithPassphrase(
-            snapshot.token,
-            snapshot.legacy.gistId,
-            snapshot.legacy.data,
-            passphrase
-        );
-        if (!legacyWritten) {
-            return { success: false, legacyWritten: legacyAttempted, configSetsWritten: configSetsAttempted };
-        }
+): Promise<{ success: boolean; configSetsWritten: boolean }> {
+    if (!snapshot.configSets) {
+        return { success: true, configSetsWritten: false };
     }
-    if (snapshot.configSets) {
-        configSetsAttempted = true;
-        const configSetsWritten = await writeRemoteConfigSetsWithPassphrase(
-            snapshot.token,
-            snapshot.configSets.gistId,
-            snapshot.configSets.data,
-            passphrase
-        );
-        if (!configSetsWritten) {
-            return { success: false, legacyWritten: legacyAttempted, configSetsWritten: configSetsAttempted };
-        }
-    }
-    return { success: true, legacyWritten: legacyAttempted, configSetsWritten: configSetsAttempted };
+    const configSetsWritten = await writeRemoteConfigSetsWithPassphrase(
+        snapshot.token,
+        snapshot.configSets.gistId,
+        snapshot.configSets.data,
+        passphrase
+    );
+    return { success: configSetsWritten, configSetsWritten };
 }
 
 async function rollbackSnapshot(
     snapshot: PassphraseReuploadSnapshot,
     oldPassphrase: string | undefined,
-    written: { legacyWritten: boolean; configSetsWritten: boolean }
+    written: { configSetsWritten: boolean }
 ): Promise<boolean> {
-    const legacyOk =
-        !written.legacyWritten ||
-        (!!snapshot.legacy?.data &&
-            (await GistSyncService.writeSyncDataWithPassphrase(
-                snapshot.token,
-                snapshot.legacy.gistId,
-                snapshot.legacy.data,
-                oldPassphrase
-            )));
-    const configSetsOk =
+    return (
         !written.configSetsWritten ||
         (!!snapshot.configSets &&
             (await writeRemoteConfigSetsWithPassphrase(
@@ -143,8 +104,8 @@ async function rollbackSnapshot(
                 snapshot.configSets.gistId,
                 snapshot.configSets.data,
                 oldPassphrase
-            )));
-    return legacyOk && configSetsOk;
+            )))
+    );
 }
 
 /**
@@ -153,20 +114,15 @@ async function rollbackSnapshot(
  */
 export async function runSetPassphraseFlow(hasGist?: boolean): Promise<void> {
     const currentHash = await GistSyncService.hasCustomPassphrase();
-    const status = await GistSyncService.getStatus();
-    let hasExistingData = !!hasGist || status.hasGist || !!GistSyncService.getConfigSetGistId();
-    if (!hasExistingData && status.isLoggedIn) {
+    let hasExistingData = !!hasGist || !!GistSyncService.getConfigSetGistId();
+    if (!hasExistingData && (await GistSyncService.isLoggedIn())) {
         const userInfo = await GistSyncService.getUserInfo(true);
         if (userInfo) {
-            const legacyGistId = await GistSyncService.findExistingSyncGist(userInfo.token);
             const configSetGistId = await findExistingConfigSetGist(userInfo.token);
-            if (legacyGistId) {
-                await GistSyncService.saveGistId(legacyGistId);
-            }
             if (configSetGistId) {
                 await GistSyncService.saveConfigSetGistId(configSetGistId);
             }
-            hasExistingData = !!legacyGistId || !!configSetGistId;
+            hasExistingData = !!configSetGistId;
         }
     }
 
@@ -324,7 +280,7 @@ export async function runClearPassphraseFlow(): Promise<void> {
     const clearOnly = t('Clear Only', '仅清除');
     let rewroteRemoteData = false;
     let uploadedSnapshot: PassphraseReuploadSnapshot | undefined;
-    let uploadedWritten: { legacyWritten: boolean; configSetsWritten: boolean } | undefined;
+    let uploadedWritten: { configSetsWritten: boolean } | undefined;
     const proceed = await vscode.window.showWarningMessage(
         t(
             'Clearing the passphrase will make existing encrypted data on GitHub Gist undecryptable unless you re-upload it without a passphrase. Continue?',
@@ -351,7 +307,7 @@ export async function runClearPassphraseFlow(): Promise<void> {
             return;
         }
 
-        rewroteRemoteData = !!snapshot.legacy || !!snapshot.configSets;
+        rewroteRemoteData = !!snapshot.configSets;
         if (rewroteRemoteData) {
             const written = await writeSnapshot(snapshot, undefined);
             if (!written.success) {

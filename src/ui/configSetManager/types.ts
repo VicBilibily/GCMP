@@ -304,9 +304,7 @@ export type WebViewMessage =
     | { command: 'manageRemoteConfigs' }
     | { command: 'applyRemoteConfigs'; remove: SlotItemSelection[] }
     | { command: 'setPassphrase' }
-    | { command: 'clearPassphrase' }
-    | { command: 'migrateLegacyGist' }
-    | { command: 'openLegacySync' };
+    | { command: 'clearPassphrase' };
 
 /** ============= 消息校验 ============= */
 
@@ -376,8 +374,6 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
         case 'manageRemoteConfigs':
         case 'setPassphrase':
         case 'clearPassphrase':
-        case 'migrateLegacyGist':
-        case 'openLegacySync':
             return msg as unknown as WebViewMessage;
         case 'loadProviderUsage':
         case 'setupCli':

@@ -1020,40 +1020,16 @@ Run `GCMP: Manage API Keys` from the command palette.
 
 - **Multiple config sets**: each provider slot can hold several configurations (custom name + site + key + note) with add/edit/delete/activate/deactivate; the status bar refreshes immediately after panel operations and model list caches are invalidated per slot.
 - **CLI authentication integrated**: Codex / Grok auth status and subscription quota are shown directly in the panel, with terminal sign-in and credential import/refresh; removing authentication now locates the credential file in the file manager for manual deletion.
-- **Gist backup & restore**: config sets can be backed up to a GitHub Secret Gist and restored across devices, using the dedicated file `gcmp-configsets.json` (separate from `gcmp-sync.json` used by the sync feature below); slot and item metadata stay human-readable while each item's apiKey is encrypted individually (AES-256-GCM), using the same encryption scheme as "API Key Sync Across Devices", including the optional custom passphrase.
-- **Legacy sync entry**: the status bar tooltip's "Manage / Sync API Keys" entry has been merged into this panel's "Gist Sync" dropdown (the `Legacy key sync` menu item). It is kept for one major version for migration and will be removed in 0.28.
-
-## 🔑 API Key Sync Across Devices
-
-GCMP provides an API Key synchronization feature based on **GitHub Secret Gists**, enabling you to sync API keys across devices using the same GitHub account without manual reconfiguration.
-
-### How to Use
-
-- Open the API Key management panel (`GCMP: Manage API Keys`) and choose `Legacy key sync` from the **Gist Sync** dropdown
-- Or run the command `GCMP: Manage / Sync API Keys` from the command palette directly
-
-> This legacy sync UI is kept for one major version for migration and will be removed in 0.28; for new data, use the management panel's Gist backup & restore.
-
-- On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
-- After authentication, a grouped sync actions menu appears:
-
-    | Group               | Actions                                                                                                            |
-    | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-    | **Sync Operations** | **Upload to Gist** — encrypt & upload to GitHub Gist / **Download from Gist** — restore from Gist to local         |
-    | **Key Management**  | **Manage Local Keys** — view, enable, or remove local API keys / **Manage Remote Keys** — view/remove keys on Gist |
-    | **Security**        | **Set/Change Passphrase** / **Clear Passphrase** — manage custom encryption passphrase                             |
-
-> During upload/download, you can **select which providers to sync with inline status display** (new/update/unchanged). On upload, new and changed keys are checked by default. On download, keys that match local values are unchecked by default. Partial uploads merge with existing remote data without overwriting unselected keys.
+- **Gist backup & restore**: config sets can be backed up to a GitHub Secret Gist and restored across devices (file `gcmp-configsets.json`, description starts with `GCMP ConfigSets`); slot and item metadata stay human-readable while each item's apiKey is encrypted individually (AES-256-GCM), with optional custom passphrase support.
 
 <details>
-<summary>View detailed encryption and security documentation</summary>
+<summary>View encryption and security documentation for Gist backup</summary>
 
 ### Storage Architecture
 
 | Layer              | Description                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
-| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json`                                    |
-| **Config Set Backup** | The management panel's config set backup uses a dedicated Gist file `gcmp-configsets.json` (description starts with `GCMP ConfigSets`); metadata stays plaintext, only apiKey fields are encrypted individually |
+| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-configsets.json` (description starts with `GCMP ConfigSets`); metadata stays plaintext, only apiKey fields are encrypted individually |
 | **Encryption**     | **AES-256-GCM** (authenticated encryption — confidentiality + integrity)                         |
 | **Key Derivation** | **scrypt** (N=16384, r=8, p=1) with `GitHub User ID + fixed pepper + optional custom passphrase` |
 | **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API                                |
@@ -1075,15 +1051,15 @@ Each API Key → Random Salt(32B) + Random IV(16B) → AES-256-GCM → Salt+IV+T
 
 > Since this extension is **open source**, the encryption method (pepper, scrypt parameters, etc.) is visible in the source code. If you want to treat synced Gist data as truly confidential across devices, you must set a custom encryption passphrase.
 
-- Select "Set Encryption Passphrase" from the sync actions menu; you'll be asked to enter it twice for confirmation
+- Select "Set Passphrase" from the panel's **Gist Sync** menu; you'll be asked to enter it twice for confirmation
 - The passphrase is combined with the GitHub user ID and pepper for key derivation — all three are required (minimum 8 characters)
 - **After changing the passphrase, data encrypted with the old passphrase cannot be decrypted** (different derived key)
 - The passphrase is stored locally via VS Code `SecretStorage` (OS-level encryption) and is never uploaded to any server
 - Different devices sharing the same GitHub account need to use the **same passphrase** to decrypt each other's data
 
-#### Passphrase Verification on Download
+#### Passphrase Verification on Restore
 
-If the local passphrase doesn't match the one used during upload, a prompt will appear:
+If the local passphrase doesn't match the one used during upload, a prompt will appear on restore:
 
 - **Passphrase set but decryption fails** → prompts that the passphrase may have changed; guides you to enter the previous one
 - **No passphrase set but data is undecryptable** → prompts that the data may have been encrypted with a passphrase on another device; guides you to enter it
@@ -1099,7 +1075,7 @@ When setting the passphrase, a notice is displayed explaining that all devices m
 
 #### Data Compatibility
 
-- When setting/changing the passphrase with existing Gist data, you can choose **"Set & Re-upload"** to immediately re-upload your keys with the new passphrase
+- When setting/changing the passphrase with existing Gist data, you can choose **"Set & Re-upload"** to immediately rewrite the remote data with the new passphrase
 - Clearing the passphrase requires confirmation; existing encrypted data will become undecryptable afterwards
 
 ### Security Notes

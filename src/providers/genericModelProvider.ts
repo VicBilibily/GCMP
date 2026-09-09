@@ -194,7 +194,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 清除模型缓存并通知 VS Code 重新加载模型列表
-     * 供外部（如 SyncManager / ConfigSetManager）在 API Key 变更后调用
+     * 供外部（如 ConfigSetManager）在 API Key 变更后调用
      * @param slot 要失效的缓存槽位（缺省 = 主 providerKey）；变体 slot（如 minimax-token）需显式指定
      */
     invalidateAndNotify(slot?: string): void {

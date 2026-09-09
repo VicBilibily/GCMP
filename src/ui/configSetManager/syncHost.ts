@@ -899,12 +899,11 @@ export class ConfigSetSyncHost {
 
     /** 构建当前 Gist 同步状态（静默探测，不触发授权弹窗） */
     async buildSyncState(): Promise<GistSyncState> {
-        const status = await GistSyncService.getStatus();
         return {
-            isLoggedIn: status.isLoggedIn,
-            githubUser: status.githubUser,
+            isLoggedIn: await GistSyncService.isLoggedIn(),
+            githubUser: GistSyncService.getGithubUser(),
             hasGist: !!GistSyncService.getConfigSetGistId(),
-            hasCustomPassphrase: status.hasCustomPassphrase
+            hasCustomPassphrase: await GistSyncService.hasCustomPassphrase()
         };
     }
 
@@ -947,7 +946,7 @@ export class ConfigSetSyncHost {
         return !!(await this.resolveGistId(userInfo.token));
     }
 
-    /** 推送最新同步状态到前端（旧版迁移等外部流程也可能改变口令状态，需可外部调用） */
+    /** 推送最新同步状态到前端（口令流程等外部操作也可能改变口令状态，需可外部调用） */
     async postSyncState(): Promise<void> {
         this.ctx.post({ command: 'syncState', syncState: await this.buildSyncState() });
     }

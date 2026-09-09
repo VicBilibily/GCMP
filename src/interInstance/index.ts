@@ -10,7 +10,6 @@ export {
     type ApiKeyChangedEvent,
     type ConfigChangedEvent,
     type TokenUsageUpdatedEvent,
-    type SyncCompletedEvent,
     type RemoteMetadataUpdatedEvent,
     type LeaderChangedEvent,
     type LeaderResigningEvent,
