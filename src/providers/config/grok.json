@@ -12,7 +12,7 @@
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
             "reasoningDefault": "high",
-            "reasoningEffort": ["low", "medium", "high"],
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {

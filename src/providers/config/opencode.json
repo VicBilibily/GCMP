@@ -12,7 +12,7 @@
             "tooltip": "OpenCode Go 套餐 - xAI Grok 4.6。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": ["low", "medium", "high"],
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [2, 6, 0.5]
@@ -508,7 +508,7 @@
             "contextSize": [500000, 256000, 192000],
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["low", "medium", "high"],
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
