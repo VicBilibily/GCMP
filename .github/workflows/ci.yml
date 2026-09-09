@@ -37,6 +37,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run remote-extra generator tests
+        run: node --test website/scripts/generate-config-index.test.mjs
+
       - name: Package extension
         run: npm run package
 

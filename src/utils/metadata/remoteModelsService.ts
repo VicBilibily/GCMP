@@ -5,7 +5,8 @@
  *  非主实例在定时/手动刷新或收到主实例通知时重读共享缓存，不发起远程同步
  *  模型策略：远端与内置合并去重，同 id 用远端定义，内置剩余项作为回退（待下次插件更新移除）
  *  缓存提交为整体事务：任一变化 provider 下载/写盘失败即放弃本轮提交，等待下轮重试
- *  开发环境：直接读取共享源文件目录 src/providers/config/*.json，跳过远程与磁盘缓存
+ *  开发环境：直接读取共享源文件目录 src/providers/config/*.json，并合并 website/remote-extra/*.json
+ *  中的仅远端发布模型（模拟发布侧 generate-config-index 的合并效果），跳过远程与磁盘缓存
  *  任何失败仅 warn 并保留当前生效值（内置兜底即 configProviders 本身）
  *--------------------------------------------------------------------------------------------*/
 
@@ -41,6 +42,7 @@ export class RemoteModelsService {
     private static timer?: NodeJS.Timeout;
     private static cacheDir = '';
     private static localDir = '';
+    private static localExtraDir = '';
     private static isDevelopment = false;
     private static refreshPromise?: Promise<void>;
     private static cacheLoadGeneration = 0;
@@ -53,6 +55,7 @@ export class RemoteModelsService {
         this.isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         this.cacheDir = path.join(context.globalStorageUri.fsPath, 'models');
         this.localDir = path.join(context.extensionPath, 'src', 'providers', 'config');
+        this.localExtraDir = path.join(context.extensionPath, 'website', 'remote-extra');
 
         await this.loadInitial();
 
@@ -141,12 +144,53 @@ export class RemoteModelsService {
             Logger.warn(`[Models] ${providerKey}: invalid provider payload, skipped`);
             return undefined;
         }
-        if (result.droppedModels > 0 || result.strippedFields.length > 0) {
-            Logger.warn(
-                `[Models] ${providerKey}: dropped ${result.droppedModels} invalid models, stripped fields: ${result.strippedFields.join(', ') || '(none)'}`
-            );
+        if (result.droppedModels > 0) {
+            Logger.warn(`[Models] ${providerKey}: dropped ${result.droppedModels} invalid models`);
+        }
+        // 剥离敏感字段是内置清单的预期行为，降为 debug 避免每次激活刷警告
+        if (result.strippedFields.length > 0) {
+            Logger.debug(`[Models] ${providerKey}: stripped sensitive fields: ${result.strippedFields.join(', ')}`);
         }
         return result.models;
+    }
+
+    // 文件缺失表示下线，读取或校验失败则保留上一份有效快照。
+    private static async mergeLocalExtraModels(providerKey: string, baseText: string): Promise<string | undefined> {
+        try {
+            let extraText: string;
+            try {
+                extraText = await fs.readFile(path.join(this.localExtraDir, `${providerKey}.json`), 'utf8');
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                    return baseText;
+                }
+                throw error;
+            }
+            const base = JSON.parse(baseText) as { models?: unknown[] };
+            const extra = JSON.parse(extraText) as { models?: unknown[] };
+            const validated = sanitizeProviderModels(extra);
+            if (
+                !base ||
+                !Array.isArray(base.models) ||
+                !extra ||
+                !Array.isArray(extra.models) ||
+                base.models.length + extra.models.length > 512 ||
+                !validated ||
+                validated.droppedModels > 0 ||
+                validated.strippedFields.length > 0 ||
+                validated.models.length !== extra.models.length
+            ) {
+                throw new Error('Invalid extra model fields or duplicate ids');
+            }
+            const builtinIds = new Set(base.models.map(model => (model as ModelConfig).id));
+            if (validated.models.some(model => builtinIds.has(model.id))) {
+                throw new Error('Extra model id conflicts with builtin model');
+            }
+            return JSON.stringify({ ...base, models: [...base.models, ...extra.models] });
+        } catch (error) {
+            Logger.warn(`[Models] remote-extra/${providerKey}.json: invalid config, keeping current models`, error);
+            return undefined;
+        }
     }
 
     private static providerCacheFileName(entryId: string, contentHash: string): string {
@@ -270,6 +314,19 @@ export class RemoteModelsService {
         } catch {
             return false;
         }
+        try {
+            const extraFiles = (await fs.readdir(this.localExtraDir)).filter(name => name.endsWith('.json'));
+            for (const file of extraFiles) {
+                const providerKey = path.basename(file, '.json');
+                if (!Object.hasOwn(configProviders, providerKey)) {
+                    Logger.warn(`[Models] remote-extra/${file}: provider is not built in, skipped`);
+                }
+            }
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                Logger.warn('[Models] Failed to inspect remote-extra providers:', error);
+            }
+        }
         let loaded = 0;
         const changedProviders = new Map<string, ModelConfig[]>();
         const removedProviders = new Map<string, ModelConfig[]>();
@@ -281,11 +338,16 @@ export class RemoteModelsService {
             if (!text) {
                 continue;
             }
-            const models = this.sanitizeConfigText(providerKey, text);
+            // 合并 remote-extra 中的仅远端发布模型（dev 模拟发布侧效果；合并后文本算哈希，extra 变化可触发热推送）
+            const mergedText = await this.mergeLocalExtraModels(providerKey, text);
+            if (mergedText === undefined) {
+                continue;
+            }
+            const models = this.sanitizeConfigText(providerKey, mergedText);
             if (!models) {
                 continue;
             }
-            const hash = hashModelsText(text);
+            const hash = hashModelsText(mergedText);
             if (this.currentContentHashes.get(providerKey) !== hash) {
                 changedProviders.set(providerKey, models);
             }
