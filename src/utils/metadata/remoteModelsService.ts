@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  模型清单远程更新服务（宿主层）
- *  生产环境：激活读磁盘缓存；仅主实例每 2 小时拉取 /configs/index.json 清单，
+ *  生产环境：激活读磁盘缓存；仅主实例每 15 分钟拉取 /configs/index.json 清单，
  *  仅下载内容哈希有变化的 provider 文件，白名单清洗后原子更新共享缓存并热推送
  *  非主实例在定时/手动刷新或收到主实例通知时重读共享缓存，不发起远程同步
  *  模型策略：远端与内置合并去重，同 id 用远端定义，内置剩余项作为回退（待下次插件更新移除）
@@ -33,7 +33,7 @@ import type { ModelsManifest } from './modelsResolver';
 
 const MANIFEST_URL = 'https://gcmp.dev/configs/index.json';
 const CONFIG_FILE_BASE_URL = 'https://gcmp.dev/configs/';
-const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const MANIFEST_FILE_NAME = 'index.json';
 const MANIFEST_MAX_BYTES = 256 * 1024;
 const PROVIDER_CONFIG_MAX_BYTES = 4 * 1024 * 1024;

@@ -2,6 +2,46 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.28.0] - 2026-09-09
+
+### 新增
+
+- **远程元数据分发机制与官网站点（gcmp.dev）**：扩展激活时与每 15 分钟定时从官网拉取远程元数据（Claude Code / Codex TUI 版本等），按 contentHash 增量缓存；新增 `GCMP: Refresh Remote Metadata` 手动刷新命令；官网同步上线，提供首页、文档与模型清单页。
+- **远程模型清单热更新**：内置提供商的模型列表支持经远端清单增量更新；多窗口间由 Leader 实例统一拉取并写磁盘缓存，其余窗口经跨实例事件重读，行为一致；扩展开发宿主直接合并本仓库清单，与生产效果一致。
+- **仅远端发布模型（remote-extra）**：免费额度、临时测试等可能随时失效的模型不再内置进插件包，经远端清单发布与下线，无需等待发版；构建期强校验未知 provider、模型 id 冲突与禁止字段（`baseUrl`/`endpoint`/`proxy` 等）；首个仅远端模型为 DeepSeek-V4.1-Flash (抢先体验)。
+- **Codex User-Agent 自动生成与归一化**：对齐 codex CLI 官方实现生成 User-Agent（originator/版本/操作系统/终端标识），Codex 模型请求与额度查询统一携带；GPT 模型经 OpenAI Compatible 通道透传时自动补齐。
+- **Claude Code User-Agent 自动补齐**：Anthropic Compatible 通道的 Claude 模型请求自动携带 Claude Code 风格 User-Agent。
+- **Grok-4.6 补全 xhigh 推理强度**：Grok 与 OpenCode 通道的 Grok-4.6 模型支持 xhigh 推理强度。 [#396](https://github.com/VicBilibily/GCMP/issues/396)
+
+### 修复
+
+- **工具调用 ID 冲突与分片完成时机**：同一响应内重复的工具调用 id 自动改名避免相互覆盖；统一 OpenAI / Responses / Anthropic 各通道工具调用分片缓存的完成与重放时机，修复失败收尾误提交不完整工具调用、单 choice 完成误清理其他 choice 同 index 分片等问题。
+- **流终态重复上报**：Responses 通道在 processor 已收口时不再重复 flush reporter，避免完成统计重复上报；同步修正 Codex 远程元数据字段。
+
+### 移除
+
+- **旧版 V1 Gist 同步下线**：移除旧版 QuickPick 同步界面（`GCMP: 管理/同步 API Key` 命令）、旧版 Gist 数据迁移入口（首次打开提示与「迁移旧版 Gist 数据」菜单项）及 V1 数据读写通道。API Key 跨设备备份请使用「API Key 管理」面板的 Gist 备份与恢复。
+
+---
+
+### Added
+
+- **Remote metadata distribution & official site (gcmp.dev)**: Remote metadata (Claude Code / Codex TUI versions, etc.) is fetched on activation and every 15 minutes with contentHash-based incremental caching; added the `GCMP: Refresh Remote Metadata` command; the official site is live with home, docs, and model list pages.
+- **Remote model list hot-update**: Built-in providers' model lists can be updated incrementally via a remote manifest; the Leader instance fetches and writes the disk cache while other windows reload via inter-instance events; the extension development host merges this repo's manifest directly, matching production behavior.
+- **Remote-only models (remote-extra)**: Free-quota or temporary test models that may expire at any time are no longer bundled; they are published and retired via a remote manifest without shipping a release. Build-time validation rejects unknown providers, built-in id conflicts, and forbidden fields (`baseUrl`/`endpoint`/`proxy`, etc.). The first remote-only model is DeepSeek-V4.1-Flash (Preview).
+- **Codex User-Agent generation & normalization**: Generates the User-Agent aligned with the official codex CLI implementation (originator/version/OS/terminal), applied to Codex model requests and quota queries; GPT models relayed through the OpenAI Compatible channel are patched automatically.
+- **Claude Code User-Agent auto-fill**: Claude model requests on the Anthropic Compatible channel automatically carry a Claude Code-style User-Agent.
+- **xhigh reasoning effort for Grok-4.6**: Grok-4.6 on both Grok and OpenCode channels now supports the xhigh reasoning effort. [#396](https://github.com/VicBilibily/GCMP/issues/396)
+
+### Fixed
+
+- **Tool call ID conflicts & chunk finalize timing**: Duplicate tool call ids within one response are auto-renamed to avoid clobbering; chunk-cache finalize/replay timing is unified across OpenAI / Responses / Anthropic channels, fixing cases where failed finalization committed incomplete tool calls or one choice's completion discarded another choice's chunks at the same index.
+- **Duplicate terminal stream reporting**: The Responses channel no longer flushes the reporter again after the processor has finalized, preventing duplicate completion reporting; Codex remote metadata fields were corrected accordingly.
+
+### Removed
+
+- **Legacy V1 Gist sync retired**: Removed the legacy QuickPick sync UI (`GCMP: Manage / Sync API Keys` command), the legacy Gist migration entry points (first-open prompt and the "Migrate legacy Gist data" menu item), and the V1 data read/write pipeline. For cross-device API key backup, use the Gist backup & restore in the API Key management panel.
+
 ## [0.27.14] - 2026-09-03
 
 ### 新增

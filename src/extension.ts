@@ -381,11 +381,11 @@ export async function activate(context: vscode.ExtensionContext) {
         const configDisposable = ConfigManager.initialize(context);
         context.subscriptions.push(configDisposable);
         Logger.trace(`Configuration manager initialized (${Date.now() - stepStartTime}ms)`);
-        // 步骤2.0: 初始化远程元数据服务（同步段仅读缓存，随后每 2 小时定时刷新）
+        // 步骤2.0: 初始化远程元数据服务（同步段仅读缓存，随后每 15 分钟定时刷新）
         stepStartTime = Date.now();
         await RemoteMetadataService.initialize(context);
         Logger.trace(`Remote metadata service initialized (${Date.now() - stepStartTime}ms)`);
-        // 步骤2.0.1: 初始化模型清单远程更新服务（同步段仅读缓存，随后每 2 小时定时刷新）
+        // 步骤2.0.1: 初始化模型清单远程更新服务（同步段仅读缓存，随后每 15 分钟定时刷新）
         stepStartTime = Date.now();
         await RemoteModelsService.initialize(context);
         Logger.trace(`Remote models service initialized (${Date.now() - stepStartTime}ms)`);

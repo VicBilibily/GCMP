@@ -13,7 +13,7 @@ website/remote-extra/<provider>.json   ← 唯一数据源(本仓库维护)
 website/public/configs/<provider>.json ← 内置模型 + 仅远端模型(追加在末尾)
         │ 部署 gcmp.dev
         ▼
-客户端 RemoteModelsService             ← 2h 定时 / 激活时 / 手动刷新拉取
+客户端 RemoteModelsService             ← 15min 定时 / 激活时 / 手动刷新拉取
         │ sanitizeProviderModels 合并去重(远端优先,内置回退)
         ▼
 模型选择器展示                          ← 仅远端模型继承内置 provider 的 baseUrl/密钥槽位
@@ -23,13 +23,13 @@ website/public/configs/<provider>.json ← 内置模型 + 仅远端模型(追加
 
 1. 在 `website/remote-extra/` 新增或修改 `<provider>.json`(provider 必须已内置)
 2. 运行 website 构建;构建期校验:未知 provider、内置同 id 冲突、禁止字段(`baseUrl` 等)都会**报错终止**
-3. 部署 gcmp.dev 后,客户端按 contentHash 增量拉取,正常联网且刷新成功时最多 2h 内生效(或用户手动执行 `GCMP: Refresh Remote Metadata` 触发刷新)
+3. 部署 gcmp.dev 后,客户端按 contentHash 增量拉取,正常联网且刷新成功时最多 15min 内生效(或用户手动执行 `GCMP: Refresh Remote Metadata` 触发刷新)
 
 ## 下线
 
 从 remote-extra 删除该模型(或整个文件)→ 重新构建部署。客户端下轮刷新重建合并列表,由于内置无该模型回退,模型直接从选择器消失。
 
-**时效窗口**:正常联网且刷新成功时,部署后到客户端生效最长 2h(定时周期)。网络或清单校验失败时客户端会保留旧缓存,需待后续刷新成功;窗口期内用户仍可选中该模型,调用时由 provider API 返回模型不存在错误——属预期行为,文案上请在 `tooltip` 标注"可能随时失效"。
+**时效窗口**:正常联网且刷新成功时,部署后到客户端生效最长 15min(定时周期)。网络或清单校验失败时客户端会保留旧缓存,需待后续刷新成功;窗口期内用户仍可选中该模型,调用时由 provider API 返回模型不存在错误——属预期行为,文案上请在 `tooltip` 标注"可能随时失效"。
 
 ## 客户端行为细节
 

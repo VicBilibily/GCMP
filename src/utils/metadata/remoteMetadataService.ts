@@ -1,6 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  远程元数据服务（宿主层）
- *  生产环境：激活读磁盘缓存；仅主实例每 2 小时拉取 GitHub Pages 元数据并原子写盘，
+ *  生产环境：激活读磁盘缓存；仅主实例每 15 分钟拉取 GitHub Pages 元数据并原子写盘，
  *  非主实例在定时/手动刷新或收到主实例通知时重读共享缓存
  *  开发环境：直接读取共享源文件 src/utils/metadata/gcmp-metadata.json，跳过远程与磁盘缓存
  *  任何失败仅 warn 并保留当前生效值（内置兜底见 metadataResolver）
@@ -17,7 +17,7 @@ import { fetchRemoteText } from './remoteFetch';
 import { RemoteModelsService } from './remoteModelsService';
 
 const REMOTE_METADATA_URL = 'https://gcmp.dev/gcmp-metadata.json';
-const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const METADATA_MAX_BYTES = 256 * 1024;
 
 export class RemoteMetadataService {
@@ -168,8 +168,7 @@ export class RemoteMetadataService {
                 Logger.trace('[Metadata] Remote metadata older than cache, skipped');
                 return;
             }
-            const cacheUnchanged =
-                existing?.contentHash === contentHash && existing.generatedAt === parsed.generatedAt;
+            const cacheUnchanged = existing?.contentHash === contentHash && existing.generatedAt === parsed.generatedAt;
             if (cacheUnchanged && contentHash === this.currentContentHash) {
                 Logger.trace(`[Metadata] Remote metadata unchanged (hash=${contentHash})`);
                 return;
