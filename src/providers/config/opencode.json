@@ -440,10 +440,7 @@
             "thinkingFormat": "object-none",
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": [0.22, 0.66, 0.007],
-                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
-            }
+            "tokenPricing": [0.14, 0.28, 0.028]
         },
         {
             "id": "deepseek-v4-pro-zen",
@@ -458,10 +455,7 @@
             "thinkingFormat": "object-none",
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": [0.66, 1.98, 0.022],
-                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
-            }
+            "tokenPricing": [1.74, 3.48, 0.145]
         },
         {
             "id": "glm-5.2-zen",
