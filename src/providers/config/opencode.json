@@ -15,7 +15,10 @@
             "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [2, 6, 0.5]
+            "tokenPricing": {
+                "pricing": [2, 6, 0.5],
+                "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
+            }
         },
         {
             "id": "glm-5.3-flash-go",
@@ -324,6 +327,24 @@
             }
         },
         {
+            "id": "deepseek-v4.1-flash-go",
+            "name": "DeepSeek-V4.1-Flash (Go)",
+            "model": "deepseek-flash",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - DeepSeek V4.1 Flash，快速经济的 API 服务。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinkingFormat": "object-none",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [0.15, 0.6, 0.003],
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
+        },
+        {
             "id": "deepseek-v4-pro-go",
             "name": "DeepSeek-V4-Pro (Go)",
             "model": "deepseek-v4-pro",
@@ -355,7 +376,7 @@
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
-                "pricing": [0.22, 0.66, 0.007],
+                "pricing": [0.15, 0.6, 0.003],
                 "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
@@ -373,7 +394,7 @@
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": [0.22, 0.66, 0.007],
+                "pricing": [0.15, 0.6, 0.003],
                 "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
