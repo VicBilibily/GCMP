@@ -1,9 +1,25 @@
 {
     "models": [
         {
-            "id": "deepseek-v4.1-flash-expires-on-0910",
-            "name": "DeepSeek-V4.1-Flash (抢先体验)",
-            "tooltip": "DeepSeek-V4.1 快速模式抢先体验测试版,2026-09-10下线",
+            "id": "deepseek-v4-flash",
+            "name": "DeepSeek-V4-Flash",
+            "tooltip": "DeepSeek-V4 快速模式",
+            "sdkMode": "openai-responses",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "USD": [0.15, 0.6, 0.003], "RMB": [1, 4, 0.02] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
+        },
+        {
+            "id": "deepseek-v4-flash-vision-exp",
+            "name": "DeepSeek-V4-Flash-Vision-Exp",
+            "tooltip": "DeepSeek-V4 识图模式",
             "sdkMode": "openai-responses",
             "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
@@ -12,7 +28,23 @@
             "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },
+                "pricing": { "USD": [0.15, 0.6, 0.003], "RMB": [1, 4, 0.02] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
+        },
+        {
+            "id": "deepseek-v4-pro",
+            "name": "DeepSeek-V4-Pro",
+            "tooltip": "DeepSeek-V4 专家模式。DeepSeek 计划于北京时间2026年9月14日12:00下线V4 Pro服务。",
+            "sdkMode": "openai-responses",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "USD": [0.66, 1.98, 0.022], "RMB": [4.5, 13.5, 0.15] },
                 "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         }
