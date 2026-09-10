@@ -9,7 +9,6 @@ import * as path from 'path';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import { ConfigManager } from '../../utils/config/configManager';
-import { configProviders } from '../../providers/config';
 import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
 import type { ModelConfig } from '../../types/sharedTypes';
 import type { AuxiliaryModelOption, AuxiliaryProviderData, FormValues, InitialValues, WebViewMessage } from './types';
@@ -211,7 +210,7 @@ export class AuxiliaryModelSettingsPanel {
             return undefined;
         }
 
-        const cfg = configProviders[value.provider as keyof typeof configProviders];
+        const cfg = ConfigManager.getConfigProvider()[value.provider];
         const effectiveCfg = cfg ? ConfigManager.applyProviderOverrides(value.provider, cfg) : undefined;
         const model =
             effectiveCfg?.models.find(m => m.id === value.model) ??
@@ -260,7 +259,7 @@ export class AuxiliaryModelSettingsPanel {
 
         const providerKey = match[2];
         const modelName = match[1].trim();
-        const cfg = configProviders[providerKey as keyof typeof configProviders];
+        const cfg = ConfigManager.getConfigProvider()[providerKey];
         const effectiveCfg = cfg ? ConfigManager.applyProviderOverrides(providerKey, cfg) : undefined;
 
         // 先按显示名称匹配，再按模型 ID 匹配
@@ -287,7 +286,8 @@ export class AuxiliaryModelSettingsPanel {
     private async getProviders(): Promise<AuxiliaryProviderData[]> {
         const result: AuxiliaryProviderData[] = [];
 
-        for (const [providerKey, cfg] of Object.entries(configProviders)) {
+        // 需经 getConfigProvider() 合并远程热更新清单，静态 configProviders 会漏热更新模型（如 deepseek-v4.1-flash-go）
+        for (const [providerKey, cfg] of Object.entries(ConfigManager.getConfigProvider())) {
             const effectiveCfg = ConfigManager.applyProviderOverrides(providerKey, cfg);
             const models = (effectiveCfg.models ?? [])
                 .filter(m => Boolean(m.id))

@@ -11,7 +11,6 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/runtime/logger';
 import { ConfigManager } from '../utils/config/configManager';
 import { t } from '../utils/runtime/l10n';
-import { configProviders } from '../providers/config';
 import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
 
 /** 从内置 ProviderConfig 判断模型是否支持图像输入 */
@@ -29,13 +28,13 @@ interface VisionProviderOption {
 
 /**
  * 获取可用的 GCMP 提供商列表（至少有一个支持图像输入的模型）
- * 来源：configProviders + providerOverrides + Compatible Provider + GitHub Copilot 原生多模态模型
+ * 来源：configProviders（经 getConfigProvider 合并远程热更新清单）+ providerOverrides + Compatible Provider + GitHub Copilot 原生多模态模型
  */
 async function getVisionProviders(): Promise<VisionProviderOption[]> {
     const result: VisionProviderOption[] = [];
     const seenKeys = new Set<string>();
 
-    for (const [key, cfg] of Object.entries(configProviders)) {
+    for (const [key, cfg] of Object.entries(ConfigManager.getConfigProvider())) {
         const effectiveCfg = ConfigManager.applyProviderOverrides(key, cfg);
         const imageModels = (effectiveCfg.models ?? [])
             .filter(m => hasImageCapability(m))
