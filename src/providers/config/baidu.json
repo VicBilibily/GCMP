@@ -5,6 +5,21 @@
     "tokenKeyTemplate": "bce-v3/ALTAK-xxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "glm-5.3-token",
+            "name": "GLM-5.3 (TokenPlan)",
+            "tooltip": "百度千帆 Token Plan 个人专属接入点中的 GLM-5.3。智谱最新旗舰模型，编程与网络安全能力突出，可靠交付生产级代码。支持 1M 上下文窗口，长任务稳定可用。",
+            "provider": "baidu-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/personal",
+            "model": "glm-5.3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [8, 28, 2] }
+        },
+        {
             "id": "glm-5.3-flash-token",
             "name": "GLM-5.3-Flash (TokenPlan)",
             "tooltip": "百度千帆 Token Plan 个人专属接入点中的 GLM-5.3-Flash。GLM-5 系列首个原生多模态模型，以极致低成本架构实现超越 GLM-5.2 的更强智能。在保持精准长上下文能力的同时，大幅降低了长上下文服务成本。",
