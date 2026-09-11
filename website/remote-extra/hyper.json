@@ -1,0 +1,118 @@
+﻿{
+    "models": [
+        {
+            "id": "glm-5",
+            "name": "GLM-5 (Hyper)",
+            "tooltip": "Charm Hyper — GLM-5。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 180000,
+            "maxOutputTokens": 20000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.86, 2.784, 0.43]
+        },
+        {
+            "id": "glm-5.1",
+            "name": "GLM-5.1 (Hyper)",
+            "tooltip": "Charm Hyper — GLM-5.1。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
+            "reasoningEffort": ["max", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.326, 4.22, 0.663]
+        },
+        {
+            "id": "kimi-k2.5",
+            "name": "Kimi-K2.5 (Hyper)",
+            "tooltip": "Charm Hyper — Kimi-K2.5。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 236000,
+            "maxOutputTokens": 20000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.5584, 2.935, 0.2792]
+        },
+        {
+            "id": "kimi-k2.6",
+            "name": "Kimi-K2.6 (Hyper)",
+            "tooltip": "Charm Hyper — Kimi-K2.6。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.03436, 4.3552, 0.174208, 0]
+        },
+        {
+            "id": "llama-3.3-70b-instruct",
+            "name": "Llama-3.3-70B-Instruct (Hyper)",
+            "tooltip": "Charm Hyper — Llama-3.3-70B-Instruct。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 118000,
+            "maxOutputTokens": 10000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6066, 1.0386, 0.3033]
+        },
+        {
+            "id": "llama-4-maverick-17b-128e-instruct-fp8",
+            "name": "Llama-4-Maverick-17B-128E-Instruct-FP8 (Hyper)",
+            "tooltip": "Charm Hyper — Llama-4-Maverick-17B-128E-Instruct-FP8。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 387000,
+            "maxOutputTokens": 43000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.274, 0.8992, 0.137]
+        },
+        {
+            "id": "qwen3.6-flash",
+            "name": "Qwen3.6-Flash (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.6-Flash。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.0, 4.0, 0.1, 1.25]
+        },
+        {
+            "id": "qwen3.6-max",
+            "name": "Qwen3.6-Max (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.6-Max。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [2.0, 12.0, 0.2, 2.5]
+        },
+        {
+            "id": "qwen3.6-plus",
+            "name": "Qwen3.6-Plus (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.6-Plus。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2.0, 6.0, 0.2, 2.5]
+        },
+        {
+            "id": "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
+            "name": "Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 90000,
+            "maxOutputTokens": 10000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.445, 2.145, 0.2225]
+        },
+        {
+            "id": "qwen3-next-80b-a3b-instruct",
+            "name": "Qwen3-Next-80B-A3B-Instruct (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3-Next-80B-A3B-Instruct。Hyper 计划于 2026-09-16 下线该模型。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 236000,
+            "maxOutputTokens": 20000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1175, 1.136, 0.05875]
+        }
+    ]
+}
