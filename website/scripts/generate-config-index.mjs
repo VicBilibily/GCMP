@@ -18,6 +18,9 @@ const extraDir = path.join(root, 'remote-extra')
 // 与客户端 modelsResolver 的 FORBIDDEN_MODEL_FIELDS 对齐：这些字段远端下发会被剥离，构建期直接报错
 const EXTRA_FORBIDDEN_FIELDS = ['baseUrl', 'endpoint', 'modelsEndpoint', 'proxy', 'apiKeyTemplate', 'provider', '__proto__', 'constructor', 'prototype']
 
+// 容忍 UTF-8 BOM：编辑器可能带 BOM 保存 JSON，JSON.parse 不认 BOM
+const parseJson = text => JSON.parse(text.replace(/^\uFEFF/, ''))
+
 // 先清后拷：扩展侧删除 provider 配置时站点同步移除
 await rm(configsDir, { recursive: true, force: true })
 await mkdir(configsDir, { recursive: true })
@@ -36,7 +39,7 @@ for (const file of extraFiles) {
     const targetPath = path.join(configsDir, file)
     let target
     try {
-        target = JSON.parse(await readFile(targetPath, 'utf8'))
+        target = parseJson(await readFile(targetPath, 'utf8'))
     } catch {
         throw new Error(
             `remote-extra/${file}: provider "${providerId}" 不在内置 src/providers/config 中，仅远端模型必须挂在已内置 provider 下`
@@ -44,7 +47,7 @@ for (const file of extraFiles) {
     }
     let extra
     try {
-        extra = JSON.parse(await readFile(path.join(extraDir, file), 'utf8'))
+        extra = parseJson(await readFile(path.join(extraDir, file), 'utf8'))
     } catch (error) {
         throw new Error(`remote-extra/${file}: JSON 解析失败 - ${error.message}`)
     }
@@ -84,7 +87,7 @@ await copyFile(
     path.join(repoRoot, 'src', 'utils', 'metadata', 'gcmp-metadata.json'),
     metadataPath
 )
-const metadata = JSON.parse(await readFile(metadataPath, 'utf8'))
+const metadata = parseJson(await readFile(metadataPath, 'utf8'))
 metadata.generatedAt = generatedAt
 await writeFile(metadataPath, JSON.stringify(metadata, null, 2) + '\n')
 
@@ -95,7 +98,7 @@ const files = (await readdir(configsDir))
 const providers = []
 for (const file of files) {
     const text = await readFile(path.join(configsDir, file), 'utf8')
-    const config = JSON.parse(text)
+    const config = parseJson(text)
     providers.push({
         id: file.replace(/\.json$/, ''),
         displayName: config.displayName,
@@ -107,7 +110,7 @@ for (const file of files) {
 const gcmpVersion =
     process.argv[2] ??
     process.env.GCMP_VERSION ??
-    JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8')).version
+    parseJson(await readFile(path.join(repoRoot, 'package.json'), 'utf8')).version
 
 const manifest = {
     schemaVersion: 1,
