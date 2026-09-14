@@ -28,8 +28,6 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
-import { ConfigManager } from '../utils/config/configManager';
-import { resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { DashscopeWizard } from '../wizards/dashscopeWizard';
 
@@ -318,16 +316,5 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
-    }
-
-    /**
-     * 国际站切换：接入点为 ap-southeast-1 时替换 URL 主机为国际站主机
-     */
-    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
-        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
-        if (!baseUrl) {
-            return baseUrl;
-        }
-        return resolveDashscopeBaseUrl(baseUrl, ConfigManager.getDashscopeEndpoint());
     }
 }

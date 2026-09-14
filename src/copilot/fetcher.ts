@@ -5,7 +5,7 @@
 
 import { VersionManager } from '../utils/runtime/versionManager';
 import type { DashscopeConfig, NESCompletionConfig } from '../utils/config/configManager';
-import { resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
+import { isDashscopeProviderSlot, resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
 import {
     FetchOptions,
     PaginationOptions,
@@ -26,14 +26,14 @@ import { closeProxyAgents } from '../utils/net/proxyAgent';
 // ============================================================================
 
 /**
- * FIM / NES 使用用户自定义的 baseUrl，DashScope 需按接入点替换主机
+ * FIM / NES 使用用户自定义的 baseUrl，百炼槽位（含套餐变体）需按接入点替换主机
  */
 function resolveCompletionBaseUrl(
     modelConfig: NESCompletionConfig['modelConfig'],
     endpoint: DashscopeConfig['endpoint']
 ): string {
     const baseUrl = modelConfig.baseUrl ?? '';
-    return modelConfig.provider === 'dashscope' ? resolveDashscopeBaseUrl(baseUrl, endpoint) : baseUrl;
+    return isDashscopeProviderSlot(modelConfig.provider) ? resolveDashscopeBaseUrl(baseUrl, endpoint) : baseUrl;
 }
 
 /**
