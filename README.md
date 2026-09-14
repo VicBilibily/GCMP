@@ -219,6 +219,31 @@ npm install -g @openai/codex@latest
 }
 ```
 
+- **App Server 传输（实验性）**：默认 `direct` 传输（GCMP 持有 OAuth 令牌直连 ChatGPT 后端）。设置 `transport: "appServer"` 后，扩展改为启动本机 `codex app-server` 进程，经 JSON-RPC 完成对话、模型发现与用量查询，**不再持有 OAuth 令牌**（认证完全交给本机 codex CLI）。
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "codex": {
+            "transport": "appServer",
+            "appServer": {
+                "codexBinary": "",
+                "idleShutdownMinutes": 10,
+                "threadMode": "ephemeral"
+            }
+        }
+    }
+}
+```
+
+| 选项 | 说明 |
+| --- | --- |
+| `codexBinary` | codex 可执行文件路径；留空自动从 PATH 探测（Windows 下自动解析 Volta/npm 的 .cmd shim） |
+| `idleShutdownMinutes` | 空闲自动回收分钟数，`0` 表示常驻 |
+| `threadMode` | `ephemeral`（默认，每次请求独立会话）/ `persistent`（同一会话跨轮复用 thread，增量发送，显著提升 prompt 缓存命中） |
+
+> appServer 模式要求 codex CLI ≥ 0.153.4（协议基线，低于此版本会拒绝启动并提示升级）；沙盒固定为 `read-only`、审批固定为 `never`，模型无法执行本地命令或写文件；VS Code 工具经 Dynamic Tools 桥接执行（2 分钟超时兜底）。
+
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 
 xAI 官方 Grok Build 编程助手命令行工具，支持通过 `grok` CLI 进行 OAuth 身份验证（需要本地安装 Grok Build CLI）。

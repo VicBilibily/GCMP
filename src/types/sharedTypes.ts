@@ -60,8 +60,9 @@ export interface ModelConfig {
      * - "openai": 使用 OpenAI SDK（默认）
      * - "openai-sse": 使用 OpenAI SSE 兼容模式（自定义实现流式响应处理）
      * - "openai-responses": 使用 OpenAI Responses API（使用 Responses API 进行请求响应处理）
+     * - "codex-app-server": 使用本机 codex app-server（JSON-RPC over stdio）传输
      */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses' | 'codex-app-server';
     /**
      * 模型特定的baseUrl（可选）
      * 如果提供，将覆盖提供商级别的baseUrl
@@ -654,6 +655,21 @@ export interface ProviderOverride {
     limit?: RateLimitConfig;
     /** 子 provider 级别的限流配置覆盖（可选），键名格式：`limit.${subProvider}` */
     [key: `limit.${string}`]: RateLimitConfig | undefined;
+    /**
+     * 传输层选择（可选，目前仅 codex 支持）。
+     * - "direct"（默认）：现有直连链路（OAuth 凭据 + HTTP API）
+     * - "appServer"：启动本机 `codex app-server`，经 JSON-RPC 完成对话/模型发现/额度
+     */
+    transport?: 'direct' | 'appServer';
+    /** App Server 传输的子配置（transport="appServer" 时生效） */
+    appServer?: {
+        /** codex 可执行文件路径；空 = PATH 自动探测 */
+        codexBinary?: string;
+        /** 空闲回收分钟数；0 = 常驻 */
+        idleShutdownMinutes?: number;
+        /** 会话映射模式：ephemeral（默认）| persistent */
+        threadMode?: 'ephemeral' | 'persistent';
+    };
 }
 
 /**

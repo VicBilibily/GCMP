@@ -11,6 +11,12 @@ import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
+import { getCodexAppServerClient } from '../cli/appServer';
+import type {
+    AppServerRateLimitWindow,
+    GetAccountRateLimitsResponse,
+    RateLimitSnapshot
+} from '../cli/appServer/protocolTypes';
 import { t } from '../utils/runtime/l10n';
 import type { QuotaTable } from './types';
 import { ConfigManager } from '../utils/config/configManager';
@@ -144,8 +150,12 @@ export function getResetDate(window: RateLimitWindow | undefined): Date | undefi
 /**
  * 查询 Codex (ChatGPT) 余量
  * 走 CliAuthFactory 静态入口，多窗口下由 Leader 单点刷新凭证
+ * appServer 传输时改走 codex app-server account/rateLimits/read
  */
 export async function queryCodexUsage(): Promise<{ success: boolean; data?: ChatGPTStatusData; error?: string }> {
+    if (ConfigManager.getProviderOverrides().codex?.transport === 'appServer') {
+        return queryCodexUsageViaAppServer();
+    }
     try {
         const codexAuth = CliAuthFactory.getInstance('codex') as CodexCliAuth | null;
         if (!codexAuth) {
@@ -275,6 +285,79 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
         }
         const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
         Logger.error(`[CodexUsageQuery] Usage query exception: ${errorMessage}`);
+        return { success: false, error: t('Query error: {0}', '查询异常: {0}', errorMessage) };
+    }
+}
+
+/** app-server 窗口（分钟制）→ direct 格式（秒制） */
+function mapAppServerWindow(window: AppServerRateLimitWindow | null): RateLimitWindow | undefined {
+    if (!window || !Number.isFinite(window.usedPercent)) {
+        return undefined;
+    }
+    const resetsAt = window.resetsAt ?? 0;
+    return {
+        used_percent: window.usedPercent,
+        limit_window_seconds: (window.windowDurationMins ?? 0) * 60,
+        reset_after_seconds: resetsAt > 0 ? Math.max(0, resetsAt - Math.floor(Date.now() / 1000)) : 0,
+        reset_at: resetsAt
+    };
+}
+
+/**
+ * appServer 传输的余量查询：codex app-server account/rateLimits/read（无参，省略 params）
+ * 主组选取 rateLimitsByLimitId.codex ?? rateLimits；邮箱/套餐经 account/read 补充（失败容忍）
+ */
+async function queryCodexUsageViaAppServer(): Promise<{ success: boolean; data?: ChatGPTStatusData; error?: string }> {
+    try {
+        const client = getCodexAppServerClient();
+        await client.ensureReady();
+        StatusLogger.debug('[CodexUsageQuery] Starting app-server rate limits query...');
+
+        const response = await client.request<GetAccountRateLimitsResponse>('account/rateLimits/read');
+        const snapshot: RateLimitSnapshot | undefined = response.rateLimitsByLimitId?.['codex'] ?? response.rateLimits;
+        const primaryWindow = mapAppServerWindow(snapshot?.primary ?? null);
+        if (!hasValidRateLimitWindow(primaryWindow)) {
+            return { success: false, error: t('No valid usage data was returned.', '未获取到有效的用量数据') };
+        }
+        const secondaryWindow = mapAppServerWindow(snapshot?.secondary ?? null);
+        const limitReached = (snapshot?.spendControlReached ?? false) || primaryWindow.used_percent >= 100;
+        const rateLimit: RateLimitInfo = {
+            allowed: !limitReached,
+            limit_reached: limitReached,
+            primary_window: primaryWindow,
+            secondary_window: secondaryWindow
+        };
+
+        let email = '';
+        let planType = snapshot?.planType ?? '';
+        try {
+            const accountResp = await client.request<{
+                account: { type: string; email?: string | null; planType?: string } | null;
+            }>('account/read');
+            if (accountResp.account?.type === 'chatgpt') {
+                email = accountResp.account.email ?? '';
+                planType = planType || (accountResp.account.planType ?? '');
+            }
+        } catch (accountError) {
+            Logger.warn(`[CodexUsageQuery] app-server account/read failed (tolerated): ${accountError}`);
+        }
+
+        StatusLogger.debug('[CodexUsageQuery] app-server usage query succeeded');
+        return {
+            success: true,
+            data: {
+                userId: '',
+                accountId: response.accountId ?? '',
+                email,
+                planType,
+                rateLimit,
+                codeReviewUsedPercent: 0,
+                lastUpdated: formatLocaleDateTime(new Date())
+            }
+        };
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+        Logger.error(`[CodexUsageQuery] app-server usage query exception: ${errorMessage}`);
         return { success: false, error: t('Query error: {0}', '查询异常: {0}', errorMessage) };
     }
 }

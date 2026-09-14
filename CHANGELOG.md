@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.0] - 未发布
+
+### 新增
+
+- **Codex App Server 传输（实验性）**：Codex 通道新增 `transport: "appServer"` 模式，启动本机 `codex app-server` 进程经 JSON-RPC 完成对话、模型发现与用量查询，扩展不再持有 OAuth 令牌（认证交给本机 codex CLI）；支持子配置 `codexBinary` / `idleShutdownMinutes` / `threadMode`（`ephemeral` 独立会话 / `persistent` 跨轮复用 thread 增量发送）；要求 codex CLI ≥ 0.153.4；沙盒固定 `read-only`、审批固定 `never`；VS Code 工具经 Dynamic Tools 桥接执行。 [#404](https://github.com/VicBilibily/GCMP/issues/404)
+
+---
+
+### Added
+
+- **Codex App Server transport (experimental)**: The Codex channel gains a `transport: "appServer"` mode that launches a local `codex app-server` process and handles chat, model discovery, and quota queries over JSON-RPC, so the extension no longer holds an OAuth token (authentication is delegated to the local codex CLI). Sub-options: `codexBinary` / `idleShutdownMinutes` / `threadMode` (`ephemeral` per-request sessions / `persistent` cross-turn thread reuse with incremental sends). Requires codex CLI ≥ 0.153.4. The sandbox is pinned to `read-only` and approvals to `never`; VS Code tools are bridged via Dynamic Tools. [#404](https://github.com/VicBilibily/GCMP/issues/404)
+
 ## [0.28.1] - 2026-09-10
 
 ### 修复

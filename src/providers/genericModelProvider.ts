@@ -32,6 +32,7 @@ import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
+import { CodexAppServerHandler } from '../handlers/codexAppServerHandler';
 import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../handlers/anthropic/anthropicRetry';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -120,6 +121,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiCustomHandler: OpenAICustomHandler;
     protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
     protected readonly anthropicHandler: AnthropicHandler;
+    protected readonly codexAppServerHandler: CodexAppServerHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -172,6 +174,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiResponsesHandler = new OpenAIResponsesHandler(this, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
+        // 创建 Codex App Server 处理器（仅 codex transport=appServer 时经分发实际使用）
+        this.codexAppServerHandler = new CodexAppServerHandler(this, context);
 
         // 延迟触发模型信息变更事件，确保所有提供商都已注册完成后重新报告一次模型列表
         setTimeout(() => {
@@ -632,6 +636,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (sdkMode === 'openai-responses') {
             return 'OpenAI Responses API';
         }
+        if (sdkMode === 'codex-app-server') {
+            return 'Codex App Server';
+        }
         return 'OpenAI SDK';
     }
 
@@ -788,6 +795,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             );
                         } else if (sdkMode === 'openai-responses') {
                             await this.openaiResponsesHandler.handleResponsesRequest(
+                                model,
+                                { ...modelConfig, provider: effectiveProviderKey },
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                requestStartTime,
+                                handleAttemptStarted,
+                                wasThrottled
+                            );
+                        } else if (sdkMode === 'codex-app-server') {
+                            await this.codexAppServerHandler.handleRequest(
                                 model,
                                 { ...modelConfig, provider: effectiveProviderKey },
                                 messages,

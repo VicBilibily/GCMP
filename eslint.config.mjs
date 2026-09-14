@@ -15,7 +15,9 @@ export default defineConfig(
             'node_modules',
             '**/*.d.ts',
             'extension.js',
-            'src/ui/*.js'
+            'src/ui/*.js',
+            // 评审/PoC 工作区（gitignored），不参与 lint
+            'discuss'
         ]
     },
     {

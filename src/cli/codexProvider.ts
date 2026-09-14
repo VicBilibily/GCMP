@@ -15,7 +15,9 @@ import { Logger } from '../utils/runtime/logger';
 import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
 import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
-import { parseCodexModelsResponse } from '../utils/model/codexModels';
+import { parseAppServerModelList, parseCodexModelsResponse } from '../utils/model/codexModels';
+import { getCodexAppServerClient, initCodexAppServer } from './appServer';
+import type { ModelListResponse } from './appServer/protocolTypes';
 
 /** Codex 后端模型列表 API 地址 */
 const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models';
@@ -116,10 +118,15 @@ export class CodexProvider extends CliBaseProvider {
             ...config.customHeader,
             ...ConfigManager.getProviderOverrides().codex?.customHeader
         };
-        return {
+        const result: ProviderConfig = {
             ...config,
             customHeader: ensureUserAgentHeader(customHeader, getCodexTuiUserAgentFromHeader(customHeader))
         };
+        // appServer 传输：全部模型改走 codex app-server（JSON-RPC）链路
+        if (ConfigManager.getProviderOverrides().codex?.transport === 'appServer') {
+            result.models = result.models.map(m => ({ ...m, sdkMode: 'codex-app-server' as const }));
+        }
+        return result;
     }
 
     /**
@@ -132,6 +139,7 @@ export class CodexProvider extends CliBaseProvider {
         providerConfig: ProviderConfig
     ): { provider: CodexProvider; disposables: vscode.Disposable[] } {
         const provider = new CodexProvider(context, providerConfig);
+        initCodexAppServer(context);
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider('gcmp.codex', provider);
         const configWizardCommand = vscode.commands.registerCommand('gcmp.codex.configWizard', async () => {
             await CodexProvider.startConfigWizard('codex', providerConfig.displayName);
@@ -340,6 +348,10 @@ export class CodexProvider extends CliBaseProvider {
      * 4. 解析响应并写入缓存（代际已过期时跳过缓存提交，结果仍可返回给在途等待者）
      */
     private async refreshModels(generation: number): Promise<ModelConfig[]> {
+        // appServer 传输：模型发现走 codex app-server model/list（不经 OAuth 后端，不留存令牌）
+        if (ConfigManager.getProviderOverrides().codex?.transport === 'appServer') {
+            return this.refreshModelsViaAppServer(generation);
+        }
         const credentials = await CliAuthFactory.ensureAuthenticated('codex');
         if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
             throw new StaleCodexModelsError();
@@ -422,6 +434,24 @@ export class CodexProvider extends CliBaseProvider {
                 this.currentAbortController = undefined;
             }
         }
+    }
+
+    /**
+     * appServer 传输的模型发现：经 codex app-server model/list 拉取
+     * 不写 globalState 缓存（无 API Key 哈希可绑定），仅复用内存缓存（3 分钟）
+     */
+    private async refreshModelsViaAppServer(generation: number): Promise<ModelConfig[]> {
+        const client = getCodexAppServerClient(this.context);
+        await client.ensureReady();
+        if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
+            throw new StaleCodexModelsError();
+        }
+        const response = await client.request<ModelListResponse>('model/list');
+        const models = parseAppServerModelList(response.data ?? [], this.staticProviderConfig.models);
+        if (models.length === 0) {
+            throw new Error('Codex app-server model/list returned no selectable models');
+        }
+        return models;
     }
 
     /**

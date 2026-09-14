@@ -219,6 +219,31 @@ npm install -g @openai/codex@latest
 }
 ```
 
+- **App Server transport (experimental)**: The default `direct` transport holds an OAuth token and talks to the ChatGPT backend over HTTP. With `transport: "appServer"`, the extension instead launches a local `codex app-server` process and completes chat, model discovery, and quota queries over JSON-RPC — **no OAuth token is held by the extension** (authentication is fully delegated to the local codex CLI).
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "codex": {
+            "transport": "appServer",
+            "appServer": {
+                "codexBinary": "",
+                "idleShutdownMinutes": 10,
+                "threadMode": "ephemeral"
+            }
+        }
+    }
+}
+```
+
+| Option | Description |
+| --- | --- |
+| `codexBinary` | Path to the codex executable; leave empty to auto-detect from PATH (Volta/npm `.cmd` shims are resolved on Windows) |
+| `idleShutdownMinutes` | Minutes of idleness before the process is recycled; `0` keeps it resident |
+| `threadMode` | `ephemeral` (default, one session per request) / `persistent` (reuses the thread across turns with incremental sends, significantly improving prompt-cache hits) |
+
+> appServer mode requires codex CLI ≥ 0.153.4 (protocol baseline; older versions are rejected with an upgrade hint). The sandbox is pinned to `read-only` and approvals to `never`, so the model cannot run local commands or write files; VS Code tools are bridged via Dynamic Tools (with a 2-minute timeout fallback).
+
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 
 xAI's official Grok Build coding assistant CLI tool. Supports OAuth authentication via the `grok` CLI (requires local installation).

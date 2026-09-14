@@ -190,17 +190,78 @@ export function parseCodexModelsResponse(payload: unknown, staticModels: ModelCo
     if (!Array.isArray(root?.models)) {
         return [];
     }
+    return mergeRemoteModels(
+        root.models.map((value, index) => ({ model: parseRemoteModel(value), index })),
+        staticModels
+    );
+}
 
+/**
+ * 解析 codex app-server model/list 响应（appServer 传输的模型发现来源）
+ * AppServerModel.hidden=true 视为不可见；无 priority 字段，isDefault 优先，其余保持返回顺序
+ */
+export function parseAppServerModelList(
+    data: Array<{
+        id: string;
+        model: string;
+        displayName: string;
+        description: string;
+        hidden: boolean;
+        supportedReasoningEfforts: Array<{ reasoningEffort: string; description: string }>;
+        defaultReasoningEffort: string;
+        inputModalities: string[];
+        serviceTiers: Array<{ id: string; name: string; description: string }>;
+        isDefault: boolean;
+    }>,
+    staticModels: ModelConfig[]
+): ModelConfig[] {
+    const parsed = data.map((item, index) => {
+        const slug = nonEmptyString(item.model) ?? nonEmptyString(item.id);
+        if (!slug || item.hidden) {
+            return { model: undefined, index };
+        }
+        const reasoningEffort = (item.supportedReasoningEfforts ?? [])
+            .map(o => nonEmptyString(o.reasoningEffort) as NonNullable<ModelConfig['reasoningEffort']>[number])
+            .filter(e => e && reasoningEfforts.has(e))
+            .filter((e, i, arr) => arr.indexOf(e) === i);
+        const defaultReasoning = nonEmptyString(item.defaultReasoningEffort) as ModelConfig['reasoningDefault'];
+        const serviceTier = (item.serviceTiers ?? [])
+            .map(t => nonEmptyString(t.id) ?? nonEmptyString(t.name))
+            .filter((t): t is string => Boolean(t));
+        const remote: CodexRemoteModel = {
+            slug,
+            displayName: nonEmptyString(item.displayName),
+            description: nonEmptyString(item.description),
+            contextWindow: undefined,
+            inputModalities: item.inputModalities?.length > 0 ? item.inputModalities : undefined,
+            reasoningEffort,
+            reasoningDefault:
+                defaultReasoning && reasoningEffort.includes(defaultReasoning) ? defaultReasoning : undefined,
+            serviceTier: serviceTier.length > 0 ? serviceTier : undefined,
+            // isDefault 排最前，其余保持返回顺序
+            priority: item.isDefault ? -1 : index
+        };
+        return { model: remote as CodexRemoteModel | undefined, index };
+    });
+    return mergeRemoteModels(parsed, staticModels);
+}
+
+/**
+ * 远端模型与本地预置模型的合并/排序/去重（direct 与 appServer 两种数据源共用）
+ */
+function mergeRemoteModels(
+    candidates: Array<{ model: CodexRemoteModel | undefined; index: number }>,
+    staticModels: ModelConfig[]
+): ModelConfig[] {
     // 建立本地预置模型的 slug→配置 映射，用于快速匹配
     const staticById = new Map(staticModels.map(model => [model.id, model]));
     const seen = new Set<string>();
     const result: ModelConfig[] = [];
 
-    root.models
-        // 第一步：逐个解析远端模型，过滤掉不可见的
-        .map((value, index) => ({ model: parseRemoteModel(value), index }))
+    candidates
+        // 第一步：过滤掉不可见的
         .filter((item): item is { model: CodexRemoteModel; index: number } => Boolean(item.model))
-        // 第二步：按 priority 排序，同 priority 保留 API 返回顺序
+        // 第二步：按 priority 排序，同 priority 保留原始顺序
         .sort((a, b) => a.model.priority - b.model.priority || a.index - b.index)
         // 第三步：去重并组装最终列表
         .forEach(({ model: remote }) => {

@@ -20,11 +20,15 @@ export interface StatefulMarkerContainer {
     extension: StatefulMarkerExtension;
     provider: string;
     modelId: string;
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic';
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'codex-app-server';
     /** 会话ID，标识会话上下文 */
     sessionId: string;
     /** 响应ID，模型返回响应标识 */
     responseId: string;
+    /** codex-app-server 模式 B：持久 thread ID（模式 A ephemeral 不写） */
+    codexThreadId?: string;
+    /** codex-app-server 模式 B：最近完成的 turn ID，用于增量与回滚定位 */
+    codexLastTurnId?: string;
     /** 需要跨轮次稳定回传的完整思考内容 */
     completeThinking?: string;
     /** 需要跨轮次稳定回传的完整签名内容（signature_delta 累积） */

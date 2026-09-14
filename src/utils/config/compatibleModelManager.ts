@@ -186,10 +186,12 @@ export class CompatibleModelManager {
     static readonly onDidChangeModels = CompatibleModelManager._onDidChangeModels.event;
     private static isSaving = false; // 标记是否正在保存，避免触发配置监听器
 
-    static getSdkModeLabel(sdkMode: CompatibleModelConfig['sdkMode']): string {
+    static getSdkModeLabel(sdkMode: CompatibleModelConfig['sdkMode'] | 'codex-app-server'): string {
         switch (sdkMode) {
             case 'anthropic':
                 return 'Anthropic';
+            case 'codex-app-server':
+                return 'Codex App Server';
             case 'openai':
             case 'openai-sse':
             case 'openai-responses':
