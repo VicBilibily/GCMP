@@ -15,11 +15,22 @@ const configsDir = path.join(root, 'public', 'configs')
 const indexPath = path.join(configsDir, 'index.json')
 const extraDir = path.join(root, 'remote-extra')
 
-// 与客户端 modelsResolver 的 FORBIDDEN_MODEL_FIELDS 对齐：这些字段远端下发会被剥离，构建期直接报错
-const EXTRA_FORBIDDEN_FIELDS = ['baseUrl', 'endpoint', 'modelsEndpoint', 'proxy', 'apiKeyTemplate', 'provider', '__proto__', 'constructor', 'prototype']
+// 与客户端 modelsResolver 的禁止字段保持一致
+const EXTRA_FORBIDDEN_FIELDS = ['modelsEndpoint', 'proxy', 'apiKeyTemplate', '__proto__', 'constructor', 'prototype']
 
 // 容忍 UTF-8 BOM：编辑器可能带 BOM 保存 JSON，JSON.parse 不认 BOM
 const parseJson = text => JSON.parse(text.replace(/^\uFEFF/, ''))
+const urlOrigin = value => {
+    try {
+        const url = new URL(value)
+        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return undefined
+        return url.origin
+    } catch {
+        return undefined
+    }
+}
+const isCleanString = (value, maxLength) =>
+    typeof value === 'string' && value.trim() && value.trim().length <= maxLength && !/[\u0000-\u001f\u007f]/.test(value.trim())
 
 // 先清后拷：扩展侧删除 provider 配置时站点同步移除
 await rm(configsDir, { recursive: true, force: true })
@@ -55,6 +66,9 @@ for (const file of extraFiles) {
         throw new Error(`remote-extra/${file}: 缺少 models 数组`)
     }
     const builtinIds = new Set(target.models.map(m => m.id))
+    const trustedBaseUrlOrigins = new Set(target.models.map(model => urlOrigin(model.baseUrl)).filter(Boolean))
+    const trustedEndpoints = new Set(target.models.map(model => model.endpoint).filter(value => typeof value === 'string' && value.length > 0))
+    const trustedProviders = new Set(target.models.map(model => model.provider).filter(value => typeof value === 'string' && value.length > 0))
     for (const model of extra.models) {
         if (!model || typeof model !== 'object' || Array.isArray(model) ||
             typeof model.id !== 'string' || model.id.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:@+\-/]*$/.test(model.id) ||
@@ -64,9 +78,20 @@ for (const file of extraFiles) {
             throw new Error(`remote-extra/${file}: 模型必填字段非法`)
         }
         const forbidden = EXTRA_FORBIDDEN_FIELDS.filter(f => Object.hasOwn(model, f))
-        if (forbidden.length > 0) {
+        const untrustedRoutes = []
+        if (Object.hasOwn(model, 'baseUrl') && !(isCleanString(model.baseUrl, 2048) && trustedBaseUrlOrigins.has(urlOrigin(model.baseUrl.trim())))) {
+            untrustedRoutes.push('baseUrl')
+        }
+        if (Object.hasOwn(model, 'endpoint') && !(isCleanString(model.endpoint, 2048) && trustedEndpoints.has(model.endpoint.trim()))) {
+            untrustedRoutes.push('endpoint')
+        }
+        if (Object.hasOwn(model, 'provider') && !(isCleanString(model.provider, 128) && trustedProviders.has(model.provider.trim()))) {
+            untrustedRoutes.push('provider')
+        }
+        const invalidFields = [...new Set([...forbidden, ...untrustedRoutes])]
+        if (invalidFields.length > 0) {
             throw new Error(
-                `remote-extra/${file}: 模型 ${model.id} 含禁止下发字段 ${forbidden.join(', ')}（客户端安全清洗会剥离，端点/密钥槽位只能继承内置 provider 配置）`
+                `remote-extra/${file}: 模型 ${model.id} 含禁止或不受信任字段 ${invalidFields.join(', ')}`
             )
         }
         if (builtinIds.has(model.id)) {

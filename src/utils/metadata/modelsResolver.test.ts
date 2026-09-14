@@ -224,7 +224,7 @@ test('sanitizeProviderModels drops models with invalid required fields, keeps ot
     );
 });
 
-test('sanitizeProviderModels inherits destination fields from builtin by id, never from remote', () => {
+test('sanitizeProviderModels rejects untrusted destination fields and falls back to builtin values', () => {
     const builtin = [
         {
             id: 'variant-model',
@@ -234,8 +234,8 @@ test('sanitizeProviderModels inherits destination fields from builtin by id, nev
             maxOutputTokens: 100,
             capabilities: { toolCalling: false, imageInput: false },
             baseUrl: 'https://token-plan.example.com/v1',
-            provider: 'dashscope-token',
-            proxy: 'noproxy'
+            endpoint: '/messages',
+            provider: 'dashscope-token'
         } as const
     ];
     const result = sanitizeProviderModels(
@@ -247,6 +247,7 @@ test('sanitizeProviderModels inherits destination fields from builtin by id, nev
                     maxInputTokens: 1000,
                     maxOutputTokens: 100,
                     baseUrl: 'https://attacker.example',
+                    endpoint: '/attacker-endpoint',
                     provider: 'attacker-slot',
                     proxy: 'http://attacker:8080',
                     tokenPricing: [9, 9]
@@ -265,12 +266,138 @@ test('sanitizeProviderModels inherits destination fields from builtin by id, nev
     );
     const variant = result?.models.find(m => m.id === 'variant-model');
     assert.equal(variant?.baseUrl, 'https://token-plan.example.com/v1');
+    assert.equal(variant?.endpoint, '/messages');
     assert.equal(variant?.provider, 'dashscope-token');
-    assert.equal(variant?.proxy, 'noproxy');
+    assert.equal(variant?.proxy, undefined);
     assert.equal(variant?.tokenPricing?.inputPrice, 9);
+    assert.deepEqual(result?.strippedFields, ['baseUrl', 'endpoint', 'provider', 'proxy']);
     const fresh = result?.models.find(m => m.id === 'brand-new-model');
     assert.equal(fresh?.baseUrl, undefined);
     assert.equal(fresh?.provider, undefined);
+});
+
+test('sanitizeProviderModels trusts remote baseUrl by origin, allowing path switch on trusted host', () => {
+    const builtin = [
+        builtinModel('seed-model', { baseUrl: 'https://token-plan.example.com/apps/anthropic' }),
+        builtinModel('relative-model', { baseUrl: 'not-a-valid-url' })
+    ];
+    const result = sanitizeProviderModels(
+        {
+            models: [
+                {
+                    id: 'protocol-variant',
+                    name: 'Protocol Variant',
+                    maxInputTokens: 1000,
+                    maxOutputTokens: 100,
+                    baseUrl: 'https://token-plan.example.com/compatible-mode/v1'
+                },
+                {
+                    id: 'attacker-variant',
+                    name: 'Attacker Variant',
+                    maxInputTokens: 1000,
+                    maxOutputTokens: 100,
+                    baseUrl: 'https://attacker.example/apps/anthropic'
+                }
+            ]
+        },
+        builtin
+    );
+    const trusted = result?.models.find(m => m.id === 'protocol-variant');
+    assert.equal(trusted?.baseUrl, 'https://token-plan.example.com/compatible-mode/v1');
+    const attacker = result?.models.find(m => m.id === 'attacker-variant');
+    assert.equal(attacker?.baseUrl, undefined);
+});
+
+test('sanitizeProviderModels keeps a trusted remote route for an existing model', () => {
+    const builtin = [
+        builtinModel('protocol-variant', {
+            baseUrl: 'https://token-plan.example.com/apps/anthropic',
+            sdkMode: 'anthropic',
+            endpoint: '/current-model-endpoint',
+            provider: 'provider-a'
+        }),
+        builtinModel('provider-seed', { endpoint: '/messages', provider: 'provider-b' })
+    ];
+    const result = sanitizeProviderModels(
+        {
+            models: [
+                {
+                    id: 'protocol-variant',
+                    name: 'Protocol Variant',
+                    maxInputTokens: 1000,
+                    maxOutputTokens: 100,
+                    sdkMode: 'openai-responses',
+                    baseUrl: 'https://token-plan.example.com/compatible-mode/v1',
+                    endpoint: '/messages',
+                    provider: 'provider-b',
+                    proxy: 'http://attacker:8080'
+                }
+            ]
+        },
+        builtin
+    );
+    const model = result?.models[0];
+    assert.equal(model?.baseUrl, 'https://token-plan.example.com/compatible-mode/v1');
+    assert.equal(model?.sdkMode, 'openai-responses');
+    assert.equal(model?.endpoint, '/messages');
+    assert.equal(model?.provider, 'provider-b');
+    assert.equal(model?.proxy, undefined);
+    assert.deepEqual(result?.strippedFields, ['proxy']);
+
+    const newModelResult = sanitizeProviderModels(
+        {
+            models: [
+                {
+                    id: 'new-protocol-variant',
+                    name: 'New Protocol Variant',
+                    maxInputTokens: 1000,
+                    maxOutputTokens: 100,
+                    endpoint: '/messages',
+                    provider: 'provider-b'
+                }
+            ]
+        },
+        builtin
+    );
+    const newModel = newModelResult?.models[0];
+    assert.equal(newModel?.endpoint, '/messages');
+    assert.equal(newModel?.provider, 'provider-b');
+});
+
+test('sanitizeProviderModels rejects non-HTTP(S) and credentialed remote baseUrls', () => {
+    const builtin = [
+        builtinModel('blob-route', { baseUrl: 'https://token-plan.example.com/apps/anthropic' }),
+        builtinModel('credentialed-route', { baseUrl: 'https://token-plan.example.com/apps/anthropic' })
+    ];
+    const result = sanitizeProviderModels(
+        {
+            models: [
+                {
+                    id: 'blob-route',
+                    name: 'Blob Route',
+                    maxInputTokens: 1000,
+                    maxOutputTokens: 100,
+                    baseUrl: 'blob:https://token-plan.example.com/123'
+                },
+                {
+                    id: 'credentialed-route',
+                    name: 'Credentialed Route',
+                    maxInputTokens: 1000,
+                    maxOutputTokens: 100,
+                    baseUrl: 'https://user:pass@token-plan.example.com/v1'
+                }
+            ]
+        },
+        builtin
+    );
+    assert.equal(
+        result?.models.find(m => m.id === 'blob-route')?.baseUrl,
+        'https://token-plan.example.com/apps/anthropic'
+    );
+    assert.equal(
+        result?.models.find(m => m.id === 'credentialed-route')?.baseUrl,
+        'https://token-plan.example.com/apps/anthropic'
+    );
 });
 
 test('sanitizeProviderModels rejects structurally invalid payloads', () => {

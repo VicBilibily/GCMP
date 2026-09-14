@@ -33,6 +33,7 @@ import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
 import { preprocessOpenAIChatRequest } from './openai/openaiChatRequestPreprocessor';
 import { applyOpenAIServiceTier } from './openai/serviceTier';
+import { reportChatCompletionText } from './openai/openaiChatStreamText';
 
 /**
  * 扩展Delta类型以支持reasoning_content和reasoning字段
@@ -1135,17 +1136,7 @@ export class OpenAIHandler {
                                     }
                                 }
 
-                                // 检查同一个 chunk 中是否有 delta.content（文本内容）
-                                const deltaContent = delta?.content;
-                                if (deltaContent && typeof deltaContent === 'string') {
-                                    streamReporter.reportText(deltaContent);
-                                }
-
-                                // 另外兼容：如果服务端把最终文本放在 message.content（旧/混合格式），当作 content 增量处理
-                                const messageContent = message?.content;
-                                if (typeof messageContent === 'string' && messageContent.length > 0) {
-                                    streamReporter.reportText(messageContent);
-                                }
+                                reportChatCompletionText({ delta, message }, streamReporter);
                             }
                         }
                     })

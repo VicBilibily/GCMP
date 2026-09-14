@@ -13,6 +13,21 @@
 ### Added
 
 - **Alibaba Cloud DashScope endpoint switch (China / International)**: added the `GCMP: Set DashScope Endpoint` command and the `gcmp.dashscope.endpoint` setting (`cn-beijing` / `ap-southeast-1`), also available from the configuration wizard menu; it applies to every DashScope model (standard, Coding Plan and Token Plan) by replacing only the request host (`dashscope.aliyuncs.com` → `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com` → `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com` → `token-plan.ap-southeast-1.maas.aliyuncs.com`) while keeping paths unchanged; the DashScope MCP web search tool follows the same endpoint.
+### 修复
+
+- **远程模型元数据配置兼容性**：内置模型配置的 `baseUrl`、`endpoint` 与 `provider` 改按内置白名单校验，允许同一主机的多协议接入点正常切换。
+- **自定义请求头与会话占位符**：Compatible 模型及各 SDK 通道支持在自定义请求头和 `extraBody` 中使用 `${SESSIONID}` 占位符，并统一完成会话 ID 替换。
+- **远程元数据生成兼容性**：修复配置生成脚本读取带 UTF-8 BOM 的 JSON 文件时解析失败的问题。
+- **OpenAI 兼容流正文重复输出**：修复部分网关同时返回 `delta` 与 `message` 时，OpenAI 模式因 SDK 快照字段别名导致正文分片被重复上报的问题。 [#407](https://github.com/VicBilibily/GCMP/issues/407)
+
+---
+
+### Fixed
+
+- **Remote model metadata compatibility**: Built-in model configuration now validates `baseUrl`, `endpoint`, and `provider` against internal allowlists, allowing protocol switching between endpoints on the same host.
+- **Custom headers and session placeholders**: Compatible models and SDK channels now support `${SESSIONID}` in custom headers and `extraBody`, with session ID substitution applied consistently.
+- **Remote metadata generation compatibility**: Fixed configuration generation failures when reading JSON files containing a UTF-8 BOM.
+- **Duplicate text in OpenAI-compatible streams**: Fixed duplicated streamed text in OpenAI mode when some gateways return both `delta` and `message`, causing SDK snapshot field aliasing to report the same content twice. [#407](https://github.com/VicBilibily/GCMP/issues/407)
 
 ## [0.28.1] - 2026-09-10
 

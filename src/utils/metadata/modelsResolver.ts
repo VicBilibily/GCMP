@@ -166,9 +166,7 @@ const CACHE_TTLS = new Set(['5m', '1h']);
 const LIMIT_KEYS = new Set(['rpm', 'rps', 'tpm', 'parallel']);
 
 /** 凭证/流量重定向风险字段，禁止远程下发（出现即剥离并审计） */
-const FORBIDDEN_MODEL_FIELDS = new Set(['baseUrl', 'endpoint', 'modelsEndpoint', 'proxy', 'apiKeyTemplate']);
-/** 目的地/密钥槽位字段：远程值一律不取，仅从内置同 id 模型继承（变体模型路由依赖这些字段） */
-const INHERIT_ONLY_FIELDS = ['baseUrl', 'endpoint', 'proxy', 'provider'] as const;
+const FORBIDDEN_MODEL_FIELDS = new Set(['modelsEndpoint', 'proxy', 'apiKeyTemplate']);
 const PROTO_POLLUTION_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const HEADER_KEY_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
@@ -196,6 +194,19 @@ function collectTrustedModelValues(
             .map(model => model[field])
             .filter((value): value is string => typeof value === 'string' && value.length > 0)
     );
+}
+
+/** 非 HTTP(S) 或携带凭据的 URL 不作为 API 接入点 */
+function urlOrigin(value: string): string | undefined {
+    try {
+        const url = new URL(value);
+        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+            return undefined;
+        }
+        return url.origin;
+    } catch {
+        return undefined;
+    }
 }
 
 // eslint-disable-next-line no-control-regex
@@ -382,7 +393,7 @@ function asRateLimit(value: unknown): ModelConfig['limit'] | undefined {
  * 禁止字段剥离并计入审计；必填字段（id/name/maxInputTokens/maxOutputTokens）非法的模型整体丢弃
  * 载荷结构非法（非对象或 models 非数组）或全部模型被丢弃时返回 undefined，避免空列表清空 provider
  * 清洗完成后与内置模型合并：同 id 用远端定义，内置剩余项作为回退（无内置时退化为纯替换）
- * @param builtinModels 内置模型（用于按 id 继承目的地/密钥槽位字段：baseUrl/endpoint/modelsEndpoint/proxy/provider）
+ * @param builtinModels 内置模型（用于校验远端路由字段，并回退同 id 内置配置）
  */
 export function sanitizeProviderModels(
     payload: unknown,
@@ -393,7 +404,14 @@ export function sanitizeProviderModels(
         return undefined;
     }
     const builtinById = new Map((builtinModels ?? []).map(model => [model.id, model]));
-    const trustedBaseUrls = collectTrustedModelValues(builtinModels ?? [], 'baseUrl');
+    // 同 host 多协议接入点切换：baseUrl 信任判定只看协议+主机，路径允许与内置不同
+    const trustedBaseUrlOrigins = new Set<string>();
+    for (const url of collectTrustedModelValues(builtinModels ?? [], 'baseUrl')) {
+        const origin = urlOrigin(url);
+        if (origin) {
+            trustedBaseUrlOrigins.add(origin);
+        }
+    }
     const trustedEndpoints = collectTrustedModelValues(builtinModels ?? [], 'endpoint');
     const trustedProviders = collectTrustedModelValues(builtinModels ?? [], 'provider');
     const remoteModelsById = new Map<string, ModelConfig>();
@@ -403,7 +421,7 @@ export function sanitizeProviderModels(
     for (const item of root.models) {
         const input = asRecord(item);
         for (const key of Object.keys(input)) {
-            if (FORBIDDEN_MODEL_FIELDS.has(key) || PROTO_POLLUTION_KEYS.has(key) || key === 'provider') {
+            if (FORBIDDEN_MODEL_FIELDS.has(key) || PROTO_POLLUTION_KEYS.has(key)) {
                 stripped.add(key);
             }
         }
@@ -432,16 +450,23 @@ export function sanitizeProviderModels(
         };
 
         const remoteBaseUrl = asCleanString(input.baseUrl, 2048);
-        if (remoteBaseUrl && trustedBaseUrls.has(remoteBaseUrl)) {
+        const remoteOrigin = remoteBaseUrl ? urlOrigin(remoteBaseUrl) : undefined;
+        if (remoteBaseUrl && remoteOrigin && trustedBaseUrlOrigins.has(remoteOrigin)) {
             model.baseUrl = remoteBaseUrl;
+        } else if (Object.hasOwn(input, 'baseUrl')) {
+            stripped.add('baseUrl');
         }
         const remoteEndpoint = asCleanString(input.endpoint, 2048);
         if (remoteEndpoint && trustedEndpoints.has(remoteEndpoint)) {
             model.endpoint = remoteEndpoint;
+        } else if (Object.hasOwn(input, 'endpoint')) {
+            stripped.add('endpoint');
         }
         const remoteProvider = asCleanString(input.provider, 128);
         if (remoteProvider && trustedProviders.has(remoteProvider)) {
             model.provider = remoteProvider;
+        } else if (Object.hasOwn(input, 'provider')) {
+            stripped.add('provider');
         }
 
         const version = asCleanString(input.version, 64);
@@ -526,14 +551,16 @@ export function sanitizeProviderModels(
             model.nativeTools = nativeTools;
         }
 
-        // 目的地/密钥槽位字段仅从内置同 id 模型继承；无内置对应（全新模型）则保持剥离
         const builtinModel = builtinById.get(id);
         if (builtinModel) {
-            for (const key of INHERIT_ONLY_FIELDS) {
-                const inheritedValue = builtinModel[key];
-                if (inheritedValue !== undefined) {
-                    model[key] = inheritedValue;
-                }
+            if (model.baseUrl === undefined && builtinModel.baseUrl !== undefined) {
+                model.baseUrl = builtinModel.baseUrl;
+            }
+            if (model.endpoint === undefined && builtinModel.endpoint !== undefined) {
+                model.endpoint = builtinModel.endpoint;
+            }
+            if (model.provider === undefined && builtinModel.provider !== undefined) {
+                model.provider = builtinModel.provider;
             }
         }
 

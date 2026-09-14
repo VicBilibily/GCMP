@@ -138,7 +138,7 @@ export class RemoteModelsService {
             return undefined;
         }
         const builtinModels = configProviders[providerKey as keyof typeof configProviders]?.models;
-        // 传入内置模型：目的地/密钥槽位字段（baseUrl/provider 等）仅从内置同 id 模型继承
+        // 传入内置模型：远端路由字段按当前 provider 的内置值校验，并回退同 id 配置
         const result = sanitizeProviderModels(payload, builtinModels);
         if (!result) {
             Logger.warn(`[Models] ${providerKey}: invalid provider payload, skipped`);
@@ -168,7 +168,8 @@ export class RemoteModelsService {
             }
             const base = JSON.parse(baseText) as { models?: unknown[] };
             const extra = JSON.parse(extraText) as { models?: unknown[] };
-            const validated = sanitizeProviderModels(extra);
+            const builtinModels = configProviders[providerKey as keyof typeof configProviders]?.models;
+            const validated = sanitizeProviderModels(extra, builtinModels);
             if (
                 !base ||
                 !Array.isArray(base.models) ||
@@ -177,13 +178,13 @@ export class RemoteModelsService {
                 base.models.length + extra.models.length > 512 ||
                 !validated ||
                 validated.droppedModels > 0 ||
-                validated.strippedFields.length > 0 ||
-                validated.models.length !== extra.models.length
+                validated.strippedFields.length > 0
             ) {
                 throw new Error('Invalid extra model fields or duplicate ids');
             }
+            const extraIds = new Set(extra.models.map(model => (model as ModelConfig).id));
             const builtinIds = new Set(base.models.map(model => (model as ModelConfig).id));
-            if (validated.models.some(model => builtinIds.has(model.id))) {
+            if (extraIds.size !== extra.models.length || [...extraIds].some(id => builtinIds.has(id))) {
                 throw new Error('Extra model id conflicts with builtin model');
             }
             return JSON.stringify({ ...base, models: [...base.models, ...extra.models] });
