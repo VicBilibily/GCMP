@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VersionManager } from '../utils/runtime/versionManager';
-import type { NESCompletionConfig } from '../utils/config/configManager';
+import type { DashscopeConfig, NESCompletionConfig } from '../utils/config/configManager';
+import { resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
 import {
     FetchOptions,
     PaginationOptions,
@@ -23,6 +24,17 @@ import { closeProxyAgents } from '../utils/net/proxyAgent';
 // Fetcher - 实现 IFetcher 接口
 // 参考: nesProvider.spec.ts 中的 TestFetcher
 // ============================================================================
+
+/**
+ * FIM / NES 使用用户自定义的 baseUrl，DashScope 需按接入点替换主机
+ */
+function resolveCompletionBaseUrl(
+    modelConfig: NESCompletionConfig['modelConfig'],
+    endpoint: DashscopeConfig['endpoint']
+): string {
+    const baseUrl = modelConfig.baseUrl ?? '';
+    return modelConfig.provider === 'dashscope' ? resolveDashscopeBaseUrl(baseUrl, endpoint) : baseUrl;
+}
 
 /**
  * 自定义 Fetcher 实现
@@ -91,7 +103,7 @@ export class Fetcher implements IFetcher {
                 logger.error('[Fetcher] NES model configuration missing');
                 throw new Error('NES model configuration is missing');
             }
-            url = `${modelConfig.baseUrl}/chat/completions`;
+            url = `${resolveCompletionBaseUrl(modelConfig, ConfigManager.getDashscopeEndpoint())}/chat/completions`;
         } else if (url.endsWith('/completions')) {
             modelConfig = ConfigManager.getFIMConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
@@ -99,7 +111,7 @@ export class Fetcher implements IFetcher {
                 throw new Error('FIM model configuration is missing');
             }
             isFimRequest = true;
-            url = `${modelConfig.baseUrl}/completions`;
+            url = `${resolveCompletionBaseUrl(modelConfig, ConfigManager.getDashscopeEndpoint())}/completions`;
             if (modelConfig.provider === 'dashscope') {
                 const { prompt, suffix } = requestBody;
                 if (prompt && suffix) {
@@ -298,7 +310,7 @@ export class Fetcher implements IFetcher {
                 chatLibHeaders,
                 bodyStream,
                 'node-http',
-                () => {},
+                () => { },
                 '',
                 ''
             );

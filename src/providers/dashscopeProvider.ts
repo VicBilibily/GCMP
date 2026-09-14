@@ -29,17 +29,11 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
+import { resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { DashscopeWizard } from '../wizards/dashscopeWizard';
 
 export class DashscopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
-    /** 国内站主机 → 国际站主机映射 */
-    private static readonly INTERNATIONAL_HOST_MAP: ReadonlyArray<readonly [string, string]> = [
-        ['coding.dashscope.aliyuncs.com', 'coding-intl.dashscope.aliyuncs.com'],
-        ['token-plan.cn-beijing.maas.aliyuncs.com', 'token-plan.ap-southeast-1.maas.aliyuncs.com'],
-        ['dashscope.aliyuncs.com', 'dashscope-intl.aliyuncs.com']
-    ];
-
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
     }
@@ -331,21 +325,9 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
      */
     protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
         const baseUrl = super.resolveRequestBaseUrl(modelConfig);
-        if (baseUrl && ConfigManager.getDashscopeEndpoint() === 'ap-southeast-1') {
-            return DashscopeProvider.toInternationalBaseUrl(baseUrl);
-        }
-        return baseUrl;
-    }
-
-    /**
-     * 仅替换 URL 的 host 部分为国际站主机，路径保持不变
-     */
-    private static toInternationalBaseUrl(baseUrl: string): string {
-        const match = /^(https?:\/\/)([^/]+)/.exec(baseUrl);
-        if (!match) {
+        if (!baseUrl) {
             return baseUrl;
         }
-        const mapped = DashscopeProvider.INTERNATIONAL_HOST_MAP.find(([cnHost]) => cnHost === match[2])?.[1];
-        return mapped ? `${match[1]}${mapped}${baseUrl.slice(match[0].length)}` : baseUrl;
+        return resolveDashscopeBaseUrl(baseUrl, ConfigManager.getDashscopeEndpoint());
     }
 }
