@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/runtime/logger';
+import { ConfigManager, type DashscopeConfig } from '../utils/config/configManager';
 import { t } from '../utils/runtime/l10n';
 import { BaseWizard } from './baseWizard';
 
@@ -24,6 +25,8 @@ export class DashscopeWizard extends BaseWizard {
         tokenKeyTemplate?: string
     ): Promise<void> {
         try {
+            const endpointLabel = DashscopeWizard.getEndpointLabel(ConfigManager.getDashscopeEndpoint());
+
             const choice = await vscode.window.showQuickPick(
                 [
                     {
@@ -58,6 +61,15 @@ export class DashscopeWizard extends BaseWizard {
                         value: 'personalTokenPlan'
                     },
                     {
+                        label: t('$(globe) Set endpoint', '$(globe) 设置接入点'),
+                        description: t('Current: {0}', '当前：{0}', endpointLabel),
+                        detail: t(
+                            'Switch between the China site (cn-beijing) and the International site (ap-southeast-1) for all models',
+                            '在所有模型间切换国内站 (cn-beijing) 与国际站 (ap-southeast-1)'
+                        ),
+                        value: 'endpoint'
+                    },
+                    {
                         label: t('$(check-all) Configure all items in sequence', '$(check-all) 依次配置全部项目'),
                         detail: t(
                             'Configure the standard key, Coding Plan dedicated key, and Token Plan dedicated keys in order',
@@ -67,7 +79,7 @@ export class DashscopeWizard extends BaseWizard {
                     }
                 ],
                 {
-                    title: t('{0} Key Configuration', '{0} 密钥配置', displayName),
+                    title: t('{0} Settings Menu', '{0} 配置菜单', displayName),
                     placeHolder: t('Choose what to configure', '请选择要配置的项目')
                 }
             );
@@ -94,6 +106,10 @@ export class DashscopeWizard extends BaseWizard {
                     displayName,
                     tokenKeyTemplate || codingKeyTemplate || apiKeyTemplate
                 );
+            }
+
+            if (choice.value === 'endpoint') {
+                await this.setEndpoint(displayName);
             }
         } catch (error) {
             Logger.error(`DashScope setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -206,5 +222,72 @@ export class DashscopeWizard extends BaseWizard {
             ),
             loggerName: displayName
         });
+    }
+
+    /**
+     * 接入点显示名称
+     */
+    private static getEndpointLabel(endpoint: DashscopeConfig['endpoint']): string {
+        return endpoint === 'ap-southeast-1' ?
+            t('International (ap-southeast-1)', '国际站 (ap-southeast-1)')
+            : t('China (cn-beijing)', '国内站 (cn-beijing)');
+    }
+
+    /**
+     * 设置接入点（国内站 / 国际站）
+     */
+    static async setEndpoint(displayName: string): Promise<void> {
+        const currentEndpoint = ConfigManager.getDashscopeEndpoint();
+
+        const choice = await vscode.window.showQuickPick(
+            [
+                {
+                    label: t('$(home) China (cn-beijing)', '$(home) 国内站 (cn-beijing)'),
+                    detail: t(
+                        'Recommended for faster access in mainland China\ndashscope.aliyuncs.com / coding.dashscope.aliyuncs.com / token-plan.cn-beijing.maas.aliyuncs.com',
+                        '推荐，国内访问速度更快\ndashscope.aliyuncs.com / coding.dashscope.aliyuncs.com / token-plan.cn-beijing.maas.aliyuncs.com'
+                    ),
+                    value: 'cn-beijing' as const
+                },
+                {
+                    label: t('$(globe) International (ap-southeast-1)', '$(globe) 国际站 (ap-southeast-1)'),
+                    detail: t(
+                        'Use for overseas users or when mainland access is restricted\ndashscope-intl.aliyuncs.com / coding-intl.dashscope.aliyuncs.com / token-plan.ap-southeast-1.maas.aliyuncs.com',
+                        '海外用户或国内站访问受限时使用\ndashscope-intl.aliyuncs.com / coding-intl.dashscope.aliyuncs.com / token-plan.ap-southeast-1.maas.aliyuncs.com'
+                    ),
+                    value: 'ap-southeast-1' as const
+                }
+            ],
+            {
+                title: t('{0} Endpoint Selection', '{0} 接入站点选择', displayName),
+                placeHolder: t('Current: {0}', '当前：{0}', this.getEndpointLabel(currentEndpoint))
+            }
+        );
+
+        if (!choice) {
+            Logger.debug(`User cancelled ${displayName} endpoint selection`);
+            return;
+        }
+
+        try {
+            const config = vscode.workspace.getConfiguration('gcmp.dashscope');
+            await config.update('endpoint', choice.value, vscode.ConfigurationTarget.Global);
+            Logger.info(`DashScope endpoint set to ${choice.value}`);
+            vscode.window.showInformationMessage(
+                t(
+                    'DashScope endpoint set to {0}',
+                    '阿里云百炼接入站点已设置为 {0}',
+                    this.getEndpointLabel(choice.value)
+                )
+            );
+        } catch (error) {
+            const errorMessage = t(
+                'Failed to set endpoint: {0}',
+                '设置接入点失败: {0}',
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+            Logger.error(errorMessage);
+            vscode.window.showErrorMessage(errorMessage);
+        }
     }
 }

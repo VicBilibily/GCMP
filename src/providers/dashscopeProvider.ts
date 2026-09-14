@@ -28,10 +28,18 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { DashscopeWizard } from '../wizards/dashscopeWizard';
 
 export class DashscopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
+    /** 国内站主机 → 国际站主机映射 */
+    private static readonly INTERNATIONAL_HOST_MAP: ReadonlyArray<readonly [string, string]> = [
+        ['coding.dashscope.aliyuncs.com', 'coding-intl.dashscope.aliyuncs.com'],
+        ['token-plan.cn-beijing.maas.aliyuncs.com', 'token-plan.ap-southeast-1.maas.aliyuncs.com'],
+        ['dashscope.aliyuncs.com', 'dashscope-intl.aliyuncs.com']
+    ];
+
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
     }
@@ -98,13 +106,20 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
+        // 接入点切换（国内站 / 国际站）
+        const setEndpointCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setEndpoint`, async () => {
+            Logger.info(`User manually opened ${providerConfig.displayName} endpoint selection`);
+            await DashscopeWizard.setEndpoint(providerConfig.displayName);
+        });
+
         const disposables = [
             providerDisposable,
             setApiKeyCommand,
             setCodingPlanApiKeyCommand,
             setTokenPlanApiKeyCommand,
             setPersonalTokenPlanApiKeyCommand,
-            configWizardCommand
+            configWizardCommand,
+            setEndpointCommand
         ];
         disposables.forEach(d => context.subscriptions.push(d));
         return { provider, disposables };
@@ -117,9 +132,9 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const isPersonalTokenPlan = providerKey === 'dashscope-token-personal';
         const keyType =
             isCodingPlan ? 'Coding Plan dedicated'
-            : isTokenPlan ? 'Token Plan (Team) dedicated'
-            : isPersonalTokenPlan ? 'Token Plan (Personal) dedicated'
-            : 'standard';
+                : isTokenPlan ? 'Token Plan (Team) dedicated'
+                    : isPersonalTokenPlan ? 'Token Plan (Personal) dedicated'
+                        : 'standard';
 
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
         if (hasApiKey) {
@@ -230,17 +245,17 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         if (!apiKey) {
             const keyType =
                 providerKey === 'dashscope-coding' ? 'Coding Plan dedicated'
-                : providerKey === 'dashscope-token' ? 'Token Plan (Team) dedicated'
-                : providerKey === 'dashscope-token-personal' ? 'Token Plan (Personal) dedicated'
-                : 'standard';
+                    : providerKey === 'dashscope-token' ? 'Token Plan (Team) dedicated'
+                        : providerKey === 'dashscope-token-personal' ? 'Token Plan (Personal) dedicated'
+                            : 'standard';
             throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
 
         const keyLabel =
             providerKey === 'dashscope-coding' ? 'Coding Plan'
-            : providerKey === 'dashscope-token' ? 'Token Plan (Team)'
-            : providerKey === 'dashscope-token-personal' ? 'Token Plan (Personal)'
-            : 'standard';
+                : providerKey === 'dashscope-token' ? 'Token Plan (Team)'
+                    : providerKey === 'dashscope-token-personal' ? 'Token Plan (Personal)'
+                        : 'standard';
         Logger.debug(
             `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`
         );
@@ -309,5 +324,28 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
+    }
+
+    /**
+     * 国际站切换：接入点为 ap-southeast-1 时替换 URL 主机为国际站主机
+     */
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
+        if (baseUrl && ConfigManager.getDashscopeEndpoint() === 'ap-southeast-1') {
+            return DashscopeProvider.toInternationalBaseUrl(baseUrl);
+        }
+        return baseUrl;
+    }
+
+    /**
+     * 仅替换 URL 的 host 部分为国际站主机，路径保持不变
+     */
+    private static toInternationalBaseUrl(baseUrl: string): string {
+        const match = /^(https?:\/\/)([^/]+)/.exec(baseUrl);
+        if (!match) {
+            return baseUrl;
+        }
+        const mapped = DashscopeProvider.INTERNATIONAL_HOST_MAP.find(([cnHost]) => cnHost === match[2])?.[1];
+        return mapped ? `${match[1]}${mapped}${baseUrl.slice(match[0].length)}` : baseUrl;
     }
 }

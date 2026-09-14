@@ -48,7 +48,7 @@ export class DashscopeMCPWebSearchClient {
     private static clientCache = new Map<string, DashscopeMCPWebSearchClient>();
 
     private static buildCacheKey(apiKey: string): string {
-        const endpoint = DashscopeMCPWebSearchClient.MCP_URL;
+        const endpoint = DashscopeMCPWebSearchClient.getMcpUrl();
         const proxyUrl = ConfigManager.resolveProxyForModel(undefined, 'dashscope') || '';
         return `${apiKey}::${endpoint}::${proxyUrl}`;
     }
@@ -57,7 +57,15 @@ export class DashscopeMCPWebSearchClient {
         await clearStaleMCPInstances(this.clientCache, 'DashScope MCP', apiKey, activeCacheKey);
     }
 
-    private static readonly MCP_URL = 'https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
+    private static readonly MCP_URL_CN = 'https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
+    private static readonly MCP_URL_INTL = 'https://dashscope-intl.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
+
+    /** 随接入点切换国内站 / 国际站的 MCP 地址 */
+    private static getMcpUrl(): string {
+        return ConfigManager.getDashscopeEndpoint() === 'ap-southeast-1'
+            ? DashscopeMCPWebSearchClient.MCP_URL_INTL
+            : DashscopeMCPWebSearchClient.MCP_URL_CN;
+    }
 
     private client: Client | null = null;
     private transport: StreamableHTTPClientTransport | null = null;
@@ -175,7 +183,7 @@ export class DashscopeMCPWebSearchClient {
                 }
             );
 
-            this.transport = new StreamableHTTPClientTransport(new URL(DashscopeMCPWebSearchClient.MCP_URL), {
+            this.transport = new StreamableHTTPClientTransport(new URL(DashscopeMCPWebSearchClient.getMcpUrl()), {
                 fetch: ConfigManager.createProxyAwareFetch({ providerKey: 'dashscope' }) as typeof fetch,
                 requestInit: {
                     headers: {
