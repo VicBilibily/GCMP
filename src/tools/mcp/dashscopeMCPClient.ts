@@ -8,6 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { Logger } from '../../utils/runtime/logger';
 import { ConfigManager } from '../../utils/config/configManager';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { resolveDashscopeBaseUrl } from '../../utils/net/dashscopeEndpoint';
 import { t } from '../../utils/runtime/l10n';
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { clearMCPClientCache, getMCPClientCacheStats, clearStaleMCPInstances } from './mcpCacheHelpers';
@@ -57,14 +58,14 @@ export class DashscopeMCPWebSearchClient {
         await clearStaleMCPInstances(this.clientCache, 'DashScope MCP', apiKey, activeCacheKey);
     }
 
-    private static readonly MCP_URL_CN = 'https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
-    private static readonly MCP_URL_INTL = 'https://dashscope-intl.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
+    private static readonly MCP_URL = 'https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
 
     /** 随接入点切换国内站 / 国际站的 MCP 地址 */
     private static getMcpUrl(): string {
-        return ConfigManager.getDashscopeEndpoint() === 'ap-southeast-1'
-            ? DashscopeMCPWebSearchClient.MCP_URL_INTL
-            : DashscopeMCPWebSearchClient.MCP_URL_CN;
+        return resolveDashscopeBaseUrl(
+            DashscopeMCPWebSearchClient.MCP_URL,
+            ConfigManager.getDashscopeEndpoint()
+        );
     }
 
     private client: Client | null = null;
@@ -220,15 +221,21 @@ export class DashscopeMCPWebSearchClient {
         this.cancelPendingCleanup();
         this.activeSearchCount++;
 
-        await this.ensureConnected();
+        try {
+            await this.ensureConnected();
+        } catch (error) {
+            this.releaseActiveSearch();
+            throw error;
+        }
 
-        if (!this.client) {
-            this.activeSearchCount = Math.max(0, this.activeSearchCount - 1);
+        const client = this.client;
+        if (!client) {
+            this.releaseActiveSearch();
             throw new Error(t('MCP client is not initialized', 'MCP 客户端未初始化'));
         }
 
         try {
-            const tools = await this.client.listTools();
+            const tools = await client.listTools();
             Logger.debug(`📋 [DashScope MCP] Available tools: ${tools.tools.map(t => t.name).join(', ')}`);
 
             const webSearchTool = tools.tools.find(t => t.name === 'bailian_web_search');
@@ -241,7 +248,7 @@ export class DashscopeMCPWebSearchClient {
                 );
             }
 
-            const result = await this.client.callTool({
+            const result = await client.callTool({
                 name: 'bailian_web_search',
                 arguments: {
                     query: params.query,
@@ -275,9 +282,14 @@ export class DashscopeMCPWebSearchClient {
                 t('Search failed: {0}', '搜索失败: {0}', error instanceof Error ? error.message : 'Unknown error')
             );
         } finally {
-            this.activeSearchCount = Math.max(0, this.activeSearchCount - 1);
-            this.scheduleCleanupAfterIdle();
+            this.releaseActiveSearch();
         }
+    }
+
+    /** 释放一次搜索占用；计数归零后在空闲时收口连接 */
+    private releaseActiveSearch(): void {
+        this.activeSearchCount = Math.max(0, this.activeSearchCount - 1);
+        this.scheduleCleanupAfterIdle();
     }
 
     getStatus(): { name: string; version: string; enabled: boolean; connected: boolean } {
@@ -339,6 +351,12 @@ export class DashscopeMCPWebSearchClient {
     }
 
     async cleanup(): Promise<void> {
+        // 有搜索在途时不关闭连接，交由搜索结束后的空闲清理收口，避免中断进行中的请求
+        if (this.activeSearchCount > 0) {
+            Logger.debug('⏳ [DashScope MCP] Deferring cleanup while a search is in flight');
+            return;
+        }
+
         this.cancelPendingCleanup();
         await this.internalCleanup();
     }
