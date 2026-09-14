@@ -10,6 +10,7 @@ import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConvert
 import { preprocessOpenAIResponsesInputItems } from './openaiResponsesInputPreprocessor';
 import { ENCRYPTED_REASONING_INCLUDE, isEncryptedReasoningEnabled } from './encryptedReasoning';
 import { applyOpenAIServiceTier } from './serviceTier';
+import { replaceSessionIdInBody } from '../../utils/text/formatUtils';
 
 interface OpenAIResponsesRequestBuilderParams {
     model: vscode.LanguageModelChatInformation;
@@ -124,7 +125,7 @@ export class OpenAIResponsesRequestBuilder {
         if (!disableThinkingByRequestKind) {
             this.applyNativeTools(requestBody, modelConfig);
         }
-        this.applyExtraBody(requestBody, modelConfig);
+        this.applyExtraBody(requestBody, modelConfig, sessionId);
         this.applyModelSettings(requestBody, model, modelConfig, modelId, options, requestKind);
         this.preprocessInputAndTools(requestBody);
 
@@ -194,12 +195,14 @@ export class OpenAIResponsesRequestBuilder {
         return entry;
     }
 
-    private applyExtraBody(requestBody: Record<string, unknown>, modelConfig: ModelConfig): void {
+    private applyExtraBody(requestBody: Record<string, unknown>, modelConfig: ModelConfig, sessionId = ''): void {
         if (!modelConfig?.extraBody) {
             return;
         }
 
-        const filteredExtraBody = this.messageConverter.filterExtraBodyParams(modelConfig.extraBody);
+        const filteredExtraBody = this.messageConverter.filterExtraBodyParams(
+            replaceSessionIdInBody(modelConfig.extraBody, sessionId)
+        );
         Object.assign(requestBody, filteredExtraBody);
     }
 

@@ -39,7 +39,8 @@ interface IOpenAIHandler {
         model: vscode.LanguageModelChatInformation,
         modelConfig: ModelConfig,
         messages: readonly vscode.LanguageModelChatMessage[],
-        options: vscode.ProvideLanguageModelChatResponseOptions
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        sessionId?: string
     ): OpenAI.Chat.ChatCompletionCreateParamsStreaming;
 }
 
@@ -164,7 +165,13 @@ export class OpenAICustomHandler {
         }
 
         // 构建请求参数（复用 OpenAIHandler 的共享方法）
-        const requestBody = this.openaiHandler.buildChatCompletionParams(model, modelConfig, messages, options);
+        const requestBody = this.openaiHandler.buildChatCompletionParams(
+            model,
+            modelConfig,
+            messages,
+            options,
+            sessionId
+        );
 
         Logger.debug(`[${model.name}] Sending API request`);
 
@@ -183,7 +190,7 @@ export class OpenAICustomHandler {
             };
 
             // 处理合并后的 customHeader 中的 API 密钥替换
-            const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
+            const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey, sessionId);
             canonicalizeUserAgentHeader(processedCustomHeader);
 
             // opencode 专有：传递请求级跟踪标识头

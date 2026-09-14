@@ -109,7 +109,7 @@ export class OpenAIResponsesHandler {
         let requestMetricStartTime = requestStartTime;
 
         try {
-            const client = await this.handler.createOpenAIClient(modelConfig);
+            const client = await this.handler.createOpenAIClient(modelConfig, sessionId);
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
 
             // 将 vscode.CancellationToken 转换为 AbortSignal

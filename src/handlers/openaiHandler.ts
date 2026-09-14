@@ -9,7 +9,7 @@ import { Logger } from '../utils/runtime/logger';
 import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
-import { createOpenCodeHeaders } from '../utils/text/formatUtils';
+import { createOpenCodeHeaders, replaceSessionIdInBody } from '../utils/text/formatUtils';
 import { redactHeaders } from '../utils/net/proxyAgent';
 import { canonicalizeUserAgentHeader } from '../utils/net/httpHeaders';
 import { isCancellationError } from '../utils/text/cancellationError';
@@ -197,7 +197,7 @@ export class OpenAIHandler {
     /**
      * 创建新的 OpenAI 客户端
      */
-    async createOpenAIClient(modelConfig?: ModelConfig): Promise<OpenAI> {
+    async createOpenAIClient(modelConfig?: ModelConfig, sessionId?: string): Promise<OpenAI> {
         // 优先级：model.provider -> this.provider
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
@@ -212,6 +212,9 @@ export class OpenAIHandler {
         const defaultHeaders: Record<string, string> = {
             'User-Agent': VersionManager.getUserAgent('OpenAI')
         };
+        if (sessionId) {
+            defaultHeaders['X-Session-ID'] = sessionId;
+        }
 
         // 合并提供商级别和模型级别的 customHeader
         // 模型级别的 customHeader 会覆盖提供商级别的同名头部
@@ -221,7 +224,7 @@ export class OpenAIHandler {
         };
 
         // 处理合并后的 customHeader
-        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
+        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
             Logger.debug(
@@ -814,7 +817,8 @@ export class OpenAIHandler {
         model: vscode.LanguageModelChatInformation,
         modelConfig: ModelConfig,
         messages: readonly vscode.LanguageModelChatMessage[],
-        options: vscode.ProvideLanguageModelChatResponseOptions
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        sessionId?: string
     ): OpenAI.Chat.ChatCompletionCreateParamsStreaming {
         const requestModel = modelConfig.model || modelConfig.id;
         const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
@@ -832,7 +836,9 @@ export class OpenAIHandler {
 
         // 合并 extraBody 参数（如果有），过滤掉不可修改的核心参数
         if (modelConfig.extraBody) {
-            const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
+            const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(
+                replaceSessionIdInBody(modelConfig.extraBody, sessionId ?? '')
+            );
             Object.assign(createParams, filteredExtraBody);
         }
 
@@ -1018,10 +1024,10 @@ export class OpenAIHandler {
         let requestMetricStartTime = requestStartTime;
 
         try {
-            const client = await this.createOpenAIClient(modelConfig);
+            const client = await this.createOpenAIClient(modelConfig, sessionId);
             Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
 
-            const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options);
+            const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options, sessionId);
 
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
 

@@ -89,6 +89,29 @@ test('extraBody 显式定义 include 时不再自动注入（空数组）', asyn
     assert.equal('include' in requestBody, false);
 });
 
+test('Responses extraBody 递归替换 sessionId 占位符', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'model-id', name: 'Model' } as never,
+        modelConfig: {
+            id: 'model-id',
+            extraBody: { metadata: { session: '${SESSIONID}' }, tags: ['${session_id}'] }
+        } as never,
+        messages: [],
+        options: {} as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.metadata, { session: 'session-123' });
+    assert.deepEqual(requestBody.tags, ['session-123']);
+});
+
 test('useInstructions=true 时通过 instructions 传递 system message', async () => {
     const { applyResponsesSystemMessage } = await getBuilderModule();
     const requestBody: Record<string, unknown> = {};

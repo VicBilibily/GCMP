@@ -273,7 +273,8 @@ export class ApiKeyManager {
      */
     static processCustomHeader(
         customHeader: Record<string, string> | undefined,
-        apiKey: string
+        apiKey: string,
+        sessionId?: string
     ): Record<string, string> {
         if (!customHeader) {
             return {};
@@ -282,7 +283,10 @@ export class ApiKeyManager {
         const processedHeader: Record<string, string> = {};
         for (const [key, value] of Object.entries(customHeader)) {
             // 不区分大小写地替换 ${APIKEY} 为实际的 API 密钥
-            const processedValue = value.replace(/\$\{\s*APIKEY\s*\}/gi, apiKey);
+            const processedValue =
+                sessionId === undefined ?
+                    value.replace(/\$\{\s*APIKEY\s*\}/gi, apiKey)
+                :   value.replace(/\$\{\s*APIKEY\s*\}/gi, apiKey).replace(/\$\{\s*SESSION(?:ID|_ID)\s*\}/gi, sessionId);
             processedHeader[key] = processedValue;
         }
         return processedHeader;

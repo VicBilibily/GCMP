@@ -329,10 +329,10 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             t('Custom HTTP Headers (JSON)', '自定义HTTP头部（JSON格式）'),
             'customHeader',
             model.customHeader,
-            '{"Authorization": "Bearer ${APIKEY}", "X-Custom-Header": "value"}',
+            '{"Authorization": "Bearer ${APIKEY}", "X-Custom-Header": "${SESSIONID}"}',
             t(
                 'Optional custom HTTP headers. Supports ${APIKEY} placeholder replacement with the actual API key.',
-                '可选的自定义HTTP头部配置。支持 ${APIKEY} 占位符自动替换为实际的API密钥。'
+                '可选的自定义HTTP头部配置。支持 ${APIKEY} 和 ${SESSIONID} 占位符自动替换。'
             )
         ),
         createJSONFormGroup(
@@ -343,7 +343,7 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             '{"temperature": 1, "top_p": null}',
             t(
                 'Extra request body parameters merged into API requests. Set unsupported parameters to null to remove them.',
-                '额外的请求体参数，将在API请求中合并到请求体中。若模型不支持某些参数，可设置为 null 以移除对应值。'
+                '额外的请求体参数，将在API请求中合并到请求体中。支持 ${SESSIONID} 占位符自动替换。若模型不支持某些参数，可设置为 null 以移除对应值。'
             )
         )
     ]);

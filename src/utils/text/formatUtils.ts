@@ -25,3 +25,19 @@ export function createOpenCodeHeaders(requestId: string, sessionId: string): Rec
         'x-opencode-session': `ses_${formatOpenCodeId(sessionId)}`
     };
 }
+
+export function replaceSessionIdInBody(value: Record<string, unknown>, sessionId: string): Record<string, unknown> {
+    const replace = (item: unknown): unknown => {
+        if (typeof item === 'string') {
+            return item.replace(/\$\{\s*SESSION(?:ID|_ID)\s*\}/gi, sessionId);
+        }
+        if (Array.isArray(item)) {
+            return item.map(replace);
+        }
+        if (item && typeof item === 'object') {
+            return Object.fromEntries(Object.entries(item).map(([key, child]) => [key, replace(child)]));
+        }
+        return item;
+    };
+    return replace(value) as Record<string, unknown>;
+}

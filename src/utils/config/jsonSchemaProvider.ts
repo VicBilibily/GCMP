@@ -274,21 +274,21 @@ export class JsonSchemaProvider {
     private static getProviderCustomHeaderDescription(): string {
         return t(
             'Custom HTTP header configuration at the provider level, supporting ${APIKEY} placeholder replacement',
-            '提供商级别的自定义HTTP头部，支持 ${APIKEY} 占位符替换'
+            '提供商级别的自定义HTTP头部，支持 ${APIKEY} 和 ${SESSIONID} 占位符替换'
         );
     }
 
     private static getModelCustomHeaderDescription(): string {
         return t(
             'Custom HTTP headers for the model, supporting ${APIKEY} placeholder replacement',
-            '模型自定义HTTP头部，支持 ${APIKEY} 占位符替换'
+            '模型自定义HTTP头部，支持 ${APIKEY} 和 ${SESSIONID} 占位符替换'
         );
     }
 
     private static getCustomHeaderDescription(): string {
         return t(
             'Custom HTTP header configuration, supporting ${APIKEY} placeholder replacement',
-            '自定义HTTP头部配置，支持 ${APIKEY} 占位符替换'
+            '自定义HTTP头部配置，支持 ${APIKEY} 和 ${SESSIONID} 占位符替换'
         );
     }
 

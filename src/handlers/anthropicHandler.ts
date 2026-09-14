@@ -21,7 +21,7 @@ import {
     toCostBreakdownLog
 } from '../utils/pricing/costCalculator';
 import { VersionManager } from '../utils/runtime/versionManager';
-import { createOpenCodeHeaders } from '../utils/text/formatUtils';
+import { createOpenCodeHeaders, replaceSessionIdInBody } from '../utils/text/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { t } from '../utils/runtime/l10n';
 import type { ModelChatResponseOptions, ModelConfig, NativeToolConfig, ProviderConfig } from '../types/sharedTypes';
@@ -138,7 +138,7 @@ export class AnthropicHandler {
      * 创建 Anthropic 客户端
      * 每次都创建新的客户端实例，与 OpenAIHandler 保持一致
      */
-    private async createAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic> {
+    private async createAnthropicClient(modelConfig?: ModelConfig, sessionId?: string): Promise<Anthropic> {
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
         if (!currentApiKey) {
@@ -159,7 +159,6 @@ export class AnthropicHandler {
             'anthropic-version': '2023-06-01',
             'anthropic-dangerous-direct-browser-access': 'true'
         };
-
         // 合并提供商级别和模型级别的 customHeader
         // 模型级别的 customHeader 会覆盖提供商级别的同名头部
         const mergedCustomHeader = {
@@ -168,7 +167,7 @@ export class AnthropicHandler {
         };
 
         // 处理合并后的 customHeader
-        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
+        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
             Logger.debug(
@@ -216,7 +215,7 @@ export class AnthropicHandler {
         let partialStreamEndTime: number | undefined;
 
         try {
-            const client = await this.createAnthropicClient(modelConfig);
+            const client = await this.createAnthropicClient(modelConfig, sessionId);
             const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(
                 modelConfig,
                 messages,
@@ -263,7 +262,9 @@ export class AnthropicHandler {
                     );
                 }
                 // 过滤掉不可修改的核心参数
-                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(extraBodyWithoutCacheControl);
+                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(
+                    replaceSessionIdInBody(extraBodyWithoutCacheControl, sessionId)
+                );
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
                     // 仅记录键名，避免泄露用户自定义参数值（可能含内部系统 ID 或临时凭证）
