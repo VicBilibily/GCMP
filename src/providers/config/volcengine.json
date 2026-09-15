@@ -313,6 +313,24 @@
             "tokenPricing": { "RMB": [3, 9, 0.1] }
         },
         {
+            "id": "ark-plan-deepseek-v4.1-flash",
+            "name": "DeepSeek-V4.1-Flash (AgentPlan)",
+            "model": "deepseek-v4.1-flash",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。DeepSeek 全新架构系列中的轻量旗舰模型，在多项基准上超越包括 DeepSeek-V4-Pro 在内的主流旗舰模型，原生具备多模态视觉理解能力。",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "RMB": [1, 4, 0.02] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
+        },
+        {
             "id": "ark-plan-deepseek-v4-pro",
             "name": "DeepSeek-V4-Pro (AgentPlan)",
             "model": "deepseek-v4-pro",
@@ -460,7 +478,7 @@
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [1, 2, 0.2] }
+            "tokenPricing": { "RMB": [3, 9, 0.1] }
         },
         {
             "id": "deepseek-v4-pro",
@@ -473,7 +491,7 @@
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [12, 24, 1] }
+            "tokenPricing": { "RMB": [9, 27, 0.3] }
         },
         {
             "id": "deepseek-v4-flash-ga",
@@ -500,6 +518,22 @@
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [9, 27, 0.3] }
+        },
+        {
+            "id": "deepseek-v4.1-flash",
+            "name": "DeepSeek-V4.1-Flash",
+            "model": "deepseek-v4.1-flash",
+            "tooltip": "DeepSeek 全新架构系列中的轻量旗舰模型，在多项基准上超越包括 DeepSeek-V4-Pro 在内的主流旗舰模型，原生具备多模态视觉理解能力。",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "RMB": [1, 4, 0.02] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
         },
         {
             "id": "glm-5.2",
