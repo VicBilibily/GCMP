@@ -9,6 +9,7 @@ import {
     fetchKimiUsage,
     formatKimiBoosterCurrency,
     formatKimiCurrencyLimit,
+    formatKimiMonthlyCap,
     formatKimiTimeUnit,
     translateKimiBoosterStatus,
     type KimiUsageSnapshot
@@ -52,9 +53,7 @@ export const kimiStatusAdapter: QuotaStatusAdapter<KimiStatusData> = {
                     [
                         formatKimiBoosterCurrency(wallet.topupLimit.currency, wallet.balance.amountLeft),
                         formatKimiCurrencyLimit(wallet.monthlyUsed, false, 2),
-                        wallet.monthlyChargeLimitEnabled ?
-                            formatKimiCurrencyLimit(wallet.monthlyChargeLimit, true, 2)
-                        :   t('Unlimited', '无限制')
+                        formatKimiMonthlyCap(wallet)
                     ]
                 ],
                 align: ['right', 'right', 'right']
