@@ -4,6 +4,15 @@
 
 ## [0.28.2] - 2026-09-14
 
+### 新增
+
+- **阿里云百炼接入点切换（国内站 / 国际站）**：新增 `GCMP: 设置 阿里云百炼 接入点` 命令与 `gcmp.dashscope.endpoint` 设置（`cn-beijing` / `ap-southeast-1`），配置向导菜单内亦可切换；对所有百炼模型（标准、Coding Plan、Token Plan）生效，仅替换请求主机（`dashscope.aliyuncs.com` → `dashscope-intl.aliyuncs.com`、`coding.dashscope.aliyuncs.com` → `coding-intl.dashscope.aliyuncs.com`、`token-plan.cn-beijing.maas.aliyuncs.com` → `token-plan.ap-southeast-1.maas.aliyuncs.com`），路径保持不变；DashScope MCP 联网搜索工具同步跟随接入点。
+
+---
+
+### Added
+
+- **Alibaba Cloud DashScope endpoint switch (China / International)**: added the `GCMP: Set DashScope Endpoint` command and the `gcmp.dashscope.endpoint` setting (`cn-beijing` / `ap-southeast-1`), also available from the configuration wizard menu; it applies to every DashScope model (standard, Coding Plan and Token Plan) by replacing only the request host (`dashscope.aliyuncs.com` → `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com` → `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com` → `token-plan.ap-southeast-1.maas.aliyuncs.com`) while keeping paths unchanged; the DashScope MCP web search tool follows the same endpoint.
 ### 修复
 
 - **远程模型元数据配置兼容性**：内置模型配置的 `baseUrl`、`endpoint` 与 `provider` 改按内置白名单校验，允许同一主机的多协议接入点正常切换。

@@ -153,6 +153,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.dashscope.setEndpoint",
+                "title": "%command.dashscope.setEndpoint%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.dashscope.configWizard",
                 "title": "%command.dashscope.configWizard%",
                 "category": "GCMP"
@@ -486,6 +491,16 @@
                     ],
                     "default": "cn",
                     "description": "%setting.xiaomimimo.endpoint.description%",
+                    "scope": "application"
+                },
+                "gcmp.dashscope.endpoint": {
+                    "type": "string",
+                    "enum": [
+                        "cn-beijing",
+                        "ap-southeast-1"
+                    ],
+                    "default": "cn-beijing",
+                    "description": "%setting.dashscope.endpoint.description%",
                     "scope": "application"
                 },
                 "gcmp.usages.retentionDays": {

@@ -85,6 +85,14 @@ export interface XiaomimimoConfig {
 }
 
 /**
+ * 阿里云百炼配置
+ */
+export interface DashscopeConfig {
+    /** 接入站点：国内站 (cn-beijing) 或国际站 (ap-southeast-1) */
+    endpoint: 'cn-beijing' | 'ap-southeast-1';
+}
+
+/**
  * NES 补全配置
  */
 export interface NESCompletionConfig {
@@ -164,6 +172,8 @@ export interface GCMPConfig {
     minimax: MiniMaxConfig;
     /** Xiaomi MiMo配置 */
     xiaomimimo: XiaomimimoConfig;
+    /** 阿里云百炼配置 */
+    dashscope: DashscopeConfig;
     /** FIM补全配置 */
     fimCompletion: FIMCompletionConfig;
     /** NES补全配置 */
@@ -360,6 +370,9 @@ export class ConfigManager {
             },
             xiaomimimo: {
                 endpoint: config.get<XiaomimimoConfig['endpoint']>('xiaomimimo.endpoint', 'cn')
+            },
+            dashscope: {
+                endpoint: config.get<DashscopeConfig['endpoint']>('dashscope.endpoint', 'cn-beijing')
             },
             fimCompletion: {
                 enabled: config.get<boolean>('fimCompletion.enabled', false),
@@ -793,7 +806,7 @@ export class ConfigManager {
                 presetValue > 0
             ) ?
                 presetValue
-            :   undefined;
+                : undefined;
 
         if (validPreset !== undefined) {
             const maxVal = Math.max(globalValue, validPreset);
@@ -874,6 +887,14 @@ export class ConfigManager {
      */
     static getXiaomimimoEndpoint(): XiaomimimoConfig['endpoint'] {
         return this.getConfig().xiaomimimo.endpoint;
+    }
+
+    /**
+     * 获取阿里云百炼接入点配置
+     * @returns 'cn-beijing' 或 'ap-southeast-1'，默认 'cn-beijing'
+     */
+    static getDashscopeEndpoint(): DashscopeConfig['endpoint'] {
+        return this.getConfig().dashscope.endpoint;
     }
 
     /**
@@ -1310,7 +1331,7 @@ export class ConfigManager {
                 const originalProviderConfig =
                     lookupKey in configProviders ?
                         configProviders[lookupKey as keyof typeof configProviders]
-                    :   undefined;
+                        : undefined;
                 if (originalProviderConfig?.proxy) {
                     return this.resolveExplicitProxyValue(
                         originalProviderConfig.proxy,
@@ -1356,7 +1377,7 @@ export class ConfigManager {
         const proxyUrl =
             hasExplicitProxyUrl ?
                 options.proxyUrl
-            :   this.resolveProxyForModel(options.modelConfig, options.providerKey);
+                : this.resolveProxyForModel(options.modelConfig, options.providerKey);
         const proxiedFetch = createProxiedFetch(proxyUrl);
         if (options.skipHar) {
             return proxiedFetch;

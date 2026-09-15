@@ -18,6 +18,7 @@ import { RateLimiter, type RateLimitHandle } from '../rateLimit/rateLimiter';
 import { sanitizeAuthoritativeDims } from '../rateLimit/rateLimitStore';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
+import { isDashscopeProviderSlot, resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
 import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { Logger } from '../utils/runtime/logger';
@@ -247,10 +248,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 解析请求最终使用的 baseUrl（含接入点/站点切换）。
-     * 默认合并模型级与提供商级配置；专用 provider 可覆盖以应用站点域名替换。
+     * 默认合并模型级与提供商级配置；百炼槽位（含套餐变体）按 gcmp.dashscope.endpoint 替换主机，
+     * 判定基于模型实际生效的 provider，compatible 中自定义的百炼模型同样覆盖；
+     * 其余 provider 的站点切换由各自的覆盖实现处理。
      */
     protected resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
-        return modelConfig.baseUrl || this.providerConfig.baseUrl;
+        const baseUrl = modelConfig.baseUrl || this.providerConfig.baseUrl;
+        if (!baseUrl || !isDashscopeProviderSlot(this.getProviderKeyForModel(modelConfig))) {
+            return baseUrl;
+        }
+        return resolveDashscopeBaseUrl(baseUrl, ConfigManager.getDashscopeEndpoint());
     }
 
     /**
