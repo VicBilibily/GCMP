@@ -11,7 +11,7 @@ import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
-import { getCodexAppServerClient } from '../cli/appServer';
+import { getCodexAppServerClient, isCodexAppServerTransport } from '../cli/appServer';
 import type {
     AppServerRateLimitWindow,
     GetAccountRateLimitsResponse,
@@ -153,7 +153,7 @@ export function getResetDate(window: RateLimitWindow | undefined): Date | undefi
  * appServer 传输时改走 codex app-server account/rateLimits/read
  */
 export async function queryCodexUsage(): Promise<{ success: boolean; data?: ChatGPTStatusData; error?: string }> {
-    if (ConfigManager.getProviderOverrides().codex?.transport === 'appServer') {
+    if (isCodexAppServerTransport()) {
         return queryCodexUsageViaAppServer();
     }
     try {

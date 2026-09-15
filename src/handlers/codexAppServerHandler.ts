@@ -1,8 +1,8 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Codex App Server 处理器（sdkMode: codex-app-server）
  *  经本机 codex app-server（JSON-RPC over stdio）完成对话。
  *  模式 A（ephemeral thread，每请求独立，默认）与模式 B（persistent thread，增量 + marker 恢复）；
- *  取消经 turn/interrupt。Dynamic Tools 由后续任务扩展。
+ *  取消经 turn/interrupt。VS Code 工具经 Dynamic Tools（item/tool/call）闭环。
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -11,6 +11,7 @@ import type { CodexAppServerClient } from '../cli/appServer/client';
 import { codexThreadSessionStore } from '../cli/appServer/threadSessionStore';
 import type {
     AgentMessageDeltaNotification,
+    CodexErrorInfoStatusCarrier,
     DynamicToolCallParams,
     DynamicToolFunctionSpec,
     ItemCompletedNotification,
@@ -23,7 +24,9 @@ import type {
     ThreadTurnsListResponse,
     TokenUsageBreakdown,
     TurnCompletedNotification,
+    TurnError,
     TurnStartResponse,
+    TurnStatus,
     UserInput
 } from '../cli/appServer/protocolTypes';
 import type { GenericUsageData } from '../usages/fileLogger/types';
@@ -38,9 +41,11 @@ import {
 import { Logger } from '../utils/runtime/logger';
 import { GCMP_SYSTEM_MESSAGE_NAME } from './types';
 import { getAllStatefulMarkersAndIndicies, type StatefulMarkerContainer } from './statefulMarker';
+import { isSubRequest, type RequestKind } from './requestClassifier';
 import * as liveMetrics from './liveMetrics';
 import { StreamReporter } from './streamReporter';
-import type { ModelConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
+import type { RetryableError } from '../utils/retry/retryManager';
 import type { JsonValue } from '../cli/appServer/protocolTypes';
 
 /** vscode 消息 → thread 输入的转换结果 */
@@ -67,8 +72,8 @@ interface TurnStrategy extends ThreadInputParts {
 const TOOL_CALL_TIMEOUT_MS = 120_000;
 
 export class CodexAppServerHandler {
-    /** 服务端反向请求兜底已注册标记（进程级一次） */
-    private static serverRequestFallbackRegistered = false;
+    /** 当前 client 上已注册的反向请求兜底（client 重建后需重绑） */
+    private static fallbackClient?: CodexAppServerClient;
 
     constructor(
         private readonly providerInstance: GenericModelProvider,
@@ -102,6 +107,7 @@ export class CodexAppServerHandler {
         let streamEndTime: number | undefined;
         /** 模式 B：turn 完成后写入 store/marker 的持久 thread 信息 */
         let persistentResult: { threadId: string; turnId: string } | undefined;
+        let turnUsage: GenericUsageData | undefined;
 
         try {
             const client = getCodexAppServerClient(this.context);
@@ -110,10 +116,18 @@ export class CodexAppServerHandler {
 
             const threadMode = getCodexAppServerConfig().threadMode ?? 'ephemeral';
             const dynamicTools = this.buildDynamicTools(options, modelConfig);
+            const toolNames = dynamicTools?.map(t => t.name).sort();
             // 协议侧模型标识用原始 slug（modelConfig.id）；model.id 带 vendor 前缀（gcmp.codex:::），仅用于 marker 匹配
             const strategy: TurnStrategy =
                 threadMode === 'persistent' ?
-                    await this.resolvePersistentStrategy(client, messages, model.id, modelConfig.id, sessionId)
+                    await this.resolvePersistentStrategy(
+                        client,
+                        messages,
+                        model.id,
+                        modelConfig.id,
+                        sessionId,
+                        toolNames
+                    )
                 :   { ...this.convertMessages(messages), persistentNew: false };
             if (!strategy.resumeThreadId) {
                 strategy.dynamicTools = dynamicTools;
@@ -122,64 +136,74 @@ export class CodexAppServerHandler {
                 throw new Error('Codex App Server: no user input found in messages');
             }
 
-            // resume 成功的持久 thread 直接复用；否则新建（模式 B 全新会话为持久 thread）
-            const threadId = strategy.resumeThreadId ?? (await this.startThread(client, modelConfig.id, strategy));
-            Logger.debug(
-                `[CodexAppServer] thread ready: ${threadId} (${
-                    strategy.resumeThreadId ? 'resumed'
-                    : strategy.persistentNew ? 'persistent-new'
-                    : 'ephemeral'
-                })`
-            );
-
+            // resume 成功的持久 thread 直接复用；否则新建（模式 B 全新会话为持久 thread）。
+            // 并发闸门（withTurnSlot）限制同一 app-server 进程上的并发 active turn，超出排队等位
             let turnId = '';
-            await client.withThreadLock(threadId, async () => {
-                if (strategy.historyItems.length > 0) {
-                    await client.request('thread/inject_items', { threadId, items: strategy.historyItems });
-                }
+            const threadId = await client.withTurnSlot(async () => {
+                const activeThreadId =
+                    strategy.resumeThreadId ?? (await this.startThread(client, modelConfig.id, strategy));
+                Logger.debug(
+                    `[CodexAppServer] thread ready: ${activeThreadId} (${
+                        strategy.resumeThreadId ? 'resumed'
+                        : strategy.persistentNew ? 'persistent-new'
+                        : 'ephemeral'
+                    })`
+                );
 
-                requestMetricStartTime = Date.now();
-                onRequestDispatched?.(requestMetricStartTime);
+                await client.withThreadLock(activeThreadId, async () => {
+                    if (strategy.historyItems.length > 0) {
+                        await client.request('thread/inject_items', {
+                            threadId: activeThreadId,
+                            items: strategy.historyItems
+                        });
+                    }
 
-                reporter = new StreamReporter({
-                    modelName: model.name,
-                    modelId: model.id,
-                    provider: modelConfig.provider || this.providerKey,
-                    sdkMode: 'codex-app-server',
-                    progress,
-                    sessionId,
-                    requestId,
-                    requestStartTime: requestMetricStartTime,
-                    onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+                    requestMetricStartTime = Date.now();
+                    onRequestDispatched?.(requestMetricStartTime);
+
+                    reporter = new StreamReporter({
+                        modelName: model.name,
+                        modelId: model.id,
+                        provider: modelConfig.provider || this.providerKey,
+                        sdkMode: 'codex-app-server',
+                        progress,
+                        sessionId,
+                        requestId,
+                        requestStartTime: requestMetricStartTime,
+                        onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+                    });
+
+                    Logger.info(`🚀 ${model.name} Sending ${this.displayName} Codex App Server turn`);
+                    const turnResp = await client.request<TurnStartResponse>('turn/start', {
+                        threadId: activeThreadId,
+                        input: strategy.turnInput,
+                        ...this.resolveTurnOverrides(options, modelConfig)
+                    });
+                    turnId = turnResp.turn.id;
+                    reporter.setResponseId(turnId);
+
+                    // Dynamic Tools：本 thread 的 item/tool/call 路由到工具执行闭环
+                    const toolCallHandler =
+                        strategy.dynamicTools || strategy.resumeThreadId ?
+                            client.registerServerRequestHandler(activeThreadId, msg =>
+                                this.handleServerRequest(client, msg, token)
+                            )
+                        :   undefined;
+
+                    const cancellationListener = token.onCancellationRequested(() => {
+                        void client
+                            .request('turn/interrupt', { threadId: activeThreadId, turnId })
+                            .catch(error => Logger.warn(`[CodexAppServer] turn/interrupt failed: ${error}`));
+                    });
+                    try {
+                        turnUsage = await this.waitTurnCompletion(client, activeThreadId, turnId, reporter, token);
+                    } finally {
+                        cancellationListener.dispose();
+                        toolCallHandler?.dispose();
+                    }
+                    streamEndTime = Date.now();
                 });
-
-                Logger.info(`🚀 ${model.name} Sending ${this.displayName} Codex App Server turn`);
-                const turnResp = await client.request<TurnStartResponse>('turn/start', {
-                    threadId,
-                    input: strategy.turnInput
-                });
-                turnId = turnResp.turn.id;
-
-                // Dynamic Tools：本 thread 的 item/tool/call 路由到工具执行闭环
-                const toolCallHandler =
-                    strategy.dynamicTools || strategy.resumeThreadId ?
-                        client.registerServerRequestHandler(threadId, msg =>
-                            this.handleServerRequest(client, msg, token)
-                        )
-                    :   undefined;
-
-                const cancellationListener = token.onCancellationRequested(() => {
-                    void client
-                        .request('turn/interrupt', { threadId, turnId })
-                        .catch(error => Logger.warn(`[CodexAppServer] turn/interrupt failed: ${error}`));
-                });
-                try {
-                    await this.waitTurnCompletion(client, threadId, turnId, reporter, token);
-                } finally {
-                    cancellationListener.dispose();
-                    toolCallHandler?.dispose();
-                }
-                streamEndTime = Date.now();
+                return activeThreadId;
             });
 
             const streamReporter = reporter;
@@ -208,6 +232,7 @@ export class CodexAppServerHandler {
                     threadId,
                     lastTurnId: turnId,
                     modelId: model.id,
+                    toolNames,
                     updatedAt: Date.now()
                 });
                 for (const entry of evicted) {
@@ -217,7 +242,7 @@ export class CodexAppServerHandler {
                 }
             }
 
-            const finalUsage = this.lastUsage;
+            const finalUsage = turnUsage;
             let costNanoAiu: number | undefined;
             let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
             if (modelConfig.tokenPricing) {
@@ -235,14 +260,16 @@ export class CodexAppServerHandler {
             // responseId 复用 turnId（codex 模式无 response 概念，turn 即响应单元）
             streamReporter.flushAll(
                 null,
-                persistentResult ?
-                    {
-                        sessionId,
-                        responseId: persistentResult.turnId,
-                        codexThreadId: persistentResult.threadId,
-                        codexLastTurnId: persistentResult.turnId
-                    }
-                :   undefined,
+                {
+                    sessionId,
+                    responseId: turnId,
+                    ...(persistentResult ?
+                        {
+                            codexThreadId: persistentResult.threadId,
+                            codexLastTurnId: persistentResult.turnId
+                        }
+                    :   {})
+                },
                 finalUsage
             );
             Logger.info(`📊 ${model.name} Codex App Server request completed`);
@@ -373,20 +400,35 @@ export class CodexAppServerHandler {
                 success: true
             });
         } catch (error) {
-            fail(error instanceof Error ? error.message : String(error));
+            fail(this.describeToolCallError(error));
         }
     }
 
     /**
+     * 工具调用失败原因：用户取消/拒绝确认与执行错误分开表述。
+     * toolInvocationToken 只能为 undefined（提供商拿不到 ChatRequest token），
+     * 需确认的工具以全局 UI 弹出（无聊天内联），用户取消时 invokeTool 抛 CancellationError。
+     */
+    private describeToolCallError(error: unknown): string {
+        if (error instanceof vscode.CancellationError) {
+            return 'cancelled or declined by user';
+        }
+        return error instanceof Error ? error.message : String(error);
+    }
+
+    /**
      * 模式 B 会话策略：marker/store 命中持久 thread 时 resume + 增量注入；
-     * resume 失败、turn 对账失配或无增量输入时回退 ephemeral 全量重放（官方 Copilot 同款兜底）。
+     * resume 失败、turn 对账失配或无增量输入时回退为全新持久会话全量重放。
+     * 工具集漂移（toolNames 与注册时不同）时放弃 resume：resume 的 thread 保留首轮注册的
+     * dynamicTools 不可更新，漂移即新建持久 thread 全量重放，旧 thread 归档。
      */
     private async resolvePersistentStrategy(
         client: CodexAppServerClient,
         messages: readonly vscode.LanguageModelChatMessage[],
         markerModelId: string,
         wireModelId: string,
-        sessionId: string
+        sessionId: string,
+        toolNames?: string[]
     ): Promise<TurnStrategy> {
         const markerHit = this.extractCodexMarker(messages);
         const stored = codexThreadSessionStore.get(sessionId);
@@ -394,42 +436,61 @@ export class CodexAppServerHandler {
         const lastTurnId = markerHit?.marker.codexLastTurnId ?? stored?.lastTurnId;
 
         if (threadId && markerHit && markerHit.marker.modelId === markerModelId) {
-            try {
-                await client.request('thread/resume', { threadId, model: wireModelId, excludeTurns: true });
-                // turn 对账：thread 尾部 turn 应与 marker 记录一致，否则历史不可信
-                if (lastTurnId) {
-                    const turns = await client.request<ThreadTurnsListResponse>('thread/turns/list', {
-                        threadId,
-                        limit: 1,
-                        sortDirection: 'desc'
-                    });
-                    const latest = turns.data?.[0];
-                    if (latest && latest.id !== lastTurnId) {
-                        throw new Error(`thread tail mismatch (latest=${latest.id}, marker=${lastTurnId})`);
+            const drifted = stored !== undefined && (stored.toolNames ?? []).join(',') !== (toolNames ?? []).join(',');
+            if (drifted) {
+                Logger.info(
+                    `[CodexAppServer] tool set changed (${(stored?.toolNames ?? []).join('/') || '(none)'} → ${(toolNames ?? []).join('/') || '(none)'}), new persistent thread`
+                );
+            } else {
+                try {
+                    await client.request('thread/resume', { threadId, model: wireModelId, excludeTurns: true });
+                    // turn 对账：thread 尾部 turn 应与 marker 记录一致，否则历史不可信
+                    if (lastTurnId) {
+                        const turns = await client.request<ThreadTurnsListResponse>('thread/turns/list', {
+                            threadId,
+                            limit: 1,
+                            sortDirection: 'desc'
+                        });
+                        const latest = turns.data?.[0];
+                        if (latest && latest.id !== lastTurnId) {
+                            throw new Error(`thread tail mismatch (latest=${latest.id}, marker=${lastTurnId})`);
+                        }
                     }
+                    // 增量：仅转换 marker 之后的消息
+                    const incremental = this.convertMessages(messages.slice(markerHit.index + 1));
+                    if (incremental.turnInput.length === 0) {
+                        throw new Error('no new user input after marker');
+                    }
+                    return {
+                        resumeThreadId: threadId,
+                        // resume 不覆盖既有 thread 的 developerInstructions
+                        historyItems: incremental.historyItems,
+                        turnInput: incremental.turnInput,
+                        persistentNew: false
+                    };
+                } catch (error) {
+                    Logger.warn(
+                        `[CodexAppServer] persistent resume failed, falling back to new persistent thread: ${error}`
+                    );
                 }
-                // 增量：仅转换 marker 之后的消息
-                const incremental = this.convertMessages(messages.slice(markerHit.index + 1));
-                if (incremental.turnInput.length === 0) {
-                    throw new Error('no new user input after marker');
-                }
-                return {
-                    resumeThreadId: threadId,
-                    // resume 不覆盖既有 thread 的 developerInstructions
-                    historyItems: incremental.historyItems,
-                    turnInput: incremental.turnInput,
-                    persistentNew: false
-                };
-            } catch (error) {
-                Logger.warn(`[CodexAppServer] persistent resume failed, falling back to ephemeral replay: ${error}`);
-                codexThreadSessionStore.delete(sessionId);
             }
         } else if (threadId && markerHit && markerHit.marker.modelId !== markerModelId) {
             Logger.debug(`[CodexAppServer] model changed (${markerHit.marker.modelId} → ${markerModelId}), new thread`);
         }
 
+        if (threadId) {
+            this.archiveAbandonedThread(client, sessionId, threadId);
+        }
+
         // 全新持久会话：全量历史注入
         return { ...this.convertMessages(messages), persistentNew: true };
+    }
+
+    private archiveAbandonedThread(client: CodexAppServerClient, sessionId: string, threadId: string): void {
+        codexThreadSessionStore.delete(sessionId);
+        void client
+            .request('thread/archive', { threadId })
+            .catch(error => Logger.warn(`[CodexAppServer] thread/archive failed: ${error}`));
     }
 
     /** 倒序提取最近的 codex-app-server marker（含其消息索引，用于增量切分） */
@@ -445,12 +506,10 @@ export class CodexAppServerHandler {
         return undefined;
     }
 
-    /** 最近一次 thread/tokenUsage/updated 的本轮 usage（waitTurnCompletion 内更新） */
-    private lastUsage: GenericUsageData | undefined;
-
     /**
      * 等待 turn 完成：映射流式通知到 StreamReporter。
-     * turn/completed 后 resolve；failed/interrupted 走错误/取消路径。
+     * 返回本轮 usage（局部变量，避免 handler 单例并发串用量）。
+     * 进程退出 / turn/completed 后结束；failed 走错误路径。
      */
     private waitTurnCompletion(
         client: CodexAppServerClient,
@@ -458,9 +517,19 @@ export class CodexAppServerHandler {
         turnId: string,
         reporter: StreamReporter,
         token: vscode.CancellationToken
-    ): Promise<void> {
-        this.lastUsage = undefined;
-        return new Promise<void>((resolve, reject) => {
+    ): Promise<GenericUsageData | undefined> {
+        return new Promise<GenericUsageData | undefined>((resolve, reject) => {
+            let settled = false;
+            let usage: GenericUsageData | undefined;
+            const finish = (fn: () => void): void => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                subscription.dispose();
+                exitSub.dispose();
+                fn();
+            };
             const subscription = client.onNotification((msg: JsonRpcNotificationFrame) => {
                 switch (msg.method) {
                     case 'item/agentMessage/delta': {
@@ -487,15 +556,14 @@ export class CodexAppServerHandler {
                     case 'thread/tokenUsage/updated': {
                         const p = msg.params as ThreadTokenUsageUpdatedNotification;
                         if (p.turnId === turnId) {
-                            this.lastUsage = this.mapUsage(p.tokenUsage.last);
+                            usage = this.mapUsage(p.tokenUsage.last);
                         }
                         break;
                     }
                     case 'item/completed': {
-                        // dynamicToolCall 等条目完成时 flush 思考缓冲
                         const p = msg.params as ItemCompletedNotification;
                         if (p.turnId === turnId && p.item.type === 'reasoning') {
-                            reporter.flushAll(null);
+                            reporter.endThinkingChain();
                         }
                         break;
                     }
@@ -504,15 +572,12 @@ export class CodexAppServerHandler {
                         if (p.turn.id !== turnId) {
                             break;
                         }
-                        subscription.dispose();
                         if (p.turn.status === 'completed') {
-                            resolve();
+                            finish(() => resolve(usage));
                         } else if (p.turn.status === 'interrupted' || token.isCancellationRequested) {
-                            resolve(); // 取消由外层 token 状态统一处理
+                            finish(() => resolve(usage));
                         } else {
-                            reject(
-                                new Error(p.turn.error?.message || `Codex turn failed with status ${p.turn.status}`)
-                            );
+                            finish(() => reject(this.toTurnFailureError(p.turn.error, p.turn.status)));
                         }
                         break;
                     }
@@ -520,6 +585,9 @@ export class CodexAppServerHandler {
                         break;
                 }
             }, threadId);
+            const exitSub = client.onProcessExit(() => {
+                finish(() => reject(new Error('Codex app-server exited during turn')));
+            });
         });
     }
 
@@ -533,6 +601,81 @@ export class CodexAppServerHandler {
             prompt_tokens_details: { cached_tokens: last.cachedInputTokens },
             completion_tokens_details: { reasoning_tokens: last.reasoningOutputTokens }
         };
+    }
+
+    /**
+     * turn/start 的 effort/summary 覆盖：
+     * - 子请求（summarization/title 等）：effort 降至模型支持的最低档（none→minimal→low），summary 关闭
+     * - 主请求：透传用户选择的 reasoningEffort（限模型支持列表内，防非法值被服务端 400）
+     */
+    private resolveTurnOverrides(
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        modelConfig: ModelConfig
+    ): { effort?: string; summary?: string } {
+        const requestKind = (options.modelOptions as { requestKind?: string } | undefined)?.requestKind as
+            | RequestKind
+            | undefined;
+        const supported = modelConfig.reasoningEffort as readonly string[] | undefined;
+        if (requestKind !== undefined && isSubRequest(requestKind)) {
+            const effort = ['none', 'minimal', 'low'].find(candidate => supported?.includes(candidate));
+            return { ...(effort ? { effort } : {}), summary: 'none' };
+        }
+        const configured = (options.modelConfiguration as ModelChatResponseOptions | undefined)?.reasoningEffort;
+        if (configured && supported?.includes(configured)) {
+            return { effort: configured };
+        }
+        return {};
+    }
+
+    /**
+     * turn/completed 失败 → RetryManager 可分类的错误（结构化 codexErrorInfo 优先于消息文案）：
+     * usageLimitExceeded/contextWindowExceeded/sessionBudgetExceeded → 永久错误 code（不重试）；
+     * rateLimitExceeded → 可重试限流 code；serverOverloaded → 529；连接/断流类透传上游 httpStatusCode。
+     */
+    private toTurnFailureError(turnError: TurnError | null, status: TurnStatus): Error {
+        const error = new Error(turnError?.message || `Codex turn failed with status ${status}`) as RetryableError;
+        const info = turnError?.codexErrorInfo;
+        if (typeof info === 'string') {
+            switch (info) {
+                case 'usageLimitExceeded':
+                    error.code = 'usage_limit_reached';
+                    break;
+                case 'contextWindowExceeded':
+                    error.code = 'context_window_exceeded';
+                    break;
+                case 'sessionBudgetExceeded':
+                    error.code = 'session_budget_exceeded';
+                    break;
+                case 'rateLimitExceeded':
+                    error.code = 'rate_limit_exceeded';
+                    break;
+                case 'serverOverloaded':
+                    error.status = 529;
+                    break;
+                case 'unauthorized':
+                    error.status = 401;
+                    break;
+                case 'internalServerError':
+                    error.status = 500;
+                    break;
+                case 'badRequest':
+                    error.status = 400;
+                    break;
+                case 'cyberPolicy':
+                case 'misalignmentPolicyViolation':
+                    error.status = 400;
+                    break;
+                default:
+                    break;
+            }
+        } else if (info && typeof info === 'object') {
+            // 对象变体（httpConnectionFailed/responseStream*/responseTooManyFailedAttempts）：透传上游状态码
+            const carrier = Object.values(info)[0] as CodexErrorInfoStatusCarrier | undefined;
+            if (typeof carrier?.httpStatusCode === 'number') {
+                error.status = carrier.httpStatusCode;
+            }
+        }
+        return error;
     }
 
     /**
@@ -570,30 +713,17 @@ export class CodexAppServerHandler {
             }
 
             if (message.role === vscode.LanguageModelChatMessageRole.User) {
-                const inputs = this.toUserInputs(message);
                 if (i === lastUserIndex) {
-                    turnInput = inputs;
-                } else if (inputs.length > 0) {
-                    historyItems.push({
-                        type: 'message',
-                        role: 'user',
-                        content: inputs.map(input =>
-                            input.type === 'text' ? { type: 'input_text', text: input.text } : input
-                        )
-                    } as JsonValue);
+                    turnInput = this.toUserInputs(message);
+                } else {
+                    // 历史 user 消息：文本 + 工具结果（function_call_output，按 call_id 归属）
+                    historyItems.push(...this.toUserHistoryItems(message));
                 }
                 continue;
             }
 
-            // assistant → 历史注入（agent 输出文本）
-            const text = this.extractText(message);
-            if (text) {
-                historyItems.push({
-                    type: 'message',
-                    role: 'assistant',
-                    content: [{ type: 'output_text', text }]
-                } as JsonValue);
-            }
+            // assistant → 历史注入（输出文本 + 工具调用 function_call，保持 part 顺序）
+            historyItems.push(...this.toAssistantHistoryItems(message));
         }
 
         return {
@@ -629,15 +759,95 @@ export class CodexAppServerHandler {
         return inputs;
     }
 
+    /** 历史 user 消息 → 注入项：文本聚合为 message 项，工具结果为 function_call_output（call_id 归属） */
+    private toUserHistoryItems(message: vscode.LanguageModelChatMessage): JsonValue[] {
+        const items: JsonValue[] = [];
+        let texts: string[] = [];
+        const flushTexts = (): void => {
+            const text = texts.join('');
+            if (text) {
+                items.push({
+                    type: 'message',
+                    role: 'user',
+                    content: [{ type: 'input_text', text }]
+                } as JsonValue);
+            }
+            texts = [];
+        };
+        for (const part of message.content) {
+            if (part instanceof vscode.LanguageModelTextPart) {
+                if (part.value) {
+                    texts.push(part.value);
+                }
+            } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                flushTexts();
+                items.push({
+                    type: 'function_call_output',
+                    call_id: part.callId,
+                    output: this.toolResultText(part)
+                } as JsonValue);
+            } else if (part instanceof vscode.LanguageModelDataPart) {
+                Logger.warn('[CodexAppServer] image/data part skipped in history (not supported yet)');
+            }
+        }
+        flushTexts();
+        return items;
+    }
+
+    /** 历史 assistant 消息 → 注入项：文本聚合为 message 项，工具调用为 function_call（保持 part 顺序） */
+    private toAssistantHistoryItems(message: vscode.LanguageModelChatMessage): JsonValue[] {
+        const items: JsonValue[] = [];
+        let texts: string[] = [];
+        const flushTexts = (): void => {
+            const text = texts.join('');
+            if (text) {
+                items.push({
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text }]
+                } as JsonValue);
+            }
+            texts = [];
+        };
+        for (const part of message.content) {
+            if (part instanceof vscode.LanguageModelTextPart) {
+                if (part.value) {
+                    texts.push(part.value);
+                }
+            } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                flushTexts();
+                items.push({
+                    type: 'function_call',
+                    call_id: part.callId,
+                    name: part.name,
+                    arguments: JSON.stringify(part.input ?? {})
+                } as JsonValue);
+            } else if (part instanceof vscode.LanguageModelDataPart) {
+                Logger.warn('[CodexAppServer] image/data part skipped in history (not supported yet)');
+            }
+        }
+        flushTexts();
+        return items;
+    }
+
+    /** LanguageModelToolResultPart → 纯文本输出（function_call_output.output 字符串形态） */
+    private toolResultText(part: vscode.LanguageModelToolResultPart): string {
+        const text = part.content
+            .map(sub => (sub instanceof vscode.LanguageModelTextPart ? sub.value : ''))
+            .filter(Boolean)
+            .join('\n');
+        return text || '(no output)';
+    }
+
     /**
      * 服务端反向请求兜底：approvalPolicy='never' 下审批不应出现，出现即拒绝；
-     * item/tool/call 由后续 Dynamic Tools 任务接管，此处先按失败兜底，避免挂起 turn。
+     * item/tool/call 无 thread 级处理器时按失败兜底，避免挂起 turn。
      */
     private registerServerRequestFallback(client: CodexAppServerClient): void {
-        if (CodexAppServerHandler.serverRequestFallbackRegistered) {
+        if (CodexAppServerHandler.fallbackClient === client) {
             return;
         }
-        CodexAppServerHandler.serverRequestFallbackRegistered = true;
+        CodexAppServerHandler.fallbackClient = client;
         client.onServerRequest((msg: JsonRpcServerRequestFrame) => {
             if (msg.method === 'item/tool/call') {
                 Logger.warn(`[CodexAppServer] unexpected item/tool/call without dynamic tools: ${msg.id}`);

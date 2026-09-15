@@ -10,6 +10,8 @@ export interface CodexThreadSession {
     /** 最近完成的 turn ID（增量定位/回滚锚点） */
     lastTurnId?: string;
     modelId: string;
+    /** 新建 thread 时注册的 dynamicTools 名集合（排序）；跨轮漂移检测用，resume 不更新工具集 */
+    toolNames?: string[];
     updatedAt: number;
 }
 

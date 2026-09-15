@@ -1496,6 +1496,105 @@ export class JsonSchemaProvider {
     /**
      * 为特定提供商创建 JSON Schema
      */
+    private static getCodexTransportOverrideProperties(providerKey: string): Record<string, JSONSchema7> {
+        if (providerKey !== 'codex') {
+            return {};
+        }
+        return {
+            transport: {
+                type: 'string',
+                enum: ['direct', 'appServer'],
+                enumDescriptions: [
+                    t(
+                        'Direct HTTP to ChatGPT backend (extension holds the OAuth token)',
+                        '直连 ChatGPT 后端（扩展持有 OAuth 令牌）'
+                    ),
+                    t(
+                        'Local codex app-server over JSON-RPC (authentication stays in the CLI)',
+                        '本机 codex app-server（JSON-RPC，认证留在 CLI）'
+                    )
+                ],
+                default: 'direct',
+                description: t(
+                    'Codex transport. "appServer" launches local `codex app-server` for chat, model discovery, and quota queries.',
+                    'Codex 传输方式。"appServer" 启动本机 `codex app-server`，经 JSON-RPC 完成对话、模型发现与用量查询。'
+                )
+            },
+            appServer: {
+                type: 'object',
+                additionalProperties: false,
+                description: t(
+                    'App Server transport options (effective when transport is "appServer")',
+                    'App Server 传输子配置（transport 为 "appServer" 时生效）'
+                ),
+                properties: {
+                    codexBinary: {
+                        type: 'string',
+                        description: t(
+                            'Path to the codex executable. Empty = resolve from PATH.',
+                            'codex 可执行文件路径。空/未设置则从 PATH 探测。'
+                        )
+                    },
+                    idleShutdownMinutes: {
+                        type: 'number',
+                        minimum: 0,
+                        description: t(
+                            'Idle shutdown in minutes. 0 = keep the process running.',
+                            '空闲回收分钟数。0 = 常驻。'
+                        )
+                    },
+                    threadMode: {
+                        type: 'string',
+                        enum: ['ephemeral', 'persistent'],
+                        enumDescriptions: [
+                            t('One independent thread per request (default)', '每次请求独立会话（默认）'),
+                            t(
+                                'Reuse the thread across turns with incremental sends',
+                                '同一会话跨轮复用 thread，增量发送'
+                            )
+                        ],
+                        default: 'ephemeral',
+                        description: t('Session mapping mode for app-server threads', 'app-server 会话映射模式')
+                    }
+                }
+            }
+        };
+    }
+
+    private static getCodexTransportOverrideAllOf(providerKey: string): JSONSchema7[] {
+        if (providerKey !== 'codex') {
+            return [];
+        }
+        return [
+            {
+                if: {
+                    properties: { transport: { const: 'appServer' } },
+                    required: ['transport']
+                },
+                then: {
+                    properties: {
+                        appServer: {
+                            description: t('App Server transport options', 'App Server 传输子配置')
+                        }
+                    }
+                },
+                else: {
+                    properties: {
+                        appServer: {
+                            deprecationMessage: t(
+                                'appServer is only effective when transport is "appServer"',
+                                'appServer 仅在 transport 为 "appServer" 时生效'
+                            )
+                        }
+                    }
+                }
+            }
+        ];
+    }
+
+    /**
+     * 为特定提供商创建 JSON Schema
+     */
     private static createProviderSchema(providerKey: string, config: ProviderConfig): JSONSchema7 {
         const modelIds = config.models?.map(model => model.id) || [];
         const anthropicModelIds =
@@ -1595,6 +1694,7 @@ export class JsonSchemaProvider {
                 ...this.getKnownSubProviderRetryOverrideProperties(providerKey),
                 limit: this.getRateLimitSchema(),
                 ...this.getKnownSubProviderRateLimitProperties(providerKey),
+                ...this.getCodexTransportOverrideProperties(providerKey),
                 models: {
                     type: 'array',
                     description: t('Model override configuration list', '模型覆盖配置列表'),
@@ -2115,6 +2215,7 @@ export class JsonSchemaProvider {
                 ...this.getSubProviderRetryPatternProperties(),
                 ...this.getSubProviderRateLimitPatternProperties()
             },
+            allOf: this.getCodexTransportOverrideAllOf(providerKey),
             additionalProperties: false
         };
     }

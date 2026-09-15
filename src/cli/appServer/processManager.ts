@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Codex App Server 进程管理
  *  负责 codex 可执行文件探测（Windows 下解析 shim→真实 exe）、懒启动 spawn、
  *  代理环境变量注入、stderr 回收、空闲回收、崩溃重启与熔断
@@ -118,15 +118,25 @@ function resolveShimToRealExe(shimPath: string): string | undefined {
  * 在 @openai/codex 包目录下找 codex.exe（限定 vendor 路径防止误匹配）。
  * 递归下钻 node_modules/@openai（Volta 存在 codex/node_modules/@openai/codex-win32-x64 双层嵌套）。
  */
+function windowsVendorExeSuffixes(): string[] {
+    const triples =
+        process.arch === 'arm64' ?
+            ['aarch64-pc-windows-msvc', 'x86_64-pc-windows-msvc']
+        :   ['x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'];
+    return triples.map(triple => path.join('vendor', triple, 'bin', 'codex.exe'));
+}
+
 function findCodexExeUnder(packageDir: string): string | undefined {
-    const suffix = path.join('vendor', 'x86_64-pc-windows-msvc', 'bin', 'codex.exe');
+    const suffixes = windowsVendorExeSuffixes();
     const walk = (dir: string, depth: number): string | undefined => {
         if (depth < 0 || !fs.existsSync(dir)) {
             return undefined;
         }
-        const direct = path.join(dir, suffix);
-        if (fs.existsSync(direct)) {
-            return direct;
+        for (const suffix of suffixes) {
+            const direct = path.join(dir, suffix);
+            if (fs.existsSync(direct)) {
+                return direct;
+            }
         }
         const nested = path.join(dir, 'node_modules', '@openai');
         if (fs.existsSync(nested)) {
@@ -169,6 +179,7 @@ export class CodexAppServerProcessManager {
     private idleTimer?: NodeJS.Timeout;
     private onExitHandlers: Array<(code: number | null, signal: NodeJS.Signals | null) => void> = [];
     private stderrBuffer = '';
+    private intentionalShutdown = false;
 
     constructor(private readonly getConfig: () => CodexAppServerConfig) {}
 
@@ -211,7 +222,11 @@ export class CodexAppServerProcessManager {
         });
         proc.on('exit', (code, signal) => {
             Logger.warn(`[CodexAppServer] exited: code=${code} signal=${signal}`);
-            this.recordCrash();
+            const skipCrash = this.intentionalShutdown;
+            this.intentionalShutdown = false;
+            if (!skipCrash) {
+                this.recordCrash();
+            }
             this.spawned = undefined;
             this.clearIdleTimer();
             for (const h of this.onExitHandlers) {
@@ -276,6 +291,7 @@ export class CodexAppServerProcessManager {
         if (!spawned) {
             return;
         }
+        this.intentionalShutdown = true;
         try {
             if (spawned.resolution.useShell && process.platform === 'win32' && spawned.proc.pid) {
                 spawn('taskkill', ['/pid', String(spawned.proc.pid), '/t', '/f'], {

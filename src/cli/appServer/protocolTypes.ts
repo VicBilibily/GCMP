@@ -160,9 +160,38 @@ export interface Thread {
 
 export type TurnStatus = 'completed' | 'interrupted' | 'failed' | 'inProgress';
 
+/** codexErrorInfo 中携带上游 HTTP 状态码的对象变体载荷 */
+export interface CodexErrorInfoStatusCarrier {
+    httpStatusCode: number | null;
+}
+
+/**
+ * turn 失败的结构化错误信息（v2 CodexErrorInfo，camelCase wire 格式）。
+ * 字符串变体 + 携带 httpStatusCode 的对象变体；未知变体按运行时兜底处理。
+ */
+export type CodexErrorInfo =
+    | 'contextWindowExceeded'
+    | 'sessionBudgetExceeded'
+    | 'usageLimitExceeded'
+    | 'rateLimitExceeded'
+    | 'serverOverloaded'
+    | 'cyberPolicy'
+    | 'misalignmentPolicyViolation'
+    | 'internalServerError'
+    | 'unauthorized'
+    | 'badRequest'
+    | 'threadRollbackFailed'
+    | 'sandboxError'
+    | 'other'
+    | { httpConnectionFailed: CodexErrorInfoStatusCarrier }
+    | { responseStreamConnectionFailed: CodexErrorInfoStatusCarrier }
+    | { responseStreamDisconnected: CodexErrorInfoStatusCarrier }
+    | { responseTooManyFailedAttempts: CodexErrorInfoStatusCarrier }
+    | { activeTurnNotSteerable: { turnKind: unknown } };
+
 export interface TurnError {
     message: string;
-    codexErrorInfo: unknown | null;
+    codexErrorInfo: CodexErrorInfo | null;
     additionalDetails: string | null;
     misalignment: unknown | null;
 }

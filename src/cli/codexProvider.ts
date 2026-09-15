@@ -16,7 +16,12 @@ import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
 import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
 import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { parseAppServerModelList, parseCodexModelsResponse } from '../utils/model/codexModels';
-import { getCodexAppServerClient, initCodexAppServer } from './appServer';
+import {
+    getCodexAppServerClient,
+    initCodexAppServer,
+    isCodexAppServerTransport,
+    resetCodexAppServer
+} from './appServer';
 import type { ModelListResponse } from './appServer/protocolTypes';
 
 /** Codex 后端模型列表 API 地址 */
@@ -71,6 +76,8 @@ export class CodexProvider extends CliBaseProvider {
     private dynamicModelGeneration = 0;
     /** 当前共享刷新是否已无等待者；刷新完成前不启动新的刷新 */
     private refreshCancellationRequested = false;
+    /** 上次看到的 appServer 配置指纹，变化时重建子进程 */
+    private lastAppServerFingerprint = CodexProvider.appServerFingerprint();
 
     /**
      * @param context 扩展上下文
@@ -86,6 +93,11 @@ export class CodexProvider extends CliBaseProvider {
             if (event.affectsConfiguration('gcmp.providerOverrides')) {
                 this.lastSuccessfulFetch = undefined;
                 void this.context.globalState.update(CACHE_KEY, undefined);
+                const next = CodexProvider.appServerFingerprint();
+                if (next !== this.lastAppServerFingerprint) {
+                    this.lastAppServerFingerprint = next;
+                    resetCodexAppServer();
+                }
             }
         });
         context.subscriptions.push(this.codexConfigListener);
@@ -94,6 +106,19 @@ export class CodexProvider extends CliBaseProvider {
     /** 用户覆盖前注入远程 codex-tui 元数据，保证优先级链：用户 > 远程 > 内置 */
     protected override applyProviderConfigOverrides(config: ProviderConfig): ProviderConfig {
         return super.applyProviderConfigOverrides(withCodexCliMetadata(config));
+    }
+
+    /** appServer 传输不经扩展持有 OAuth 令牌，跳过 API Key / CLI 凭证门 */
+    protected override shouldRequireApiKey(): boolean {
+        return !isCodexAppServerTransport();
+    }
+
+    private static appServerFingerprint(): string {
+        const override = ConfigManager.getProviderOverrides()['codex'];
+        return JSON.stringify({
+            transport: override?.transport ?? 'direct',
+            appServer: override?.appServer ?? {}
+        });
     }
 
     /** 远程清单热更新：额外同步回退基线；运行时仍以 ChatGPT 后端动态拉取为准 */
@@ -123,7 +148,7 @@ export class CodexProvider extends CliBaseProvider {
             customHeader: ensureUserAgentHeader(customHeader, getCodexTuiUserAgentFromHeader(customHeader))
         };
         // appServer 传输：全部模型改走 codex app-server（JSON-RPC）链路
-        if (ConfigManager.getProviderOverrides().codex?.transport === 'appServer') {
+        if (isCodexAppServerTransport()) {
             result.models = result.models.map(m => ({ ...m, sdkMode: 'codex-app-server' as const }));
         }
         return result;
@@ -349,7 +374,7 @@ export class CodexProvider extends CliBaseProvider {
      */
     private async refreshModels(generation: number): Promise<ModelConfig[]> {
         // appServer 传输：模型发现走 codex app-server model/list（不经 OAuth 后端，不留存令牌）
-        if (ConfigManager.getProviderOverrides().codex?.transport === 'appServer') {
+        if (isCodexAppServerTransport()) {
             return this.refreshModelsViaAppServer(generation);
         }
         const credentials = await CliAuthFactory.ensureAuthenticated('codex');

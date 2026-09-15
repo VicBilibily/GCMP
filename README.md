@@ -242,7 +242,7 @@ npm install -g @openai/codex@latest
 | `idleShutdownMinutes` | 空闲自动回收分钟数，`0` 表示常驻 |
 | `threadMode` | `ephemeral`（默认，每次请求独立会话）/ `persistent`（同一会话跨轮复用 thread，增量发送，显著提升 prompt 缓存命中） |
 
-> appServer 模式要求 codex CLI ≥ 0.153.4（协议基线，低于此版本会拒绝启动并提示升级）；沙盒固定为 `read-only`、审批固定为 `never`，模型无法执行本地命令或写文件；VS Code 工具经 Dynamic Tools 桥接执行（2 分钟超时兜底）。
+> appServer 模式要求 codex CLI ≥ 0.153.4（协议基线，低于此版本会拒绝启动并提示升级）；沙盒固定为 `read-only`、审批固定为 `never`，模型无法执行本地命令或写文件；VS Code 工具经 Dynamic Tools 桥接执行（2 分钟超时兜底）。除工具桥接（`dynamicTools`，实验性字段）外，其余均为稳定协议方法。
 
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 

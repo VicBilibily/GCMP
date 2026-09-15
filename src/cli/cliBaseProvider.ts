@@ -46,6 +46,10 @@ export class CliBaseProvider extends GenericModelProvider {
             return [];
         }
 
+        if (!this.shouldRequireApiKey()) {
+            return super.provideLanguageModelChatInformation({ ...options, silent: originallySilent }, token);
+        }
+
         // 检查是否有有效的 API 密钥
         let hasApiKey: boolean;
         if (options.silent) {

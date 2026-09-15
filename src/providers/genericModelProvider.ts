@@ -443,6 +443,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
     }
 
+    /** 模型列表是否要求已配置 API Key；Codex appServer 传输覆盖为 false */
+    protected shouldRequireApiKey(): boolean {
+        return true;
+    }
+
     static configedProviders = new Set<string>();
 
     async provideLanguageModelChatInformation(
@@ -457,24 +462,26 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
 
         // 检查 API 密钥
-        const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
-        if (!options.silent || !hasApiKey) {
-            Logger.debug(`[${this.providerKey}] Checking API key: ${hasApiKey ? 'configured' : 'not configured'}`);
+        if (this.shouldRequireApiKey()) {
+            const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
+            if (!options.silent || !hasApiKey) {
+                Logger.debug(`[${this.providerKey}] Checking API key: ${hasApiKey ? 'configured' : 'not configured'}`);
 
-            // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
-            if (!hasApiKey && options.silent) {
-                return [];
-            }
+                // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
+                if (!hasApiKey && options.silent) {
+                    return [];
+                }
 
-            Logger.info(`[${this.providerKey}] API key configuration is required`);
+                Logger.info(`[${this.providerKey}] API key configuration is required`);
 
-            // 非静默模式下，直接触发API密钥设置
-            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.setApiKey`);
-            // 重新检查API密钥
-            const hasApiKeyAfterSet = await ApiKeyManager.hasValidApiKey(this.providerKey);
-            if (!hasApiKeyAfterSet) {
-                // 如果用户取消设置或设置失败，返回空列表
-                return [];
+                // 非静默模式下，直接触发API密钥设置
+                await vscode.commands.executeCommand(`gcmp.${this.providerKey}.setApiKey`);
+                // 重新检查API密钥
+                const hasApiKeyAfterSet = await ApiKeyManager.hasValidApiKey(this.providerKey);
+                if (!hasApiKeyAfterSet) {
+                    // 如果用户取消设置或设置失败，返回空列表
+                    return [];
+                }
             }
         }
 

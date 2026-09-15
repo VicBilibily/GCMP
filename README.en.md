@@ -242,7 +242,7 @@ npm install -g @openai/codex@latest
 | `idleShutdownMinutes` | Minutes of idleness before the process is recycled; `0` keeps it resident |
 | `threadMode` | `ephemeral` (default, one session per request) / `persistent` (reuses the thread across turns with incremental sends, significantly improving prompt-cache hits) |
 
-> appServer mode requires codex CLI ≥ 0.153.4 (protocol baseline; older versions are rejected with an upgrade hint). The sandbox is pinned to `read-only` and approvals to `never`, so the model cannot run local commands or write files; VS Code tools are bridged via Dynamic Tools (with a 2-minute timeout fallback).
+> appServer mode requires codex CLI ≥ 0.153.4 (protocol baseline; older versions are rejected with an upgrade hint). The sandbox is pinned to `read-only` and approvals to `never`, so the model cannot run local commands or write files; VS Code tools are bridged via Dynamic Tools (with a 2-minute timeout fallback). Everything except the tool bridge (`dynamicTools`, an experimental field) uses stable protocol methods only.
 
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 

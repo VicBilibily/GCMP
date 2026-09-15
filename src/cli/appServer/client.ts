@@ -6,7 +6,7 @@
  *  （传 {} 被静默丢弃）；其余方法 params 键必须存在（缺失报 missing field `params`）。
  *--------------------------------------------------------------------------------------------*/
 
-import { createInterface } from 'node:readline';
+import { createInterface, type Interface } from 'node:readline';
 import { Logger } from '../../utils/runtime/logger';
 import { getCodexTuiCliHeader } from '../../utils/metadata/metadataResolver';
 import type {
@@ -69,6 +69,8 @@ export function isVersionBelow(actual: string, baseline: string): boolean {
 }
 
 export class CodexAppServerClient {
+    /** 并发 active turn 上限（超出排队等位） */
+    private static readonly MAX_CONCURRENT_TURNS = 4;
     private nextId = 1;
     private readonly pending = new Map<number | string, PendingEntry>();
     private readonly notificationHandlers: Array<{ threadId?: string; handler: NotificationHandler }> = [];
@@ -77,8 +79,13 @@ export class CodexAppServerClient {
     private readonly serverRequestHandlers = new Map<string, ServerRequestHandler>();
     private writeMutex: Promise<void> = Promise.resolve();
     private readonly threadLocks = new Map<string, Promise<void>>();
+    /** 并发 active turn 数（含 thread 创建/恢复阶段）与等位队列 */
+    private activeTurns = 0;
+    private readonly turnWaiters: Array<() => void> = [];
     private handshakeDone = false;
     private handshakePromise?: Promise<InitializeResponse>;
+    private lineReader?: Interface;
+    private readonly processExitHandlers: Array<() => void> = [];
     /** initialize 响应中的服务端 userAgent，含 CLI 版本（如 "codex-cli/0.153.4 ..."） */
     serverUserAgent?: string;
 
@@ -107,7 +114,22 @@ export class CodexAppServerClient {
         const { version, originator } = getCodexTuiCliHeader();
         const init = (await this.request('initialize', {
             clientInfo: { name: originator, title: null, version },
-            capabilities: { experimentalApi: true }
+            capabilities: {
+                experimentalApi: true,
+                // 精简 IPC：仅保留消费的 6 种通知（agentMessage/reasoning delta、tokenUsage、item/completed、turn/completed）
+                optOutNotificationMethods: [
+                    'thread/started',
+                    'thread/status/changed',
+                    'turn/started',
+                    'turn/diff/updated',
+                    'turn/plan/updated',
+                    'item/started',
+                    'item/plan/delta',
+                    'item/reasoning/summaryPartAdded',
+                    'item/commandExecution/outputDelta',
+                    'account/rateLimits/updated'
+                ]
+            }
         })) as InitializeResponse;
         this.notify('initialized', {});
         Logger.info(`[CodexAppServer] handshake ok: ${init.userAgent}`);
@@ -130,12 +152,35 @@ export class CodexAppServerClient {
 
     private handleProcessExit(): void {
         this.handshakeDone = false;
+        this.lineReader?.close();
+        this.lineReader = undefined;
         for (const [id, entry] of this.pending) {
             clearTimeout(entry.timer);
             entry.reject(new Error(`Codex app-server exited while waiting for ${entry.method} (request ${id})`));
         }
         this.pending.clear();
         this.threadLocks.clear();
+        this.serverRequestHandlers.clear();
+        for (const handler of this.processExitHandlers) {
+            try {
+                handler();
+            } catch (error) {
+                Logger.warn(`[CodexAppServer] process exit handler error: ${error}`);
+            }
+        }
+    }
+
+    /** 进程退出回调（waitTurnCompletion 等长等待用）；返回注销句柄 */
+    onProcessExit(handler: () => void): { dispose(): void } {
+        this.processExitHandlers.push(handler);
+        return {
+            dispose: () => {
+                const idx = this.processExitHandlers.indexOf(handler);
+                if (idx >= 0) {
+                    this.processExitHandlers.splice(idx, 1);
+                }
+            }
+        };
     }
 
     /**
@@ -177,6 +222,10 @@ export class CodexAppServerClient {
         this.writeMutex = this.writeMutex.then(
             () =>
                 new Promise<void>((resolve, reject) => {
+                    if (!this.processManager.isRunning) {
+                        reject(new Error('Codex app-server is not running'));
+                        return;
+                    }
                     const stdin = this.processManager.ensureRunning().proc.stdin;
                     if (!stdin) {
                         reject(new Error('Codex app-server stdin unavailable'));
@@ -226,29 +275,47 @@ export class CodexAppServerClient {
         const current = new Promise<void>(resolve => {
             release = resolve;
         });
-        this.threadLocks.set(
-            threadId,
-            prev.then(() => current)
-        );
+        const next = prev.then(() => current);
+        this.threadLocks.set(threadId, next);
         await prev;
         try {
             return await fn();
         } finally {
             release();
-            if (this.threadLocks.get(threadId) === current) {
+            if (this.threadLocks.get(threadId) === next) {
                 this.threadLocks.delete(threadId);
             }
         }
     }
 
-    /** 绑定 stdout reader（握手前调用一次） */
+    /**
+     * 并发闸门：同一 app-server 进程上并发 active turn（含 thread 创建/恢复）不超过上限，
+     * 超出排队等位。避免主 Agent + 多子 Agent 并发时 thread/turn 突发压垮 app-server。
+     */
+    async withTurnSlot<T>(fn: () => Promise<T>): Promise<T> {
+        while (this.activeTurns >= CodexAppServerClient.MAX_CONCURRENT_TURNS) {
+            await new Promise<void>(resolve => this.turnWaiters.push(resolve));
+        }
+        this.activeTurns++;
+        try {
+            return await fn();
+        } finally {
+            this.activeTurns--;
+            this.turnWaiters.shift()?.();
+        }
+    }
+
+    /** 绑定 stdout reader（同一进程只挂一次；进程退出后由 handleProcessExit 清掉） */
     attachReader(): void {
+        if (this.lineReader) {
+            return;
+        }
         const stdout = this.processManager.ensureRunning().proc.stdout;
         if (!stdout) {
             throw new Error('Codex app-server stdout unavailable');
         }
-        const rl = createInterface({ input: stdout, crlfDelay: Infinity });
-        rl.on('line', line => this.dispatchLine(line));
+        this.lineReader = createInterface({ input: stdout, crlfDelay: Infinity });
+        this.lineReader.on('line', line => this.dispatchLine(line));
     }
 
     private dispatchLine(line: string): void {

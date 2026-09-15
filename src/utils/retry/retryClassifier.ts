@@ -84,7 +84,10 @@ const PERMANENT_ERROR_CODES = new Set([
     'inference_cap_error',
     'spend_limit_exceeded',
     'insufficient_credits',
-    'usage_limit_reached'
+    'usage_limit_reached',
+    // codex app-server turn 失败的结构化映射（codexErrorInfo → code，见 codexAppServerHandler）
+    'context_window_exceeded',
+    'session_budget_exceeded'
 ]);
 
 /**
