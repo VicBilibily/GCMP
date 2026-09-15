@@ -14,7 +14,7 @@ import { getCodexTuiCliHeader } from '../../src/utils/metadata/metadataResolver'
 import { parseAppServerModelList } from '../../src/utils/model/codexModels';
 import { RetryManager } from '../../src/utils/retry/retryManager';
 import type { ModelConfig } from '../../src/types/sharedTypes';
-import type { AppServerModel } from '../../src/cli/appServer/protocolTypes';
+import type { AppServerModel, DynamicToolCallParams } from '../../src/cli/appServer/protocolTypes';
 
 // ===== mock app-server：内存 stdio 双向流 + JSONL 行协议 =====
 
@@ -411,6 +411,7 @@ suite('Codex App Server', () => {
                 developerInstructions?: string;
                 historyItems: unknown[];
                 turnInput: Array<{ type: string; text?: string }>;
+                turnToolOutputs: unknown[];
             };
             mapUsage(last: {
                 totalTokens: number;
@@ -423,7 +424,12 @@ suite('Codex App Server', () => {
                 messages: readonly vscode.LanguageModelChatMessage[]
             ): { marker: { codexThreadId?: string }; index: number } | undefined;
             resolveTurnOverrides(options: unknown, modelConfig: unknown): { effort?: string; summary?: string };
-            describeToolCallError(error: unknown): string;
+            delegateToolCall(
+                client: CodexAppServerClient,
+                requestId: number | string,
+                params: DynamicToolCallParams,
+                reporter: { reportToolCall(callId: string, name: string, args: Record<string, unknown>): void }
+            ): void;
             resolvePersistentStrategy(
                 client: CodexAppServerClient,
                 messages: readonly vscode.LanguageModelChatMessage[],
@@ -542,10 +548,77 @@ suite('Codex App Server', () => {
             );
         });
 
-        test('describeToolCallError：用户取消/拒绝确认与执行错误区分', () => {
-            assert.equal(probe.describeToolCallError(new vscode.CancellationError()), 'cancelled or declined by user');
-            assert.equal(probe.describeToolCallError(new Error('boom')), 'boom');
-            assert.equal(probe.describeToolCallError('plain'), 'plain');
+        test('convertMessages：本轮仅工具结果时注入 function_call_output 并合成续接输入', () => {
+            const messages = [
+                new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, [
+                    new vscode.LanguageModelTextPart('q1')
+                ]),
+                new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.Assistant, [
+                    new vscode.LanguageModelToolCallPart('call-1', 'read_file', { path: 'a.ts' })
+                ]),
+                new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, [
+                    new vscode.LanguageModelToolResultPart('call-1', [new vscode.LanguageModelTextPart('file content')])
+                ])
+            ];
+            const result = probe.convertMessages(messages);
+            assert.equal(result.turnToolOutputs.length, 1, '本轮工具结果单独收集');
+            const output = result.turnToolOutputs[0] as { type: string; call_id: string; output: string };
+            assert.equal(output.type, 'function_call_output');
+            assert.equal(output.call_id, 'call-1');
+            assert.equal(output.output, 'file content');
+            assert.equal(result.turnInput.length, 1, '合成续接文本占位');
+            assert.equal(result.turnInput[0].type, 'text');
+            assert.ok(result.turnInput[0].text && result.turnInput[0].text.length > 0);
+            // 历史只含 q1 + assistant function_call，不含本轮工具结果
+            assert.deepEqual(
+                result.historyItems.map(i => (i as { type: string }).type),
+                ['message', 'function_call']
+            );
+        });
+
+        test('delegateToolCall：流出 ToolCallPart、委派回执并 interrupt 当前 turn', async () => {
+            const server = createMockServer({
+                autoRespond: frame => (frame.method === 'turn/interrupt' ? { id: frame.id, result: {} } : undefined)
+            });
+            await readyClient(server);
+            const reported: Array<{ callId: string; name: string; args: Record<string, unknown> }> = [];
+            const reporter = {
+                reportToolCall: (callId: string, name: string, args: Record<string, unknown>) =>
+                    reported.push({ callId, name, args })
+            };
+            probe.delegateToolCall(
+                server.client,
+                555,
+                {
+                    threadId: 'th-1',
+                    turnId: 'tu-1',
+                    callId: 'c-1',
+                    namespace: null,
+                    tool: 'read_file',
+                    arguments: '{"path":"a.ts"}'
+                },
+                reporter
+            );
+            assert.deepEqual(
+                reported,
+                [{ callId: 'c-1', name: 'read_file', args: { path: 'a.ts' } }],
+                '工具调用流出聊天循环由 Copilot 执行'
+            );
+            await new Promise(resolve => setImmediate(resolve));
+            await new Promise(resolve => setImmediate(resolve));
+            const ack = server.received.find(f => f.id === 555) as
+                | { result?: { success?: boolean; contentItems?: unknown[] } }
+                | undefined;
+            assert.equal(ack?.result?.success, false, 'codex 侧按委派回执结束调用');
+            assert.ok(
+                server.received.some(
+                    f =>
+                        f.method === 'turn/interrupt' &&
+                        (f.params as { threadId?: string; turnId?: string }).threadId === 'th-1' &&
+                        (f.params as { threadId?: string; turnId?: string }).turnId === 'tu-1'
+                ),
+                '委派后 interrupt 当前 turn：codex 串行调用不中断则永不结束，聊天循环等不到执行时机'
+            );
         });
 
         test('waitTurnCompletion：reasoning 完成只结束思维链，进程退出必须 reject', async () => {

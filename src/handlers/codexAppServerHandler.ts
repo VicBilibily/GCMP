@@ -2,7 +2,7 @@
  *  Codex App Server 处理器（sdkMode: codex-app-server）
  *  经本机 codex app-server（JSON-RPC over stdio）完成对话。
  *  模式 A（ephemeral thread，每请求独立，默认）与模式 B（persistent thread，增量 + marker 恢复）；
- *  取消经 turn/interrupt。VS Code 工具经 Dynamic Tools（item/tool/call）闭环。
+ *  取消经 turn/interrupt。工具调用经 item/tool/call 委派回聊天循环执行，结果随下轮请求注入。
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -56,7 +56,12 @@ interface ThreadInputParts {
     historyItems: JsonValue[];
     /** 本轮用户输入（turn/start.input） */
     turnInput: UserInput[];
+    /** 本轮消息中的工具结果（function_call_output，经 thread/inject_items 注入；委派回聊天循环的工具经此回调结果） */
+    turnToolOutputs: JsonValue[];
 }
+
+/** 本轮仅工具结果时的续接输入（codex turn/start input 不接受 function_call_output） */
+const TOOL_RESULT_CONTINUATION_TEXT = 'Continue with the tool results provided above.';
 
 /** 一轮对话的执行策略（模式 A/B 归一后的执行输入） */
 interface TurnStrategy extends ThreadInputParts {
@@ -67,9 +72,6 @@ interface TurnStrategy extends ThreadInputParts {
     /** Dynamic Tools 注册表（仅新建 thread 时传入） */
     dynamicTools?: DynamicToolFunctionSpec[];
 }
-
-/** Dynamic Tool 调用的执行超时（2 分钟，超时按失败兜底，避免挂死 turn） */
-const TOOL_CALL_TIMEOUT_MS = 120_000;
 
 export class CodexAppServerHandler {
     /** 当前 client 上已注册的反向请求兜底（client 重建后需重绑） */
@@ -151,10 +153,11 @@ export class CodexAppServerHandler {
                 );
 
                 await client.withThreadLock(activeThreadId, async () => {
-                    if (strategy.historyItems.length > 0) {
+                    const injectItems = [...strategy.historyItems, ...strategy.turnToolOutputs];
+                    if (injectItems.length > 0) {
                         await client.request('thread/inject_items', {
                             threadId: activeThreadId,
-                            items: strategy.historyItems
+                            items: injectItems
                         });
                     }
 
@@ -182,11 +185,12 @@ export class CodexAppServerHandler {
                     turnId = turnResp.turn.id;
                     reporter.setResponseId(turnId);
 
-                    // Dynamic Tools：本 thread 的 item/tool/call 路由到工具执行闭环
+                    // Dynamic Tools：本 thread 的 item/tool/call 委派回聊天循环执行
+                    const turnReporter = reporter;
                     const toolCallHandler =
                         strategy.dynamicTools || strategy.resumeThreadId ?
                             client.registerServerRequestHandler(activeThreadId, msg =>
-                                this.handleServerRequest(client, msg, token)
+                                this.handleServerRequest(client, msg, turnReporter)
                             )
                         :   undefined;
 
@@ -339,81 +343,55 @@ export class CodexAppServerHandler {
 
     /**
      * 服务端反向请求处理（thread 级）：
-     * - item/tool/call：invokeTool 执行（2 分钟超时），结果/失败均闭环响应，避免挂死 turn
+     * - item/tool/call：委派回聊天循环（流出 ToolCallPart 由 Copilot 执行）
      * - 其他（审批类）：拒绝兜底
      */
     private handleServerRequest(
         client: CodexAppServerClient,
         msg: JsonRpcServerRequestFrame,
-        token: vscode.CancellationToken
+        reporter: StreamReporter
     ): void {
         if (msg.method !== 'item/tool/call') {
             Logger.warn(`[CodexAppServer] unexpected server request ${msg.method}, rejecting`);
             client.respond(msg.id, { decision: 'decline' });
             return;
         }
-        void this.executeToolCall(client, msg.id, msg.params as DynamicToolCallParams, token);
-    }
-
-    private async executeToolCall(
-        client: CodexAppServerClient,
-        requestId: number | string,
-        params: DynamicToolCallParams,
-        token: vscode.CancellationToken
-    ): Promise<void> {
-        const fail = (reason: string): void => {
-            Logger.warn(`[CodexAppServer] tool call ${params.tool} (${params.callId}) failed: ${reason}`);
-            client.respond(requestId, {
-                contentItems: [{ type: 'inputText', text: `Tool execution failed: ${reason}` }],
-                success: false
-            });
-        };
-        try {
-            let toolInput: unknown = params.arguments;
-            if (typeof params.arguments === 'string') {
-                try {
-                    toolInput = JSON.parse(params.arguments);
-                } catch {
-                    // 保留字符串原文
-                }
-            }
-            const invocation = vscode.lm.invokeTool(
-                params.tool,
-                {
-                    input: toolInput as Record<string, unknown>,
-                    // 模型提供商收不到 ChatRequest.toolInvocationToken，只能传 undefined（无聊天内联 UI）
-                    toolInvocationToken: undefined
-                },
-                token
-            );
-            const timeout = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('tool call timed out')), TOOL_CALL_TIMEOUT_MS)
-            );
-            const result = await Promise.race([invocation, timeout]);
-            const text = result.content
-                .map(part => (part instanceof vscode.LanguageModelTextPart ? part.value : ''))
-                .filter(Boolean)
-                .join('\n');
-            Logger.debug(`[CodexAppServer] tool call ${params.tool} (${params.callId}) completed`);
-            client.respond(requestId, {
-                contentItems: [{ type: 'inputText', text: text || '(no output)' }],
-                success: true
-            });
-        } catch (error) {
-            fail(this.describeToolCallError(error));
-        }
+        this.delegateToolCall(client, msg.id, msg.params as DynamicToolCallParams, reporter);
     }
 
     /**
-     * 工具调用失败原因：用户取消/拒绝确认与执行错误分开表述。
-     * toolInvocationToken 只能为 undefined（提供商拿不到 ChatRequest token），
-     * 需确认的工具以全局 UI 弹出（无聊天内联），用户取消时 invokeTool 抛 CancellationError。
+     * item/tool/call → 聊天循环 ToolCallPart：提供商拿不到 ChatRequest，invokeTool 无法覆盖
+     * 私有/上下文依赖工具；respond 委派回执后立即 interrupt 当前 turn——codex 串行调用工具，
+     * 不中断则 turn 永不结束，而聊天循环要等响应流结束才执行工具，结果随下一轮请求注入。
      */
-    private describeToolCallError(error: unknown): string {
-        if (error instanceof vscode.CancellationError) {
-            return 'cancelled or declined by user';
+    private delegateToolCall(
+        client: CodexAppServerClient,
+        requestId: number | string,
+        params: DynamicToolCallParams,
+        reporter: StreamReporter
+    ): void {
+        let toolInput: unknown = params.arguments;
+        if (typeof params.arguments === 'string') {
+            try {
+                toolInput = JSON.parse(params.arguments);
+            } catch {
+                // 保留字符串原文
+            }
         }
-        return error instanceof Error ? error.message : String(error);
+        Logger.debug(`[CodexAppServer] delegating tool call ${params.tool} (${params.callId}) to chat loop`);
+        reporter.reportToolCall(params.callId, params.tool, (toolInput ?? {}) as Record<string, unknown>);
+        client.respond(requestId, {
+            contentItems: [
+                {
+                    type: 'inputText',
+                    text: 'Tool execution delegated to the host chat loop; the result will be provided in the next request.'
+                }
+            ],
+            success: false
+        });
+        void client
+            .request('turn/interrupt', { threadId: params.threadId, turnId: params.turnId })
+            .catch(error => Logger.warn(`[CodexAppServer] turn/interrupt after tool delegation failed: ${error}`));
     }
 
     /**
@@ -466,6 +444,7 @@ export class CodexAppServerHandler {
                         // resume 不覆盖既有 thread 的 developerInstructions
                         historyItems: incremental.historyItems,
                         turnInput: incremental.turnInput,
+                        turnToolOutputs: incremental.turnToolOutputs,
                         persistentNew: false
                     };
                 } catch (error) {
@@ -687,6 +666,7 @@ export class CodexAppServerHandler {
     private convertMessages(messages: readonly vscode.LanguageModelChatMessage[]): ThreadInputParts {
         const systemParts: string[] = [];
         const historyItems: JsonValue[] = [];
+        const turnToolOutputs: JsonValue[] = [];
         let turnInput: UserInput[] = [];
 
         // 定位最后一条 user 消息（本轮输入）；其余全部进入历史注入
@@ -715,6 +695,10 @@ export class CodexAppServerHandler {
             if (message.role === vscode.LanguageModelChatMessageRole.User) {
                 if (i === lastUserIndex) {
                     turnInput = this.toUserInputs(message);
+                    turnToolOutputs.push(...this.toToolOutputItems(message));
+                    if (turnInput.length === 0 && turnToolOutputs.length > 0) {
+                        turnInput = [{ type: 'text', text: TOOL_RESULT_CONTINUATION_TEXT, text_elements: [] }];
+                    }
                 } else {
                     // 历史 user 消息：文本 + 工具结果（function_call_output，按 call_id 归属）
                     historyItems.push(...this.toUserHistoryItems(message));
@@ -729,7 +713,8 @@ export class CodexAppServerHandler {
         return {
             developerInstructions: systemParts.length > 0 ? systemParts.join('\n\n') : undefined,
             historyItems,
-            turnInput
+            turnInput,
+            turnToolOutputs
         };
     }
 
@@ -757,6 +742,21 @@ export class CodexAppServerHandler {
             }
         }
         return inputs;
+    }
+
+    /** 本轮 user 消息中的工具结果 → function_call_output（call_id 归属，经 inject_items 注入） */
+    private toToolOutputItems(message: vscode.LanguageModelChatMessage): JsonValue[] {
+        const items: JsonValue[] = [];
+        for (const part of message.content) {
+            if (part instanceof vscode.LanguageModelToolResultPart) {
+                items.push({
+                    type: 'function_call_output',
+                    call_id: part.callId,
+                    output: this.toolResultText(part)
+                } as JsonValue);
+            }
+        }
+        return items;
     }
 
     /** 历史 user 消息 → 注入项：文本聚合为 message 项，工具结果为 function_call_output（call_id 归属） */
