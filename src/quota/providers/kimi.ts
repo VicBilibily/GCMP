@@ -6,6 +6,7 @@
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { t } from '../../utils/runtime/l10n';
 import { formatQuotaDateForSlot, getCurrencySymbol, isChineseLocale } from '../common';
+import { isKimiMonthlyCapEnabled, normalizeKimiUsage, type KimiNormalizedUsage } from '../parsers/kimiUsageParser';
 import { QuotaProviderBase } from './base';
 import type { QuotaQueryResult, QuotaTable } from '../types';
 
@@ -22,38 +23,24 @@ export interface KimiBoosterWallet {
     balance: { amountLeft: string };
     topupLimit: { currency: string };
     status: string;
-    monthlyChargeLimitEnabled: boolean;
+    /** 旧版显式开关；新接口已移除，缺省时按月限额金额是否大于 0 判断 */
+    monthlyChargeLimitEnabled?: boolean;
     monthlyChargeLimit: KimiPriceAmount;
     monthlyUsed: KimiPriceAmount;
 }
 
 /** fetchKimiUsage 返回的完整用量快照（状态栏与面板格式化共用） */
-export interface KimiUsageSnapshot {
-    summary: { limit: number; used: number; remaining: number; resetTime: string };
-    windows: Array<{
-        duration: number;
-        timeUnit: string;
-        detail: { limit: number; used: number; remaining: number; resetTime?: string };
-    }>;
+export interface KimiUsageSnapshot extends KimiNormalizedUsage {
     parallel?: { limit: number };
     boosterWallet?: KimiBoosterWallet;
 }
 
-/** Kimi API 响应（原始 JSON，字段可能为 string | number） */
+/** Kimi API 响应（原始 JSON；usage/limits/usages 结构由 kimiUsageParser 归一化） */
 interface KimiBillingResponse {
     code?: string;
-    usage?: {
-        limit: string | number;
-        used?: string | number;
-        remaining?: string | number;
-        resetTime: string;
-    };
-    limits?: Array<{
-        window: { duration: number; timeUnit: string };
-        detail: { limit: string | number; used?: string | number; remaining?: string | number; resetTime?: string };
-    }>;
     parallel?: { limit: string | number };
     boosterWallet?: KimiBoosterWallet;
+    booster_wallet?: KimiBoosterWallet;
 }
 
 // ============= Kimi 专用货币/状态格式化 =============
@@ -77,6 +64,13 @@ export function formatKimiBoosterCurrency(currency: string, amount: string, deci
     }
     const symbol = getCurrencySymbol(currency);
     return `${symbol}${(numericAmount / 1e8).toFixed(decimals)}`;
+}
+
+/** 本月限额展示：启用时显示金额（0 视为无限制），未启用显示"无限制" */
+export function formatKimiMonthlyCap(wallet: KimiBoosterWallet): string {
+    return isKimiMonthlyCapEnabled(wallet.monthlyChargeLimitEnabled, wallet.monthlyChargeLimit) ?
+            formatKimiCurrencyLimit(wallet.monthlyChargeLimit, true, 2)
+        :   t('Unlimited', '无限制');
 }
 
 export function translateKimiBoosterStatus(status: string): string {
@@ -135,14 +129,6 @@ export function buildKimiUsageSummary(data: KimiUsageSnapshot): string {
 
 // ============= 查询 =============
 
-function toInt(value: string | number | undefined, fallback: number): number {
-    if (typeof value === 'string') {
-        const parsed = parseInt(value, 10);
-        return Number.isFinite(parsed) ? parsed : fallback;
-    }
-    return value ?? fallback;
-}
-
 class KimiQuotaProvider extends QuotaProviderBase<KimiUsageSnapshot> {
     protected readonly providerKey = 'kimi';
 
@@ -177,31 +163,18 @@ class KimiQuotaProvider extends QuotaProviderBase<KimiUsageSnapshot> {
         if (parsedResponse.code !== undefined) {
             throw new Error(t('API error: {0}', 'API错误: {0}', parsedResponse.code));
         }
-        if (!parsedResponse.usage) {
+
+        const normalized = normalizeKimiUsage(payload);
+        if (!normalized) {
             throw new Error(t('No remaining quota data was returned.', '未获取到剩余额度数据'));
         }
 
-        const usage = parsedResponse.usage;
+        const parallelLimit = Number(parsedResponse.parallel?.limit);
 
         return {
-            summary: {
-                limit: toInt(usage.limit, 100),
-                used: toInt(usage.used, 0),
-                remaining: toInt(usage.remaining, 0),
-                resetTime: usage.resetTime
-            },
-            windows: (parsedResponse.limits ?? []).map(limitItem => ({
-                duration: limitItem.window.duration,
-                timeUnit: limitItem.window.timeUnit,
-                detail: {
-                    limit: toInt(limitItem.detail.limit, 100),
-                    used: toInt(limitItem.detail.used, 0),
-                    remaining: toInt(limitItem.detail.remaining, 0),
-                    resetTime: limitItem.detail.resetTime
-                }
-            })),
-            parallel: parsedResponse.parallel ? { limit: toInt(parsedResponse.parallel.limit, 0) } : undefined,
-            boosterWallet: parsedResponse.boosterWallet
+            ...normalized,
+            parallel: Number.isFinite(parallelLimit) ? { limit: Math.trunc(parallelLimit) } : undefined,
+            boosterWallet: parsedResponse.boosterWallet ?? parsedResponse.booster_wallet
         };
     }
 
@@ -252,9 +225,7 @@ class KimiQuotaProvider extends QuotaProviderBase<KimiUsageSnapshot> {
                             data.boosterWallet.balance.amountLeft
                         ),
                         formatKimiCurrencyLimit(data.boosterWallet.monthlyUsed, false, 2),
-                        data.boosterWallet.monthlyChargeLimitEnabled ?
-                            formatKimiCurrencyLimit(data.boosterWallet.monthlyChargeLimit, true, 2)
-                        :   t('Unlimited', '无限制')
+                        formatKimiMonthlyCap(data.boosterWallet)
                     ]
                 ]
             });
