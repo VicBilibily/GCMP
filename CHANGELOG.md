@@ -2,17 +2,25 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
-## [0.28.3] - 2026-09-15
+## [0.28.3] - 2026-09-16
 
 ### 新增
 
 - **阿里云百炼接入点切换（国内站 / 国际站）**：新增 `GCMP: 设置 阿里云百炼 接入点` 命令与 `gcmp.dashscope.endpoint` 设置（`cn-beijing` / `ap-southeast-1`），配置向导菜单内亦可切换；对所有百炼模型（标准、Coding Plan、Token Plan）生效，仅替换请求主机（`dashscope.aliyuncs.com` → `dashscope-intl.aliyuncs.com`、`coding.dashscope.aliyuncs.com` → `coding-intl.dashscope.aliyuncs.com`、`token-plan.cn-beijing.maas.aliyuncs.com` → `token-plan.ap-southeast-1.maas.aliyuncs.com`），路径保持不变；DashScope MCP 联网搜索工具同步跟随接入点。
+
+### 变更
+
+- **百炼 Qwen3.8 系列切换至 OpenAI Responses 兼容协议**：DashScope 渠道的 Qwen3.8 Max / Flash（标准、Token Plan 与个人 Token Plan）请求协议由 Anthropic 兼容切换为 OpenAI Responses 兼容，模型自带的 `web_search` 联网搜索随之恢复可用；使用自带搜索时建议在工具选择中关闭内置 `gcmp_dashscopeWebSearch` 工具，避免重复计费。 [#397](https://github.com/VicBilibily/GCMP/issues/397)
 
 ---
 
 ### Added
 
 - **Alibaba Cloud DashScope endpoint switch (China / International)**: added the `GCMP: Set DashScope Endpoint` command and the `gcmp.dashscope.endpoint` setting (`cn-beijing` / `ap-southeast-1`), also available from the configuration wizard menu; it applies to every DashScope model (standard, Coding Plan and Token Plan) by replacing only the request host (`dashscope.aliyuncs.com` → `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com` → `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com` → `token-plan.ap-southeast-1.maas.aliyuncs.com`) while keeping paths unchanged; the DashScope MCP web search tool follows the same endpoint.
+
+### Changed
+
+- **DashScope Qwen3.8 series switched to the OpenAI Responses-compatible API**: Qwen3.8 Max / Flash on DashScope (standard, Token Plan and personal Token Plan) now use the OpenAI Responses-compatible protocol instead of the Anthropic-compatible one, restoring the models' built-in `web_search`; when using built-in search, disable the bundled `gcmp_dashscopeWebSearch` tool in the tool picker to avoid duplicate charges. [#397](https://github.com/VicBilibily/GCMP/issues/397)
 
 ## [0.28.2] - 2026-09-14
 

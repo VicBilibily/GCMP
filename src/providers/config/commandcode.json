@@ -12,7 +12,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max"],
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.15, 0.6, 0.003],
@@ -229,9 +229,10 @@
             "contextSize": [500000, 256000, 192000],
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "reasoningDefault": "high",
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [2, 6, 0.5],
-            "reasoningEffort": ["low", "medium", "high"]
+            "tokenPricing": [2, 6, 0.5]
         },
         {
             "id": "grok-4.6",
@@ -243,6 +244,7 @@
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "medium", "high", "xhigh"],
+            "reasoningDefault": "high",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],
@@ -386,12 +388,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.1, 0.2, 0.002],
-            "extraBody": {
-                "store": false,
-                "include": ["reasoning.encrypted_content"],
-                "reasoning": { "effort": "high", "summary": "auto" }
-            }
+            "tokenPricing": [0.1, 0.2, 0.002]
         },
         {
             "id": "muse-spark-1.3",
@@ -470,7 +467,7 @@
         {
             "id": "qwen-3.8-max-0902",
             "name": "Qwen 3.8 Max 0902 (CmdC)",
-            "model": "qwen/qwen3.8-max-0902",
+            "model": "Qwen/Qwen3.8-Max-0902",
             "tooltip": "CommandCode GOAT Plan - Qwen 3.8 Max 0902。",
             "sdkMode": "openai-sse",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
@@ -525,18 +522,6 @@
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.834, 2.501, 0.042]
-        },
-        {
-            "id": "longcat-2.0-free",
-            "name": "LongCat 2.0 Free (CmdC)",
-            "model": "meituan/longcat-2.0:free",
-            "tooltip": "CommandCode GOAT Plan - LongCat 2.0 Free。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0, 0, 0]
         }
     ]
 }

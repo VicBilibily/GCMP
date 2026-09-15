@@ -56,5 +56,9 @@
             "fileMatch": ["src/providers/config/*.json"],
             "url": "./.vscode/providerConfig.schema.json"
         }
-    ]
+    ],
+    // model-sync 的手工维护配置允许 JSONC 注释（加载时由 jsonc.ts 剥离）
+    "files.associations": {
+        "**/scripts/model-sync/config/*.json": "jsonc"
+    }
 }

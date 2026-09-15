@@ -458,6 +458,32 @@
             "tokenPricing": [1.74, 3.48, 0.145]
         },
         {
+            "id": "glm-5.3-zen",
+            "name": "GLM-5.3 (Zen)",
+            "model": "glm-5.3",
+            "tooltip": "OpenCode — GLM-5.3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5.3-flash-zen",
+            "name": "GLM-5.3-Flash (Zen)",
+            "model": "glm-5.3-flash",
+            "tooltip": "OpenCode — GLM-5.3-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "glm-5.2-zen",
             "name": "GLM-5.2 (Zen)",
             "model": "glm-5.2",
@@ -568,6 +594,44 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.3, 1.2, 0.06]
+        },
+        {
+            "id": "muse-spark-1.3-zen",
+            "name": "Muse-Spark-1.3 (Zen)",
+            "model": "muse-spark-1.3",
+            "tooltip": "OpenCode — Muse-Spark-1.3。",
+            "sdkMode": "openai-responses",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "xhigh", "medium", "low", "minimal"],
+            "reasoningDefault": "high",
+            "thinkingFormat": "effort-only",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": { "effort": "high", "summary": "auto" }
+            }
+        },
+        {
+            "id": "muse-spark-1.2-zen",
+            "name": "Muse-Spark-1.2 (Zen)",
+            "model": "muse-spark-1.2",
+            "tooltip": "OpenCode — Muse-Spark-1.2。",
+            "sdkMode": "openai-responses",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "xhigh", "medium", "low", "minimal"],
+            "reasoningDefault": "high",
+            "thinkingFormat": "effort-only",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": { "effort": "high", "summary": "auto" }
+            }
         }
     ]
 }

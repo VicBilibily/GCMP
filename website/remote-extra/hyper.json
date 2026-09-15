@@ -8,7 +8,7 @@
             "maxInputTokens": 180000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.86, 2.784, 0.43]
+            "tokenPricing": [0.86, 2.752, 0.43]
         },
         {
             "id": "glm-5.1",
@@ -19,7 +19,7 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["max", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.326, 4.22, 0.663]
+            "tokenPricing": [1.358, 4.268, 0.679]
         },
         {
             "id": "kimi-k2.5",
@@ -60,7 +60,7 @@
             "maxInputTokens": 387000,
             "maxOutputTokens": 43000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.274, 0.8992, 0.137]
+            "tokenPricing": [0.25188, 0.82563, 0.12594]
         },
         {
             "id": "qwen3.6-flash",

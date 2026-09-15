@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.28.2",
+    "version": "0.28.3",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1586,7 +1586,7 @@
         "compile": "node esbuild.config.js",
         "compile:dev": "node esbuild.config.js --dev",
         "compile:vscode-test": "node esbuild.config.js --integration-tests --dev",
-        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
         "typecheck:vscode-test": "tsc --noEmit -p tsconfig.vscode-test.json",
         "clean": "rimraf dist",
         "lint": "eslint",
@@ -1600,7 +1600,9 @@
         "test": "node --import=tsx --test src/**/*.test.ts",
         "pretest:vscode": "npm run typecheck:vscode-test && npm run compile:vscode-test",
         "test:vscode": "vscode-test",
-        "update:metadata": "node --import=tsx scripts/update-cli-metadata.ts"
+        "update:metadata": "node --import=tsx scripts/update-cli-metadata.ts",
+        "sync:models": "node --import=tsx scripts/model-sync/index.ts",
+        "test:model-sync": "node --import=tsx --test scripts/model-sync/tests/*.test.ts"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.80.0",

@@ -1,0 +1,398 @@
+{
+    // 模板按引用顺序叠加，优先级：模板 < variantOf 基座 < 条目自身；reasoningDefault 一律内联不进模板
+    "$templates": {
+        "1m": {
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000
+        },
+        "1m-gpt": {
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000
+        },
+        "500k": {
+            "contextSize": [500000, 256000, 192000],
+            "maxInputTokens": 436000,
+            "maxOutputTokens": 64000
+        },
+        "400k": {
+            "maxInputTokens": 272000,
+            "maxOutputTokens": 128000
+        },
+        "256k": {
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000
+        },
+        "200k": {
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000
+        },
+        "vision": {
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        "text": {
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        "lmh": {
+            "reasoningEffort": ["low", "medium", "high"]
+        },
+        "gpt-xhigh": {
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"]
+        },
+        "high-max-none": {
+            "reasoningEffort": ["high", "max", "none"]
+        },
+        "high-max-low": {
+            "reasoningEffort": ["high", "max", "low"]
+        },
+        "max-high-low": {
+            "reasoningEffort": ["max", "high", "low"]
+        },
+        "think": {
+            "thinking": ["enabled", "disabled"]
+        }
+    },
+    "deepseek": {
+        "deepseek-v4-flash": {
+            "name": "DeepSeek-V4-Flash",
+            "template": ["1m", "text", "high-max-none"]
+        },
+        "deepseek-v4-pro": {
+            "name": "DeepSeek-V4-Pro",
+            "template": ["1m", "text", "high-max-none"]
+        },
+        "deepseek-v4.1-flash": {
+            "name": "DeepSeek-V4.1-Flash",
+            "template": ["1m", "vision", "high-max-low"]
+        }
+    },
+    "google": {
+        "gemma-4-26b-a4b-it": {
+            "name": "Gemma-4-26B-A4B",
+            "template": "text",
+            "maxInputTokens": 236000,
+            "maxOutputTokens": 20000
+        },
+        "gemini-3.7-flash": {
+            "name": "Gemini-3.7-Flash",
+            "template": ["1m", "vision", "lmh"]
+        },
+        "gemini-3.8-flash": {
+            "name": "Gemini-3.8-Flash",
+            "template": ["1m", "vision"]
+        }
+    },
+    "zhipu": {
+        "glm-5": {
+            "name": "GLM-5",
+            "template": ["200k", "text"]
+        },
+        "glm-5.1": {
+            "name": "GLM-5.1",
+            "template": ["200k", "text"]
+        },
+        "glm-5.2": {
+            "name": "GLM-5.2",
+            "template": ["1m", "text", "high-max-none"]
+        },
+        "glm-5.2-fast": {
+            "name": "GLM-5.2-Fast",
+            "template": ["1m", "text"]
+        },
+        "glm-5.3": {
+            "name": "GLM-5.3",
+            "template": ["1m", "text", "max-high-low"],
+            "reasoningDefault": "max"
+        },
+        "glm-5.3-flash": {
+            "name": "GLM-5.3-Flash",
+            "template": ["1m", "vision", "max-high-low"],
+            "reasoningDefault": "max"
+        }
+    },
+    "openai": {
+        "gpt-oss-120b": {
+            "name": "GPT-OSS-120B",
+            "template": ["text", "lmh"],
+            "maxInputTokens": 118000,
+            "maxOutputTokens": 10000
+        },
+        "gpt-5.4": {
+            "name": "GPT-5.4",
+            "template": ["400k", "vision", "gpt-xhigh"]
+        },
+        "gpt-5.4-mini": {
+            "name": "GPT-5.4-Mini",
+            "template": ["400k", "vision", "gpt-xhigh"]
+        },
+        "gpt-5.5": {
+            "name": "GPT-5.5",
+            "template": ["400k", "vision", "gpt-xhigh"]
+        },
+        "gpt-5.6-luna": {
+            "name": "GPT-5.6-Luna",
+            "template": ["400k", "vision", "gpt-xhigh"]
+        },
+        "gpt-5.6-sol": {
+            "name": "GPT-5.6-Sol",
+            "template": ["400k", "vision", "gpt-xhigh"]
+        },
+        "gpt-5.6-terra": {
+            "name": "GPT-5.6-Terra",
+            "template": ["400k", "vision", "gpt-xhigh"]
+        },
+        "gpt-6-astra": {
+            "name": "GPT-6-Astra",
+            "template": ["400k", "vision"],
+            "reasoningEffort": ["low", "medium", "high", "xhigh", "max"]
+        }
+    },
+    "moonshotai": {
+        "kimi-k2.5": {
+            "name": "Kimi-K2.5",
+            "template": ["256k", "vision"]
+        },
+        "kimi-k2.6": {
+            "name": "Kimi-K2.6",
+            "template": ["256k", "vision", "think"]
+        },
+        "kimi-k2.7-code": {
+            "name": "Kimi-K2.7-Code",
+            "template": ["256k", "vision"]
+        },
+        "kimi-k2.7-code-highspeed": {
+            "variantOf": "kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code-Highspeed"
+        },
+        "kimi-k3": {
+            "name": "Kimi-K3",
+            "template": ["1m", "vision", "max-high-low"]
+        }
+    },
+    "meta": {
+        "llama-3.3-70b-instruct": {
+            "name": "Llama-3.3-70B-Instruct",
+            "template": "text",
+            "maxInputTokens": 118000,
+            "maxOutputTokens": 10000
+        },
+        "llama-4-maverick-17b-128e-instruct-fp8": {
+            "name": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+            "template": "text",
+            "maxInputTokens": 387000,
+            "maxOutputTokens": 43000
+        },
+        // Muse Spark 仅支持 Responses 模式
+        "muse-spark-1.2": {
+            "name": "Muse-Spark-1.2",
+            "template": ["1m", "vision"],
+            "sdkMode": "openai-responses",
+            "reasoningEffort": ["high", "xhigh", "medium", "low", "minimal"],
+            "reasoningDefault": "high",
+            "thinkingFormat": "effort-only",
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": { "effort": "high", "summary": "auto" }
+            }
+        },
+        "muse-spark-1.2-contributor": {
+            "variantOf": "muse-spark-1.2",
+            "name": "Muse-Spark-1.2-Contributor"
+        },
+        "muse-spark-1.3": {
+            "name": "Muse-Spark-1.3",
+            "template": ["1m", "vision"],
+            "sdkMode": "openai-responses",
+            "reasoningEffort": ["high", "xhigh", "medium", "low", "minimal"],
+            "reasoningDefault": "high",
+            "thinkingFormat": "effort-only",
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": { "effort": "high", "summary": "auto" }
+            }
+        },
+        "muse-spark-1.3-contributor": {
+            "variantOf": "muse-spark-1.3",
+            "name": "Muse-Spark-1.3-Contributor"
+        }
+    },
+    "minimax": {
+        "minimax-m2.7": {
+            "name": "MiniMax-M2.7",
+            "template": ["200k", "text"]
+        },
+        "minimax-m2.7-highspeed": {
+            "variantOf": "minimax-m2.7",
+            "name": "MiniMax-M2.7-HighSpeed"
+        },
+        "minimax-m3": {
+            "name": "MiniMax-M3",
+            "template": ["1m", "vision"]
+        }
+    },
+    "nvidia": {
+        "nemotron-3-ultra-550b-a55b": {
+            "name": "Nemotron-3-Ultra",
+            "template": ["1m", "text"]
+        }
+    },
+    "qwen": {
+        "qwen3.5-flash": {
+            "name": "Qwen3.5-Flash",
+            "template": ["1m", "vision"]
+        },
+        "qwen3.5-plus": {
+            "name": "Qwen3.5-Plus",
+            "template": ["1m", "vision"]
+        },
+        "qwen3.6-flash": {
+            "name": "Qwen3.6-Flash",
+            "template": ["1m", "vision"]
+        },
+        "qwen3.6-plus": {
+            "name": "Qwen3.6-Plus",
+            "template": ["1m", "vision", "think"]
+        },
+        "qwen3.6-max": {
+            "name": "Qwen3.6-Max",
+            "template": ["256k", "text"]
+        },
+        "qwen3.7-flash": {
+            "name": "Qwen3.7-Flash",
+            "template": ["1m", "vision"]
+        },
+        "qwen3.7-plus": {
+            "name": "Qwen3.7-Plus",
+            "template": ["1m", "vision", "think"]
+        },
+        "qwen3.7-max": {
+            "name": "Qwen3.7-Max",
+            "template": ["1m", "text", "think"]
+        },
+        "qwen3.8-flash": {
+            "name": "Qwen3.8-Flash",
+            "template": ["1m", "vision"],
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh"
+        },
+        "qwen3.8-max": {
+            "name": "Qwen3.8-Max",
+            "template": ["1m", "vision"],
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh"
+        },
+        "qwen3.8-max-0902": {
+            "name": "Qwen3.8-Max-0902",
+            "template": ["1m", "vision"]
+        },
+        "qwen3.8-27b": {
+            "name": "Qwen3.8-27B",
+            "template": ["1m", "vision"]
+        },
+        "qwen3.8-2.4t-a95b": {
+            "name": "Qwen3.8-2.4T-A95B",
+            "template": ["1m", "text"]
+        },
+        "qwen3-coder-480b-a35b-instruct-int4-mixed-ar": {
+            "name": "Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR",
+            "template": "text",
+            "maxInputTokens": 90000,
+            "maxOutputTokens": 10000
+        },
+        "qwen3-next-80b-a3b-instruct": {
+            "name": "Qwen3-Next-80B-A3B-Instruct",
+            "template": "text",
+            "maxInputTokens": 236000,
+            "maxOutputTokens": 20000
+        }
+    },
+    "thinkingmachines": {
+        "inkling": {
+            "name": "Inkling",
+            "template": ["256k", "vision"]
+        },
+        "inkling-small": {
+            "name": "Inkling-Small",
+            "template": ["1m", "vision"]
+        }
+    },
+    "xai": {
+        "grok-4.5": {
+            "name": "Grok-4.5",
+            "template": ["500k", "vision", "lmh"],
+            "reasoningDefault": "high"
+        },
+        "grok-4.6": {
+            "name": "Grok-4.6",
+            "template": ["500k", "vision"],
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
+            "reasoningDefault": "high"
+        }
+    },
+    "xiaomi": {
+        "mimo-v2.5": {
+            "name": "MiMo-V2.5",
+            "template": ["1m", "vision", "think"]
+        },
+        "mimo-v2.5-pro": {
+            "name": "MiMo-V2.5-Pro",
+            "template": ["1m", "text", "think"]
+        }
+    },
+    "stepfun": {
+        "step-3.5-flash": {
+            "name": "Step-3.5-Flash",
+            "template": ["256k", "text"]
+        },
+        "step-3.5-flash-2603": {
+            "name": "Step-3.5-Flash-2603",
+            "template": ["256k", "text"],
+            "reasoningEffort": ["low", "high"]
+        },
+        "step-3.7-flash": {
+            "name": "Step-3.7-Flash",
+            "template": ["256k", "vision", "lmh"]
+        }
+    },
+    "tencent": {
+        "hy3": {
+            "name": "Hy3",
+            "template": ["text", "think"],
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000
+        },
+        "hy4-preview": {
+            "name": "Hy4-Preview",
+            "template": ["1m", "text", "think"]
+        }
+    },
+    "meituan": {
+        "longcat-2.0": {
+            "name": "LongCat-2.0",
+            "template": ["1m", "text", "think"]
+        }
+    },
+    "baidu": {
+        "ernie-5.0": {
+            "name": "ERNIE-5.0",
+            "template": "vision",
+            "maxInputTokens": 112000,
+            "maxOutputTokens": 16000
+        },
+        "ernie-5.1": {
+            "name": "ERNIE-5.1",
+            "template": "text",
+            "maxInputTokens": 112000,
+            "maxOutputTokens": 16000
+        }
+    },
+    "poolside": {
+        "laguna-s-2.1": {
+            "name": "Laguna-S-2.1",
+            "template": ["256k", "text"]
+        }
+    }
+}
