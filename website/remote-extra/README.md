@@ -28,13 +28,16 @@
 
 必填字段:`id`、`name`、`maxInputTokens`、`maxOutputTokens`(与内置模型配置一致)。
 
-可选字段(客户端白名单内):`tooltip`、`version`、`sdkMode`、`model`、`family`、`thinking`、`thinkingFormat`、`reasoningFormat`、`reasoningEffort`、`reasoningDefault`、`contextSize`、`serviceTier`、`tokenPricing`、`limit`、`customHeader`、`extraBody`、`useInstructions`、`cacheTtl`、`webSearchTool`、`nativeTools`。
+可选字段(客户端白名单内):`tooltip`、`version`、`sdkMode`、`model`、`family`、`thinking`、`thinkingFormat`、`reasoningFormat`、`reasoningEffort`、`reasoningDefault`、`contextSize`、`serviceTier`、`tokenPricing`、`limit`、`customHeader`、`extraBody`、`useInstructions`、`cacheTtl`、`webSearchTool`、`nativeTools`，以及满足下述可信路由约束的`baseUrl`、`endpoint`、`provider`。
 
 ## 约束(构建期强校验,违反即报错终止)
 
 - **provider 必须已内置**:文件名对应的 `<provider>` 必须在 `src/providers/config/` 中存在;不支持通过本目录引入全新 provider
 - **模型 id 不得与内置冲突**:同 provider 下不能复用内置模型 id
-- **禁止以下字段**:`baseUrl`、`endpoint`、`modelsEndpoint`、`proxy`、`apiKeyTemplate`、`provider` —— 端点与密钥槽位只能继承内置 provider 配置(客户端安全清洗会剥离这些字段)
+- **`baseUrl` 仅允许可信 origin**:协议、主机和端口必须与当前 provider 某个内置模型的 `baseUrl` 一致;路径可以不同
+- **`endpoint` 仅允许内置值**:字段值必须与当前 provider 某个内置模型声明的 `endpoint` 完全一致
+- **模型 `provider` 仅允许内置值**:字段值必须与当前 provider 某个内置模型声明的 `provider` 完全一致,用于复用已有密钥槽位
+- **始终禁止以下字段**:`modelsEndpoint`、`proxy`、`apiKeyTemplate`、`__proto__`、`constructor`、`prototype`
 
 ## 发布流程
 

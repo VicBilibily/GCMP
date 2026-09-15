@@ -806,7 +806,7 @@ export class ConfigManager {
                 presetValue > 0
             ) ?
                 presetValue
-                : undefined;
+            :   undefined;
 
         if (validPreset !== undefined) {
             const maxVal = Math.max(globalValue, validPreset);
@@ -1331,7 +1331,7 @@ export class ConfigManager {
                 const originalProviderConfig =
                     lookupKey in configProviders ?
                         configProviders[lookupKey as keyof typeof configProviders]
-                        : undefined;
+                    :   undefined;
                 if (originalProviderConfig?.proxy) {
                     return this.resolveExplicitProxyValue(
                         originalProviderConfig.proxy,
@@ -1377,7 +1377,7 @@ export class ConfigManager {
         const proxyUrl =
             hasExplicitProxyUrl ?
                 options.proxyUrl
-                : this.resolveProxyForModel(options.modelConfig, options.providerKey);
+            :   this.resolveProxyForModel(options.modelConfig, options.providerKey);
         const proxiedFetch = createProxiedFetch(proxyUrl);
         if (options.skipHar) {
             return proxiedFetch;

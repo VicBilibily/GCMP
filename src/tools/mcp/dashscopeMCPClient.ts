@@ -62,10 +62,7 @@ export class DashscopeMCPWebSearchClient {
 
     /** 随接入点切换国内站 / 国际站的 MCP 地址 */
     private static getMcpUrl(): string {
-        return resolveDashscopeBaseUrl(
-            DashscopeMCPWebSearchClient.MCP_URL,
-            ConfigManager.getDashscopeEndpoint()
-        );
+        return resolveDashscopeBaseUrl(DashscopeMCPWebSearchClient.MCP_URL, ConfigManager.getDashscopeEndpoint());
     }
 
     private client: Client | null = null;
@@ -153,6 +150,7 @@ export class DashscopeMCPWebSearchClient {
         this.connectionPromise = this.initializeClient().finally(() => {
             this.isConnecting = false;
             this.connectionPromise = null;
+            this.scheduleCleanupAfterIdle();
         });
 
         return this.connectionPromise;
@@ -324,7 +322,7 @@ export class DashscopeMCPWebSearchClient {
     }
 
     private scheduleCleanupAfterIdle(): void {
-        if (this.activeSearchCount > 0 || this.cleanupTimer || this.cleanupPromise) {
+        if (this.isConnecting || this.activeSearchCount > 0 || this.cleanupTimer || this.cleanupPromise) {
             return;
         }
 
@@ -336,7 +334,7 @@ export class DashscopeMCPWebSearchClient {
     }
 
     private async cleanupIfIdle(): Promise<void> {
-        if (this.activeSearchCount > 0 || this.cleanupPromise) {
+        if (this.isConnecting || this.activeSearchCount > 0 || this.cleanupPromise) {
             return;
         }
 
@@ -351,9 +349,9 @@ export class DashscopeMCPWebSearchClient {
     }
 
     async cleanup(): Promise<void> {
-        // 有搜索在途时不关闭连接，交由搜索结束后的空闲清理收口，避免中断进行中的请求
-        if (this.activeSearchCount > 0) {
-            Logger.debug('⏳ [DashScope MCP] Deferring cleanup while a search is in flight');
+        // 连接或搜索在途时由完成后的空闲清理收口。
+        if (this.isConnecting || this.activeSearchCount > 0) {
+            Logger.debug('⏳ [DashScope MCP] Deferring cleanup while a connection or search is in flight');
             return;
         }
 

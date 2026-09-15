@@ -310,7 +310,7 @@ export class Fetcher implements IFetcher {
                 chatLibHeaders,
                 bodyStream,
                 'node-http',
-                () => { },
+                () => {},
                 '',
                 ''
             );

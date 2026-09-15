@@ -19,9 +19,7 @@ const INTERNATIONAL_HOST_MAP: ReadonlyArray<readonly [string, string]> = [
  */
 const DASHSCOPE_PROVIDER_SLOTS: ReadonlySet<string> = new Set([
     'dashscope',
-    ...configProviders.dashscope.models
-        .map(model => model.provider)
-        .filter((slot): slot is string => Boolean(slot))
+    ...configProviders.dashscope.models.map(model => model.provider).filter((slot): slot is string => Boolean(slot))
 ]);
 
 /**
@@ -36,9 +34,10 @@ export function isDashscopeProviderSlot(slot?: string): boolean {
  * 按接入点替换 URL 的主机名；国内站或未知主机原样返回，路径与查询串保持不变
  */
 export function resolveDashscopeBaseUrl(baseUrl: string, endpoint: DashscopeConfig['endpoint']): string {
-    const hostMap = endpoint === 'ap-southeast-1' ?
-        INTERNATIONAL_HOST_MAP :
-        INTERNATIONAL_HOST_MAP.map(([cnHost, internationalHost]) => [internationalHost, cnHost] as const);
+    const hostMap =
+        endpoint === 'ap-southeast-1' ? INTERNATIONAL_HOST_MAP : (
+            INTERNATIONAL_HOST_MAP.map(([cnHost, internationalHost]) => [internationalHost, cnHost] as const)
+        );
 
     const match = /^(https?:\/\/)([^/]+)/.exec(baseUrl);
     if (!match) {
@@ -46,5 +45,5 @@ export function resolveDashscopeBaseUrl(baseUrl: string, endpoint: DashscopeConf
     }
 
     const mapped = hostMap.find(([sourceHost]) => sourceHost === match[2])?.[1];
-    return mapped ? `${match[1]}${mapped}${baseUrl.slice(match[0].length)}` : baseUrl
+    return mapped ? `${match[1]}${mapped}${baseUrl.slice(match[0].length)}` : baseUrl;
 }

@@ -72,8 +72,8 @@ export class DashscopeWizard extends BaseWizard {
                     {
                         label: t('$(check-all) Configure all items in sequence', '$(check-all) 依次配置全部项目'),
                         detail: t(
-                            'Configure the standard key, Coding Plan dedicated key, and Token Plan dedicated keys in order',
-                            '按顺序配置普通密钥、Coding Plan 专用密钥与 Token Plan 专用密钥'
+                            'Configure the standard key, dedicated plan keys, and endpoint in order',
+                            '按顺序配置普通密钥、各套餐专用密钥与接入点'
                         ),
                         value: 'all'
                     }
@@ -108,7 +108,7 @@ export class DashscopeWizard extends BaseWizard {
                 );
             }
 
-            if (choice.value === 'endpoint') {
+            if (choice.value === 'endpoint' || choice.value === 'all') {
                 await this.setEndpoint(displayName);
             }
         } catch (error) {
@@ -229,8 +229,8 @@ export class DashscopeWizard extends BaseWizard {
      */
     private static getEndpointLabel(endpoint: DashscopeConfig['endpoint']): string {
         return endpoint === 'ap-southeast-1' ?
-            t('International (ap-southeast-1)', '国际站 (ap-southeast-1)')
-            : t('China (cn-beijing)', '国内站 (cn-beijing)');
+                t('International (ap-southeast-1)', '国际站 (ap-southeast-1)')
+            :   t('China (cn-beijing)', '国内站 (cn-beijing)');
     }
 
     /**

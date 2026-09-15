@@ -2,7 +2,7 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
-## [0.28.2] - 2026-09-14
+## [0.28.3] - 2026-09-15
 
 ### 新增
 
@@ -13,6 +13,9 @@
 ### Added
 
 - **Alibaba Cloud DashScope endpoint switch (China / International)**: added the `GCMP: Set DashScope Endpoint` command and the `gcmp.dashscope.endpoint` setting (`cn-beijing` / `ap-southeast-1`), also available from the configuration wizard menu; it applies to every DashScope model (standard, Coding Plan and Token Plan) by replacing only the request host (`dashscope.aliyuncs.com` → `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com` → `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com` → `token-plan.ap-southeast-1.maas.aliyuncs.com`) while keeping paths unchanged; the DashScope MCP web search tool follows the same endpoint.
+
+## [0.28.2] - 2026-09-14
+
 ### 修复
 
 - **远程模型元数据配置兼容性**：内置模型配置的 `baseUrl`、`endpoint` 与 `provider` 改按内置白名单校验，允许同一主机的多协议接入点正常切换。
