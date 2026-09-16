@@ -12,7 +12,28 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.4, 1.2, 0.04] }
+            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.5, 1.5, 0.05] }
+        },
+        {
+            "id": "Ling-3.0-flash-VL",
+            "name": "Ling-3.0-flash-VL",
+            "tooltip": "蚂蚁百灵首个原生多模态混合推理模型，124B 参数 5.5B 激活，原生支持图像与文本输入，256K 上下文，引入视觉反馈闭环，适合前端代码生成、GUI 自动化与专业报告解读等场景。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.5, 1.5, 0.05] }
+        },
+        {
+            "id": "Ling-3.0-tiny",
+            "name": "Ling-3.0-tiny",
+            "tooltip": "蚂蚁百灵轻量级混合推理 MoE 模型，7.9B 参数仅 1.3B 激活，支持思考/非思考切换与工具调用，低时延低成本，兼顾端侧部署与实时交互场景。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "Ling-2.6-1T",
