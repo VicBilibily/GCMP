@@ -323,6 +323,23 @@
             "tokenPricing": { "USD": [0.574, 3.011, 0.115], "RMB": [4, 21, 0.8] }
         },
         {
+            "id": "glm-5.3-token-plan",
+            "name": "GLM-5.3 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。智谱新一代旗舰模型，支持 1M 上下文，编程与 Agent 任务能力全面进阶。",
+            "provider": "dashscope-token",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "glm-5.3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [1.131, 3.957, 0.283], "RMB": [8, 28, 2] }
+        },
+        {
             "id": "glm-5.2-token-plan",
             "name": "GLM-5.2 (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
@@ -460,6 +477,23 @@
                     { "contextSizeMin": 256001, "pricing": { "USD": [0.66, 3.961, 1.32], "RMB": [4.8, 28.8, 2.4] } }
                 ]
             }
+        },
+        {
+            "id": "glm-5.3-token-plan-personal",
+            "name": "GLM-5.3 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。智谱新一代旗舰模型，支持 1M 上下文，编程与 Agent 任务能力全面进阶。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "glm-5.3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [1.131, 3.957, 0.283], "RMB": [8, 28, 2] }
         },
         {
             "id": "glm-5.2-token-plan-personal",
