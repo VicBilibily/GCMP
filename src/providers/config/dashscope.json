@@ -325,7 +325,7 @@
         {
             "id": "glm-5.3-token-plan",
             "name": "GLM-5.3 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。智谱新一代旗舰模型，支持 1M 上下文，编程与 Agent 任务能力全面进阶。",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。智谱新一代旗舰模型，支持 1M 上下文，编程与 Agent 任务能力全面进阶。",
             "provider": "dashscope-token",
             "sdkMode": "openai-responses",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
@@ -481,7 +481,7 @@
         {
             "id": "glm-5.3-token-plan-personal",
             "name": "GLM-5.3 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。智谱新一代旗舰模型，支持 1M 上下文，编程与 Agent 任务能力全面进阶。",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。智谱新一代旗舰模型，支持 1M 上下文，编程与 Agent 任务能力全面进阶。",
             "provider": "dashscope-token-personal",
             "sdkMode": "openai-responses",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
