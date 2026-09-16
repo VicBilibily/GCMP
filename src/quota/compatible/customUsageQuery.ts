@@ -7,10 +7,11 @@ import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigManager } from '../../utils/config/configManager';
-import { getNumberByPath, getValueByPath } from '../../utils/text/pathExtractor';
+import { getValueByPath } from '../../utils/text/pathExtractor';
 import { resolveBuiltinProviderConfig } from '../../utils/config/knownProviders';
 import { Logger } from '../../utils/runtime/logger';
-import type { ProviderUsageConfig, UsageFieldValueSource } from '../../types/sharedTypes';
+import type { ProviderUsageConfig } from '../../types/sharedTypes';
+import { resolveUsageFieldValue } from './usageComputedField';
 import {
     mergeProviderUsageOverride,
     parseCustomUsageTarget,
@@ -86,10 +87,10 @@ export class CustomUsageQuery implements IBalanceQuery {
 
             this.assertSuccessConditions(data, usageConfig);
 
-            const paid = this.resolveFieldValue(data, usageConfig.fields.paid, 'paid');
-            const granted = this.resolveFieldValue(data, usageConfig.fields.granted, 'granted');
+            const paid = resolveUsageFieldValue(data, usageConfig.fields.paid, 'paid');
+            const granted = resolveUsageFieldValue(data, usageConfig.fields.granted, 'granted');
 
-            let balance = this.resolveFieldValue(data, usageConfig.fields.balance, 'balance');
+            let balance = resolveUsageFieldValue(data, usageConfig.fields.balance, 'balance');
             if (balance === undefined && paid !== undefined && granted !== undefined) {
                 balance = paid + granted;
             }
@@ -255,73 +256,5 @@ export class CustomUsageQuery implements IBalanceQuery {
                 configuredMessage
             :   'Business success condition not matched';
         throw new Error(errorMessage);
-    }
-
-    private resolveFieldValue(
-        data: unknown,
-        fieldSource: UsageFieldValueSource | undefined,
-        fieldName: 'balance' | 'paid' | 'granted'
-    ): number | undefined {
-        if (fieldSource === undefined) {
-            return undefined;
-        }
-
-        if (typeof fieldSource === 'string') {
-            return getNumberByPath(data, fieldSource);
-        }
-
-        if (fieldSource === null || typeof fieldSource !== 'object' || Array.isArray(fieldSource)) {
-            throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
-        }
-
-        if (
-            !['sum', 'subtract', 'multiply', 'divide'].includes(fieldSource.operation) ||
-            (fieldSource.treatMissingAsZero !== undefined && typeof fieldSource.treatMissingAsZero !== 'boolean') ||
-            !Array.isArray(fieldSource.paths) ||
-            fieldSource.paths.length === 0 ||
-            fieldSource.paths.some(
-                path =>
-                    (typeof path !== 'string' && typeof path !== 'number') ||
-                    (typeof path === 'string' && path.trim().length === 0)
-            )
-        ) {
-            throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
-        }
-
-        const values = fieldSource.paths.map(pathEntry => {
-            if (typeof pathEntry === 'number') {
-                return Number.isFinite(pathEntry) ? pathEntry : undefined;
-            }
-            const value = getNumberByPath(data, pathEntry);
-            return value === undefined && fieldSource.treatMissingAsZero ? 0 : value;
-        });
-        if (values.some(value => value === undefined)) {
-            return undefined;
-        }
-
-        const resolvedValues = values as number[];
-        let result: number;
-        switch (fieldSource.operation) {
-            case 'sum':
-                result = resolvedValues.reduce((total, value) => total + value, 0);
-                break;
-            case 'multiply':
-                result = resolvedValues.reduce((total, value) => total * value, 1);
-                break;
-            case 'subtract':
-                result = resolvedValues.slice(1).reduce((total, value) => total - value, resolvedValues[0]);
-                break;
-            case 'divide':
-                result = resolvedValues.slice(1).reduce((total, value) => total / value, resolvedValues[0]);
-                break;
-            default:
-                throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
-        }
-
-        if (!Number.isFinite(result)) {
-            throw new Error(`Invalid usage.fields.${fieldName} computed field result`);
-        }
-
-        return result;
     }
 }

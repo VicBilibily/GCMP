@@ -524,7 +524,27 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 - `usage`：可选；单一余额查询时只配置它即可，也可作为 `usages` 的公共默认值
 - `usages`：可选；仅在需要多个命名金额/余额查询模式时使用，每个条目都可在 `usage` 基础上增量覆盖
 
-`fields.balance` 这类计算字段现在支持 `sum` / `subtract` / `multiply` / `divide`，`paths` 里既可以写 JSON 路径，也可以直接写常量数值（例如 `500000`），适合 `Ticket / 500000` 这类余额换算。
+`fields.balance` 这类计算字段现在支持 `sum` / `subtract` / `multiply` / `divide`，`paths` 里既可以写 JSON 路径、常量数值（例如 `500000`），也可以继续嵌套计算字段对象，适合 `Ticket / 500000`、`(总额 - 已用) / 500000` 这类余额换算。
+
+```json
+{
+    "balance": {
+        "operation": "divide",
+        "paths": [
+            {
+                "operation": "subtract",
+                "paths": [
+                    "data.subscriptions[0].subscription.amount_total",
+                    "data.subscriptions[0].subscription.amount_used"
+                ]
+            },
+            500000
+        ]
+    }
+}
+```
+
+嵌套对象会先计算子表达式，再参与外层运算。
 
 也就是说：
 

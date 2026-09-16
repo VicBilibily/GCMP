@@ -1489,7 +1489,10 @@ export class JsonSchemaProvider {
                 // Vision 模型选择：保存 provider + model
                 'gcmp.vision.model': this.getVisionModelSchema()
             },
-            additionalProperties: true
+            additionalProperties: true,
+            definitions: {
+                usageComputedField: this.createUsageComputedFieldSchema()
+            }
         };
     }
 
@@ -2571,49 +2574,63 @@ export class JsonSchemaProvider {
                     description: t('JSON field path', 'JSON 字段路径')
                 },
                 {
-                    type: 'object',
-                    required: ['operation', 'paths'],
-                    description: t(
-                        'Simple numeric calculation based on JSON field paths or constant values.',
-                        '基于 JSON 字段路径或常量值的简单数值计算。'
-                    ),
-                    properties: {
-                        operation: {
-                            type: 'string',
-                            enum: ['sum', 'subtract', 'multiply', 'divide'],
-                            description: t('Calculation operation', '计算方式')
-                        },
-                        paths: {
-                            type: 'array',
-                            minItems: 1,
-                            items: {
-                                oneOf: [
-                                    {
-                                        type: 'string',
-                                        description: t('JSON field path', 'JSON 字段路径')
-                                    },
-                                    {
-                                        type: 'number',
-                                        description: t('Constant value', '常量值')
-                                    }
-                                ]
-                            },
-                            description: t(
-                                'JSON field paths or constant values used by the calculation',
-                                '参与计算的 JSON 字段路径或常量值'
-                            )
-                        },
-                        treatMissingAsZero: {
-                            type: 'boolean',
-                            description: t(
-                                'When enabled, missing numeric paths are treated as 0 during the calculation.',
-                                '启用后，计算时缺失的数值路径会按 0 处理。'
-                            )
-                        }
-                    },
-                    additionalProperties: false
+                    $ref: '#/definitions/usageComputedField'
                 }
             ]
+        };
+    }
+
+    /**
+     * 创建 usage 计算字段 schema
+     * paths 支持 JSON 路径、常量值或嵌套子计算（通过 definitions 自引用实现递归，如 (a-b)/c）
+     */
+    private static createUsageComputedFieldSchema(): JSONSchema7 {
+        return {
+            type: 'object',
+            required: ['operation', 'paths'],
+            description: t(
+                'Numeric calculation based on JSON field paths, constant values, or nested calculations (e.g. (a-b)/c).',
+                '基于 JSON 字段路径、常量值或嵌套子计算的数值计算（如 (a-b)/c）。'
+            ),
+            properties: {
+                operation: {
+                    type: 'string',
+                    enum: ['sum', 'subtract', 'multiply', 'divide'],
+                    description: t('Calculation operation', '计算方式')
+                },
+                paths: {
+                    type: 'array',
+                    minItems: 1,
+                    items: {
+                        oneOf: [
+                            {
+                                type: 'string',
+                                description: t('JSON field path', 'JSON 字段路径')
+                            },
+                            {
+                                type: 'number',
+                                description: t('Constant value', '常量值')
+                            },
+                            {
+                                $ref: '#/definitions/usageComputedField',
+                                description: t('Nested calculation', '嵌套子计算')
+                            }
+                        ]
+                    },
+                    description: t(
+                        'JSON field paths, constant values, or nested calculations used by the calculation',
+                        '参与计算的 JSON 字段路径、常量值或嵌套子计算'
+                    )
+                },
+                treatMissingAsZero: {
+                    type: 'boolean',
+                    description: t(
+                        'When enabled, missing numeric paths are treated as 0 during the calculation.',
+                        '启用后，计算时缺失的数值路径会按 0 处理。'
+                    )
+                }
+            },
+            additionalProperties: false
         };
     }
 

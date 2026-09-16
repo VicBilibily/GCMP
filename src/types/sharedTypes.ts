@@ -505,8 +505,8 @@ export interface ModelOverride {
 export interface UsageComputedField {
     /** 简单数值计算方式 */
     operation: 'sum' | 'subtract' | 'multiply' | 'divide';
-    /** 参与计算的字段路径，number 表示常量值 */
-    paths: (string | number)[];
+    /** 参与计算的字段路径，number 表示常量值，对象表示嵌套子计算（先递归求值后再参与当前运算，如 (a-b)/c） */
+    paths: (string | number | UsageComputedField)[];
     /** 缺失路径是否按 0 处理（可选） */
     treatMissingAsZero?: boolean;
 }

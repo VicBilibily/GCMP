@@ -519,7 +519,27 @@ For a `Compatible` custom provider, you can configure the following under `gcmp.
 - `usage`: optional; for a single balance query, configuring only this is enough, and it can also serve as the shared defaults for `usages`
 - `usages`: optional; use this only when you need multiple named balance/amount query modes, and each item can incrementally override fields from `usage`
 
-`fields.balance` computed fields now support `sum` / `subtract` / `multiply` / `divide`, and `paths` can contain JSON field paths or constant numbers (for example, `500000`), which is useful for conversions like `Ticket / 500000`.
+`fields.balance` computed fields now support `sum` / `subtract` / `multiply` / `divide`, and `paths` can contain JSON field paths, constant numbers (for example, `500000`), or nested computed field objects, which is useful for conversions like `Ticket / 500000` or `(total - used) / 500000`.
+
+```json
+{
+    "balance": {
+        "operation": "divide",
+        "paths": [
+            {
+                "operation": "subtract",
+                "paths": [
+                    "data.subscriptions[0].subscription.amount_total",
+                    "data.subscriptions[0].subscription.amount_used"
+                ]
+            },
+            500000
+        ]
+    }
+}
+```
+
+Nested objects are evaluated first, and their results then participate in the outer calculation.
 
 In other words:
 
