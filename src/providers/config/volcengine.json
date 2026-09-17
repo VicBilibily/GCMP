@@ -283,6 +283,21 @@
             "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
+            "id": "ark-plan-kimi-k2.8-preview",
+            "name": "Kimi-K2.8-Preview (AgentPlan)",
+            "model": "kimi-k2.8-preview",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。Kimi 面向编码与 Agent 场景的新模型，综合性能接近 Kimi-K3，编码与 Agent 能力全面提升，思考效率进一步优化，擅长代码补全、日常开发与复杂任务执行。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
+        },
+        {
             "id": "ark-plan-kimi-k3",
             "name": "Kimi-K3 (AgentPlan)",
             "model": "kimi-k3",
@@ -296,6 +311,24 @@
             "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "RMB": [20.0, 100.0, 2.0] }
+        },
+        {
+            "id": "ark-plan-deepseek-v4.1-flash",
+            "name": "DeepSeek-V4.1-Flash (AgentPlan)",
+            "model": "deepseek-v4.1-flash",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。DeepSeek 全新架构系列的轻量旗舰模型，多项基准超越 DeepSeek-V4-Pro，原生具备多模态视觉理解能力。默认开启深度思考(thinking)，支持手动关闭。",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "RMB": [1, 4, 0.02] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
         },
         {
             "id": "ark-plan-deepseek-v4-flash",
