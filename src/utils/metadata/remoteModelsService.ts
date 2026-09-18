@@ -38,6 +38,11 @@ const MANIFEST_FILE_NAME = 'index.json';
 const MANIFEST_MAX_BYTES = 256 * 1024;
 const PROVIDER_CONFIG_MAX_BYTES = 4 * 1024 * 1024;
 
+/** 编辑器可能按带 BOM 的 UTF-8 保存 JSON，JSON.parse 不认 BOM（与 generate-config-index 的 parseJson 一致） */
+function stripBom(text: string): string {
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 export class RemoteModelsService {
     private static timer?: NodeJS.Timeout;
     private static cacheDir = '';
@@ -159,7 +164,7 @@ export class RemoteModelsService {
         try {
             let extraText: string;
             try {
-                extraText = await fs.readFile(path.join(this.localExtraDir, `${providerKey}.json`), 'utf8');
+                extraText = stripBom(await fs.readFile(path.join(this.localExtraDir, `${providerKey}.json`), 'utf8'));
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                     return baseText;
@@ -301,7 +306,7 @@ export class RemoteModelsService {
 
     private static async readText(filePath: string): Promise<string | undefined> {
         try {
-            return await fs.readFile(filePath, 'utf-8');
+            return stripBom(await fs.readFile(filePath, 'utf-8'));
         } catch {
             return undefined;
         }

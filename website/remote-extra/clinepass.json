@@ -1,0 +1,54 @@
+{
+    "models": [
+        {
+            "id": "cline-pass/glm-5.2",
+            "name": "GLM-5.2 (ClinePass)",
+            "tooltip": "ClinePass — GLM-5.2。ClinePass 计划于 2026-09-21 下线该模型，建议改用 GLM-5.3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.4, 4.4, 0.26]
+        },
+        {
+            "id": "cline-pass/kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (ClinePass)",
+            "tooltip": "ClinePass — Kimi K2.7 Code。ClinePass 计划于 2026-09-21 下线该模型，建议改用 Kimi K3。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "extraBody": { "enabled_thinking": true },
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4.0, 0.19]
+        },
+        {
+            "id": "cline-pass/kimi-k2.6",
+            "name": "Kimi-K2.6 (ClinePass)",
+            "tooltip": "ClinePass — Kimi K2.6。ClinePass 计划于 2026-09-21 下线该模型，建议改用 Kimi K3。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4.0, 0.16]
+        },
+        {
+            "id": "cline-pass/deepseek-v4-flash",
+            "name": "DeepSeek-V4-Flash (ClinePass)",
+            "tooltip": "ClinePass — DeepSeek V4 Flash。ClinePass 计划于 2026-09-21 下线该模型，建议改用 DeepSeek V4.1 Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": [0.22, 0.66, 0.007],
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
+        }
+    ]
+}

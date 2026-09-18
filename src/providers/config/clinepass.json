@@ -17,19 +17,6 @@
             "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
-            "id": "cline-pass/glm-5.2",
-            "name": "GLM-5.2 (ClinePass)",
-            "tooltip": "ClinePass — GLM-5.2。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max"],
-            "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.26]
-        },
-        {
             "id": "cline-pass/kimi-k3",
             "name": "Kimi-K3 (ClinePass)",
             "tooltip": "ClinePass — Kimi K3。",
@@ -41,27 +28,6 @@
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [3.0, 15.0, 0.3]
-        },
-        {
-            "id": "cline-pass/kimi-k2.7-code",
-            "name": "Kimi-K2.7-Code (ClinePass)",
-            "tooltip": "ClinePass — Kimi K2.7 Code。",
-            "sdkMode": "openai-sse",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "extraBody": { "enabled_thinking": true },
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.95, 4.0, 0.19]
-        },
-        {
-            "id": "cline-pass/kimi-k2.6",
-            "name": "Kimi-K2.6 (ClinePass)",
-            "tooltip": "ClinePass — Kimi K2.6。",
-            "sdkMode": "openai-sse",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.95, 4.0, 0.16]
         },
         {
             "id": "cline-pass/deepseek-v4-pro",
@@ -80,18 +46,18 @@
             }
         },
         {
-            "id": "cline-pass/deepseek-v4-flash",
-            "name": "DeepSeek-V4-Flash (ClinePass)",
-            "tooltip": "ClinePass — DeepSeek V4 Flash。",
+            "id": "cline-pass/deepseek-v4.1-flash",
+            "name": "DeepSeek-V4.1-Flash (ClinePass)",
+            "tooltip": "ClinePass — DeepSeek V4.1 Flash。",
             "sdkMode": "openai-sse",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": [0.22, 0.66, 0.007],
+                "pricing": [0.15, 0.6, 0.003],
                 "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
