@@ -137,6 +137,20 @@
             "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
+            "id": "ark-code-kimi-k2.8-preview",
+            "name": "Kimi-K2.8-Preview (CodingPlan)",
+            "model": "kimi-k2.8-preview",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Kimi 面向编码与 Agent 场景的新模型，综合性能接近 Kimi-K3，编码与 Agent 能力全面提升，思考效率进一步优化，擅长代码补全、日常开发与复杂任务执行。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
+        },
+        {
             "id": "ark-code-kimi-k3",
             "name": "Kimi-K3 (CodingPlan)",
             "model": "kimi-k3",
@@ -344,24 +358,6 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [3, 9, 0.1] }
-        },
-        {
-            "id": "ark-plan-deepseek-v4.1-flash",
-            "name": "DeepSeek-V4.1-Flash (AgentPlan)",
-            "model": "deepseek-v4.1-flash",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。DeepSeek 全新架构系列中的轻量旗舰模型，在多项基准上超越包括 DeepSeek-V4-Pro 在内的主流旗舰模型，原生具备多模态视觉理解能力。",
-            "reasoningEffort": ["high", "max", "low", "none"],
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [1, 4, 0.02] },
-                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
-            }
         },
         {
             "id": "ark-plan-deepseek-v4-pro",
