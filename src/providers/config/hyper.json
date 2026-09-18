@@ -13,7 +13,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.32664, 1.30656, 0.032664]
+            "tokenPricing": [0.3, 1.2, 0.03]
         },
         {
             "id": "deepseek-v4-flash",
@@ -62,7 +62,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.437216, 4.311648, 0.0479072]
+            "tokenPricing": [1.437216, 4.311648, 0.047907]
         },
         {
             "id": "gemma-4-26b-a4b-it",
@@ -108,7 +108,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.16332, 0.5444, 0.0315752]
+            "tokenPricing": [0.16332, 0.5444, 0.031575]
         },
         {
             "id": "gpt-oss-120b",
@@ -177,7 +177,7 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.418, 1.588, 0.209]
+            "tokenPricing": [0.484, 1.852, 0.242]
         },
         {
             "id": "minimax-m3",
@@ -189,7 +189,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.32664, 1.30656, 0.0642392]
+            "tokenPricing": [0.32664, 1.30656, 0.064239]
         },
         {
             "id": "qwen3.7-flash",

@@ -24,20 +24,7 @@
                 "ref": "thinkingmachines/inkling"
             }
         },
-        "sunsetVendor": "Hyper",
-        "extra": {
-            "glm-5": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "glm-5.1": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "kimi-k2.5": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "kimi-k2.6": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "llama-3.3-70b-instruct": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "llama-4-maverick-17b-128e-instruct-fp8": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "qwen3.6-flash": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "qwen3.6-max": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "qwen3.6-plus": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "qwen3-coder-480b-a35b-instruct-int4-mixed-ar": { "reason": "sunset", "sunsetAt": "2026-09-16" },
-            "qwen3-next-80b-a3b-instruct": { "reason": "sunset", "sunsetAt": "2026-09-16" }
-        }
+        "sunsetVendor": "Hyper"
     },
     "opencode-zen": {
         "adapter": "openai-model-list",
