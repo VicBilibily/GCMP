@@ -404,8 +404,8 @@
         },
         {
             "id": "doubao-seed-2-1-pro",
-            "name": "Doubao-Seed-2.1-pro-260628",
-            "model": "doubao-seed-2-1-pro-260628",
+            "name": "Doubao-Seed-2.1-pro-260915",
+            "model": "doubao-seed-2-1-pro-260915",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
