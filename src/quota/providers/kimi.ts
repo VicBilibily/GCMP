@@ -6,7 +6,12 @@
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { t } from '../../utils/runtime/l10n';
 import { formatQuotaDateForSlot, getCurrencySymbol, isChineseLocale } from '../common';
-import { isKimiMonthlyCapEnabled, normalizeKimiUsage, type KimiNormalizedUsage } from '../parsers/kimiUsageParser';
+import {
+    isKimiMonthlyCapEnabled,
+    normalizeKimiUsage,
+    type KimiNormalizedUsage,
+    type KimiUsageSummary
+} from '../parsers/kimiUsageParser';
 import { QuotaProviderBase } from './base';
 import type { QuotaQueryResult, QuotaTable } from '../types';
 
@@ -108,6 +113,11 @@ export function formatKimiTimeUnit(timeUnit: string, duration: number): string {
 
 // ============= 格式化 =============
 
+/** 摘要行标签：旧会员为每周额度，2026-09 起新会员为每月额度 */
+export function formatKimiSummaryLabel(summary: KimiUsageSummary): string {
+    return summary.period === 'monthly' ? t('Monthly quota', '每月额度') : t('Weekly quota', '每周额度');
+}
+
 /** 状态栏与面板共用的摘要文本（如 "85% (92%) ¥3.20"） */
 export function buildKimiUsageSummary(data: KimiUsageSnapshot): string {
     const boosterAmount = data.boosterWallet ? parseInt(data.boosterWallet.balance.amountLeft, 10) : 0;
@@ -186,7 +196,7 @@ class KimiQuotaProvider extends QuotaProviderBase<KimiUsageSnapshot> {
                 columns: [t('Window', '频限类型'), t('Remaining', '剩余量'), t('Reset Time', '重置时间')],
                 rows: [
                     [
-                        t('Weekly quota', '每周额度'),
+                        formatKimiSummaryLabel(data.summary),
                         `${data.summary.remaining}%`,
                         formatQuotaDateForSlot('kimi', new Date(data.summary.resetTime))
                     ],

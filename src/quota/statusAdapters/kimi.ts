@@ -10,6 +10,7 @@ import {
     formatKimiBoosterCurrency,
     formatKimiCurrencyLimit,
     formatKimiMonthlyCap,
+    formatKimiSummaryLabel,
     formatKimiTimeUnit,
     translateKimiBoosterStatus,
     type KimiUsageSnapshot
@@ -26,7 +27,7 @@ export const kimiStatusAdapter: QuotaStatusAdapter<KimiStatusData> = {
                 columns: [t('Window', '频限类型'), t('Remaining', '剩余量'), t('Reset Time', '重置时间')],
                 rows: [
                     [
-                        t('Weekly quota', '每周额度'),
+                        formatKimiSummaryLabel(data.summary),
                         `${data.summary.remaining}%`,
                         formatQuotaDateForSlot('kimi', new Date(data.summary.resetTime))
                     ],
