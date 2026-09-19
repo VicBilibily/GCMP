@@ -335,6 +335,31 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置�
 
 > 各功能专属设置（如 `gcmp.commit.enabled`、`gcmp.vision.model`、`gcmp.zhipu.search.enableMCP`）分别在其对应的功能章节中说明，不在此处展开。
 
+#### 状态栏余额警告阈值
+
+余额型状态栏默认在可用余额不高于 `20` 时显示黄色背景，负余额显示红色背景。可通过 `gcmp.providerOverrides.{provider}.balanceWarning` 按提供商覆盖阈值，设置为 `0` 可仅在欠费时标红。
+
+```jsonc
+{
+    "gcmp.providerOverrides": {
+        "deepseek": {
+            "balanceWarning": 10
+        },
+        "moonshot": {
+            "balanceWarning": 30
+        },
+        "compatible": {
+            // 未单独设置的 Compatible provider 使用 compatible 默认阈值
+            "balanceWarning": 20
+        }
+    }
+}
+```
+
+- 适用 DeepSeek、Moonshot、纯余额模式的智谱/CommandCode，以及 Compatible 中的各余额查询提供商。
+- 数值单位与提供商返回的余额单位一致；套餐用量状态栏仍按用量百分比警告。
+- 修改设置会立即按当前缓存重绘背景，不会额外发起余额查询请求。
+
 #### 调试与 HAR 录制
 
 ```jsonc

@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.28.4] - 2026-09-19
+
+### 新增
+
+- **用量查询计算字段支持嵌套子表达式**：Compatible 用量查询配置的计算字段（`sum` / `subtract` / `multiply` / `divide`）的 `paths` 现支持嵌套计算字段对象，子表达式先行计算再参与外层运算，可实现 `(总额 - 已用) / 500000` 这类余额换算；`gcmp-settings` JSON Schema 同步更新。
+- **余额状态栏警告阈值**：余额状态栏默认在可用余额不高于 20 时显示黄色背景，负余额显示红色背景；可通过 `gcmp.providerOverrides.<provider>.balanceWarning` 为各提供商单独覆盖警告阈值。 [#415](https://github.com/VicBilibily/GCMP/issues/415)
+
+### 修复
+
+- **Kimi 新会员体系额度查询**：适配 Kimi 2026-09 新会员体系，额度接口仅返回 5 小时与月度限额（`limit_month_code`）时不再误报"未获取到剩余额度数据"；额度摘要按来源显示"每周额度"或"每月额度"；同时兼容旧 `usage` / `limits` 字段缺失或条目残缺的情况。
+
+---
+
+### Added
+
+- **Nested sub-expressions in usage computed fields**: computed fields (`sum` / `subtract` / `multiply` / `divide`) in Compatible usage query configs now accept nested computed-field objects in `paths`; inner expressions are evaluated before the outer operation, enabling conversions like `(total - used) / 500000`. The `gcmp-settings` JSON Schema was updated accordingly.
+- **Balance status-bar warning thresholds**: balance status bars now use a yellow background when the available balance is at or below 20 by default, and a red background for negative balances; `gcmp.providerOverrides.<provider>.balanceWarning` can override the warning threshold per provider. [#415](https://github.com/VicBilibily/GCMP/issues/415)
+
+### Fixed
+
+- **Kimi quota query for the new membership system**: adapted to Kimi's 2026-09 membership, where the usage API returns only 5-hour and monthly limits (`limit_month_code`); these accounts no longer report "no remaining quota data". The quota summary is labeled "Weekly quota" or "Monthly quota" based on its source. The parser also tolerates missing or malformed legacy `usage` / `limits` fields.
+
 ## [0.28.3] - 2026-09-16
 
 ### 新增

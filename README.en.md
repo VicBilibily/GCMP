@@ -336,6 +336,31 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → built-i
 
 > Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.
 
+#### Status-Bar Balance Warning Threshold
+
+Balance-based status bars show a yellow background when the available balance is at or below `20` by default, and a red background for negative balances. Use `gcmp.providerOverrides.{provider}.balanceWarning` to override the threshold per provider; set it to `0` to highlight only overdrawn accounts.
+
+```jsonc
+{
+    "gcmp.providerOverrides": {
+        "deepseek": {
+            "balanceWarning": 10
+        },
+        "moonshot": {
+            "balanceWarning": 30
+        },
+        "compatible": {
+            // Compatible providers without an explicit threshold use this default
+            "balanceWarning": 20
+        }
+    }
+}
+```
+
+- Applies to DeepSeek, Moonshot, balance-only Zhipu/CommandCode views, and every balance provider in the Compatible status bar.
+- The value uses the unit returned by the provider. Usage-plan status bars still warn by usage percentage.
+- Changing the setting repaints the current cached status immediately without sending another balance query.
+
 #### Debugging & HAR Capture
 
 ```jsonc
