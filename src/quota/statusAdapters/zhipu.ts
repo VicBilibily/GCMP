@@ -29,6 +29,7 @@ export const zhipuStatusAdapter: QuotaStatusAdapter<ZhipuStatusData> = {
         return { limits, account, nextResetTime: resetTimes.length > 0 ? Math.min(...resetTimes) : undefined };
     },
     summary: data => buildZhipuUsageSummary(data),
+    balance: data => (data.limits.length === 0 ? data.account?.balance : undefined),
     tables: data => {
         const tables: QuotaTable[] = [];
         if (data.limits.length > 0) {

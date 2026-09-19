@@ -16,6 +16,7 @@ export const moonshotStatusAdapter: QuotaStatusAdapter<MoonshotStatusData> = {
         return { balanceInfo: await fetchMoonshotBalance(apiKey), lastUpdated: formatLocaleDateTime(new Date()) };
     },
     summary: data => `¥${data.balanceInfo.available_balance.toFixed(2)}`,
+    balance: data => data.balanceInfo.available_balance,
     tables: data => [
         {
             columns: [

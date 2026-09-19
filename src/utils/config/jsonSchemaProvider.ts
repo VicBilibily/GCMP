@@ -1594,6 +1594,7 @@ export class JsonSchemaProvider {
                         }
                     ]
                 },
+                balanceWarning: this.getBalanceWarningThresholdSchema(),
                 retry: this.getProviderRetryOverrideSchema(),
                 ...this.getKnownSubProviderRetryOverrideProperties(providerKey),
                 limit: this.getRateLimitSchema(),
@@ -2369,6 +2370,7 @@ export class JsonSchemaProvider {
                         }
                     ]
                 },
+                balanceWarning: this.getBalanceWarningThresholdSchema(),
                 retry: this.getProviderRetryOverrideSchema(),
                 limit: this.getRateLimitSchema()
             },
@@ -2377,6 +2379,18 @@ export class JsonSchemaProvider {
                 ...this.getSubProviderRateLimitPatternProperties()
             },
             additionalProperties: false
+        };
+    }
+
+    private static getBalanceWarningThresholdSchema(): JSONSchema7 {
+        return {
+            type: 'number',
+            minimum: 0,
+            default: 20,
+            description: t(
+                'Status bar balance warning threshold. A non-negative balance at or below this value uses a yellow background; a negative balance always uses a red background. The value uses the unit returned by the provider.',
+                '状态栏余额警告阈值。余额非负且小于等于此值时显示黄色背景；余额为负数时始终显示红色背景。数值单位与提供商返回的余额单位一致。'
+            )
         };
     }
 

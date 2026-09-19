@@ -11,6 +11,8 @@ import { t } from '../utils/runtime/l10n';
 import { buildApiKeySwitchLink } from '../utils/config/configSetStore';
 import type { QuotaStatusAdapter } from '../quota/statusAdapters';
 import type { QuotaTable } from '../quota/types';
+import { ConfigManager } from '../utils/config/configManager';
+import { getBalanceAlertLevel } from '../utils/config/balanceWarning';
 
 /** 通用配额状态栏构造参数 */
 export interface ProviderQuotaStatusBarOptions<TRaw> {
@@ -98,7 +100,18 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
     }
 
     protected shouldHighlightWarning(data: TRaw): boolean {
-        return this.adapter.highlightWarning?.(data, this.HIGH_USAGE_THRESHOLD) ?? false;
+        const usageWarning = this.adapter.highlightWarning?.(data, this.HIGH_USAGE_THRESHOLD) ?? false;
+        return usageWarning || this.getBalanceAlertLevel(data) === 'warning';
+    }
+
+    protected override shouldHighlightError(data: TRaw): boolean {
+        return this.getBalanceAlertLevel(data) === 'error';
+    }
+
+    private getBalanceAlertLevel(data: TRaw) {
+        const balance = this.adapter.balance?.(data);
+        const threshold = ConfigManager.getProviderBalanceWarningThreshold(this.config.apiKeyProvider);
+        return getBalanceAlertLevel(balance, threshold);
     }
 
     /**

@@ -23,6 +23,7 @@ export const commandcodeStatusAdapter: QuotaStatusAdapter<CommandCodeStatusData>
         return { ...usage, lastUpdated: formatLocaleDateTime(new Date()) };
     },
     summary: data => buildCommandCodeUsageSummary(data),
+    balance: data => (!data.fiveHour && !data.weekly ? data.totalCredits : undefined),
     tables: data => {
         const balanceColumns = [
             t('Monthly', '每月余额'),

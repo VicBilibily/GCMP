@@ -94,12 +94,16 @@ export abstract class BaseStatusBarItem<T> {
     protected manualRefreshPending = false;
     protected initialized = false;
     protected statusBarEligible = false;
+    protected statusBarErrorDisplayed = false;
 
     // 跨实例事件订阅
     private interInstanceSubscription: vscode.Disposable | undefined;
 
     // 本实例 API Key 变更事件订阅
     private apiKeyChangeSubscription: vscode.Disposable | undefined;
+
+    // 本实例状态栏配置变更订阅
+    private configurationSubscription: vscode.Disposable | undefined;
 
     // 常量配置
     // 最小延时更新间隔：节流阈值，避免短时间内多次 delayedUpdate 触发 API 请求
@@ -172,6 +176,11 @@ export abstract class BaseStatusBarItem<T> {
      * @returns 是否需要高亮
      */
     protected abstract shouldHighlightWarning(data: T): boolean;
+
+    /** 检查是否需要错误高亮；错误优先于警告。 */
+    protected shouldHighlightError(_data: T): boolean {
+        return false;
+    }
 
     /**
      * 检查是否需要刷新缓存
@@ -339,6 +348,19 @@ export abstract class BaseStatusBarItem<T> {
             this.context.subscriptions.push(this.apiKeyChangeSubscription);
         }
 
+        this.configurationSubscription = vscode.workspace.onDidChangeConfiguration(event => {
+            const cachedData = this.lastStatusData;
+            if (
+                event.affectsConfiguration('gcmp.providerOverrides') &&
+                cachedData &&
+                !this.isLoading &&
+                !this.statusBarErrorDisplayed
+            ) {
+                this.updateStatusBarUI(cachedData.data);
+            }
+        });
+        this.context.subscriptions.push(this.configurationSubscription);
+
         // 注册主实例定时刷新任务
         this.registerLeaderPeriodicTask();
 
@@ -425,12 +447,16 @@ export abstract class BaseStatusBarItem<T> {
         this.apiKeyChangeSubscription?.dispose();
         this.apiKeyChangeSubscription = undefined;
 
+        this.configurationSubscription?.dispose();
+        this.configurationSubscription = undefined;
+
         // 清理内存状态
         this.lastStatusData = null;
         this.lastDelayedUpdateTime = 0;
         this.isLoading = false;
         this.manualRefreshPending = false;
         this.statusBarEligible = false;
+        this.statusBarErrorDisplayed = false;
         this.context = undefined;
 
         // 销毁状态栏项
@@ -510,6 +536,7 @@ export abstract class BaseStatusBarItem<T> {
                     error instanceof Error ? error.message : t('Unknown error', '未知错误')
                 );
             }
+            this.statusBarErrorDisplayed = true;
         }
     }
 
@@ -590,6 +617,7 @@ export abstract class BaseStatusBarItem<T> {
                 if (isManualRefresh && this.statusBarItem) {
                     this.statusBarItem.text = `${this.config.icon} ERR`;
                     this.statusBarItem.tooltip = t('Failed to fetch: {0}', '获取失败: {0}', errorMsg);
+                    this.statusBarErrorDisplayed = true;
                 }
 
                 StatusLogger.warn(`[${this.config.logPrefix}] Usage query failed: ${errorMsg}`);
@@ -605,6 +633,7 @@ export abstract class BaseStatusBarItem<T> {
                     '获取失败: {0}',
                     error instanceof Error ? error.message : t('Unknown error', '未知错误')
                 );
+                this.statusBarErrorDisplayed = true;
             }
         } finally {
             // 一定要在最后重置加载状态
@@ -631,11 +660,14 @@ export abstract class BaseStatusBarItem<T> {
             return;
         }
 
+        this.statusBarErrorDisplayed = false;
         // 更新文本
         this.statusBarItem.text = this.getDisplayText(data);
 
         // 更新背景颜色（警告高亮）
-        if (this.shouldHighlightWarning(data)) {
+        if (this.shouldHighlightError(data)) {
+            this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        } else if (this.shouldHighlightWarning(data)) {
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         } else {
             this.statusBarItem.backgroundColor = undefined;

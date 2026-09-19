@@ -22,6 +22,7 @@ export const deepseekStatusAdapter: QuotaStatusAdapter<DeepSeekStatusData> = {
         return { primaryBalance, allBalances, lastUpdated: formatLocaleDateTime(new Date()) };
     },
     summary: data => formatCurrency(data.primaryBalance.currency, Number.parseFloat(data.primaryBalance.total_balance)),
+    balance: data => Number.parseFloat(data.primaryBalance.total_balance),
     tables: data => [
         {
             columns: [

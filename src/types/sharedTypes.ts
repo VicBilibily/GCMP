@@ -638,6 +638,8 @@ export interface ProviderOverride {
     usage?: ProviderUsageConfig;
     /** 自定义提供商多模式余额/用量查询配置（多个模式时使用，可选；可基于 usage 增量覆盖） */
     usages?: ProviderUsagesConfig;
+    /** 状态栏余额警告阈值；余额小于等于此值时显示黄色，未设置时默认为 20 */
+    balanceWarning?: number;
     /**
      * 提供商级别的重试配置覆盖（可选）。
      * 优先级：providerOverrides.{rootOrExact}["retry.{provider}"] → providerOverrides.{rootOrExact}.retry

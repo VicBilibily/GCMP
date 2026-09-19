@@ -114,18 +114,15 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
                 };
             }
 
-            // 对于其他负值，记录警告但仍处理为有限额度
+            // 有限负值用于欠费状态，不得归零
             if (remainingAmount < 0 && !isInfinite) {
-                StatusLogger.warn(
-                    `[AiHubMixBalanceQuery] Detected abnormal negative balance value: ${remainingAmount}, treating it as 0`
-                );
+                StatusLogger.warn(`[AiHubMixBalanceQuery] Detected negative balance value: ${remainingAmount}`);
             }
 
             StatusLogger.debug('[AiHubMixBalanceQuery] Balance query succeeded');
 
-            // 正常情况：返回剩余额度
             return {
-                balance: Math.max(remainingAmount, 0),
+                balance: remainingAmount,
                 currency: 'USD'
             };
         } catch (error) {

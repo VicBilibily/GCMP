@@ -20,6 +20,8 @@ export interface QuotaStatusAdapter<TRaw> {
     details?(data: TRaw): string[];
     /** 高亮警告判定（缺省不高亮） */
     highlightWarning?(data: TRaw, threshold: number): boolean;
+    /** 当前可用余额；提供时由状态栏按 provider 的金额阈值判定红黄背景 */
+    balance?(data: TRaw): number | undefined;
     /** 返回未来重置点时间戳；缓存写入早于重置点且当前已越过时触发刷新 */
     refreshHints?(data: TRaw, cachedAt: number): number[];
 }

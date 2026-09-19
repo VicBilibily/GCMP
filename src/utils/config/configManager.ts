@@ -33,6 +33,7 @@ import {
     sanitizeConfigForLogging
 } from '../net/proxyAgent';
 import { HarRecorder } from '../net/harRecorder';
+import { resolveBalanceWarningThreshold } from './balanceWarning';
 
 /**
  * 智谱AI搜索配置
@@ -1039,6 +1040,18 @@ export class ConfigManager {
      */
     static getProviderOverrides(): UserConfigOverrides {
         return this.getConfig().providerOverrides;
+    }
+
+    /** 获取提供商状态栏余额警告阈值，未知 Compatible provider 可继承 compatible 覆盖。 */
+    static getProviderBalanceWarningThreshold(providerKey: string): number {
+        const overrides = this.getProviderOverrides();
+        for (const key of this.getProxyLookupKeys(providerKey)) {
+            const value = overrides[key]?.balanceWarning;
+            if (value !== undefined) {
+                return resolveBalanceWarningThreshold(value);
+            }
+        }
+        return resolveBalanceWarningThreshold(undefined);
     }
 
     /**

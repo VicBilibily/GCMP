@@ -15,6 +15,8 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { InnerProviders, resolveBuiltinProviderConfig } from '../utils/config/knownProviders';
 import { InterInstanceBus, ApiKeyChangedEvent } from '../interInstance';
 import { t } from '../utils/runtime/l10n';
+import { ConfigManager } from '../utils/config/configManager';
+import { getHighestBalanceAlertLevel } from '../utils/config/balanceWarning';
 
 /**
  * Compatible 提供商余额信息
@@ -430,7 +432,25 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      * 如果有提供商查询失败，则高亮警告
      */
     protected shouldHighlightWarning(data: CompatibleStatusData): boolean {
-        return data.successCount < data.totalCount;
+        return data.successCount < data.totalCount || this.getBalanceAlertLevel(data) === 'warning';
+    }
+
+    protected override shouldHighlightError(data: CompatibleStatusData): boolean {
+        return this.getBalanceAlertLevel(data) === 'error';
+    }
+
+    private getBalanceAlertLevel(data: CompatibleStatusData) {
+        return getHighestBalanceAlertLevel(
+            data.providers
+                .filter(provider => provider.success)
+                .map(provider => {
+                    const baseProviderId = BalanceQueryManager.getBaseProviderId(provider.providerId);
+                    return {
+                        balance: provider.balance,
+                        warningThreshold: ConfigManager.getProviderBalanceWarningThreshold(baseProviderId)
+                    };
+                })
+        );
     }
 
     /**
@@ -689,6 +709,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                         // 所有提供商都查询失败，显示 ERR
                         this.statusBarItem.text = `${this.config.icon} ERR`;
                         this.statusBarItem.tooltip = t('All provider queries failed.', '所有提供商查询失败');
+                        this.statusBarErrorDisplayed = true;
                         StatusLogger.warn(`[${this.config.logPrefix}] All provider queries failed`);
                         return;
                     }
@@ -727,6 +748,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 if (this.statusBarItem) {
                     this.statusBarItem.text = `${this.config.icon} ERR`;
                     this.statusBarItem.tooltip = t('Query failed: {0}', '查询失败: {0}', errorMsg);
+                    this.statusBarErrorDisplayed = true;
                 }
                 StatusLogger.warn(`[${this.config.logPrefix}] Balance query failed: ${errorMsg}`);
             }
@@ -741,6 +763,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                     '获取失败: {0}',
                     error instanceof Error ? error.message : t('Unknown error', '未知错误')
                 );
+                this.statusBarErrorDisplayed = true;
             }
         } finally {
             // 一定要在最后重置加载状态
