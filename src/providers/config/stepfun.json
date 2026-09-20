@@ -4,6 +4,19 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "step-5-preview-billing",
+            "model": "step-5-preview",
+            "name": "Step-5-Preview (PayGo)",
+            "sdkMode": "anthropic",
+            "tooltip": "Step-5-Preview 是阶跃星辰面向真实任务的新一代旗舰基模，重点覆盖编程与专业知识工作。原生支持文本、图片和视频输入，提供1M tokens上下文窗口，支持三档推理强度（low/medium/high），适合长上下文、工具调用与多步骤Agent任务。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [7, 20, 0.35] }
+        },
+        {
             "id": "step-3.7-flash-billing",
             "model": "step-3.7-flash",
             "name": "Step-3.7-Flash (PayGo)",
@@ -37,6 +50,20 @@
             "reasoningEffort": ["low", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [0.7, 2.1, 0.14] }
+        },
+        {
+            "id": "step-5-preview-step-plan",
+            "model": "step-5-preview",
+            "name": "Step-5-Preview (StepPlan)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.stepfun.com/step_plan",
+            "tooltip": "Step-5-Preview（Step Plan 通道）阶跃星辰面向真实任务的新一代旗舰基模，重点覆盖编程与专业知识工作。原生支持文本、图片和视频输入，提供1M tokens上下文窗口，支持三档推理强度（low/medium/high），适合长上下文、工具调用与多步骤Agent任务。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [7, 20, 0.35] }
         },
         {
             "id": "step-3.7-flash-step-plan",
