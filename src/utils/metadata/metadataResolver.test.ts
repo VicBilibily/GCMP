@@ -231,6 +231,23 @@ test('withCodexCliMetadata lets metadata win over config baseline without mutati
     assert.equal(config.customHeader?.version, '0.153.2');
 });
 
+test('withCodexCliMetadata replaces case-insensitive metadata header collisions', () => {
+    resetSnapshot();
+    const config = {
+        displayName: 'Codex',
+        baseUrl: 'https://example.com',
+        apiKeyTemplate: 'x',
+        models: [],
+        customHeader: { VERSION: '0.153.2', 'X-Keep': '1' }
+    } as ProviderConfig;
+
+    const merged = withCodexCliMetadata(config);
+
+    assert.equal(merged.customHeader?.VERSION, undefined);
+    assert.equal(merged.customHeader?.version, builtinMetadata.cli.codexTui.version);
+    assert.equal(merged.customHeader?.['X-Keep'], '1');
+});
+
 test('withCodexCliMetadata prefers remote snapshot over builtin metadata', () => {
     setRemoteCliMetadata({ codexTuiVersion: '0.200.0' });
     const config = {

@@ -4,6 +4,9 @@ import * as vscode from 'vscode';
 import { OpenAICustomHandler } from '../../src/handlers/openaiCustomHandler';
 import { StreamReporter } from '../../src/handlers/streamReporter';
 import { TokenUsagesManager } from '../../src/usages/usagesManager';
+import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
+import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
+import { ConfigManager } from '../../src/utils/config/configManager';
 
 interface StreamTestAccess {
     processStream(
@@ -113,4 +116,66 @@ suite('OpenAI custom SSE lifecycle', () => {
             }
         });
     }
+
+    test('模型请求中的 null customHeader 不会移除必需 header', async () => {
+        const originalGetApiKey = ApiKeyManager.getApiKey;
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        let request: Request | undefined;
+        const cancellationSource = new vscode.CancellationTokenSource();
+        ApiKeyManager.getApiKey = async () => 'test-api-key';
+        ConfigManager.fetchWithProxy = (async (input: RequestInfo | URL, init?: RequestInit) => {
+            request = new Request(input, init);
+            return new Response(
+                [
+                    'data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}',
+                    '',
+                    'data: [DONE]',
+                    '',
+                    ''
+                ].join('\n'),
+                { status: 200, headers: { 'content-type': 'text/event-stream' } }
+            );
+        }) as typeof ConfigManager.fetchWithProxy;
+
+        try {
+            const providerInstance = {
+                provider: 'test-provider',
+                providerConfig: {
+                    displayName: 'Test Provider',
+                    baseUrl: 'http://127.0.0.1'
+                }
+            } as unknown as GenericModelProvider;
+            const openaiHandler = {
+                buildChatCompletionParams: () => ({ model: 'test-model', messages: [], stream: true })
+            } as unknown as ConstructorParameters<typeof OpenAICustomHandler>[1];
+            const handler = new OpenAICustomHandler(providerInstance, openaiHandler);
+            const modelConfig = {
+                id: 'test-model',
+                name: 'Test Model',
+                customHeader: {
+                    Authorization: null,
+                    'Content-Type': null
+                },
+                baseUrl: 'http://127.0.0.1'
+            } as unknown as Parameters<OpenAICustomHandler['handleRequest']>[1];
+
+            await handler.handleRequest(
+                { id: 'test-model', name: 'Test Model' } as vscode.LanguageModelChatInformation,
+                modelConfig,
+                [],
+                {} as vscode.ProvideLanguageModelChatResponseOptions,
+                { report() {} },
+                'request-id',
+                'session-id',
+                cancellationSource.token
+            );
+
+            assert.equal(request?.headers.get('authorization'), null);
+            assert.equal(request?.headers.get('content-type'), 'application/json');
+        } finally {
+            cancellationSource.dispose();
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+            ApiKeyManager.getApiKey = originalGetApiKey;
+        }
+    });
 });

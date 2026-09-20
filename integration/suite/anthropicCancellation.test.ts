@@ -3,6 +3,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 import { AnthropicHandler } from '../../src/handlers/anthropicHandler';
+import { OpenAIHandler } from '../../src/handlers/openaiHandler';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import type { ModelConfig } from '../../src/types/sharedTypes';
 import { ConfigManager } from '../../src/utils/config/configManager';
@@ -12,6 +13,7 @@ import { RetryManager } from '../../src/utils/retry/retryManager';
 
 interface AnthropicHandlerTestAccess {
     createAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic>;
+    getModelRequestHeaderDeletions(modelConfig?: ModelConfig): Record<string, string | null>;
     handleAnthropicStream(stream: AsyncIterable<unknown>, reporter: unknown, token: unknown): Promise<unknown>;
 }
 
@@ -165,6 +167,155 @@ suite('Anthropic cancellation', () => {
             assert.ok(requestHeaders?.get('x-stainless-arch'));
             assert.ok(requestHeaders?.get('x-stainless-runtime'));
             assert.ok(requestHeaders?.get('x-stainless-runtime-version'));
+        } finally {
+            ConfigManager.createProxyAwareFetch = originalCreateProxyAwareFetch;
+            ApiKeyManager.getApiKey = originalGetApiKey;
+        }
+    });
+
+    test('两个 SDK 的内置 header 可由 null 删除', async () => {
+        const originalGetApiKey = ApiKeyManager.getApiKey;
+        const originalCreateProxyAwareFetch = ConfigManager.createProxyAwareFetch;
+        let anthropicHeaders: Headers | undefined;
+        let openaiHeaders: Headers | undefined;
+        ApiKeyManager.getApiKey = async () => 'test-api-key';
+        ConfigManager.createProxyAwareFetch = (() => {
+            return async (input: RequestInfo | URL, init?: RequestInit) => {
+                const request = new Request(input, init);
+                if (request.url.includes('/messages')) {
+                    anthropicHeaders = request.headers;
+                    return new Response(
+                        JSON.stringify({
+                            id: 'msg_test',
+                            type: 'message',
+                            role: 'assistant',
+                            model: 'claude-sonnet-4-5',
+                            content: [{ type: 'text', text: 'ok' }],
+                            stop_reason: 'end_turn',
+                            stop_sequence: null,
+                            usage: { input_tokens: 1, output_tokens: 1 }
+                        }),
+                        { status: 200, headers: { 'content-type': 'application/json' } }
+                    );
+                }
+
+                openaiHeaders = request.headers;
+                return new Response(
+                    [
+                        `data: ${JSON.stringify({
+                            id: 'chatcmpl_test',
+                            object: 'chat.completion.chunk',
+                            created: 0,
+                            model: 'test-model',
+                            choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: null }]
+                        })}`,
+                        '',
+                        `data: ${JSON.stringify({
+                            id: 'chatcmpl_test',
+                            object: 'chat.completion.chunk',
+                            created: 0,
+                            model: 'test-model',
+                            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]
+                        })}`,
+                        '',
+                        'data: [DONE]',
+                        '',
+                        ''
+                    ].join('\n'),
+                    { status: 200, headers: { 'content-type': 'text/event-stream' } }
+                );
+            };
+        }) as typeof ConfigManager.createProxyAwareFetch;
+
+        try {
+            const providerInstance = {
+                provider: 'compatible-test',
+                providerConfig: {
+                    displayName: 'Compatible Test',
+                    baseUrl: 'http://127.0.0.1'
+                }
+            } as unknown as GenericModelProvider;
+
+            const anthropicHandler = new AnthropicHandler(providerInstance) as unknown as AnthropicHandlerTestAccess;
+            const anthropicModel = {
+                id: 'claude-sonnet-4-5',
+                name: 'Claude',
+                tooltip: 'Claude',
+                maxInputTokens: 1024,
+                maxOutputTokens: 128,
+                capabilities: {
+                    toolCalling: false,
+                    imageInput: false
+                },
+                sdkMode: 'anthropic',
+                provider: 'compatible-test',
+                baseUrl: 'http://127.0.0.1',
+                customHeader: {
+                    'User-Agent': null,
+                    'X-Stainless-Package-Version': null,
+                    'anthropic-version': null,
+                    'Content-Type': null
+                },
+                proxy: 'noproxy'
+            } satisfies ModelConfig;
+            const anthropicClient = await anthropicHandler.createAnthropicClient(anthropicModel);
+
+            await anthropicClient.messages.create(
+                {
+                    model: 'claude-sonnet-4-5',
+                    max_tokens: 1,
+                    messages: [{ role: 'user', content: 'hi' }]
+                },
+                { headers: anthropicHandler.getModelRequestHeaderDeletions(anthropicModel) }
+            );
+
+            assert.equal(anthropicHeaders?.get('user-agent'), null);
+            assert.equal(anthropicHeaders?.get('x-stainless-package-version'), null);
+            assert.equal(anthropicHeaders?.get('anthropic-version'), null);
+
+            const openaiHandler = new OpenAIHandler(providerInstance);
+            const openaiModel = {
+                id: 'test-model',
+                name: 'OpenAI',
+                tooltip: 'OpenAI',
+                maxInputTokens: 1024,
+                maxOutputTokens: 128,
+                capabilities: {
+                    toolCalling: false,
+                    imageInput: false
+                },
+                sdkMode: 'openai',
+                provider: 'compatible-test',
+                baseUrl: 'http://127.0.0.1',
+                customHeader: {
+                    'User-Agent': null,
+                    'X-Stainless-Package-Version': null,
+                    'X-Session-ID': null,
+                    Authorization: null,
+                    'Content-Type': null
+                },
+                proxy: 'noproxy'
+            } satisfies ModelConfig;
+            const openaiClient = await openaiHandler.createOpenAIClient(openaiModel, 'session-1');
+
+            const completion = await openaiClient.chat.completions.create(
+                {
+                    model: 'test-model',
+                    messages: [{ role: 'user', content: 'hi' }],
+                    stream: true
+                },
+                { headers: openaiHandler.getModelRequestHeaderDeletions(openaiModel) }
+            );
+            for await (const _chunk of completion) {
+                assert.ok(_chunk);
+            }
+
+            assert.equal(openaiHeaders?.get('user-agent'), null);
+            assert.equal(openaiHeaders?.get('x-stainless-package-version'), null);
+            assert.equal(openaiHeaders?.get('x-session-id'), null);
+            assert.equal(openaiHeaders?.get('authorization'), null);
+            assert.equal(openaiHeaders?.get('content-type'), 'application/json');
+            assert.equal(anthropicHeaders?.get('content-type'), 'application/json');
         } finally {
             ConfigManager.createProxyAwareFetch = originalCreateProxyAwareFetch;
             ApiKeyManager.getApiKey = originalGetApiKey;

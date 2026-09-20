@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ProviderConfig } from '../../types/sharedTypes';
+import { mergeCustomHeaders } from '../net/httpHeaders';
 // 内置兜底与远程发布共用同一源文件：扩展打包时内联此 JSON，website 构建时同步到 public/ 供 Pages 分发
 import builtinMetadata from './gcmp-metadata.json';
 import { hashCliMetadata } from './cliMetadataHash';
@@ -126,5 +127,5 @@ export function getCodexTuiCliHeader(): Record<string, string> {
  * 必须在 applyProviderOverrides 之前调用，保证用户覆盖优先级最高（用户 > 远程 > 内置）
  */
 export function withCodexCliMetadata(config: ProviderConfig): ProviderConfig {
-    return { ...config, customHeader: { ...config.customHeader, ...getCodexTuiCliHeader() } };
+    return { ...config, customHeader: mergeCustomHeaders(config.customHeader, getCodexTuiCliHeader()) };
 }

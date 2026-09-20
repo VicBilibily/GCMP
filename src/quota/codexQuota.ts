@@ -185,7 +185,7 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${credentials.access_token}`,
-                'User-Agent': requestHeaders['User-Agent'],
+                'User-Agent': requestHeaders['User-Agent'] as string,
                 'chatgpt-account-id': accountId
             },
             signal: abortController.signal

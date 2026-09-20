@@ -13,6 +13,7 @@ import { Logger } from '../utils/runtime/logger';
 import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { ConfigManager } from '../utils/config/configManager';
 import { redactHeaders } from '../utils/net/proxyAgent';
+import { getCustomHeaderDeletionMarkers, mergeCustomHeaders, preserveRequiredHeaders } from '../utils/net/httpHeaders';
 import { isCancellationError } from '../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
@@ -24,7 +25,13 @@ import { VersionManager } from '../utils/runtime/versionManager';
 import { createOpenCodeHeaders, replaceSessionIdInBody } from '../utils/text/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { t } from '../utils/runtime/l10n';
-import type { ModelChatResponseOptions, ModelConfig, NativeToolConfig, ProviderConfig } from '../types/sharedTypes';
+import type {
+    CustomHeaders,
+    ModelChatResponseOptions,
+    ModelConfig,
+    NativeToolConfig,
+    ProviderConfig
+} from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
 import { mergeNativeToolConfigs } from './nativeToolUtils';
@@ -53,6 +60,11 @@ export class AnthropicHandler {
     }
     private get baseURL(): string | undefined {
         return this.providerConfig?.baseUrl;
+    }
+
+    /** 返回 Anthropic 模型请求可删除的自定义 header 标记。 */
+    getModelRequestHeaderDeletions(modelConfig?: ModelConfig): CustomHeaders {
+        return getCustomHeaderDeletionMarkers(this.providerConfig?.customHeader, modelConfig?.customHeader);
     }
 
     private createAnthropicWebSearchTool(config: NativeToolConfig): Anthropic.Messages.WebSearchTool20250305 {
@@ -153,7 +165,7 @@ export class AnthropicHandler {
         Logger.debug(`[${this.displayName}] Creating new Anthropic client (baseUrl: ${normalizedBaseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader
-        const defaultHeaders: Record<string, string> = {
+        let defaultHeaders: CustomHeaders = {
             'User-Agent': VersionManager.getUserAgent(this.provider),
             // 'User-Agent': 'claude-cli/2.1.108 (external, cli)',
             'anthropic-version': '2023-06-01',
@@ -161,28 +173,31 @@ export class AnthropicHandler {
         };
         // 合并提供商级别和模型级别的 customHeader
         // 模型级别的 customHeader 会覆盖提供商级别的同名头部
-        const mergedCustomHeader = {
-            ...this.providerConfig?.customHeader,
-            ...modelConfig?.customHeader
-        };
+        const mergedCustomHeader = mergeCustomHeaders(this.providerConfig?.customHeader, modelConfig?.customHeader);
 
         // 处理合并后的 customHeader
-        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId);
+        const processedCustomHeader = preserveRequiredHeaders(
+            ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId)
+        );
         if (Object.keys(processedCustomHeader).length > 0) {
-            Object.assign(defaultHeaders, processedCustomHeader);
+            defaultHeaders = mergeCustomHeaders(defaultHeaders, processedCustomHeader);
             Logger.debug(
                 `${this.displayName} applying custom headers: ${JSON.stringify(redactHeaders(mergedCustomHeader))}`
             );
         }
 
         const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
+        const proxiedFetch = ConfigManager.createProxyAwareFetch({ proxyUrl }) as typeof fetch;
+        const customFetch: typeof fetch = async (input, init) => {
+            return proxiedFetch(input, init);
+        };
         const client = new Anthropic({
             apiKey: currentApiKey,
             maxRetries: 0,
             baseURL: normalizedBaseUrl,
             authToken: currentApiKey, // 解决 Minimax 报错： Please carry the API secret key in the 'Authorization' field of the request header
             defaultHeaders: defaultHeaders,
-            fetch: ConfigManager.createProxyAwareFetch({ proxyUrl }) as typeof fetch
+            fetch: customFetch
         });
 
         Logger.trace(`${this.displayName} Anthropic-compatible client created`);
@@ -317,8 +332,12 @@ export class AnthropicHandler {
 
             // opencode 专有：传递请求级跟踪标识头
             const anthropicStreamOptions: Record<string, unknown> = { signal: abortController.signal };
-            if (this.provider === 'opencode') {
-                anthropicStreamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
+            const requestHeaders = mergeCustomHeaders(
+                this.provider === 'opencode' ? createOpenCodeHeaders(requestId, sessionId) : undefined,
+                this.getModelRequestHeaderDeletions(modelConfig)
+            );
+            if (Object.keys(requestHeaders).length > 0) {
+                anthropicStreamOptions.headers = requestHeaders;
             }
 
             requestMetricStartTime = Date.now();

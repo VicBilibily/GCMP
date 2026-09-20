@@ -18,7 +18,12 @@ import {
 import { RetryableError } from '../utils/retry/retryManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
-import { canonicalizeUserAgentHeader } from '../utils/net/httpHeaders';
+import {
+    applyCustomHeaders,
+    canonicalizeUserAgentHeader,
+    hasCustomHeaderDeletion,
+    mergeCustomHeaders
+} from '../utils/net/httpHeaders';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ModelChatResponseOptions, ModelTokenPricing, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
@@ -184,19 +189,26 @@ export class OpenAICustomHandler {
         try {
             // 合并提供商级别和模型级别的 customHeader
             // 模型级别的 customHeader 会覆盖提供商级别的同名头部
-            const mergedCustomHeader = {
-                ...this.providerConfig?.customHeader,
-                ...modelConfig?.customHeader
-            };
+            const mergedCustomHeader = mergeCustomHeaders(this.providerConfig?.customHeader, modelConfig?.customHeader);
 
             // 处理合并后的 customHeader 中的 API 密钥替换
             const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey, sessionId);
-            canonicalizeUserAgentHeader(processedCustomHeader);
 
             // opencode 专有：传递请求级跟踪标识头
             if (this.provider === 'opencode') {
-                Object.assign(processedCustomHeader, createOpenCodeHeaders(requestId, sessionId));
+                for (const [key, value] of Object.entries(createOpenCodeHeaders(requestId, sessionId))) {
+                    if (!hasCustomHeaderDeletion(processedCustomHeader, key)) {
+                        processedCustomHeader[key] = value;
+                    }
+                }
             }
+
+            const requestHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`
+            };
+            applyCustomHeaders(requestHeaders, processedCustomHeader);
+            canonicalizeUserAgentHeader(requestHeaders);
 
             requestMetricStartTime = Date.now();
             onRequestDispatched?.(requestMetricStartTime);
@@ -217,11 +229,7 @@ export class OpenAICustomHandler {
                 url,
                 {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${apiKey}`,
-                        ...processedCustomHeader
-                    },
+                    headers: requestHeaders,
                     body: JSON.stringify(requestBody),
                     signal: abortController.signal
                 },

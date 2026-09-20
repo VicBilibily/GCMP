@@ -21,6 +21,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
 import { fillClaudeCodeRequestHeaders, fillCodexRequestHeaders } from '../utils/net/cliUserAgent';
+import { mergeCustomHeaders } from '../utils/net/httpHeaders';
 import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricing/pricingTierResolver';
 import { normalizeCompatibleServiceTiers } from '../utils/model/compatibleServiceTier';
@@ -76,14 +77,13 @@ export class CompatibleProvider extends GenericModelProvider {
             );
             // 将 CompatibleModelManager 的模型转换为 ModelConfig 格式
             const modelConfigs: ModelConfig[] = models.map(model => {
-                let customHeader = model.customHeader;
-                if (model.provider) {
-                    const knownProvider = KnownProviders[model.provider];
-                    if (knownProvider?.customHeader) {
-                        const existingHeaders = model.customHeader || {};
-                        customHeader = { ...existingHeaders, ...knownProvider.customHeader };
-                    }
+                const knownProvider = model.provider ? KnownProviders[model.provider] : undefined;
+                const customHeader =
+                    knownProvider?.customHeader || model.customHeader ?
+                        mergeCustomHeaders(knownProvider?.customHeader, model.customHeader)
+                    :   undefined;
 
+                if (model.provider) {
                     let knownOverride: Omit<ModelOverride, 'id'> | undefined;
                     if (model.sdkMode === 'anthropic' && knownProvider?.anthropic) {
                         knownOverride = knownProvider.anthropic;
@@ -159,9 +159,14 @@ export class CompatibleProvider extends GenericModelProvider {
                         if (override.proxy && !config.proxy) {
                             config.proxy = override.proxy;
                         }
-                        if (override.customHeader) {
-                            config.customHeader = { ...override.customHeader, ...config.customHeader };
-                        }
+                    }
+                    const providerCustomHeader = mergeCustomHeaders(
+                        knownProvider?.customHeader,
+                        compatibleOverride?.customHeader,
+                        providerOverride?.customHeader
+                    );
+                    if (Object.keys(providerCustomHeader).length > 0 || model.customHeader) {
+                        config.customHeader = mergeCustomHeaders(providerCustomHeader, model.customHeader);
                     }
                 } else if (compatibleOverride) {
                     // 无 provider 的模型仅应用 compatible 全局默认
@@ -169,7 +174,7 @@ export class CompatibleProvider extends GenericModelProvider {
                         config.proxy = compatibleOverride.proxy;
                     }
                     if (compatibleOverride.customHeader) {
-                        config.customHeader = { ...compatibleOverride.customHeader, ...config.customHeader };
+                        config.customHeader = mergeCustomHeaders(compatibleOverride.customHeader, model.customHeader);
                     }
                 }
 

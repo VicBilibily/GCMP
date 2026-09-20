@@ -5,7 +5,7 @@
 
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
-import { ApiKeyValidation } from '../../types/sharedTypes';
+import { ApiKeyValidation, CustomHeaders } from '../../types/sharedTypes';
 import { Logger } from '../runtime/logger';
 import { StatusBarManager } from '../../status';
 import { InterInstanceBus } from '../../interInstance';
@@ -272,16 +272,20 @@ export class ApiKeyManager {
      * 将 ${APIKEY} 替换为实际的 API 密钥（不区分大小写）
      */
     static processCustomHeader(
-        customHeader: Record<string, string> | undefined,
+        customHeader: CustomHeaders | undefined,
         apiKey: string,
         sessionId?: string
-    ): Record<string, string> {
+    ): CustomHeaders {
         if (!customHeader) {
             return {};
         }
 
-        const processedHeader: Record<string, string> = {};
+        const processedHeader: CustomHeaders = {};
         for (const [key, value] of Object.entries(customHeader)) {
+            if (value === null) {
+                processedHeader[key] = null;
+                continue;
+            }
             // 不区分大小写地替换 ${APIKEY} 为实际的 API 密钥
             const processedValue =
                 sessionId === undefined ?

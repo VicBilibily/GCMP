@@ -33,11 +33,18 @@
         },
         "customHeader": {
             "type": "object",
-            "description": "可选的自定义HTTP头部，将在该提供商的所有API请求中附加。模型级别的 customHeader 会覆盖提供商级别的设置。",
+            "description": "可选的自定义HTTP头部，将在该提供商的所有API请求中附加。模型级别的 customHeader 会覆盖提供商级别的设置；值为 null 时删除同名内置头部。",
             "additionalProperties": {
-                "type": "string",
-                "description": "HTTP头部值",
-                "minLength": 1
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    {
+                        "type": "null"
+                    }
+                ],
+                "description": "HTTP头部值；null 表示删除同名内置头部。"
             }
         },
         "limit": {
@@ -532,11 +539,18 @@
                 },
                 "customHeader": {
                     "type": "object",
-                    "description": "可选的自定义HTTP头部，将在API请求中附加。",
+                    "description": "可选的自定义HTTP头部，将在API请求中附加；值为 null 时删除同名内置头部。",
                     "additionalProperties": {
-                        "type": "string",
-                        "description": "HTTP头部值",
-                        "minLength": 1
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "HTTP头部值；null 表示删除同名内置头部"
                     }
                 },
                 "extraBody": {

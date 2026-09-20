@@ -293,7 +293,14 @@ export class JsonSchemaProvider {
     }
 
     private static getHttpHeaderValueDescription(): string {
-        return t('HTTP header value', 'HTTP头部值');
+        return t('HTTP header value; null removes the same built-in header', 'HTTP头部值；null 表示删除同名内置头部');
+    }
+
+    private static getCustomHeaderValueSchema(): JSONSchema7 {
+        return {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            description: this.getHttpHeaderValueDescription()
+        };
     }
 
     private static getExtraBodyDescription(optional: boolean = false): string {
@@ -1112,8 +1119,7 @@ export class JsonSchemaProvider {
                                 type: 'object',
                                 description: this.getCustomHeaderDescription(),
                                 additionalProperties: {
-                                    type: 'string',
-                                    description: this.getHttpHeaderValueDescription()
+                                    ...this.getCustomHeaderValueSchema()
                                 }
                             },
                             proxy: {
@@ -1574,8 +1580,7 @@ export class JsonSchemaProvider {
                     type: 'object',
                     description: this.getProviderCustomHeaderDescription(),
                     additionalProperties: {
-                        type: 'string',
-                        description: this.getHttpHeaderValueDescription()
+                        ...this.getCustomHeaderValueSchema()
                     }
                 },
                 proxy: {
@@ -1683,8 +1688,7 @@ export class JsonSchemaProvider {
                                 type: 'object',
                                 description: this.getModelCustomHeaderDescription(),
                                 additionalProperties: {
-                                    type: 'string',
-                                    description: this.getHttpHeaderValueDescription()
+                                    ...this.getCustomHeaderValueSchema()
                                 }
                             },
                             proxy: {
@@ -2350,8 +2354,7 @@ export class JsonSchemaProvider {
                     type: 'object',
                     description: this.getProviderCustomHeaderDescription(),
                     additionalProperties: {
-                        type: 'string',
-                        description: this.getHttpHeaderValueDescription()
+                        ...this.getCustomHeaderValueSchema()
                     }
                 },
                 proxy: {

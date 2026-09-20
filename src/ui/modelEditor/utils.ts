@@ -112,6 +112,32 @@ export function validateJSON(jsonString: string): boolean {
     }
 }
 
+/** 校验自定义 header JSON，并允许 header 值为字符串或 null。 */
+export function validateCustomHeaders(jsonString: string): string | null {
+    if (!jsonString || jsonString.trim() === '') {
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(jsonString);
+    } catch {
+        return t('Custom HTTP headers JSON must be a valid object.', '自定义HTTP头部的JSON格式不正确，必须是对象类型');
+    }
+    if (!isValidJSONObject(parsed)) {
+        return t('Custom HTTP headers JSON must be a valid object.', '自定义HTTP头部的JSON格式不正确，必须是对象类型');
+    }
+    const invalidKey = Object.entries(parsed as Record<string, unknown>).find(
+        ([, value]) => value !== null && typeof value !== 'string'
+    )?.[0];
+    return invalidKey ?
+            t(
+                'Custom HTTP header "{0}" must be a string or null.',
+                '自定义HTTP头部 "{0}" 的值必须是字符串或 null',
+                invalidKey
+            )
+        :   null;
+}
+
 /**
  * 验证 webSearchToolConfig JSON 对象的字段类型
  * 与 providerConfig.schema.json / jsonSchemaProvider.ts 中的 schema 约束保持一致：

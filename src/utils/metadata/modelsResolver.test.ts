@@ -416,6 +416,7 @@ test('sanitizeProviderModels validates customHeader keys and values', () => {
                 maxOutputTokens: 100,
                 customHeader: {
                     'X-Valid': 'ok',
+                    'X-Remove': null,
                     'bad key': 'no',
                     'X-CRLF': 'inject\r\nX-Evil: 1',
                     'X-Long': 'x'.repeat(2000),
@@ -428,7 +429,7 @@ test('sanitizeProviderModels validates customHeader keys and values', () => {
             }
         ]
     });
-    assert.deepEqual(result?.models[0]?.customHeader, { 'X-Valid': 'ok' });
+    assert.deepEqual(result?.models[0]?.customHeader, { 'X-Valid': 'ok', 'X-Remove': null });
 });
 
 test('sanitizeProviderModels bounds extraBody size and depth and strips proto keys', () => {

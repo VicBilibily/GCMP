@@ -161,7 +161,7 @@ export class CustomUsageQuery implements IBalanceQuery {
                 ...(allOverrides['compatible']?.customHeader || {}),
                 ...(resolveBuiltinProviderConfig(providerId)?.customHeader || {}),
                 ...(allOverrides[providerId]?.customHeader || {})
-            },
+            } as Record<string, string>,
             authType
         );
 
@@ -169,7 +169,7 @@ export class CustomUsageQuery implements IBalanceQuery {
             return mergedCustomHeader;
         }
 
-        return ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
+        return ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey) as Record<string, string>;
     }
 
     /**

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import type { EditorState } from '../app';
 import { collectFormData, validateForm } from './validation';
+import { validateCustomHeaders } from '../utils';
 
 interface MockCheckbox {
     value: string;
@@ -112,11 +113,11 @@ test('collectFormData preserves limit when editing other fields', () => {
         serviceTierOptions: { querySelectorAll: () => [] },
         useInstructions: { checked: false },
         webSearchTool: { checked: false },
-        webSearchToolConfig: { value: '' },
-        nativeTools: { value: '' },
+        webSearchToolConfig: createField(''),
+        nativeTools: createField(''),
         reasoningEffortOptions: { querySelectorAll: () => [createCheckbox('medium', true)] },
         reasoningDefault: { value: '' },
-        customHeader: { value: '' },
+        customHeader: { value: '{"X-Remove":null}' },
         extraBody: { value: '' },
         limitRpm: { value: '60' },
         limitParallel: { value: '2' }
@@ -134,7 +135,14 @@ test('collectFormData preserves limit when editing other fields', () => {
     assert.equal(formData?.name, 'Test Model Updated');
     assert.equal(formData?.limit, '{"rpm":60,"parallel":2}');
     assert.equal(formData?.tokenPricing, '{"pricing":[0.1,0.2]}');
+    assert.equal(formData?.customHeader, '{"X-Remove":null}');
     assert.deepEqual(formData?.reasoningEffort, ['medium']);
+    assert.equal(validateForm(), true);
+});
+
+test('validateCustomHeaders accepts string and null values only', () => {
+    assert.equal(validateCustomHeaders('{"X-Keep":"value","X-Remove":null}'), null);
+    assert.match(validateCustomHeaders('{"X-Invalid":123}') ?? '', /字符串或 null/);
 });
 
 test('collectFormData preserves hidden limit fields while updating visible limit fields', () => {

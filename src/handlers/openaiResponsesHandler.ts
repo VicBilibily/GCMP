@@ -21,6 +21,7 @@ import { Logger } from '../utils/runtime/logger';
 import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
+import { getCustomHeaderDeletionMarkers } from '../utils/net/httpHeaders';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
@@ -153,9 +154,16 @@ export class OpenAIResponsesHandler {
 
                 // 使用原始事件流而非 SDK ResponseStream：后者的快照累积器在 response.failed
                 // 先于 response.created 到达时会先于事件分发抛内部状态错误，吞掉服务端真实错误消息
+                const requestHeaders = getCustomHeaderDeletionMarkers(
+                    this.providerInstance.providerConfig?.customHeader,
+                    modelConfig?.customHeader
+                );
                 const stream = await client.responses.create(
                     { ...requestBody, stream: true } as unknown as ResponseCreateParamsStreaming,
-                    { signal: abortController.signal }
+                    {
+                        signal: abortController.signal,
+                        ...(Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : {})
+                    }
                 );
                 streamProcessor = new OpenAIResponsesStreamProcessor({
                     modelName: model.name,

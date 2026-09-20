@@ -12,9 +12,12 @@ import {
 import { setRemoteCliMetadata } from '../metadata/metadataResolver';
 import builtinMetadata from '../metadata/gcmp-metadata.json';
 import {
+    applyCustomHeaders,
     canonicalizeUserAgentHeader,
     ensureUserAgentHeader,
     getUserAgentHeaderValue,
+    hasCustomHeaderDeletion,
+    mergeCustomHeaders,
     withUserAgentHeader
 } from './httpHeaders';
 
@@ -152,6 +155,64 @@ test('ensureUserAgentHeader keeps override user-agent and fills in when missing'
 
     const noHeaders = ensureUserAgentHeader(undefined, 'codex-tui/generated');
     assert.deepEqual(noHeaders, { 'User-Agent': 'codex-tui/generated' });
+});
+
+test('custom header null removes optional built-in headers only', () => {
+    const headers = {
+        'User-Agent': 'builtin/1.0',
+        'X-Builtin': 'remove-me',
+        'X-Keep': 'keep-me',
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token'
+    };
+
+    applyCustomHeaders(headers, {
+        'user-agent': null,
+        'x-builtin': null,
+        'Content-Type': null,
+        Authorization: null,
+        'X-New': 'new-value'
+    });
+
+    assert.deepEqual(headers, {
+        'Content-Type': 'application/json',
+        'X-Keep': 'keep-me',
+        'X-New': 'new-value'
+    });
+});
+
+test('multi-layer custom headers keep the latest case-insensitive null deletion', () => {
+    const merged = mergeCustomHeaders(
+        { 'APP-Code': 'builtin', 'X-Keep': 'keep-me' },
+        { 'app-code': 'provider', 'X-Remove': 'remove-me' },
+        { 'APP-CODE': null }
+    );
+
+    assert.deepEqual(merged, {
+        'X-Keep': 'keep-me',
+        'X-Remove': 'remove-me',
+        'APP-CODE': null
+    });
+
+    const headers = { 'APP-Code': 'builtin' };
+    applyCustomHeaders(headers, merged);
+    assert.deepEqual(headers, {
+        'X-Keep': 'keep-me',
+        'X-Remove': 'remove-me'
+    });
+});
+
+test('null User-Agent blocks automatic User-Agent generation', () => {
+    assert.deepEqual(ensureUserAgentHeader({ 'User-Agent': null }, 'generated/1.0'), { 'User-Agent': null });
+});
+
+test('header deletion detection only matches null values', () => {
+    assert.equal(hasCustomHeaderDeletion({ 'Content-Type': 'application/json' }, 'content-type'), false);
+    assert.equal(hasCustomHeaderDeletion({ 'content-type': null }, 'Content-Type'), true);
+    assert.equal(
+        hasCustomHeaderDeletion({ 'Content-Type': null, 'content-type': 'application/json' }, 'content-type'),
+        false
+    );
 });
 
 test('fillCodexRequestHeaders fills Codex headers for gpt models without user-agent', () => {

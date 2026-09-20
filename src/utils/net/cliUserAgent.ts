@@ -9,8 +9,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { ensureUserAgentHeader, getUserAgentHeaderValue } from './httpHeaders';
+import { ensureUserAgentHeader, getUserAgentHeaderValue, mergeCustomHeaders } from './httpHeaders';
 import { getClaudeCodeCliVersion } from '../metadata/metadataResolver';
+import type { CustomHeaders } from '../../types/sharedTypes';
 
 /**
  * 生成 User-Agent 所需的字段
@@ -112,17 +113,20 @@ export function getCodexTuiUserAgent(version: string, originator = DEFAULT_ORIGI
 }
 
 /** 从 customHeader 的 originator/version 生成 TUI 形态 UA（缺省回退打包默认值） */
-export function getCodexTuiUserAgentFromHeader(header?: Record<string, string>): string {
-    return getCodexTuiUserAgent(header?.version ?? '', header?.originator);
+export function getCodexTuiUserAgentFromHeader(header?: CustomHeaders): string {
+    return getCodexTuiUserAgent(
+        typeof header?.version === 'string' ? header.version : '',
+        typeof header?.originator === 'string' ? header.originator : undefined
+    );
 }
 
 /**
  * compatible 等场景：模型 id/model 含 gpt、非 anthropic、且用户未指定 User-Agent 时，补全 Codex 请求头
  */
 export function fillCodexRequestHeaders(
-    model: { id: string; model?: string; sdkMode?: string; customHeader?: Record<string, string> },
-    defaults?: Record<string, string>
-): Record<string, string> | undefined {
+    model: { id: string; model?: string; sdkMode?: string; customHeader?: CustomHeaders },
+    defaults?: CustomHeaders
+): CustomHeaders | undefined {
     const customHeader = model.customHeader;
     if (model.sdkMode === 'anthropic') {
         return customHeader;
@@ -133,7 +137,7 @@ export function fillCodexRequestHeaders(
     if (getUserAgentHeaderValue(customHeader)?.trim()) {
         return customHeader;
     }
-    const merged = { ...defaults, ...customHeader };
+    const merged = mergeCustomHeaders(defaults, customHeader);
     return ensureUserAgentHeader(merged, getCodexTuiUserAgentFromHeader(merged));
 }
 
@@ -149,8 +153,8 @@ function getDefaultClaudeCodeUserAgent(): string {
 export function fillClaudeCodeRequestHeaders(model: {
     id: string;
     sdkMode?: string;
-    customHeader?: Record<string, string>;
-}): Record<string, string> | undefined {
+    customHeader?: CustomHeaders;
+}): CustomHeaders | undefined {
     const customHeader = model.customHeader;
     const isClaudeModel = model.sdkMode === 'anthropic' && model.id.toLowerCase().includes('claude');
     if (!isClaudeModel) {

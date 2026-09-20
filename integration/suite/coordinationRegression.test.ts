@@ -345,6 +345,54 @@ suite('Coordination regressions', () => {
         }
     });
 
+    test('applyProviderOverrides preserves null customHeader deletion markers', () => {
+        const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
+
+        try {
+            ConfigManager.getProviderOverrides = () => ({
+                'test-provider': {
+                    customHeader: {
+                        'x-builtin': null,
+                        'X-Provider': 'provider'
+                    },
+                    models: [
+                        {
+                            id: 'test-model',
+                            customHeader: { 'X-Model': null }
+                        }
+                    ]
+                }
+            });
+
+            const resolved = ConfigManager.applyProviderOverrides('test-provider', {
+                displayName: 'Test Provider',
+                baseUrl: 'https://example.com/v1',
+                apiKeyTemplate: 'sk-test',
+                customHeader: {
+                    'X-Builtin': 'builtin',
+                    'X-Keep': 'keep'
+                },
+                models: [
+                    {
+                        ...testModelConfig,
+                        customHeader: { 'X-Model': 'model' }
+                    }
+                ]
+            });
+
+            assert.deepEqual(resolved.customHeader, {
+                'x-builtin': null,
+                'X-Keep': 'keep',
+                'X-Provider': 'provider'
+            });
+            assert.equal(resolved.models[0]?.customHeader?.['X-Model'], null);
+            assert.equal(resolved.models[0]?.customHeader?.['X-Builtin'], undefined);
+            assert.equal(resolved.models[0]?.customHeader?.['x-builtin'], null);
+        } finally {
+            ConfigManager.getProviderOverrides = originalGetProviderOverrides;
+        }
+    });
+
     test('getModelRateLimitConfig merges built-in model limit with partial override', () => {
         const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
         const providerRegistry = configProviders as Record<string, ProviderConfig | undefined>;

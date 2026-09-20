@@ -11,7 +11,12 @@ import { VersionManager } from '../utils/runtime/versionManager';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { createOpenCodeHeaders, replaceSessionIdInBody } from '../utils/text/formatUtils';
 import { redactHeaders } from '../utils/net/proxyAgent';
-import { canonicalizeUserAgentHeader } from '../utils/net/httpHeaders';
+import {
+    canonicalizeUserAgentHeader,
+    getCustomHeaderDeletionMarkers,
+    mergeCustomHeaders,
+    preserveRequiredHeaders
+} from '../utils/net/httpHeaders';
 import { isCancellationError } from '../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
@@ -23,7 +28,7 @@ import { ConfigManager } from '../utils/config/configManager';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { t } from '../utils/runtime/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import type { CustomHeaders, ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import * as liveMetrics from './liveMetrics';
 import { decodeStatefulMarker } from './statefulMarker';
@@ -195,6 +200,11 @@ export class OpenAIHandler {
         return this.providerConfig?.baseUrl;
     }
 
+    /** 返回 OpenAI 模型请求可删除的自定义 header 标记。 */
+    getModelRequestHeaderDeletions(modelConfig?: ModelConfig): CustomHeaders {
+        return getCustomHeaderDeletionMarkers(this.providerConfig?.customHeader, modelConfig?.customHeader);
+    }
+
     /**
      * 创建新的 OpenAI 客户端
      */
@@ -210,7 +220,7 @@ export class OpenAIHandler {
         const baseURL = modelConfig?.baseUrl || this.baseURL;
 
         // 构建默认头部，包含自定义头部
-        const defaultHeaders: Record<string, string> = {
+        let defaultHeaders: CustomHeaders = {
             'User-Agent': VersionManager.getUserAgent('OpenAI')
         };
         if (sessionId) {
@@ -219,15 +229,14 @@ export class OpenAIHandler {
 
         // 合并提供商级别和模型级别的 customHeader
         // 模型级别的 customHeader 会覆盖提供商级别的同名头部
-        const mergedCustomHeader = {
-            ...this.providerConfig?.customHeader,
-            ...modelConfig?.customHeader
-        };
+        const mergedCustomHeader = mergeCustomHeaders(this.providerConfig?.customHeader, modelConfig?.customHeader);
 
         // 处理合并后的 customHeader
-        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId);
+        const processedCustomHeader = preserveRequiredHeaders(
+            ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId)
+        );
         if (Object.keys(processedCustomHeader).length > 0) {
-            Object.assign(defaultHeaders, processedCustomHeader);
+            defaultHeaders = mergeCustomHeaders(defaultHeaders, processedCustomHeader);
             Logger.debug(
                 `${this.displayName} applying custom headers: ${JSON.stringify(redactHeaders(mergedCustomHeader))}`
             );
@@ -1046,8 +1055,12 @@ export class OpenAIHandler {
             try {
                 // opencode 专有：传递请求级跟踪标识头
                 const streamOptions: Record<string, unknown> = { signal: abortController.signal };
-                if (this.provider === 'opencode') {
-                    streamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
+                const requestHeaders = mergeCustomHeaders(
+                    this.provider === 'opencode' ? createOpenCodeHeaders(requestId, sessionId) : undefined,
+                    this.getModelRequestHeaderDeletions(modelConfig)
+                );
+                if (Object.keys(requestHeaders).length > 0) {
+                    streamOptions.headers = requestHeaders;
                 }
 
                 requestMetricStartTime = Date.now();

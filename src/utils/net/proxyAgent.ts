@@ -9,6 +9,7 @@ import * as tls from 'node:tls';
 import { EnvHttpProxyAgent, fetch as undiciFetch, ProxyAgent } from 'undici';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { Logger } from '../runtime/logger';
+import type { CustomHeaders } from '../../types/sharedTypes';
 
 export type ProxiedFetch = typeof globalThis.fetch;
 export const NO_PROXY_SENTINEL = 'noproxy';
@@ -407,7 +408,7 @@ export function redactProxyUrl(raw: string): string {
 /**
  * 脱敏 HTTP 头，仅保留头名，隐藏敏感值
  */
-export function redactHeaders(headers?: Record<string, string>): Record<string, string> {
+export function redactHeaders(headers?: CustomHeaders): CustomHeaders {
     if (!headers) {
         return {};
     }
@@ -448,7 +449,7 @@ export function sanitizeConfigForLogging<T>(value: T): T {
                 typeof entryValue === 'object' &&
                 !Array.isArray(entryValue)
             ) {
-                result[entryKey] = redactHeaders(entryValue as Record<string, string>);
+                result[entryKey] = redactHeaders(entryValue as CustomHeaders);
                 continue;
             }
 

@@ -32,6 +32,7 @@ import {
     redactHeaders,
     sanitizeConfigForLogging
 } from '../net/proxyAgent';
+import { mergeCustomHeaders } from '../net/httpHeaders';
 import { HarRecorder } from '../net/harRecorder';
 import { resolveBalanceWarningThreshold } from './balanceWarning';
 
@@ -1177,7 +1178,7 @@ export class ConfigManager {
                 );
             }
             if (modelOverride.customHeader) {
-                target.customHeader = { ...target.customHeader, ...modelOverride.customHeader };
+                target.customHeader = mergeCustomHeaders(target.customHeader, modelOverride.customHeader);
                 Logger.debug(
                     `  Model ${modelOverride.id}: merge customHeader = ${JSON.stringify(redactHeaders(target.customHeader))}`
                 );
@@ -1225,7 +1226,7 @@ export class ConfigManager {
             Logger.debug(`  Override proxy: ${redactProxyUrl(override.proxy) || '(cleared)'}`);
         }
         if (override.customHeader) {
-            config.customHeader = { ...config.customHeader, ...override.customHeader };
+            config.customHeader = mergeCustomHeaders(config.customHeader, override.customHeader);
             Logger.debug(`  Override provider customHeader = ${JSON.stringify(redactHeaders(config.customHeader))}`);
         }
 
@@ -1273,10 +1274,10 @@ export class ConfigManager {
             for (const model of config.models) {
                 if (model.customHeader) {
                     // 如果模型已有 customHeader，提供商级别的作为默认值合并
-                    model.customHeader = { ...override.customHeader, ...model.customHeader };
+                    model.customHeader = mergeCustomHeaders(override.customHeader, model.customHeader);
                 } else {
                     // 如果模型没有 customHeader，直接使用提供商级别的
-                    model.customHeader = { ...override.customHeader };
+                    model.customHeader = mergeCustomHeaders(override.customHeader);
                 }
             }
             Logger.debug(`  Provider ${providerKey}: merged provider-level customHeader into all models`);

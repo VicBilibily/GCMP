@@ -6,7 +6,7 @@
 
 import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import type { ModelConfig } from '../../types/sharedTypes';
+import type { CustomHeaders, ModelConfig } from '../../types/sharedTypes';
 import { normalizeTokenPricing } from '../pricing/pricingTierResolver';
 
 /** 模型清单（configs/index.json）中的单个提供商条目 */
@@ -228,19 +228,18 @@ function asStringArray(value: unknown, allowed: Set<string>, maxItems: number): 
     return items.length > 0 && items.length <= maxItems ? [...new Set(items)] : undefined;
 }
 
-function asCustomHeader(value: unknown): Record<string, string> | undefined {
+function asCustomHeader(value: unknown): CustomHeaders | undefined {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
         return undefined;
     }
-    const result: Record<string, string> = {};
+    const result: CustomHeaders = {};
     for (const [key, headerValue] of Object.entries(value)) {
         if (PROTO_POLLUTION_KEYS.has(key) || SENSITIVE_HEADER_KEY_PATTERN.test(key) || !HEADER_KEY_PATTERN.test(key)) {
             continue;
         }
         if (
-            typeof headerValue !== 'string' ||
-            headerValue.length > 1024 ||
-            !PRINTABLE_ASCII_PATTERN.test(headerValue)
+            headerValue !== null &&
+            (typeof headerValue !== 'string' || headerValue.length > 1024 || !PRINTABLE_ASCII_PATTERN.test(headerValue))
         ) {
             continue;
         }

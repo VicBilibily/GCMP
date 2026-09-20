@@ -13,7 +13,7 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { Logger } from '../utils/runtime/logger';
 import { getCodexTuiUserAgentFromHeader } from '../utils/net/cliUserAgent';
-import { ensureUserAgentHeader } from '../utils/net/httpHeaders';
+import { ensureUserAgentHeader, mergeCustomHeaders } from '../utils/net/httpHeaders';
 import { withCodexCliMetadata } from '../utils/metadata/metadataResolver';
 import { parseCodexModelsResponse } from '../utils/model/codexModels';
 
@@ -112,10 +112,10 @@ export class CodexProvider extends CliBaseProvider {
      */
     override get providerConfig(): ProviderConfig {
         const config = withCodexCliMetadata(this.cachedProviderConfig);
-        const customHeader = {
-            ...config.customHeader,
-            ...ConfigManager.getProviderOverrides().codex?.customHeader
-        };
+        const customHeader = mergeCustomHeaders(
+            config.customHeader,
+            ConfigManager.getProviderOverrides().codex?.customHeader
+        );
         return {
             ...config,
             customHeader: ensureUserAgentHeader(customHeader, getCodexTuiUserAgentFromHeader(customHeader))

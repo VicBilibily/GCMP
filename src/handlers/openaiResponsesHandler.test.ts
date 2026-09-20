@@ -181,10 +181,12 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
 
     const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
     const fakeStream = { tag: 'responses-stream' };
+    let requestOptions: unknown;
     const client = {
         _options: { defaultHeaders: {} as Record<string, string> },
         responses: {
-            async create(_body: unknown, _options: unknown) {
+            async create(_body: unknown, options: unknown) {
+                requestOptions = options;
                 return fakeStream;
             }
         }
@@ -192,7 +194,10 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
     const handler = new OpenAIResponsesHandler(
         {
             provider: 'openai',
-            providerConfig: { displayName: 'Test Provider' }
+            providerConfig: {
+                displayName: 'Test Provider',
+                customHeader: { 'X-Provider-Remove': null }
+            }
         } as never,
         {
             async createOpenAIClient() {
@@ -203,7 +208,7 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
 
     await handler.handleResponsesRequest(
         { id: 'model-id', name: 'test-model' } as never,
-        {} as never,
+        { customHeader: { 'X-Model-Remove': null } } as never,
         [] as never,
         { modelConfiguration: {} } as never,
         { report() {} } as never,
@@ -219,6 +224,11 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
     );
 
     assert.deepEqual(consumedStreams, [fakeStream]);
+    assert.ok((requestOptions as { signal?: unknown })?.signal);
+    assert.deepEqual((requestOptions as { headers?: unknown })?.headers, {
+        'X-Provider-Remove': null,
+        'X-Model-Remove': null
+    });
     assert.equal(client._options.defaultHeaders.conversation_id, 'session-1');
     assert.equal(client._options.defaultHeaders.session_id, 'session-1');
     assert.equal(updateActualTokensCalls.length, 1);

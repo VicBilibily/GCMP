@@ -40,6 +40,9 @@ export interface ModelChatResponseOptions {
 /** Anthropic 块级 cache_control 断点的合法 TTL */
 export type AnthropicPromptCacheTtl = '5m' | '1h';
 
+export type CustomHeaderValue = string | null;
+export type CustomHeaders = Record<string, CustomHeaderValue>;
+
 /**
  * 模型配置接口
  */
@@ -146,7 +149,7 @@ export interface ModelConfig {
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部
      */
-    customHeader?: Record<string, string>;
+    customHeader?: CustomHeaders;
     /**
      * 模型特定的提供商标识符（可选）
      * 用于自定义模型，指定该模型使用的提供商进行API密钥查找
@@ -473,7 +476,7 @@ export interface ModelOverride {
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部
      */
-    customHeader?: Record<string, string>;
+    customHeader?: CustomHeaders;
     /**
      * 额外的请求体参数（可选）
      * 如果提供，将在API请求中合并到请求体中
@@ -629,7 +632,7 @@ export interface ProviderOverride {
     /** 覆盖提供商级别的baseUrl */
     baseUrl?: string;
     /** 提供商级别的自定义HTTP头部（可选） */
-    customHeader?: Record<string, string>;
+    customHeader?: CustomHeaders;
     /** 提供商级别的代理服务器地址（可选） */
     proxy?: string;
     /** 模型覆盖配置列表 */
@@ -673,7 +676,7 @@ export interface ProviderConfig {
      * 如果提供，将在该提供商的所有API请求中附加这些自定义头部
      * 模型级别的 customHeader 会覆盖提供商级别的同名头部
      */
-    customHeader?: Record<string, string>;
+    customHeader?: CustomHeaders;
     /**
      * 提供商级别的代理服务器地址（可选）
      * 如果提供，将作用于该提供商的所有API请求

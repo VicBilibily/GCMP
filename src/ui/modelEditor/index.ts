@@ -13,7 +13,7 @@ import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { ConfigManager } from '../../utils/config/configManager';
 import { normalizeTokenPricing, serializeTokenPricingInput } from '../../utils/pricing/pricingTierResolver';
-import type { ModelTokenPricingInput, RateLimitConfig } from '../../types/sharedTypes';
+import type { CustomHeaders, ModelTokenPricingInput, RateLimitConfig } from '../../types/sharedTypes';
 import { t } from '../../utils/runtime/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
 import { normalizeCompatibleServiceTiers } from '../../utils/model/compatibleServiceTier';
@@ -259,9 +259,9 @@ export class ModelEditor {
             model.reasoningDefault = undefined;
         }
 
-        // customHeader / extraBody JSON 解析（customHeader 值类型为 string）
+        // customHeader / extraBody JSON 解析
         const customHeaderParsed = this.parseJsonObject(data.customHeader);
-        model.customHeader = customHeaderParsed ? (customHeaderParsed as Record<string, string>) : undefined;
+        model.customHeader = customHeaderParsed ? (customHeaderParsed as CustomHeaders) : undefined;
         model.extraBody = this.parseJsonObject(data.extraBody) ?? undefined;
 
         // tokenPricing 允许对象或数组简写；保存时回写 canonical pricing 形式

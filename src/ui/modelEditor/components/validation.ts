@@ -11,6 +11,7 @@ import {
     isValidProxyInput,
     normalizeProxyInput,
     parseJSON,
+    validateCustomHeaders,
     validateJSON,
     validateNativeTools,
     validateWebSearchToolConfig
@@ -210,10 +211,9 @@ export function validateForm(): boolean {
     }
 
     const customHeaderJson = (document.getElementById('customHeader') as HTMLTextAreaElement).value.trim();
-    if (customHeaderJson && !validateJSON(customHeaderJson)) {
-        showGlobalError(
-            t('Custom HTTP headers JSON must be a valid object.', '自定义HTTP头部的JSON格式不正确，必须是对象类型')
-        );
+    const customHeaderError = validateCustomHeaders(customHeaderJson);
+    if (customHeaderError) {
+        showGlobalError(customHeaderError);
         document.getElementById('customHeader')?.focus();
         return false;
     }

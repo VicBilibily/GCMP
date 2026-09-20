@@ -17,6 +17,7 @@ import type {
     ModelTokenPricingInput,
     NativeToolConfig,
     RateLimitConfig,
+    CustomHeaders,
     WebSearchToolConfig
 } from '../../types/sharedTypes';
 import { normalizeCompatibleServiceTiers } from '../model/compatibleServiceTier';
@@ -89,7 +90,7 @@ export interface CompatibleModelConfig {
         imageInput: boolean;
     };
     /** 自定义HTTP头部（可选） */
-    customHeader?: Record<string, string>;
+    customHeader?: CustomHeaders;
     /** 代理服务器地址（可选） */
     proxy?: string;
     /** 额外的请求体参数（可选） */
