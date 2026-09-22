@@ -12,7 +12,10 @@
         },
         "models": {
             "deepseek-v4.1-flash": {
-                "ref": "deepseek/deepseek-v4.1-flash"
+                "ref": "deepseek/deepseek-v4.1-flash",
+                "overrides": {
+                    "reasoningEffort": ["high", "xhigh", "low"]
+                }
             },
             "glm-5.3": {
                 // 远端误报 vision:true（智谱官方及其余来源均为 false），钉住待上游修正后移除
@@ -46,7 +49,9 @@
             "glm-5.1$",
             "minimax-m2.5",
             "big-pickle",
-            "deepseek-v4-flash-vision-exp"
+            "deepseek-v4-flash-vision-exp",
+            // jev 是 System One 评分模型（走 /systemone 专用端点），非聊天模型无法接入
+            "jev-"
         ],
         // zen 明确禁止第三方调用免费模型，-free 后缀一律过滤
         "excludedModelIdSuffixes": ["-free"],
@@ -57,7 +62,8 @@
             "muse-spark-1.3": { "ref": "meta/muse-spark-1.3" },
             "muse-spark-1.2": { "ref": "meta/muse-spark-1.2" },
             "glm-5.3": { "ref": "zhipu/glm-5.3" },
-            "glm-5.3-flash": { "ref": "zhipu/glm-5.3-flash" }
+            "glm-5.3-flash": { "ref": "zhipu/glm-5.3-flash" },
+            "deepseek-v4.1-flash": { "ref": "deepseek/deepseek-v4.1-flash" }
         }
     },
     "opencode-go": {
@@ -86,7 +92,10 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1"
         },
-        "models": {}
+        "models": {
+            "mimo-v2.6-pro": { "ref": "xiaomi/mimo-v2.6-pro" },
+            "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" }
+        }
     },
     "commandcode": {
         "adapter": "commandcode",
@@ -106,14 +115,14 @@
             "Qwen/Qwen3.6-",
             "meta/muse-spark-1.1$", // 无对应默认源
             "sakana/", // 小众作者暂不接入
-            "inclusionai/" // ling-3.0-flash-sante 为医疗调优模型
+            "inclusionai/", // ling-3.0-flash-sante 为医疗调优模型
+            "Qwen/Qwen3.8-Omni" // 全模态模型，暂未完整支持接入
         ],
         "defaults": {
             "sdkMode": "openai-sse"
         },
         // 免费模型不入预置，仅在 remote-extra 提供
         "extra": {
-            "meituan/LongCat-2.0:free": { "reason": "online-only" },
             "poolside/laguna-s-2.1-free": { "reason": "online-only" }
         },
         // commandcode 仅提供 chat 端点，Muse Spark 一族回退为 chat 模式并剔除 Responses 专有字段
@@ -130,14 +139,20 @@
             },
             // 网关不支持关闭思考
             {
-                "idPrefixes": ["xiaomi/mimo-v2.5", "tencent/hy4-preview", "meituan/LongCat-2.0:free"],
-                "removeFields": ["thinking"]
+                "idPrefixes": ["xiaomi/mimo-v2", "tencent/hy4-preview", "meituan/LongCat-2.0"],
+                "removeFields": ["thinking", "thinkingFormat"]
             }
         ],
         "models": {
             "Qwen/Qwen3.8-Max-0902": { "ref": "qwen/qwen3.8-max-0902" },
-            "meituan/LongCat-2.0:free": { "ref": "meituan/longcat-2.0", "localId": "longcat-2.0-free" },
-            "poolside/laguna-s-2.1-free": { "ref": "poolside/laguna-s-2.1", "localId": "laguna-s-2.1-free" }
+            "meituan/LongCat-2.0": { "ref": "meituan/longcat-2.0", "localId": "longcat-2.0" },
+            "poolside/laguna-s-2.1-free": { "ref": "poolside/laguna-s-2.1", "localId": "laguna-s-2.1-free" },
+            "xai/grok-4.7": { "localId": "grok-4.7" },
+            "xiaomi/mimo-v2.6-pro": { "localId": "mimo-v2.6-pro" },
+            "xiaomi/mimo-v2.6-flash": { "localId": "mimo-v2.6-flash" },
+            "xiaomi/mimo-v2.6-pro-ultraspeed": { "localId": "mimo-v2.6-pro-ultraspeed" },
+            "z-ai/glm-5.3-flashx": { "ref": "zhipu/glm-5.3-flashx", "localId": "glm-5.3-flashx" },
+            "stepfun/Step-5-Preview": { "ref": "stepfun/step-5-preview", "localId": "step-5-preview" }
         }
     }
 }

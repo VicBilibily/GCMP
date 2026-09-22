@@ -109,6 +109,11 @@
             "name": "GLM-5.3-Flash",
             "template": ["1m", "vision", "max-high-low"],
             "reasoningDefault": "max"
+        },
+        "glm-5.3-flashx": {
+            "name": "GLM-5.3-FlashX",
+            "template": ["1m", "vision", "max-high-low"],
+            "reasoningDefault": "max"
         }
     },
     "openai": {
@@ -330,6 +335,12 @@
             "template": ["500k", "vision"],
             "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "reasoningDefault": "high"
+        },
+        "grok-4.7": {
+            "name": "Grok-4.7",
+            "template": ["500k", "vision"],
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
+            "reasoningDefault": "high"
         }
     },
     "xiaomi": {
@@ -340,9 +351,25 @@
         "mimo-v2.5-pro": {
             "name": "MiMo-V2.5-Pro",
             "template": ["1m", "text", "think"]
+        },
+        "mimo-v2.6-flash": {
+            "name": "MiMo-V2.6-Flash",
+            "template": ["1m", "vision", "think"]
+        },
+        "mimo-v2.6-pro": {
+            "name": "MiMo-V2.6-Pro",
+            "template": ["1m", "vision", "think"]
+        },
+        "mimo-v2.6-pro-ultraspeed": {
+            "name": "MiMo-V2.6-Pro-UltraSpeed",
+            "template": ["1m", "text", "think"]
         }
     },
     "stepfun": {
+        "step-5-preview": {
+            "name": "Step-5-Preview",
+            "template": ["1m", "vision", "lmh"]
+        },
         "step-3.5-flash": {
             "name": "Step-3.5-Flash",
             "template": ["256k", "text"]

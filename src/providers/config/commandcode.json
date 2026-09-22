@@ -60,7 +60,7 @@
             "reasoningEffort": ["high", "max"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": [0.22, 0.66, 0.007],
+                "pricing": [0.15, 0.6, 0.003],
                 "tiers": [{ "cron": "* 9-12,14-18 * * 1-5", "pricing": 2 }]
             }
         },
@@ -179,6 +179,20 @@
             "tokenPricing": [0.15, 0.5, 0.03]
         },
         {
+            "id": "glm-5.3-flashx",
+            "name": "GLM-5.3-FlashX (CmdC)",
+            "model": "z-ai/glm-5.3-flashx",
+            "tooltip": "CommandCode GOAT Plan — GLM-5.3-FlashX。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.37, 1.25, 0.075]
+        },
+        {
             "id": "gpt-5.6-luna",
             "name": "GPT-5.6 Luna (CmdC)",
             "model": "gpt-5.6-luna",
@@ -246,6 +260,23 @@
             "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "reasoningDefault": "high",
             "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": [2, 6, 0.5],
+                "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
+            }
+        },
+        {
+            "id": "grok-4.7",
+            "name": "Grok 4.7 (CmdC)",
+            "model": "xai/grok-4.7",
+            "tooltip": "CommandCode GOAT Plan — Grok-4.7。",
+            "sdkMode": "openai-sse",
+            "contextSize": [500000, 256000, 192000],
+            "maxInputTokens": 436000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],
                 "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
@@ -329,6 +360,42 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [3, 15, 0.3]
+        },
+        {
+            "id": "mimo-v2.6-flash",
+            "name": "MiMo-V2.6-Flash (CmdC)",
+            "model": "xiaomi/mimo-v2.6-flash",
+            "tooltip": "CommandCode GOAT Plan — MiMo-V2.6-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.14, 0.28, 0.0028]
+        },
+        {
+            "id": "mimo-v2.6-pro",
+            "name": "MiMo-V2.6-Pro (CmdC)",
+            "model": "xiaomi/mimo-v2.6-pro",
+            "tooltip": "CommandCode GOAT Plan — MiMo-V2.6-Pro。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.435, 0.87, 0.0036]
+        },
+        {
+            "id": "mimo-v2.6-pro-ultraspeed",
+            "name": "MiMo-V2.6-Pro-UltraSpeed (CmdC)",
+            "model": "xiaomi/mimo-v2.6-pro-ultraspeed",
+            "tooltip": "CommandCode GOAT Plan — MiMo-V2.6-Pro-UltraSpeed。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [4.35, 8.7, 0.036]
         },
         {
             "id": "mimo-v2.5",
@@ -522,6 +589,31 @@
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.834, 2.501, 0.042]
+        },
+        {
+            "id": "longcat-2.0",
+            "name": "LongCat-2.0 (CmdC)",
+            "model": "meituan/LongCat-2.0",
+            "tooltip": "CommandCode GOAT Plan — LongCat-2.0。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.006]
+        },
+        {
+            "id": "step-5-preview",
+            "name": "Step-5-Preview (CmdC)",
+            "model": "stepfun/Step-5-Preview",
+            "tooltip": "CommandCode GOAT Plan — Step-5-Preview。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1, 2.7, 0.05]
         }
     ]
 }

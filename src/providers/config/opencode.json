@@ -4,6 +4,25 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "grok-4.7-go",
+            "name": "Grok-4.7 (Go)",
+            "model": "grok-4.7",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 — Grok-4.7。",
+            "contextSize": [500000, 256000, 192000],
+            "maxInputTokens": 436000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "webSearchTool": true,
+            "tokenPricing": {
+                "pricing": [2, 6, 0.5],
+                "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
+            }
+        },
+        {
             "id": "grok-4.6-go",
             "name": "Grok-4.6 (Go)",
             "model": "grok-4.6",
@@ -14,7 +33,7 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "webSearchTool": true,
-            "capabilities": { "toolCalling": true, "imageInput": false },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],
                 "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
@@ -144,6 +163,36 @@
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.3, 1.2, 0.006]
+        },
+        {
+            "id": "mimo-v2.6-pro-go",
+            "name": "MiMo-V2.6-Pro (Go)",
+            "model": "mimo-v2.6-pro",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 — MiMo-V2.6-Pro。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.435, 0.87, 0.0036]
+        },
+        {
+            "id": "mimo-v2.6-flash-go",
+            "name": "MiMo-V2.6-Flash (Go)",
+            "model": "mimo-v2.6-flash",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 — MiMo-V2.6-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.14, 0.28, 0.0028]
         },
         {
             "id": "mimo-v2.5-go",
@@ -329,7 +378,7 @@
         {
             "id": "deepseek-v4.1-flash-go",
             "name": "DeepSeek-V4.1-Flash (Go)",
-            "model": "deepseek-flash",
+            "model": "deepseek-v4.1-flash",
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
             "tooltip": "OpenCode Go 套餐 - DeepSeek V4.1 Flash，快速经济的 API 服务。",
@@ -426,6 +475,19 @@
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.14, 0.58, 0.035]
+        },
+        {
+            "id": "deepseek-v4.1-flash-zen",
+            "name": "DeepSeek-V4.1-Flash (Zen)",
+            "model": "deepseek-v4.1-flash",
+            "tooltip": "OpenCode — DeepSeek-V4.1-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.3, 1.2, 0.006]
         },
         {
             "id": "deepseek-v4-flash-zen",
@@ -540,6 +602,24 @@
             "tokenPricing": [3, 15, 0.3]
         },
         {
+            "id": "grok-4.7-zen",
+            "name": "Grok-4.7 (Zen)",
+            "model": "grok-4.7",
+            "tooltip": "OpenCode — Grok-4.7。",
+            "sdkMode": "openai-responses",
+            "contextSize": [500000, 256000, 192000],
+            "maxInputTokens": 436000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high", "xhigh"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "webSearchTool": true,
+            "tokenPricing": {
+                "pricing": [2, 6, 0.5],
+                "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
+            }
+        },
+        {
             "id": "grok-4.6-zen",
             "name": "Grok-4.6 (Zen)",
             "model": "grok-4.6",
@@ -551,7 +631,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "medium", "high", "xhigh"],
             "webSearchTool": true,
-            "capabilities": { "toolCalling": true, "imageInput": false },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],
                 "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]

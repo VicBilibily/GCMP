@@ -11,7 +11,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "low"],
+            "reasoningEffort": ["high", "xhigh", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.3, 1.2, 0.03]
         },
@@ -117,7 +117,7 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 118000,
             "maxOutputTokens": 10000,
-            "reasoningEffort": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+            "reasoningEffort": ["low", "medium", "high"],
             "thinkingFormat": "effort-none",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.178, 0.68, 0.089]

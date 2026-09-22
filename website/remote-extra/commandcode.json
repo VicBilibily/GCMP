@@ -9,17 +9,6 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "longcat-2.0-free",
-            "name": "LongCat 2.0 Free (CmdC)",
-            "model": "meituan/LongCat-2.0:free",
-            "tooltip": "CommandCode GOAT Plan - LongCat 2.0 Free。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
 }

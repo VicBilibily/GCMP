@@ -7,7 +7,7 @@
         {
             "id": "mimo-v2.6-pro-token-plan",
             "name": "MiMo-V2.6-Pro (TokenPlan)",
-            "tooltip": "小米MiMo-V2.6-Pro Token Plan 专属接入点，全模态、超高性能、万亿参数的旗舰推理模型，支持深度思考、流式输出、函数调用、结构化输出。上下文长度 1M，最大输出 128K。",
+            "tooltip": "小米MiMo-V2.6-Pro Token Plan 专属接入点，旗舰推理模型，全模态、超高性能、万亿参数。上下文长度 1M，最大输出 128K。",
             "provider": "xiaomimimo-token",
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
@@ -22,22 +22,22 @@
         {
             "id": "mimo-v2.6-flash-token-plan",
             "name": "MiMo-V2.6-Flash (TokenPlan)",
-            "tooltip": "小米MiMo-V2.6-Flash Token Plan 专属接入点，全模态、高智能、低成本的高效推理模型，支持深度思考、流式输出、函数调用、结构化输出。上下文长度 1M，最大输出 128K。",
+            "tooltip": "小米MiMo-V2.6-Flash Token Plan 专属接入点，高效推理模型，全模态、高智能、低成本。上下文长度 1M，最大输出 128K。",
             "provider": "xiaomimimo-token",
-            "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
             "model": "mimo-v2.6-flash",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
         },
         {
             "id": "mimo-v2.6-pro",
             "name": "MiMo-V2.6-Pro",
-            "tooltip": "小米MiMo-V2.6-Pro 旗舰推理模型，全模态、超高性能、万亿参数，支持深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
+            "tooltip": "小米MiMo-V2.6-Pro 旗舰推理模型，全模态、超高性能、万亿参数，覆盖复杂项目、长程任务、高价值工作、网络安全与科研需求。上下文长度 1M，最大输出 128K。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
@@ -49,7 +49,7 @@
         {
             "id": "mimo-v2.6-flash",
             "name": "MiMo-V2.6-Flash",
-            "tooltip": "小米MiMo-V2.6-Flash 全模态高效推理模型，高智能、低成本，支持深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
+            "tooltip": "小米MiMo-V2.6-Flash 高效推理模型，全模态、高智能、低成本，面向专业办公中的高频调用与规模化任务的最佳均衡之选。上下文长度 1M，最大输出 128K。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
@@ -59,70 +59,16 @@
             "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
         },
         {
-            "id": "mimo-v2.5-pro-token-plan",
-            "name": "MiMo-V2.5-Pro (TokenPlan)",
-            "tooltip": "小米MiMo-V2.5-Pro Token Plan 专属接入点，支持文本生成、深度思考、流式输出、函数调用、结构化输出。上下文长度 1M，最大输出 128K。",
-            "provider": "xiaomimimo-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
-            "model": "mimo-v2.5-pro",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.435, 0.87, 0.0036], "RMB": [3, 6, 0.025] }
-        },
-        {
-            "id": "mimo-v2.5-token-plan",
-            "name": "MiMo-V2.5 (TokenPlan)",
-            "tooltip": "小米MiMo-V2.5 Token Plan 专属接入点，支持全模态理解、深度思考、流式输出、函数调用、结构化输出。上下文长度 1M，最大输出 128K。",
-            "provider": "xiaomimimo-token",
-            "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
-            "model": "mimo-v2.5",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
-        },
-        {
-            "id": "mimo-v2.5-pro-ultraspeed",
-            "name": "MiMo-V2.5-Pro-UltraSpeed",
-            "tooltip": "小米MiMo-V2.5-Pro 的 UltraSpeed 体验模式，万亿参数（1T）旗舰模型，最高突破 1000 tokens/s 推理速度，为极致实时场景而生。",
+            "id": "mimo-v2.6-pro-ultraspeed",
+            "name": "MiMo-V2.6-Pro-UltraSpeed",
+            "tooltip": "小米MiMo-V2.6-Pro 的 UltraSpeed 版本，兼顾旗舰性能，提供最高 20 倍输出速度，服务强实时交互与对响应速度敏感的生产场景。上下文长度 1M，最大输出 128K。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [1.305, 2.61, 0.0108], "RMB": [9, 18, 0.075] }
-        },
-        {
-            "id": "mimo-v2.5-pro",
-            "name": "MiMo-V2.5-Pro",
-            "tooltip": "小米MiMo-V2.5-Pro 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.435, 0.87, 0.0036], "RMB": [3, 6, 0.025] }
-        },
-        {
-            "id": "mimo-v2.5",
-            "name": "MiMo-V2.5",
-            "tooltip": "小米MiMo-V2.5 全模态理解模型，支持全模态理解、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
+            "tokenPricing": { "USD": [4.35, 8.7, 0.036], "RMB": [30, 60, 0.25] }
         }
     ]
 }
