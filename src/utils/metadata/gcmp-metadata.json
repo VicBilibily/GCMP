@@ -1,8 +1,8 @@
 {
     "schemaVersion": 1,
-    "contentHash": "368f63c6bb20",
+    "contentHash": "0c05264414e4",
     "cli": {
-        "claudeCode": { "version": "2.1.263" },
-        "codexTui": { "version": "0.153.4", "originator": "codex-tui" }
+        "claudeCode": { "version": "2.1.280" },
+        "codexTui": { "version": "0.156.0", "originator": "codex-tui" }
     }
 }
