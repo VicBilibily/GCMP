@@ -388,6 +388,20 @@
                 "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] } }]
             }
         },
+        {
+            "id": "auto-token-plan",
+            "name": "Auto (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。平台智能路由模型，自动匹配底层模型，平衡质量与成本，按实际路由到的模型扣减 Credits，故不提供固定 token 计价。",
+            "provider": "dashscope-token",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "auto",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
 
         {
             "id": "qwen3.8-max-token-plan-personal",
@@ -579,6 +593,21 @@
                 "pricing": { "USD": [0.212, 0.636, 0.021], "RMB": [1.5, 4.5, 0.15] },
                 "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [0.424, 1.272, 0.042], "RMB": [3, 9, 0.3] } }]
             }
+        },
+
+        {
+            "id": "auto-token-plan-personal",
+            "name": "Auto (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。平台智能路由模型，自动匹配底层模型，平衡质量与成本，按实际路由到的模型扣减 Credits，故不提供固定 token 计价。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "auto",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
 
         {
