@@ -179,6 +179,58 @@
                     "summary": "auto"
                 }
             }
+        },
+        {
+            "id": "gpt-6-sol",
+            "name": "GPT-6 Sol (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "OpenAI GPT-6 模型，为复杂编程与智能体工作流打造，相比 GPT-5.6 Sol 事实可靠性更强、沟通更清晰",
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
+            "webSearchTool": true,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh", "max"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [2, 10, 0.2, 2.5],
+                "tiers": [{ "serviceTier": "priority", "pricing": [4, 20, 0.4, 5] }]
+            },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
+            "id": "gpt-6-luna",
+            "name": "GPT-6 Luna (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "OpenAI 最高效的 GPT-6 模型，适合摘要、信息提取、聚焦编程等目标明确的高频任务，支持 Max 推理强度",
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
+            "webSearchTool": true,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh", "max"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [0.1, 0.5, 0.01, 0.125],
+                "tiers": [{ "serviceTier": "priority", "pricing": [0.2, 1, 0.02, 0.25] }]
+            },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
         }
     ]
 }

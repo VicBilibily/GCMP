@@ -198,9 +198,9 @@
             "model": "gpt-5.6-luna",
             "tooltip": "CommandCode GOAT Plan - GPT-5.6 Luna。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.2, 1.2, 0.02, 0.25],
@@ -219,13 +219,34 @@
             "model": "gpt-5.6-sol",
             "tooltip": "CommandCode GOAT Plan - GPT-5.6 Sol。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [5, 30, 0.5, 6.25],
                 "tiers": [{ "contextSizeMin": 272001, "pricing": [10, 45, 1, 12.5] }]
+            },
+            "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": { "effort": "medium", "summary": "auto" }
+            }
+        },
+        {
+            "id": "gpt-6-luna",
+            "name": "GPT-6 Luna (CmdC)",
+            "model": "gpt-6-luna",
+            "tooltip": "CommandCode GOAT Plan - GPT-6 Luna。",
+            "sdkMode": "openai-sse",
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [0.1, 0.5, 0.01, 0.125],
+                "tiers": [{ "contextSizeMin": 272001, "pricing": [0.2, 0.75, 0.02, 0.25] }]
             },
             "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
             "extraBody": {
