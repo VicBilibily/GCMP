@@ -1,7 +1,7 @@
 export const OPENAI_COMPATIBLE_SERVICE_TIERS = ['default', 'auto', 'flex', 'priority'] as const;
 export const ANTHROPIC_COMPATIBLE_SERVICE_TIERS = ['standard_only', 'auto'] as const;
 
-export type CompatibleSdkMode = 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
+export type CompatibleSdkMode = 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses' | 'gemini';
 
 /**
  * 各 sdkMode 下常见的服务等级建议值，仅用于模型编辑器勾选项与 settings.json 自动补全。

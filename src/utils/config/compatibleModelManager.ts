@@ -81,7 +81,7 @@ export interface CompatibleModelConfig {
     /** 最大输出token数 */
     maxOutputTokens: number;
     /** SDK模式 */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses' | 'gemini';
     /** 模型能力 */
     capabilities: {
         /** 工具调用 */
@@ -191,6 +191,8 @@ export class CompatibleModelManager {
         switch (sdkMode) {
             case 'anthropic':
                 return 'Anthropic';
+            case 'gemini':
+                return 'Gemini';
             case 'openai':
             case 'openai-sse':
             case 'openai-responses':

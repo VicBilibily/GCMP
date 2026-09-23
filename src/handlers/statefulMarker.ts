@@ -20,7 +20,7 @@ export interface StatefulMarkerContainer {
     extension: StatefulMarkerExtension;
     provider: string;
     modelId: string;
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic';
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini';
     /** 会话ID，标识会话上下文 */
     sessionId: string;
     /** 响应ID，模型返回响应标识 */
@@ -39,6 +39,12 @@ export interface StatefulMarkerContainer {
     encryptedThinkingData?: string[];
     /** 当前 assistant 轮次是否发生过工具调用 */
     hasToolCalls?: boolean;
+    /**
+     * Gemini functionCall part 的 thoughtSignature
+     * key 为 functionCall.id（优先）或函数名（id 缺省时）
+     * Google 要求签名随原 functionCall part 原样回传，多轮工具调用时必须保留
+     */
+    toolCallSignatures?: Record<string, string>;
     /** 跨轮次持久化的 API 实际 usage（归一化格式），供下轮增量 token 预估 */
     usage?: MarkerUsage;
 }

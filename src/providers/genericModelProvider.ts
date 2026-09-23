@@ -33,6 +33,7 @@ import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
+import { GeminiHandler } from '../handlers/geminiHandler';
 import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../handlers/anthropic/anthropicRetry';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -121,6 +122,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiCustomHandler: OpenAICustomHandler;
     protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
     protected readonly anthropicHandler: AnthropicHandler;
+    protected readonly geminiHandler: GeminiHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -173,6 +175,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiResponsesHandler = new OpenAIResponsesHandler(this, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
+        // 创建 Gemini API 兼容处理器
+        this.geminiHandler = new GeminiHandler(this);
 
         // 延迟触发模型信息变更事件，确保所有提供商都已注册完成后重新报告一次模型列表
         setTimeout(() => {
@@ -639,6 +643,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (sdkMode === 'openai-responses') {
             return 'OpenAI Responses API';
         }
+        if (sdkMode === 'gemini') {
+            return 'Gemini API';
+        }
         return 'OpenAI SDK';
     }
 
@@ -795,6 +802,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             );
                         } else if (sdkMode === 'openai-responses') {
                             await this.openaiResponsesHandler.handleResponsesRequest(
+                                model,
+                                { ...modelConfig, provider: effectiveProviderKey },
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                requestStartTime,
+                                handleAttemptStarted,
+                                wasThrottled
+                            );
+                        } else if (sdkMode === 'gemini') {
+                            await this.geminiHandler.handleRequest(
                                 model,
                                 { ...modelConfig, provider: effectiveProviderKey },
                                 messages,

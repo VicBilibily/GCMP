@@ -530,7 +530,9 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 ### `sdkMode`
 
-`gcmp.compatibleModels[*].sdkMode` 指定请求/流式解析方式，可选值：`openai`（默认）、`openai-sse`、`openai-responses`、`anthropic`。
+`gcmp.compatibleModels[*].sdkMode` 指定请求/流式解析方式，可选值：`openai`（默认）、`openai-sse`、`openai-responses`、`anthropic`、`gemini`。
+
+`sdkMode=gemini` 使用 Google Generative Language API（`:streamGenerateContent?alt=sse`）：思维链以 `thought` part 内联返回（恢复到 Copilot Chat 思考过程），工具调用使用 `functionCall`/`functionResponse`。官方 Google 端点（`generativelanguage.googleapis.com`）使用 `x-goog-api-key` 认证，其他网关使用 `Authorization: Bearer`。
 
 ### Anthropic 提示缓存 TTL：`cacheTtl`
 

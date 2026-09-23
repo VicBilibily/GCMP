@@ -564,6 +564,10 @@ export class JsonSchemaProvider {
             t(
                 'Anthropic SDK standard mode, using the official Anthropic SDK for request/response handling',
                 'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理'
+            ),
+            t(
+                'Gemini API compatible mode, using the Google Generative Language API (:streamGenerateContent) for request/response handling',
+                'Gemini API 兼容模式，使用 Google Generative Language API (:streamGenerateContent) 进行请求响应处理'
             )
         ];
     }
@@ -947,7 +951,7 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini'],
                                 enumDescriptions: this.getSdkModeEnumDescriptions(),
                                 description: t('SDK mode defaults to openai.', 'SDK模式默认为 openai。'),
                                 default: 'openai'
@@ -1648,7 +1652,7 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini'],
                                 enumDescriptions: [
                                     t('OpenAI SDK standard mode', 'OpenAI SDK 标准模式'),
                                     t(

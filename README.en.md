@@ -525,7 +525,9 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 
 ### `sdkMode`
 
-`gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`.
+`gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`, `gemini`.
+
+`sdkMode=gemini` uses the Google Generative Language API (`:streamGenerateContent?alt=sse`): thinking content is returned inline as `thought` parts (restored into the Copilot Chat thinking process), and tool calls use `functionCall`/`functionResponse`. Official Google endpoints (`generativelanguage.googleapis.com`) authenticate with `x-goog-api-key`; other gateways use `Authorization: Bearer`.
 
 ### Anthropic prompt cache TTL: `cacheTtl`
 

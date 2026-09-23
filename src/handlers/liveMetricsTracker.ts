@@ -39,10 +39,11 @@ const PLACEHOLDER_RESPONSES_ID = 'fc_' + '0'.repeat(24);
  * - anthropic: 内部 chat template 把 schema 字段名（type/id/name/input）作为标签而非字符串，
  *   比 JSON.stringify 紧凑约 30%（实测反馈：JSON.stringify 系统性高估 tool_use 结构开销）
  */
-const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'anthropic', number> = {
+const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'anthropic' | 'gemini', number> = {
     openai: 1.0,
     'openai-responses': 1.0,
-    anthropic: 2 / 3
+    anthropic: 2 / 3,
+    gemini: 1.0
 };
 
 /**
@@ -50,7 +51,7 @@ const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'an
  * 用于估算 provider 真实 output_tokens（包含 id/type/包装层等开销）。
  */
 function buildProviderToolCallText(
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic',
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
     name: string,
     argsJson: string
 ): string {
@@ -100,7 +101,7 @@ function buildProviderToolCallText(
  * - openai/openai-responses: args 是 stringified JSON（带转义），即 argsJson 原文
  * - anthropic: args 是对象，需要 parse + stringify（去除 argsJson 多余空白）
  */
-function buildProviderArgsOnlyText(sdkMode: 'openai' | 'openai-responses' | 'anthropic', argsJson: string): string {
+function buildProviderArgsOnlyText(sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini', argsJson: string): string {
     if (sdkMode === 'anthropic') {
         try {
             return JSON.stringify(JSON.parse(argsJson));
@@ -363,7 +364,7 @@ export class LiveMetricsTracker {
      * @param name 函数名
      * @param argsJson 已累积的 args JSON 字符串（用于计算扣除部分）
      */
-    reportToolCallOverhead(sdkMode: 'openai' | 'openai-responses' | 'anthropic', name: string, argsJson: string): void {
+    reportToolCallOverhead(sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini', name: string, argsJson: string): void {
         if (!this.tokenizer || !name) {
             return;
         }

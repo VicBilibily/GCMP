@@ -106,6 +106,8 @@ export class StreamReporter {
     private readonly encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = [];
     /** 累积当前轮次的 anthropic redacted_thinking 加密 data 列表，供 StatefulMarker 持久化 */
     private readonly encryptedThinkingData: string[] = [];
+    /** Gemini functionCall part 的 thoughtSignature（工具名 -> 签名），供 StatefulMarker 持久化 */
+    private readonly toolCallSignatures = new Map<string, string>();
 
     /**
      * 安全获取共享 tokenizer 实例。未初始化或加载失败时返回 undefined，
@@ -332,6 +334,20 @@ export class StreamReporter {
     }
 
     /**
+     * Gemini 特殊：缓冲 functionCall part 携带的 thoughtSignature
+     *
+     * 与思考签名（bufferSignature）不同，该签名必须随原 functionCall part
+     * 原样回传（Google 要求），因此单独累积并持久化到 StatefulMarker，
+     * 不进入思考签名缓冲、不输出 ThinkingPart。
+     * @param key 键控标识：优先 functionCall.id，id 缺省时用函数名
+     */
+    bufferToolCallSignature(key: string, signature: string): void {
+        if (key && signature) {
+            this.toolCallSignatures.set(key, signature);
+        }
+    }
+
+    /**
      * Anthropic 特殊：输出完整签名并关联到当前 thinking
      *
      * 输出空文本 + signature metadata 的 ThinkingPart，不消费 thinking buffer 内容
@@ -512,6 +528,8 @@ export class StreamReporter {
             completeSignature,
             encryptedReasoning: this.encryptedReasonings.length > 0 ? [...this.encryptedReasonings] : undefined,
             encryptedThinkingData: this.encryptedThinkingData.length > 0 ? [...this.encryptedThinkingData] : undefined,
+            toolCallSignatures:
+                this.toolCallSignatures.size > 0 ? Object.fromEntries(this.toolCallSignatures) : undefined,
             hasToolCalls: this.hasToolCalls,
             usage: innerUsage,
             provider: this.provider,

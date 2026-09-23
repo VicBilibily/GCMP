@@ -171,5 +171,10 @@ export const SDK_MODE_OPTIONS: { value: SdkMode; labelEn: string; labelZh: strin
         value: 'anthropic',
         labelEn: 'Anthropic SDK (uses the official SDK for streaming responses)',
         labelZh: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)'
+    },
+    {
+        value: 'gemini',
+        labelEn: 'Gemini API (uses the Google Generative Language API :streamGenerateContent endpoint)',
+        labelZh: 'Gemini API (使用 Google Generative Language API :streamGenerateContent 端点)'
     }
 ];
