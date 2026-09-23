@@ -41,7 +41,45 @@ export function getNumberByPath(obj: unknown, path: string | undefined): number 
         return undefined;
     }
 
+    if (path.includes('[*]')) {
+        const values = getValuesByWildcardPath(obj, path) ?? [];
+        return values.reduce<number>((total, value) => total + toFiniteNumber(value), 0);
+    }
+
     const value = getValueByPath(obj, path);
+    return toFiniteNumberOrUndefined(value);
+}
+
+function getValuesByWildcardPath(obj: unknown, path: string): unknown[] | undefined {
+    const segments = path
+        .replace(/\[(\d+)\]/g, '.$1')
+        .replace(/\[\*\]/g, '.*')
+        .split('.')
+        .filter(s => s.length > 0);
+
+    const visit = (current: unknown, index: number): unknown[] | undefined => {
+        if (index === segments.length) {
+            return [current];
+        }
+        if (current == null || typeof current !== 'object') {
+            return undefined;
+        }
+
+        const segment = segments[index];
+        if (segment === '*') {
+            if (!Array.isArray(current)) {
+                return undefined;
+            }
+            return current.flatMap(item => visit(item, index + 1) ?? []);
+        }
+
+        return visit((current as Record<string, unknown>)[segment], index + 1);
+    };
+
+    return visit(obj, 0);
+}
+
+function toFiniteNumberOrUndefined(value: unknown): number | undefined {
     if (typeof value === 'number') {
         return Number.isFinite(value) ? value : undefined;
     }
@@ -52,4 +90,8 @@ export function getNumberByPath(obj: unknown, path: string | undefined): number 
     }
 
     return undefined;
+}
+
+function toFiniteNumber(value: unknown): number {
+    return toFiniteNumberOrUndefined(value) ?? 0;
 }

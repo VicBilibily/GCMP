@@ -31,6 +31,23 @@ describe('getValueByPath', () => {
         assert.strictEqual(getValueByPath(data, 'data.items[0].credit_balance'), 50000);
     });
 
+    it('sums numeric values matched by an array wildcard path', () => {
+        assert.strictEqual(getNumberByPath(data, 'data.items[*].credit_balance'), 60000);
+    });
+
+    it('treats unparseable wildcard values as zero', () => {
+        const partialData = {
+            data: {
+                items: [{ credit_balance: 50000 }, { credit_balance: 'invalid' }, {}]
+            }
+        };
+        assert.strictEqual(getNumberByPath(partialData, 'data.items[*].credit_balance'), 50000);
+    });
+
+    it('returns zero when a wildcard path cannot be resolved', () => {
+        assert.strictEqual(getNumberByPath({}, 'data.items[*].credit_balance'), 0);
+    });
+
     it('returns undefined for missing path', () => {
         assert.strictEqual(getValueByPath(data, 'data.missing'), undefined);
     });

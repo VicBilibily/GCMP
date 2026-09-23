@@ -571,6 +571,26 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 嵌套对象会先计算子表达式，再参与外层运算。
 
+路径中的 `[*]` 可匹配数组中的所有元素，并对目标字段求和。例如，`data.subscriptions[*].subscription.amount_total` 会汇总所有订阅的 `amount_total`。匹配不到数组、字段缺失或值无法解析为有限数字时按 `0` 处理；该规则也适用于嵌套计算，以及 `fields.paid` 和 `fields.granted`。
+
+```json
+{
+    "balance": {
+        "operation": "divide",
+        "paths": [
+            {
+                "operation": "subtract",
+                "paths": [
+                    "data.subscriptions[*].subscription.amount_total",
+                    "data.subscriptions[*].subscription.amount_used"
+                ]
+            },
+            500000
+        ]
+    }
+}
+```
+
 也就是说：
 
 - 只配置 `usage`：就是单一余额查询

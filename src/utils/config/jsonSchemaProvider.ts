@@ -2554,8 +2554,8 @@ export class JsonSchemaProvider {
                     type: 'object',
                     ...(requireCoreFields ? { required: ['balance'] } : {}),
                     description: t(
-                        'JSON response field paths (dot notation). Example: "data.balance" or "data[0].credit_balance".',
-                        'JSON 返回字段路径（dot 表示法）。示例："data.balance" 或 "data[0].credit_balance"。'
+                        'JSON response field paths (dot notation). Example: "data.balance" or "data[0].credit_balance". Use [*] to sum a numeric field across array items; unparseable items count as 0.',
+                        'JSON 返回字段路径（dot 表示法）。示例："data.balance" 或 "data[0].credit_balance"。使用 [*] 可对数组项中的数值字段求和；无法解析的项按 0 处理。'
                     ),
                     properties: {
                         balance: {
@@ -2635,8 +2635,8 @@ export class JsonSchemaProvider {
                         ]
                     },
                     description: t(
-                        'JSON field paths, constant values, or nested calculations used by the calculation',
-                        '参与计算的 JSON 字段路径、常量值或嵌套子计算'
+                        'JSON field paths, constant values, or nested calculations used by the calculation. Use [*] in a path to sum a numeric field across array items; unparseable items count as 0.',
+                        '参与计算的 JSON 字段路径、常量值或嵌套子计算。路径中使用 [*] 可对数组项中的数值字段求和；无法解析的项按 0 处理。'
                     )
                 },
                 treatMissingAsZero: {

@@ -74,6 +74,35 @@ describe('resolveUsageFieldValue', () => {
         assert.strictEqual(result, (1200 - 200) / 500000);
     });
 
+    it('sums wildcard array fields before applying the calculation', () => {
+        const subscriptions = {
+            data: {
+                subscriptions: [
+                    { subscription: { amount_total: 1200, amount_used: 200 } },
+                    { subscription: { amount_total: '800', amount_used: 'invalid' } }
+                ]
+            }
+        };
+        const result = resolveUsageFieldValue(
+            subscriptions,
+            {
+                operation: 'divide',
+                paths: [
+                    {
+                        operation: 'subtract',
+                        paths: [
+                            'data.subscriptions[*].subscription.amount_total',
+                            'data.subscriptions[*].subscription.amount_used'
+                        ]
+                    },
+                    100
+                ]
+            },
+            'balance'
+        );
+        assert.strictEqual(result, (1200 + 800 - 200) / 100);
+    });
+
     it('computes a/(b-c) with nested subtract as divisor', () => {
         const result = resolveUsageFieldValue(
             data,

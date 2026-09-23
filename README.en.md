@@ -566,6 +566,26 @@ For a `Compatible` custom provider, you can configure the following under `gcmp.
 
 Nested objects are evaluated first, and their results then participate in the outer calculation.
 
+Use `[*]` in a path to match every item in an array and sum the target field. For example, `data.subscriptions[*].subscription.amount_total` sums `amount_total` across all subscriptions. If the array or field is missing, or a value cannot be parsed as a finite number, it is treated as `0`; this also applies inside nested calculations and to `fields.paid` and `fields.granted`.
+
+```json
+{
+    "balance": {
+        "operation": "divide",
+        "paths": [
+            {
+                "operation": "subtract",
+                "paths": [
+                    "data.subscriptions[*].subscription.amount_total",
+                    "data.subscriptions[*].subscription.amount_used"
+                ]
+            },
+            500000
+        ]
+    }
+}
+```
+
 In other words:
 
 - configure only `usage`: a single balance query
