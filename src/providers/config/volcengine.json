@@ -124,6 +124,23 @@
             "tokenPricing": { "RMB": [9, 27, 0.3] }
         },
         {
+            "id": "ark-code-deepseek-v4.1-flash",
+            "name": "DeepSeek-V4.1-Flash (CodingPlan)",
+            "model": "deepseek-v4.1-flash",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。DeepSeek 全新架构系列的轻量旗舰模型，多项基准超越 DeepSeek-V4-Pro，原生具备多模态视觉理解能力。默认开启深度思考(thinking)，支持手动关闭。",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "RMB": [1, 4, 0.02] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
+        },
+        {
             "id": "ark-code-kimi-k2.7-code",
             "name": "Kimi-K2.7-Code (CodingPlan)",
             "model": "kimi-k2.7-code",
