@@ -20,6 +20,7 @@ import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { createEmptyNativeCostSplit, mergeNativeCostSplit } from './nativeCostSplit';
+import { canReuseHourlyStatsCache } from './hourlyCachePolicy';
 import { StatsCalculator } from './statsCalculator';
 import { AtomicJsonFile } from '../atomicJsonFile';
 import { SnapshotManager } from './snapshotManager';
@@ -42,7 +43,10 @@ import type {
 export class LogStatsManager {
     private readonly baseDir: string;
     private readonly indexManager: LogIndexManager;
-    private readonly inFlightRegenerations = new Map<string, Promise<TokenUsageStatsFromFile>>();
+    private readonly inFlightRegenerations = new Map<
+        string,
+        { promise: Promise<TokenUsageStatsFromFile>; forceHourlyRecompute: boolean }
+    >();
     private readonly writePermissionGate = new WritePermissionGate();
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
     private _codeVersionTimestamp: number = 0;
@@ -110,6 +114,9 @@ export class LogStatsManager {
      * @param ignoreCache 是否忽略缓存，强制重新计算
      */
     async getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
+        if (this.canWriteStats()) {
+            await this.indexManager.repairIfNeeded();
+        }
         // 优先尝试从持久化文件读取（如果不忽略缓存）
         if (!ignoreCache) {
             const saved = await this.loadStats(dateStr);
@@ -128,23 +135,30 @@ export class LogStatsManager {
             }
         }
 
-        return this.getOrCreateDateRegeneration(dateStr);
+        return this.getOrCreateDateRegeneration(dateStr, ignoreCache);
     }
 
     /**
      * 获取或创建指定日期的重算任务
      * 避免同一天被多个调用方并发重算时，旧快照在后写入覆盖新快照
      */
-    private getOrCreateDateRegeneration(dateStr: string): Promise<TokenUsageStatsFromFile> {
+    private getOrCreateDateRegeneration(
+        dateStr: string,
+        forceHourlyRecompute: boolean
+    ): Promise<TokenUsageStatsFromFile> {
         const inFlight = this.inFlightRegenerations.get(dateStr);
-        if (inFlight) {
+        if (inFlight && (!forceHourlyRecompute || inFlight.forceHourlyRecompute)) {
             StatusLogger.trace(`[LogStatsManager] Reusing in-flight stats regeneration task: ${dateStr}`);
-            return inFlight;
+            return inFlight.promise;
         }
 
         const regenerationPromise = (async () => {
+            if (inFlight) {
+                // 强制重算必须绕过普通任务的小时缓存，同时保持同日写盘串行。
+                await inFlight.promise.catch(() => undefined);
+            }
             StatusLogger.debug(`[LogStatsManager] Regenerating stats: ${dateStr}`);
-            const stats = await this.calculateDateStats(dateStr);
+            const stats = await this.calculateDateStats(dateStr, forceHourlyRecompute);
             // calculateDateStats 在签名一致时会直接返回 existingStats（未重算）。
             // 此时若版本戳已是当前代码版本，说明磁盘内容完全有效，跳过 saveDateStats 的重写 I/O。
             if (
@@ -160,12 +174,12 @@ export class LogStatsManager {
         })();
 
         const sharedPromise = regenerationPromise.finally(() => {
-            if (this.inFlightRegenerations.get(dateStr) === sharedPromise) {
+            if (this.inFlightRegenerations.get(dateStr)?.promise === sharedPromise) {
                 this.inFlightRegenerations.delete(dateStr);
             }
         });
 
-        this.inFlightRegenerations.set(dateStr, sharedPromise);
+        this.inFlightRegenerations.set(dateStr, { promise: sharedPromise, forceHourlyRecompute });
         return sharedPromise;
     }
 
@@ -199,10 +213,15 @@ export class LogStatsManager {
      *
      * @private 内部使用，通过 getDateStats 访问
      */
-    private async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
+    private async calculateDateStats(dateStr: string, forceHourlyRecompute: boolean): Promise<TokenUsageStatsFromFile> {
+        const calculationStartTime = Date.now();
         // 今天/昨天优先从 raw hourly .jsonl 读取，避免读到旧的 requests.jsonl 快照；
         // 更早日期优先从 requests.jsonl 快照读取（缓存命中时零 I/O），全量按小时分桶聚合。
         const snapshotRecords = this.shouldReadRawJsonl(dateStr) ? null : await this.snapshotManager.read(dateStr);
+        const existingStats = await this.loadStats(dateStr);
+        const isExistingStatsVersionCompatible =
+            existingStats?.versionTimestamp !== undefined &&
+            existingStats.versionTimestamp >= this.getCodeVersionTimestamp();
 
         // 计算快照记录指纹：records:completed:failed:cancelled:maxStreamEndTime
         // - records 变化：有新请求
@@ -236,19 +255,20 @@ export class LogStatsManager {
         // 必须同时校验 versionTimestamp：否则代码升级（统计口径变化）后，
         // 只要 signature 恰好一致，旧版本生成的 stats 会被原样返回并保存（versionTimestamp 被刷新），
         // 导致新口径永远不会重算。versionTimestamp 由 needsRegeneration/getCodeVersionTimestamp 控制。
-        const existingStats = await this.loadStats(dateStr);
         if (
             signature &&
             existingStats &&
             existingStats.recordSignature === signature &&
-            existingStats.versionTimestamp !== undefined &&
-            existingStats.versionTimestamp >= this.getCodeVersionTimestamp()
+            isExistingStatsVersionCompatible
         ) {
             StatusLogger.trace(`[LogStatsManager] Stats unchanged (sig: ${signature}), skip: ${dateStr}`);
             return existingStats;
         }
 
         const hourly: Record<string, HourlyStats> = {};
+        let rawHourFileCount = 0;
+        let rawReusedHours = 0;
+        let rawRecomputedHours = 0;
 
         if (snapshotRecords && snapshotRecords.length > 0) {
             // 按小时分桶（使用本地时区，与历史 .jsonl 文件名口径一致）
@@ -269,7 +289,7 @@ export class LogStatsManager {
                 const hourStats = StatsCalculator.aggregateLogs(hourRecords);
                 hourly[hourKey] = {
                     ...hourStats.total,
-                    modifiedTime: Date.now(),
+                    modifiedTime: existingStats?.hourly?.[hourKey]?.modifiedTime ?? Date.now(),
                     providers: hourStats.providers
                 };
             }
@@ -284,18 +304,40 @@ export class LogStatsManager {
                     .map(f => parseInt(f.slice(0, 2), 10))
                     .filter(h => !Number.isNaN(h) && h >= 0 && h <= 23)
                     .sort((a, b) => a - b);
+                rawHourFileCount = hourFiles.length;
                 for (const hour of hourFiles) {
                     const hourKey = String(hour).padStart(2, '0');
-                    const logs = await this.readManager.readHourLogs(dateStr, hour);
+                    const logFilePath = path.join(dateFolder, `${hourKey}.jsonl`);
+                    const sourceMtime = fsSync.statSync(logFilePath).mtimeMs;
+                    const cachedHourStats = existingStats?.hourly?.[hourKey];
+                    if (
+                        !forceHourlyRecompute &&
+                        canReuseHourlyStatsCache({
+                            cachedModifiedTime: cachedHourStats?.modifiedTime,
+                            sourceModifiedTime: sourceMtime,
+                            isVersionCompatible: isExistingStatsVersionCompatible
+                        }) &&
+                        cachedHourStats
+                    ) {
+                        hourly[hourKey] = cachedHourStats;
+                        rawReusedHours += 1;
+                        continue;
+                    }
+
+                    const logs = await this.readManager.readHourLogs(dateStr, hour, true);
                     const hourStats = StatsCalculator.aggregateLogs(logs);
                     hourly[hourKey] = {
                         ...hourStats.total,
-                        modifiedTime: Date.now(),
+                        modifiedTime: sourceMtime,
                         providers: hourStats.providers
                     };
+                    rawRecomputedHours += 1;
                 }
-            } catch {
-                StatusLogger.debug(`[LogStatsManager] Date folder does not exist or cannot be read: ${dateStr}`);
+            } catch (err) {
+                if (fsSync.existsSync(dateFolder)) {
+                    throw err;
+                }
+                StatusLogger.debug(`[LogStatsManager] Date folder does not exist: ${dateStr}`);
             }
         }
 
@@ -555,6 +597,15 @@ export class LogStatsManager {
         if (signature) {
             result.recordSignature = signature;
         }
+        if (snapshotRecords) {
+            StatusLogger.trace(
+                `[LogStatsManager] calculateDateStats(${dateStr}) snapshotRecords=${snapshotRecords.length}, hourlyBuckets=${Object.keys(hourly).length}, elapsed=${Date.now() - calculationStartTime}ms`
+            );
+        } else {
+            StatusLogger.trace(
+                `[LogStatsManager] calculateDateStats(${dateStr}) rawHours=${rawHourFileCount}, reused=${rawReusedHours}, recomputed=${rawRecomputedHours}, hourlyBuckets=${Object.keys(hourly).length}, elapsed=${Date.now() - calculationStartTime}ms`
+            );
+        }
         return result;
     }
 
@@ -694,6 +745,9 @@ export class LogStatsManager {
             // 被本进程的 readFile 句柄占用导致 EPERM。
             const content = await AtomicJsonFile.runExclusive(filePath, () => fs.readFile(filePath, 'utf-8'));
             const statsData: TokenUsageStatsFromFile = JSON.parse(content);
+            if (!statsData?.total || typeof statsData.total !== 'object' || Array.isArray(statsData.total)) {
+                throw new Error(`Invalid date stats: ${dateStr}`);
+            }
             StatusLogger.debug(`[LogStatsManager] Read daily stats from stats.json: ${dateStr}`);
             return statsData;
         } catch (err) {
@@ -724,6 +778,9 @@ export class LogStatsManager {
             // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
             const content = await AtomicJsonFile.runExclusive(statsFilePath, () => fs.readFile(statsFilePath, 'utf-8'));
             const statsData: TokenUsageStatsFromFile = JSON.parse(content);
+            if (!statsData?.total || typeof statsData.total !== 'object' || Array.isArray(statsData.total)) {
+                return true;
+            }
 
             // 检查版本时间戳
             const savedVersionTimestamp = statsData.versionTimestamp;
@@ -771,7 +828,16 @@ export class LogStatsManager {
             for (const logFile of logFiles) {
                 const logFilePath = path.join(dateFolder, logFile);
                 const logStats = fsSync.statSync(logFilePath);
-                if (logStats.mtimeMs >= statsMtime) {
+                // raw 的有效性取决于已读取的源版本，而不是 stats.json 的落盘时间。
+                const sourceChanged =
+                    statsData.recordSignature ?
+                        logStats.mtimeMs >= statsMtime
+                    :   !canReuseHourlyStatsCache({
+                            cachedModifiedTime: statsData.hourly?.[logFile.slice(0, 2)]?.modifiedTime,
+                            sourceModifiedTime: logStats.mtimeMs,
+                            isVersionCompatible: savedVersionTimestamp >= codeVersionTimestamp
+                        });
+                if (sourceChanged) {
                     StatusLogger.debug(
                         `[LogStatsManager] stats.json for ${dateStr} is outdated (log file ${logFile} changed)`
                     );
@@ -783,7 +849,7 @@ export class LogStatsManager {
             return false;
         } catch (err) {
             StatusLogger.warn(`[LogStatsManager] Failed to check whether date ${dateStr} needs regeneration:`, err);
-            return false;
+            return true;
         }
     }
 }

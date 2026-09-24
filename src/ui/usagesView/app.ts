@@ -19,7 +19,7 @@ import { LiveMetricsRenderer } from './liveMetricsRenderer';
 
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
-import { createMainContent, updateMainContent } from './components/mainContent';
+import { createMainContent, updateDateLoadError, updateMainContent } from './components/mainContent';
 import {
     createRequestRecordsSection,
     fetchDetailByCurrentView,
@@ -46,6 +46,7 @@ const state: State = {
     displayCurrency: 'MIXED',
     dateList: [],
     dateDetails: null,
+    dateLoadError: null,
     loading: {
         dateDetails: false
     }
@@ -102,6 +103,7 @@ function subscribeState(listener: StateListener): () => void {
  */
 function setLoading(type: 'dateDetails', isLoading: boolean): void {
     setState({
+        dateLoadError: isLoading ? null : state.dateLoadError,
         loading: {
             ...state.loading,
             [type]: isLoading
@@ -216,6 +218,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
 
             setState({
                 selectedDate: message.date,
+                dateLoadError: null,
                 selectedSessionId: nextSelectedSessionId,
                 selectedSessionIds: nextSelectedSessionIds,
                 displayCurrency: normalizeDisplayCurrency(state.displayCurrency, message.allTotals),
@@ -333,6 +336,17 @@ function handleVSCodeMessage(event: MessageEvent): void {
             break;
         }
 
+        case 'dateLoadError':
+            if (message.date !== (state.selectedDate || state.today)) {
+                break;
+            }
+            setState({
+                selectedDate: message.date,
+                dateLoadError: message.date,
+                loading: { ...state.loading, dateDetails: false }
+            });
+            break;
+
         case 'detailLoadError': {
             const details = state.dateDetails;
             if (!details || details.date !== message.date) {
@@ -398,6 +412,9 @@ function updateRequestRecords(): void {
  * 刷新所有视图
  */
 function refreshViews(prevState: State, patch: Partial<State>): void {
+    if ('dateLoadError' in patch) {
+        updateDateLoadError();
+    }
     if (patch.dateList || patch.selectedDate !== undefined || patch.today !== undefined) {
         updateDateList(state.dateList);
     }
@@ -504,6 +521,7 @@ function initApp(): void {
     window.usagesState = state;
     window.usagesSetLoading = setLoading;
     window.usagesLiveMetrics = new Map();
+    window.usagesRenderLiveMetrics = () => liveMetricsRenderer.render();
 
     // 创建主容器
     const container = createElement('div', 'container');

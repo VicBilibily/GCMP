@@ -26,6 +26,7 @@ interface LiveMetricsState extends LiveRequestUiState {
     tokensPerSecond: number; // 实时估算的输出 token 速度（暂停期间冻结）
     lastOutputChangeAt: number; // 最后一次 flush 接收到非零 token 增量的时间
     hasFirstChunk: boolean; // 首流延迟/流开始时间已固定（retry 幂等）
+    endedAt?: number;
 }
 
 /**
@@ -38,6 +39,7 @@ export interface LiveMetricsRendererDeps {
 
 // 共享渲染时钟（rAF + 200ms 节流）
 const LIVE_RENDER_INTERVAL_MS = 200;
+const ENDED_METRICS_TTL_MS = 30_000;
 
 export class LiveMetricsRenderer {
     private readonly getState: () => State;
@@ -65,15 +67,29 @@ export class LiveMetricsRenderer {
      */
     handleEvent(event: LiveStreamMetricEvent): void {
         const { requestId } = event;
+        const current = this.liveMetricsMap.get(requestId);
+        if (current && event.type !== 'streamEnd') {
+            if (event.requestStartTime < current.attemptStartTime) {
+                return;
+            }
+            if (event.requestStartTime === current.attemptStartTime) {
+                if (
+                    ((event.type === 'requestStarted' || event.type === 'rateLimitWaiting') &&
+                        !current.isRateLimitWaiting) ||
+                    (event.type === 'firstChunk' && current.streamStartTime !== undefined) ||
+                    (event.type === 'streamingUpdate' &&
+                        event.lastFlushSeq !== undefined &&
+                        event.lastFlushSeq < current.lastFlushSeq)
+                ) {
+                    return;
+                }
+            }
+        }
 
         switch (event.type) {
             case 'requestStarted': {
                 const state = this.getOrCreateState(requestId, event);
                 this.syncAttemptState(state, event);
-                state.streamStartTime = undefined;
-                state.firstChunkLatencyMs = 0;
-                state.hasFirstChunk = false;
-                this.resetAttemptOutput(state);
                 this.commitState(requestId, state);
                 break;
             }
@@ -122,10 +138,11 @@ export class LiveMetricsRenderer {
             }
 
             case 'streamEnd': {
-                this.liveMetricsMap.delete(requestId);
-                this.rowCache.delete(requestId);
+                if (current) {
+                    current.endedAt ??= Date.now();
+                }
                 this.syncWindowLiveMetricState(requestId);
-                if (this.liveMetricsMap.size === 0) {
+                if (!this.hasActiveMetrics()) {
                     this.stopRenderClock();
                 }
                 break;
@@ -172,12 +189,21 @@ export class LiveMetricsRenderer {
 
     // ============= 内部：渲染时钟 =============
 
+    private hasActiveMetrics(): boolean {
+        for (const state of this.liveMetricsMap.values()) {
+            if (state.endedAt === undefined) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private startRenderClock(): void {
-        if (!this.isViewingToday() || this.liveMetricsMap.size === 0 || this.renderClockId !== undefined) {
+        if (!this.isViewingToday() || !this.hasActiveMetrics() || this.renderClockId !== undefined) {
             return;
         }
         const tick = (frameTime: number): void => {
-            if (!this.isViewingToday() || this.liveMetricsMap.size === 0) {
+            if (!this.isViewingToday() || !this.hasActiveMetrics()) {
                 this.renderClockId = undefined;
                 this.lastRenderAt = 0;
                 return;
@@ -218,10 +244,12 @@ export class LiveMetricsRenderer {
     }
 
     private getOrCreateState(requestId: string, event: LiveStreamMetricEvent): LiveMetricsState {
-        return this.liveMetricsMap.get(requestId) ?? this.createEmptyLiveMetricsState(event);
+        const state = this.liveMetricsMap.get(requestId);
+        return state?.attemptStartTime === event.requestStartTime ? state : this.createEmptyLiveMetricsState(event);
     }
 
     private commitState(requestId: string, state: LiveMetricsState): void {
+        state.endedAt = undefined;
         this.liveMetricsMap.set(requestId, state);
         this.syncWindowLiveMetricState(requestId, state);
         this.startRenderClock();
@@ -270,7 +298,7 @@ export class LiveMetricsRenderer {
         if (resetOutput) {
             this.resetAttemptOutput(state);
         }
-        state.hasFirstChunk = true;
+        state.hasFirstChunk = event.streamStartTime !== undefined;
     }
 
     private resetAttemptOutput(state: LiveMetricsState): void {
@@ -320,7 +348,14 @@ export class LiveMetricsRenderer {
      * 不创建任何占位行——如果当前页/筛选下没有该请求的真实行，实时指标就不展示，
      * 等明细页刷新把记录写入正确位置时（用户切到对应页/取消筛选）再显示。
      */
-    private render(): void {
+    render(): void {
+        const now = Date.now();
+        for (const [requestId, state] of this.liveMetricsMap) {
+            if (state.endedAt !== undefined && now - state.endedAt >= ENDED_METRICS_TTL_MS) {
+                this.liveMetricsMap.delete(requestId);
+                this.rowCache.delete(requestId);
+            }
+        }
         // 仅在今天页面渲染实时指标，不污染历史日期
         if (!this.isViewingToday()) {
             return;
@@ -337,8 +372,6 @@ export class LiveMetricsRenderer {
             return;
         }
 
-        const now = Date.now();
-
         this.liveMetricsMap.forEach((metricState, requestId) => {
             // 只更新已存在的真实记录行；找不到就跳过（不创建占位行）
             const targetRow = this.resolveTargetRow(tbodys, requestId);
@@ -349,16 +382,22 @@ export class LiveMetricsRenderer {
             // 跳过已完成/失败的行，避免实时值覆盖最终统计
             const requestStatus = targetRow.getAttribute('data-request-status');
             if (requestStatus === 'completed' || requestStatus === 'failed' || requestStatus === 'cancelled') {
+                if (metricState.endedAt !== undefined) {
+                    this.liveMetricsMap.delete(requestId);
+                    this.rowCache.delete(requestId);
+                }
                 return;
             }
 
+            const isEnded = metricState.endedAt !== undefined;
+            const metricTime = metricState.endedAt ?? now;
             const waitingPresentation = getLiveWaitingPresentation(metricState);
             const isWaiting = waitingPresentation.isWaiting;
 
             const statusCell = targetRow.lastElementChild as HTMLElement | null;
             const statusLabel = statusCell?.querySelector('.status-label') as HTMLElement | null;
             if (statusCell && statusLabel) {
-                if (isWaiting) {
+                if (isWaiting && !isEnded) {
                     statusCell.classList.remove(
                         'status-completed',
                         'status-failed',
@@ -376,18 +415,21 @@ export class LiveMetricsRenderer {
                         'status-waiting'
                     );
                     statusCell.classList.add('status-estimated');
-                    statusLabel.textContent = 'ACTIVE';
-                    statusLabel.title = '';
+                    statusLabel.textContent = isEnded ? 'SYNC' : 'ACTIVE';
+                    statusLabel.title =
+                        isEnded ? t('Waiting for final records or live state sync', '等待最终统计或实时状态同步') : '';
                 }
             }
 
             // 实时计算首流延迟：首流事件前持续增长，首流事件后固定
             const hasStreamStarted = metricState.streamStartTime !== undefined;
             const latencyMs =
-                hasStreamStarted ? metricState.firstChunkLatencyMs : Math.max(0, now - metricState.attemptStartTime);
+                hasStreamStarted ?
+                    metricState.firstChunkLatencyMs
+                :   Math.max(0, metricTime - metricState.attemptStartTime);
 
             // 实时计算输出耗时：首流事件后开始计算
-            const durationMs = hasStreamStarted ? Math.max(0, now - metricState.streamStartTime!) : 0;
+            const durationMs = hasStreamStarted ? Math.max(0, metricTime - metricState.streamStartTime!) : 0;
 
             // 输出速度：使用 tracker 缓存的 tokensPerSecond，暂停期间不会衰减
             const tokensPerSecond = metricState.tokensPerSecond ?? 0;
@@ -405,8 +447,8 @@ export class LiveMetricsRenderer {
                 if (ttftSpan) {
                     if (isWaiting) {
                         ttftSpan.title = t(
-                            'Still waiting for rate limit grant; TTFT starts after the upstream request is sent.',
-                            '仍在等待限流放行；真正发起上游请求后才开始计算 TTFT。'
+                            'TTFT starts only after the upstream request is sent.',
+                            '真正发起上游请求后才开始计算 TTFT。'
                         );
                         ttftSpan.textContent = '-';
                     } else {
@@ -419,8 +461,8 @@ export class LiveMetricsRenderer {
                 const tpotSpan = outputCell.querySelector('.output-tpot') as HTMLElement;
                 if (tpotSpan) {
                     if (isWaiting) {
-                        tpotSpan.textContent = waitingPresentation.queuePositionText;
-                        tpotSpan.title = waitingPresentation.queuePositionTitle;
+                        tpotSpan.textContent = isEnded ? '-' : waitingPresentation.queuePositionText;
+                        tpotSpan.title = isEnded ? '' : waitingPresentation.queuePositionTitle;
                     } else {
                         tpotSpan.textContent =
                             durationMs > 0 ?
@@ -450,7 +492,7 @@ export class LiveMetricsRenderer {
                 if (speedSpan) {
                     // 过时检测：长时间没有新的 provider 输出时，避免冻结的旧 speed 被误解为仍在实时更新
                     const lastOutputChangeAt = metricState.lastOutputChangeAt ?? 0;
-                    const outputStaleMs = lastOutputChangeAt > 0 ? now - lastOutputChangeAt : 0;
+                    const outputStaleMs = lastOutputChangeAt > 0 ? metricTime - lastOutputChangeAt : 0;
                     const isStale =
                         hasStreamStarted &&
                         metricState.estimatedOutputTokens > 0 &&

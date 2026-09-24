@@ -27,6 +27,7 @@ import type { TokenRequestLog } from './types';
 
 export class SnapshotManager {
     private readonly pathManager: LogPathManager;
+    private readonly onRawLogsDeleted: (dateStr: string) => void;
 
     // requests.jsonl 按文件 mtime 失效；不缓存 merged 结果。
     private readonly recordCache = new Map<
@@ -41,8 +42,9 @@ export class SnapshotManager {
     // 同一天的 requests.jsonl 写入串行化，避免并发构建时旧快照覆盖新快照
     private readonly snapshotWriteChains = new Map<string, Promise<void>>();
 
-    constructor(pathManager: LogPathManager) {
+    constructor(pathManager: LogPathManager, onRawLogsDeleted: (dateStr: string) => void) {
         this.pathManager = pathManager;
+        this.onRawLogsDeleted = onRawLogsDeleted;
     }
 
     /** 读取历史 requests.jsonl */
@@ -184,6 +186,7 @@ export class SnapshotManager {
                     await this.writeSnapshotFile(dateStr, store);
                     // 删除原始 .jsonl（已全量合入 requests.jsonl），释放磁盘空间
                     await Promise.all(jsonlFiles.map(f => fs.rm(path.join(dateFolder, f), { force: true })));
+                    this.onRawLogsDeleted(dateStr);
                     compactedCount++;
                     StatusLogger.debug(
                         `[SnapshotManager] Compacted historical date ${dateStr}: ${Object.keys(store).length} records`
@@ -211,6 +214,7 @@ export class SnapshotManager {
                 return;
             }
             await Promise.all(jsonlFiles.map(f => fs.rm(path.join(dateFolder, f), { force: true })));
+            this.onRawLogsDeleted(dateStr);
         } catch (err) {
             StatusLogger.warn(`[SnapshotManager] Failed to purge .jsonl for ${dateStr}`, err);
         }
@@ -419,10 +423,6 @@ export class SnapshotManager {
     }
 
     private async readFile(filePath: string): Promise<SnapshotFile> {
-        try {
-            return parseSnapshotFileContent(await fs.readFile(filePath, 'utf-8'));
-        } catch {
-            return {};
-        }
+        return parseSnapshotFileContent(await fs.readFile(filePath, 'utf-8'));
     }
 }

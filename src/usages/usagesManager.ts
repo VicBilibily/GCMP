@@ -19,7 +19,8 @@ import type {
     GenericUsageData,
     OTelTraceContextLog,
     RawUsageData,
-    SessionRecoverySource
+    SessionRecoverySource,
+    TokenRequestLog
 } from './fileLogger/types';
 import type { MultiDayAnalysisResult } from './multiDay/types';
 import { MultiDayAggregator } from './multiDay/multiDayAggregator';
@@ -325,7 +326,7 @@ export class TokenUsagesManager {
      */
     async getAllDateSummaries(): Promise<DateSummary[]> {
         // 使用索引文件快速获取所有日期的摘要
-        const summariesMap = await this.fileLogger.getIndex();
+        const summariesMap = await this.fileLogger.getIndexFast();
         const summaries: DateSummary[] = [];
 
         for (const [date, entry] of Object.entries(summariesMap) as [string, DateIndexEntry][]) {
@@ -482,16 +483,20 @@ export class TokenUsagesManager {
             return;
         }
 
-        const summaries = await this.getAllDateSummaries();
-        const oldestAllowedDate = DateUtils.getDateStringDaysAgo(MAX_SESSION_TITLE_LOOKBACK_DAYS);
-        for (const summary of summaries) {
+        let historyReadFailed = false;
+        for (let daysAgo = 0; daysAgo <= MAX_SESSION_TITLE_LOOKBACK_DAYS; daysAgo++) {
             if (unresolved.size === 0) {
                 break;
             }
-            if (summary.date < oldestAllowedDate) {
-                break;
+            const date = DateUtils.getDateStringDaysAgo(daysAgo);
+            let details: TokenRequestLog[];
+            try {
+                details = await this.fileLogger.getRequestDetails(date);
+            } catch (error) {
+                historyReadFailed = true;
+                StatusLogger.warn(`[UsagesManager] Failed to read historical session titles for ${date}:`, error);
+                continue;
             }
-            const details = await this.fileLogger.getRequestDetails(summary.date);
             this.seedSessionTitlesFromLogs(details);
             for (const record of details) {
                 if (!record.sessionId || !unresolved.has(record.sessionId) || !record.sessionTitle) {
@@ -501,8 +506,10 @@ export class TokenUsagesManager {
             }
         }
 
-        for (const sessionId of unresolved) {
-            this.setHistoricalSessionTitleCache(sessionId, null);
+        if (!historyReadFailed) {
+            for (const sessionId of unresolved) {
+                this.setHistoricalSessionTitleCache(sessionId, null);
+            }
         }
     }
 

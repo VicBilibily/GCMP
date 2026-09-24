@@ -10,6 +10,7 @@ import * as path from 'path';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogPathManager } from './logPathManager';
 import { DateUtils } from './dateUtils';
+import { canReuseHourlyDetailsCache } from './hourlyCachePolicy';
 import { StatsCalculator } from './statsCalculator';
 import type { TokenRequestLog } from './types';
 
@@ -18,18 +19,42 @@ import type { TokenRequestLog } from './types';
  * 只负责文件 I/O，统计计算委托给 StatsCalculator
  */
 export class LogReadManager {
+    private static readonly MAX_HOUR_DETAILS_CACHE_ENTRIES = 48;
     private readonly pathManager: LogPathManager;
+    private readonly hourDetailsCache = new Map<string, { mtime: number; details: TokenRequestLog[] }>();
+    private cacheGeneration = 0;
+    private disposed = false;
 
     constructor(pathManager: LogPathManager) {
         this.pathManager = pathManager;
     }
 
+    invalidateDateCache(dateStr: string): void {
+        this.cacheGeneration += 1;
+        const prefix = `${dateStr}:`;
+        for (const cacheKey of this.hourDetailsCache.keys()) {
+            if (cacheKey.startsWith(prefix)) {
+                this.hourDetailsCache.delete(cacheKey);
+            }
+        }
+    }
+
+    clearCache(): void {
+        this.cacheGeneration += 1;
+        this.hourDetailsCache.clear();
+    }
+
+    dispose(): void {
+        this.disposed = true;
+        this.clearCache();
+    }
+
     /**
      * 读取指定小时的所有日志
      */
-    async readHourLogs(dateStr: string, hour: number): Promise<TokenRequestLog[]> {
+    async readHourLogs(dateStr: string, hour: number, throwOnFailure = false): Promise<TokenRequestLog[]> {
         const filePath = this.pathManager.getHourFilePath(dateStr, hour);
-        if (!fsSync.existsSync(filePath)) {
+        if (!throwOnFailure && !fsSync.existsSync(filePath)) {
             return [];
         }
 
@@ -38,6 +63,9 @@ export class LogReadManager {
             return this.parseJsonlContent(content);
         } catch (err) {
             StatusLogger.error(`[LogReadManager] Failed to read hourly log: ${filePath}`, err);
+            if (throwOnFailure) {
+                throw err;
+            }
             return [];
         }
     }
@@ -84,11 +112,31 @@ export class LogReadManager {
      * 用于详情页面展示
      */
     async getRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
-        const logs = await this.readDateLogs(dateStr);
+        const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+        if (!fsSync.existsSync(dateFolder)) {
+            return [];
+        }
+
+        const startTime = Date.now();
+        const reuseStats = { reusedHours: 0, recomputedHours: 0 };
+        const cacheGeneration = this.cacheGeneration;
+
+        const hourFiles = await this.listHourFiles(dateFolder);
+        const mergedHourDetails = await Promise.all(
+            hourFiles.map(file => {
+                const hour = parseInt(path.basename(file, '.jsonl'), 10);
+                return this.readHourDetails(dateStr, hour, file, reuseStats, cacheGeneration);
+            })
+        );
+
+        const logs = mergedHourDetails.flat();
         const mergedMap = StatsCalculator.mergeLogsByRequestId(logs);
         // 转换为数组并按时间戳倒序排序(最新的在前)
         const details = Array.from(mergedMap.values());
         details.sort((a, b) => b.timestamp - a.timestamp);
+        StatusLogger.trace(
+            `[LogReadManager] getRequestDetails(${dateStr}) hours=${hourFiles.length}, reused=${reuseStats.reusedHours}, recomputed=${reuseStats.recomputedHours}, requests=${details.length}, elapsed=${Date.now() - startTime}ms`
+        );
         return details;
     }
 
@@ -114,16 +162,24 @@ export class LogReadManager {
         }
 
         try {
+            const startTime = Date.now();
+            const reuseStats = { reusedHours: 0, recomputedHours: 0 };
+            const cacheGeneration = this.cacheGeneration;
             // 从最新的小时开始反向读取
             for (let hour = startHour; hour >= 0 && logs.length < limit; hour--) {
-                const hourLogs = await this.readHourLogs(dateStr, hour);
-                if (hourLogs.length === 0) {
+                const filePath = this.pathManager.getHourFilePath(dateStr, hour);
+                const hourDetails = await this.readHourDetails(
+                    dateStr,
+                    hour,
+                    filePath,
+                    reuseStats,
+                    cacheGeneration,
+                    true
+                );
+                if (hourDetails.length === 0) {
                     continue;
                 }
 
-                // 合并日志
-                const mergedMap = StatsCalculator.mergeLogsByRequestId(hourLogs);
-                const hourDetails = Array.from(mergedMap.values());
                 // 合并到结果中
                 logs.push(...hourDetails);
                 // 如果已经收集了足够多的记录，提前结束
@@ -135,11 +191,82 @@ export class LogReadManager {
             // 按时间戳倒序排序（最新的在前）
             logs.sort((a, b) => b.timestamp - a.timestamp);
             // 只返回最近的 limit 条
-            return logs.slice(0, limit);
+            const result = logs.slice(0, limit);
+            StatusLogger.trace(
+                `[LogReadManager] getRecentRequestDetails(${dateStr}, ${limit}) reused=${reuseStats.reusedHours}, recomputed=${reuseStats.recomputedHours}, scanned=${logs.length}, returned=${result.length}, elapsed=${Date.now() - startTime}ms`
+            );
+            return result;
         } catch (err) {
             StatusLogger.error(`[LogReadManager] Failed to get recent request details: ${dateStr}`, err);
             return [];
         }
+    }
+
+    private async listHourFiles(dateFolder: string): Promise<string[]> {
+        const files = await fs.readdir(dateFolder);
+        return files
+            .filter(f => /^\d{2}\.jsonl$/.test(f))
+            .sort()
+            .map(file => path.join(dateFolder, file));
+    }
+
+    private async readHourDetails(
+        dateStr: string,
+        hour: number,
+        filePath: string,
+        reuseStats: { reusedHours: number; recomputedHours: number },
+        cacheGeneration: number,
+        skipReadFailure = false
+    ): Promise<TokenRequestLog[]> {
+        if (!fsSync.existsSync(filePath)) {
+            if (!skipReadFailure) {
+                throw new Error(`Hourly log disappeared before reading: ${filePath}`);
+            }
+            return [];
+        }
+
+        const cacheKey = `${dateStr}:${hour}`;
+        const sourceMtime = fsSync.statSync(filePath).mtimeMs;
+        const cached = this.hourDetailsCache.get(cacheKey);
+        if (cached && canReuseHourlyDetailsCache(cached.mtime, sourceMtime)) {
+            this.hourDetailsCache.delete(cacheKey);
+            this.hourDetailsCache.set(cacheKey, cached);
+            if (reuseStats) {
+                reuseStats.reusedHours += 1;
+            }
+            return cached.details;
+        }
+
+        let hourLogs: TokenRequestLog[];
+        try {
+            hourLogs = await this.readHourLogs(dateStr, hour, true);
+        } catch (err) {
+            if (!skipReadFailure) {
+                throw err;
+            }
+            return [];
+        }
+        const mergedMap = StatsCalculator.mergeLogsByRequestId(hourLogs);
+        const details = Array.from(mergedMap.values());
+        if (this.disposed || this.cacheGeneration !== cacheGeneration) {
+            if (reuseStats) {
+                reuseStats.recomputedHours += 1;
+            }
+            return details;
+        }
+        this.hourDetailsCache.delete(cacheKey);
+        this.hourDetailsCache.set(cacheKey, { mtime: sourceMtime, details });
+        while (this.hourDetailsCache.size > LogReadManager.MAX_HOUR_DETAILS_CACHE_ENTRIES) {
+            const oldestKey = this.hourDetailsCache.keys().next().value;
+            if (typeof oldestKey !== 'string') {
+                break;
+            }
+            this.hourDetailsCache.delete(oldestKey);
+        }
+        if (reuseStats) {
+            reuseStats.recomputedHours += 1;
+        }
+        return details;
     }
 
     /**

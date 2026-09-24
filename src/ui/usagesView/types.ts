@@ -220,6 +220,11 @@ export interface DetailLoadErrorMessage {
     updateSeq: number;
 }
 
+export interface DateLoadErrorMessage {
+    command: 'dateLoadError';
+    date: string;
+}
+
 /**
  * 实时流式指标更新消息
  */
@@ -234,6 +239,7 @@ export type HostMessage =
     | RecordsPageMessage
     | TrackRecordsMessage
     | DetailLoadErrorMessage
+    | DateLoadErrorMessage
     | UpdateLiveMetricsMessage;
 
 // ============= 应用状态类型 =============
@@ -250,6 +256,7 @@ export interface State {
     displayCurrency: 'MIXED' | 'USD' | 'RMB';
     dateList: DateSummary[];
     dateDetails: DateDetails | null;
+    dateLoadError: string | null;
     loading: {
         dateDetails: boolean;
     };
@@ -288,5 +295,6 @@ declare global {
         usagesState: State;
         usagesSetLoading: (type: 'dateDetails', isLoading: boolean) => void;
         usagesLiveMetrics: Map<string, LiveRequestUiState>;
+        usagesRenderLiveMetrics?: () => void;
     }
 }

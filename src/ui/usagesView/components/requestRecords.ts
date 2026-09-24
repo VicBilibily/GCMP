@@ -1392,5 +1392,6 @@ export function createRequestRecordsSection(
         );
     }
 
+    window.usagesRenderLiveMetrics?.();
     return container;
 }

@@ -10,6 +10,7 @@ import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { t } from '../../utils/runtime/l10n';
 import {
+    DateLoadErrorMessage,
     DetailLoadErrorMessage,
     RecordsPageMessage,
     TrackRecordsMessage,
@@ -55,6 +56,7 @@ export class TokenUsagesView {
     private detailsCache: { date: string; records: ExtendedTokenRequestLog[]; seq: number } | null = null;
     // 摘要单调递增序列号，随每次摘要推送递增，页响应携带用于前端防竞态
     private detailSeq: number = 0;
+    private detailRefreshQueue: Promise<void> = Promise.resolve();
 
     constructor(private context: vscode.ExtensionContext) {
         this.usagesManager = TokenUsagesManager.instance;
@@ -124,6 +126,12 @@ export class TokenUsagesView {
             this.crossInstanceUsageUpdateDisposable = undefined;
             this.liveMetricsDisposable?.dispose();
             this.liveMetricsDisposable = undefined;
+            if (this.smartRefreshTimer) {
+                clearTimeout(this.smartRefreshTimer);
+                this.smartRefreshTimer = null;
+            }
+            this.smartRefreshPending = false;
+            this.detailRefreshQueue = Promise.resolve();
         });
     }
 
@@ -149,17 +157,33 @@ export class TokenUsagesView {
             // 异步检查并重新生成过期的统计数据（仅在首次打开时执行，不阻塞 HTML 渲染）
             if (!this.hasCheckedOutdatedStats) {
                 this.hasCheckedOutdatedStats = true;
+                const panel = this.panel;
                 this.usagesManager
                     .getFileLogger()
                     .regenerateOutdatedStats()
-                    .then(regenerated => {
-                        // 后台重建会更新 stats.json / index.json，但不会触发 onStatsUpdate。
-                        // 若确实重建了统计，主动刷新一次当前视图，避免首次打开后历史统计停留在旧值。
-                        if (this.panel && Object.keys(regenerated).length > 0) {
-                            void this.refreshAfterOutdatedStatsRegenerated(new Set(Object.keys(regenerated)));
+                    .catch(err => {
+                        StatusLogger.warn('[TokenUsagesView] Failed to regenerate outdated stats:', err);
+                        return {};
+                    })
+                    .then(async regenerated => {
+                        // 仅首次打开时对账；日常刷新继续走快索引。
+                        try {
+                            await this.usagesManager.getFileLogger().getIndex();
+                        } catch (err) {
+                            StatusLogger.warn('[TokenUsagesView] Failed to reconcile date index:', err);
+                        }
+                        if (this.panel !== panel) {
+                            return;
+                        }
+                        if (Object.keys(regenerated).length > 0) {
+                            await this.refreshAfterOutdatedStatsRegenerated(new Set(Object.keys(regenerated)), panel);
+                        } else {
+                            await this.updateDateListOnly(panel);
                         }
                     })
-                    .catch(err => StatusLogger.warn('[TokenUsagesView] Failed to regenerate outdated stats:', err));
+                    .catch(err =>
+                        StatusLogger.warn('[TokenUsagesView] Failed to refresh after index reconciliation:', err)
+                    );
             }
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update view:', err);
@@ -170,17 +194,21 @@ export class TokenUsagesView {
      * 后台重建过期统计后刷新当前视图。
      * 若当前正在查看的日期刚被重建，需要刷新右侧详情；否则只刷新左侧日期列表。
      */
-    private async refreshAfterOutdatedStatsRegenerated(regeneratedDates: Set<string>): Promise<void> {
-        if (!this.panel) {
+    private async refreshAfterOutdatedStatsRegenerated(
+        regeneratedDates: Set<string>,
+        expectedPanel?: vscode.WebviewPanel
+    ): Promise<void> {
+        const panel = expectedPanel ?? this.panel;
+        if (!panel || this.panel !== panel) {
             return;
         }
 
         const today = getTodayDateString();
         const selectedDate = this.currentSelectedDate || today;
         if (regeneratedDates.has(selectedDate)) {
-            await this.updateDateDetails(selectedDate);
+            await this.updateDateDetails(selectedDate, panel);
         }
-        await this.updateDateListOnly();
+        await this.updateDateListOnly(panel);
     }
 
     /**
@@ -223,7 +251,8 @@ export class TokenUsagesView {
     }
 
     private async doSmartRefresh(): Promise<void> {
-        if (!this.panel) {
+        const panel = this.panel;
+        if (!panel) {
             return;
         }
 
@@ -235,27 +264,31 @@ export class TokenUsagesView {
             // 顺序执行：updateDateDetails 内部 getDateStatsFromFile 会触发 saveDateStats →
             // indexManager.updateIndex 更新日期索引；先完成详情刷新，updateDateListOnly 才能读到最新索引，
             // 避免左侧日期列表统计比右侧详情慢一拍。
-            await this.updateDateDetails(today);
-            await this.updateDateListOnly();
+            await this.updateDateDetails(today, panel);
+            await this.updateDateListOnly(panel);
         } else {
             StatusLogger.debug('[TokenUsagesView] Refreshing date list only');
-            await this.updateDateListOnly();
+            await this.updateDateListOnly(panel);
         }
     }
 
     /**
      * 只更新日期列表的统计数字，不刷新右侧详情
      */
-    private async updateDateListOnly(): Promise<void> {
-        if (!this.panel) {
+    private async updateDateListOnly(expectedPanel?: vscode.WebviewPanel): Promise<void> {
+        const panel = expectedPanel ?? this.panel;
+        if (!panel || this.panel !== panel) {
             return;
         }
 
         try {
             const dateSummaries = await this.usagesManager.getAllDateSummaries();
+            if (this.panel !== panel) {
+                return;
+            }
             const today = getTodayDateString();
             // 直接发送原始数据，让组件自己处理格式化
-            this.panel.webview.postMessage({
+            panel.webview.postMessage({
                 command: 'updateDateList',
                 dateList: dateSummaries,
                 selectedDate: this.currentSelectedDate || today,
@@ -271,15 +304,16 @@ export class TokenUsagesView {
      * 先推送详情摘要（stats 更新先行），再推日期列表，保证两侧口径一致。
      */
     private async sendInitialData(): Promise<void> {
-        if (!this.panel) {
+        const panel = this.panel;
+        if (!panel) {
             return;
         }
 
         try {
             const displayDate = getTodayDateString();
             this.currentSelectedDate = displayDate;
-            await this.updateDateDetails(displayDate);
-            await this.updateDateListOnly();
+            await this.updateDateDetails(displayDate, panel);
+            await this.updateDateListOnly(panel);
             StatusLogger.debug('[TokenUsagesView] Initial data sent');
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to send initial data:', err);
@@ -289,9 +323,11 @@ export class TokenUsagesView {
     /**
      * 读取当日最新记录并刷新单槽明细缓存（摘要聚合时调用，保证读到最新落盘数据）
      */
-    private async readDateRecordsFresh(date: string): Promise<ExtendedTokenRequestLog[]> {
+    private async readDateRecordsFresh(date: string, cache = true): Promise<ExtendedTokenRequestLog[]> {
         const records = await this.usagesManager.getDateRecords(date);
-        this.detailsCache = { date, records, seq: this.detailSeq };
+        if (cache) {
+            this.detailsCache = { date, records, seq: this.detailSeq };
+        }
         return records;
     }
 
@@ -316,6 +352,7 @@ export class TokenUsagesView {
                 break;
 
             case 'selectDate':
+                this.currentSelectedDate = message.date;
                 await this.updateDateDetails(message.date);
                 this.pushActiveLiveMetricsSnapshot();
                 break;
@@ -346,7 +383,10 @@ export class TokenUsagesView {
             return;
         }
         this.postLiveMetricEvent(event);
-        if (event.type === 'requestStarted' || event.type === 'streamEnd' || event.type === 'rateLimitWaiting') {
+        // requestStarted 会被 estimated 落盘后的 onStatsUpdate 覆盖，
+        // rateLimitWaiting 的实时状态完全由 liveMetricsRenderer 负责，
+        // 两者都不值得触发一次 today 全量刷新。
+        if (event.type === 'streamEnd') {
             this.smartRefresh();
         }
     }
@@ -416,15 +456,33 @@ export class TokenUsagesView {
      * 更新日期详情（动态更新）
      * 聚合在扩展侧执行，WebView 只接收轻量摘要；明细由 WebView 按需拉取。
      */
-    private async updateDateDetails(date: string): Promise<void> {
+    private async updateDateDetails(date: string, expectedPanel?: vscode.WebviewPanel): Promise<void> {
+        const panel = expectedPanel ?? this.panel;
+        if (!panel || this.panel !== panel) {
+            return;
+        }
+
+        const refresh = this.detailRefreshQueue.then(() => this.updateDateDetailsInternal(panel, date));
+        this.detailRefreshQueue = refresh.catch(() => undefined);
+        await refresh;
+    }
+
+    private async updateDateDetailsInternal(panel: vscode.WebviewPanel, date: string): Promise<void> {
         try {
+            if (this.panel !== panel || this.currentSelectedDate !== date) {
+                return;
+            }
             const today = getTodayDateString();
 
             // 并行读取 stats 和 records（两者无依赖）；聚合必须读到最新记录，不走缓存
             const [dateStats, dateRecords] = await Promise.all([
                 this.usagesManager.getDateStatsFromFile(date),
-                this.readDateRecordsFresh(date)
+                this.readDateRecordsFresh(date, false)
             ]);
+
+            if (this.panel !== panel || this.currentSelectedDate !== date) {
+                return;
+            }
 
             // 聚合计算（与旧前端逻辑一致的口径）
             this.detailSeq += 1;
@@ -444,30 +502,33 @@ export class TokenUsagesView {
             this.currentSelectedDate = date;
 
             // 更新面板标题
-            if (this.panel) {
-                this.panel.title = `${t('GCMP Token Usage', 'GCMP Token 消耗统计')} - ${date}`;
-            }
+            panel.title = `${t('GCMP Token Usage', 'GCMP Token 消耗统计')} - ${date}`;
 
             // 推送聚合摘要给 WebView
-            if (this.panel) {
-                await this.panel.webview.postMessage({
-                    command: 'updateDateDetails',
-                    date,
-                    isToday: date === today,
-                    isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
-                    providers,
-                    hourlyStats: dateStats.hourly || {},
-                    allSummary,
-                    allTotals,
-                    nativeSplitIndex,
-                    sessionGroups,
-                    updateSeq: this.detailSeq
-                } as UpdateDateDetailsMessage);
-            }
+            await panel.webview.postMessage({
+                command: 'updateDateDetails',
+                date,
+                isToday: date === today,
+                isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
+                providers,
+                hourlyStats: dateStats.hourly || {},
+                allSummary,
+                allTotals,
+                nativeSplitIndex,
+                sessionGroups,
+                updateSeq: this.detailSeq
+            } as UpdateDateDetailsMessage);
 
             StatusLogger.debug(`[TokenUsagesView] Updated date details: ${date}, recordCount=${dateRecords.length}`);
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update date details:', err);
+            if (this.panel === panel && this.currentSelectedDate === date) {
+                await panel.webview
+                    .postMessage({ command: 'dateLoadError', date } satisfies DateLoadErrorMessage)
+                    .then(undefined, error => {
+                        StatusLogger.warn('[TokenUsagesView] Failed to deliver date load error:', error);
+                    });
+            }
         }
     }
 
@@ -617,6 +678,8 @@ export class TokenUsagesView {
             clearTimeout(this.smartRefreshTimer);
             this.smartRefreshTimer = null;
         }
+        this.smartRefreshPending = false;
+        this.detailRefreshQueue = Promise.resolve();
         this.updateDisposable?.dispose();
         this.panel?.dispose();
         this.multiDayView?.dispose();

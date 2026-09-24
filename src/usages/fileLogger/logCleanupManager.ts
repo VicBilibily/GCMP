@@ -17,9 +17,11 @@ import { DateUtils } from './dateUtils';
 export class LogCleanupManager {
     private readonly pathManager: LogPathManager;
     private readonly indexManager: LogIndexManager;
-    constructor(pathManager: LogPathManager, indexManager: LogIndexManager) {
+    private readonly onDateDeleted: (dateStr: string) => void;
+    constructor(pathManager: LogPathManager, indexManager: LogIndexManager, onDateDeleted: (dateStr: string) => void) {
         this.pathManager = pathManager;
         this.indexManager = indexManager;
+        this.onDateDeleted = onDateDeleted;
     }
 
     /**
@@ -63,6 +65,7 @@ export class LogCleanupManager {
 
             // 从索引中删除该日期
             await this.indexManager.removeDate(dateStr);
+            this.onDateDeleted(dateStr);
 
             StatusLogger.info(`[LogCleanupManager] Deleted expired records: ${dateStr} (${count} files)`);
             return count;

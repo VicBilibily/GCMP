@@ -18,6 +18,8 @@ import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile, TokenStats } f
  */
 export class LogIndexManager {
     private readonly baseDir: string;
+    private needsRecovery = false;
+    private hasPartialIndex = false;
 
     constructor(baseDir: string) {
         this.baseDir = path.join(baseDir, 'usages');
@@ -54,7 +56,11 @@ export class LogIndexManager {
 
         try {
             await AtomicJsonFile.runExclusive(indexPath, async () => {
-                const index = (await this.readIndexFile(indexPath)) ?? { dates: {} };
+                let index = await this.readIndexFile(indexPath);
+                if (!index) {
+                    index = { dates: {} };
+                    this.hasPartialIndex = true;
+                }
 
                 index.versionTimestamp = versionTimestamp;
 
@@ -80,17 +86,38 @@ export class LogIndexManager {
     }
 
     private async readIndexFile(indexPath: string): Promise<DateIndex | null> {
-        if (!fsSync.existsSync(indexPath)) {
-            return null;
-        }
-
         try {
             const content = await fs.readFile(indexPath, 'utf-8');
             const index: DateIndex = JSON.parse(content);
+            if (!index?.dates || typeof index.dates !== 'object' || Array.isArray(index.dates)) {
+                throw new Error('Invalid date index');
+            }
+            for (const entry of Object.values(index.dates)) {
+                if (
+                    !entry ||
+                    typeof entry !== 'object' ||
+                    Array.isArray(entry) ||
+                    ![
+                        entry.total_input,
+                        entry.total_cache,
+                        entry.total_output,
+                        entry.total_requests,
+                        entry.total_cost
+                    ].every(Number.isFinite) ||
+                    [entry.total_cost_rmb, entry.native_total_cost, entry.native_total_cost_rmb].some(
+                        value => value !== undefined && !Number.isFinite(value)
+                    )
+                ) {
+                    throw new Error('Invalid date index entry');
+                }
+            }
             StatusLogger.debug(`[LogIndexManager] Read date index with ${Object.keys(index.dates).length} dates`);
             return index;
         } catch (err) {
-            StatusLogger.warn('[LogIndexManager] Failed to read date index', err);
+            this.needsRecovery = true;
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+                StatusLogger.warn('[LogIndexManager] Failed to read date index', err);
+            }
             return null;
         }
     }
@@ -104,6 +131,7 @@ export class LogIndexManager {
             await AtomicJsonFile.writeJsonAtomically(indexPath, index);
             StatusLogger.debug(`[LogIndexManager] Saved date index with ${Object.keys(index.dates).length} dates`);
         } catch (err) {
+            this.needsRecovery = true;
             StatusLogger.warn('[LogIndexManager] Failed to save date index', err);
             throw err;
         }
@@ -145,7 +173,11 @@ export class LogIndexManager {
 
         try {
             await AtomicJsonFile.runExclusive(indexPath, async () => {
-                const index = (await this.readIndexFile(indexPath)) ?? { dates: {} };
+                let index = await this.readIndexFile(indexPath);
+                if (!index) {
+                    index = { dates: {} };
+                    this.hasPartialIndex = true;
+                }
 
                 index.dates[dateStr] = this.buildDateIndexEntry(total);
 
@@ -157,15 +189,49 @@ export class LogIndexManager {
         }
     }
 
+    // 仅在已知异常时对账，避免高频刷新扫描全部日期。
+    async getIndexFast(): Promise<Record<string, DateIndexEntry>> {
+        const indexPath = this.getIndexPath();
+        return AtomicJsonFile.runExclusive(indexPath, async () => {
+            const index = await this.readIndexFile(indexPath);
+            if (!this.needsRecovery && index) {
+                return index.dates;
+            }
+            try {
+                return await this.reconcileIndexUnlocked(indexPath, index);
+            } catch (err) {
+                if (!index || this.hasPartialIndex) {
+                    throw err;
+                }
+                StatusLogger.warn('[LogIndexManager] Recovery failed, using the saved date index', err);
+                return index.dates;
+            }
+        });
+    }
+
+    async repairIfNeeded(): Promise<void> {
+        if (!this.needsRecovery) {
+            return;
+        }
+        const indexPath = this.getIndexPath();
+        try {
+            await AtomicJsonFile.runExclusive(indexPath, async () => {
+                if (this.needsRecovery) {
+                    await this.reconcileIndexUnlocked(indexPath, await this.readIndexFile(indexPath));
+                }
+            });
+        } catch (err) {
+            // 索引补偿失败不能阻断已经可用的日期统计，保留状态供下次重试。
+            StatusLogger.warn('[LogIndexManager] Failed to repair date index', err);
+        }
+    }
+
     /**
      * 从索引中删除指定日期
      * 在删除统计数据后调用
      */
     async removeDate(dateStr: string): Promise<void> {
         const indexPath = this.getIndexPath();
-        if (!fsSync.existsSync(indexPath)) {
-            return;
-        }
 
         try {
             await AtomicJsonFile.runExclusive(indexPath, async () => {
@@ -190,87 +256,56 @@ export class LogIndexManager {
      */
     async getIndex(): Promise<Record<string, DateIndexEntry>> {
         const indexPath = this.getIndexPath();
-
         return AtomicJsonFile.runExclusive(indexPath, async () => {
-            // 获取所有实际的日期文件夹
-            const actualDates = await this.getAllStatsDates();
-            const actualDateSet = new Set(actualDates);
-
-            // 读取现有索引
             const index = await this.readIndexFile(indexPath);
-            const summaries: Record<string, DateIndexEntry> = {};
-            let hasChanges = false;
-
-            // 基于实际 stats.json 对账全部索引条目，修复先前更新失败留下的脏摘要
-            for (const dateStr of actualDates) {
-                actualDateSet.delete(dateStr);
-
-                try {
-                    const stats = await this.loadStats(dateStr);
-                    if (!stats) {
-                        continue;
-                    }
-
-                    const actualEntry = this.buildDateIndexEntry(stats.total);
-                    const indexedEntry = index?.dates[dateStr];
-                    summaries[dateStr] = actualEntry;
-
-                    if (!this.isSameDateIndexEntry(indexedEntry, actualEntry)) {
-                        hasChanges = true;
-                        StatusLogger.debug(`[LogIndexManager] Reconciled date summary: ${dateStr}`);
-                    }
-                } catch (err) {
-                    StatusLogger.warn(`[LogIndexManager] Failed to get date summary: ${dateStr}`, err);
-                }
-            }
-
-            if (index) {
-                // 验证索引中的日期条目：移除目录不存在或 stats.json 缺失的脏条目
-                for (const dateStr of Object.keys(index.dates)) {
-                    // 已通过对账覆盖的条目无需再检
-                    if (dateStr in summaries) {
-                        continue;
-                    }
-
-                    const dateFolder = path.join(this.baseDir, dateStr);
-                    if (!fsSync.existsSync(dateFolder)) {
-                        hasChanges = true;
-                        StatusLogger.debug(`[LogIndexManager] Removed missing date folder from index: ${dateStr}`);
-                        continue;
-                    }
-
-                    // 目录在但 stats.json 缺失或不可读，也属于脏条目
-                    const statsFile = path.join(dateFolder, 'stats.json');
-                    if (!fsSync.existsSync(statsFile)) {
-                        hasChanges = true;
-                        StatusLogger.debug(
-                            `[LogIndexManager] Removed date with missing stats.json from index: ${dateStr}`
-                        );
-                    }
-                }
-            }
-
-            // 如果有变化（新增或删除），更新索引文件
-            if (hasChanges) {
-                const nextIndex: DateIndex = { dates: summaries };
-                if (index?.versionTimestamp !== undefined) {
-                    nextIndex.versionTimestamp = index.versionTimestamp;
-                }
-                await this.saveIndexUnlocked(indexPath, nextIndex);
-            }
-
-            return summaries;
+            return this.reconcileIndexUnlocked(indexPath, index);
         });
+    }
+
+    private async reconcileIndexUnlocked(
+        indexPath: string,
+        index: DateIndex | null
+    ): Promise<Record<string, DateIndexEntry>> {
+        this.needsRecovery = true;
+        const actualDates = await this.getAllStatsDates();
+        const summaries: Record<string, DateIndexEntry> = {};
+        let hasChanges = !index;
+
+        for (const dateStr of actualDates) {
+            const stats = await this.loadStats(dateStr);
+            if (!stats) {
+                continue;
+            }
+
+            const actualEntry = this.buildDateIndexEntry(stats.total);
+            summaries[dateStr] = actualEntry;
+            if (!this.isSameDateIndexEntry(index?.dates[dateStr], actualEntry)) {
+                hasChanges = true;
+                StatusLogger.debug(`[LogIndexManager] Reconciled date summary: ${dateStr}`);
+            }
+        }
+
+        if (index && Object.keys(index.dates).some(dateStr => !(dateStr in summaries))) {
+            hasChanges = true;
+        }
+
+        if (hasChanges) {
+            const nextIndex: DateIndex = { dates: summaries };
+            if (index?.versionTimestamp !== undefined) {
+                nextIndex.versionTimestamp = index.versionTimestamp;
+            }
+            await this.saveIndexUnlocked(indexPath, nextIndex);
+        }
+
+        this.needsRecovery = false;
+        this.hasPartialIndex = false;
+        return summaries;
     }
 
     /**
      * 获取所有已保存的日期列表
      */
     private async getAllStatsDates(): Promise<string[]> {
-        if (!fsSync.existsSync(this.baseDir)) {
-            return [];
-        }
-
         try {
             // 读取所有日期目录
             const entries = await fs.readdir(this.baseDir, { withFileTypes: true });
@@ -281,19 +316,18 @@ export class LogIndexManager {
                     const dateStr = entry.name;
                     // 检查是否是有效的日期格式
                     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                        // 检查该日期目录下是否有统计文件
-                        const statsFile = path.join(this.baseDir, dateStr, 'stats.json');
-                        if (fsSync.existsSync(statsFile)) {
-                            dates.push(dateStr);
-                        }
+                        dates.push(dateStr);
                     }
                 }
             }
 
             return dates.sort().reverse(); // 倒序(最新的在前)
         } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+                return [];
+            }
             StatusLogger.error('[LogIndexManager] Failed to get stats date list', err);
-            return [];
+            throw err;
         }
     }
 
@@ -302,17 +336,20 @@ export class LogIndexManager {
      */
     private async loadStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
         const statsPath = path.join(this.baseDir, dateStr, 'stats.json');
-        if (!fsSync.existsSync(statsPath)) {
-            return null;
-        }
-
         try {
             // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
             const content = await AtomicJsonFile.runExclusive(statsPath, () => fs.readFile(statsPath, 'utf-8'));
-            return JSON.parse(content) as TokenUsageStatsFromFile;
+            const stats: TokenUsageStatsFromFile = JSON.parse(content);
+            if (!stats?.total || typeof stats.total !== 'object' || Array.isArray(stats.total)) {
+                throw new Error(`Invalid date stats: ${dateStr}`);
+            }
+            return stats;
         } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+                return null;
+            }
             StatusLogger.warn(`[LogIndexManager] Failed to read date stats: ${dateStr}`, err);
-            return null;
+            throw err;
         }
     }
 

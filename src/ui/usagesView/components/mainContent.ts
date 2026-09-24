@@ -7,7 +7,7 @@ import { createProviderStats } from './providerStats';
 import { createHourlyStats } from './hourlyStats';
 import { createHourlyChart } from './hourlyChart';
 import { createElement } from '../../utils';
-import { t } from '../utils';
+import { postToVSCode, t } from '../utils';
 
 // ============= 工具函数 =============
 
@@ -44,6 +44,40 @@ export function createMainContent(): HTMLElement {
     content.appendChild(detailsContent);
 
     return content;
+}
+
+export function updateDateLoadError(): void {
+    const content = document.querySelector('.content');
+    if (!content) {
+        return;
+    }
+    content.querySelector('.date-load-error')?.remove();
+    const date = window.usagesState.dateLoadError;
+    if (!date) {
+        return;
+    }
+    const error = createElement('p', 'date-load-error', { role: 'alert' });
+    const message = createElement('span');
+    message.textContent = t(
+        'Could not load usage details for {0}. Displayed data has not been updated. ',
+        '{0} 的用量详情加载失败，当前内容未更新。 ',
+        date
+    );
+    const retry = createElement('button', 'secondary', { type: 'button' });
+    retry.textContent = t('Retry', '重试');
+    retry.onclick = () => {
+        window.usagesSetLoading('dateDetails', true);
+        postToVSCode({ command: 'selectDate', date });
+    };
+    error.appendChild(message);
+    error.appendChild(retry);
+    content.insertBefore(error, content.querySelector('#details-content'));
+    if (!window.usagesState.dateDetails) {
+        const title = content.querySelector('#details-title');
+        if (title) {
+            title.textContent = t('{0} Usage Details', '{0} 使用详情', date);
+        }
+    }
 }
 
 /**

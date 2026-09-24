@@ -78,8 +78,12 @@ export class TokenFileLogger {
         this.writeManager = new LogWriteManager(this.pathManager);
         this.readManager = new LogReadManager(this.pathManager);
         this.indexManager = new LogIndexManager(storageDir);
-        this.cleanupManager = new LogCleanupManager(this.pathManager, this.indexManager);
-        this.snapshotManager = new SnapshotManager(this.pathManager);
+        this.cleanupManager = new LogCleanupManager(this.pathManager, this.indexManager, dateStr => {
+            this.readManager.invalidateDateCache(dateStr);
+        });
+        this.snapshotManager = new SnapshotManager(this.pathManager, dateStr => {
+            this.readManager.invalidateDateCache(dateStr);
+        });
         this.logStatsManager = new LogStatsManager(
             this.readManager,
             storageDir,
@@ -722,6 +726,13 @@ export class TokenFileLogger {
         return this.indexManager.getIndex();
     }
 
+    /**
+     * 高频 UI 刷新专用：直接读取现有 index.json，不做目录对账。
+     */
+    async getIndexFast(): Promise<Record<string, DateIndexEntry>> {
+        return this.indexManager.getIndexFast();
+    }
+
     // ==================== 清理操作 ====================
 
     /**
@@ -800,6 +811,9 @@ export class TokenFileLogger {
             // 清理历史快照管理器缓存
             this.snapshotManager.clearCache();
             StatusLogger.debug('[TokenFileLogger] Snapshot manager cache cleared');
+
+            this.readManager.dispose();
+            StatusLogger.debug('[TokenFileLogger] Read manager cache cleared');
 
             StatusLogger.info('[TokenFileLogger] File logging system disposed');
         } catch (error) {
@@ -936,7 +950,7 @@ export class TokenFileLogger {
             await this.writeManager.flush();
 
             // 计算并保存统计（getDateStats 会自动处理增量更新和保存）
-            await this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.getDateStats(dateStr, true));
+            await this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.getDateStats(dateStr));
 
             // 通知本实例的监听者
             this.notifyUpdate();
