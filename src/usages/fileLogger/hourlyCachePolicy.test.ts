@@ -255,6 +255,239 @@ test('hour details cache stays bounded and supports date/lifecycle invalidation'
     }
 });
 
+test('hour details cache enforces a total record budget and bounds cold-read concurrency', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-hour-details-budget-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { LogReadManager } = await import('./logReadManager');
+        const limits = LogReadManager as unknown as {
+            MAX_HOUR_DETAILS_CACHE_RECORDS: number;
+        };
+        const originalRecordLimit = limits.MAX_HOUR_DETAILS_CACHE_RECORDS;
+        limits.MAX_HOUR_DETAILS_CACHE_RECORDS = 5;
+        try {
+            const pathManager = {
+                getDateFolderPath: (dateStr: string) => join(dir, dateStr),
+                getHourFilePath: (dateStr: string, hour: number) =>
+                    join(dir, dateStr, `${String(hour).padStart(2, '0')}.jsonl`)
+            };
+            const manager = new LogReadManager(pathManager as never);
+            for (const [date, prefix] of [
+                ['2026-09-23', 'first'],
+                ['2026-09-24', 'second']
+            ] as const) {
+                const folder = pathManager.getDateFolderPath(date);
+                await mkdir(folder, { recursive: true });
+                await writeFile(
+                    pathManager.getHourFilePath(date, 0),
+                    Array.from({ length: 3 }, (_, index) =>
+                        JSON.stringify(createRequestLog(`${prefix}-${index}`))
+                    ).join('\n') + '\n'
+                );
+                assert.equal((await manager.getRequestDetails(date)).length, 3);
+            }
+
+            const internals = manager as unknown as {
+                hourDetailsCache: Map<string, { details: TokenRequestLog[] }>;
+                cachedHourDetailsRecords: number;
+                readHourLogs: typeof manager.readHourLogs;
+            };
+            assert.equal(internals.hourDetailsCache.has('2026-09-23:0'), false);
+            assert.equal(internals.hourDetailsCache.has('2026-09-24:0'), true);
+            assert.equal(internals.cachedHourDetailsRecords, 3);
+
+            manager.clearCache();
+            const concurrencyDate = '2026-09-22';
+            const concurrencyFolder = pathManager.getDateFolderPath(concurrencyDate);
+            await mkdir(concurrencyFolder, { recursive: true });
+            for (let hour = 0; hour < 8; hour++) {
+                await writeFile(pathManager.getHourFilePath(concurrencyDate, hour), '\n');
+            }
+            let activeReads = 0;
+            let maxActiveReads = 0;
+            internals.readHourLogs = async (_date, hour) => {
+                activeReads += 1;
+                maxActiveReads = Math.max(maxActiveReads, activeReads);
+                await new Promise<void>(resolve => setImmediate(resolve));
+                activeReads -= 1;
+                return [createRequestLog(`concurrent-${hour}`)];
+            };
+            assert.equal((await manager.getRequestDetails(concurrencyDate)).length, 8);
+            assert.equal(maxActiveReads, 4);
+        } finally {
+            limits.MAX_HOUR_DETAILS_CACHE_RECORDS = originalRecordLimit;
+        }
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('session title backfill preserves cross-hour final state without populating the details cache', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-title-backfill-hour-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { TokenFileLogger } = await import('./index');
+        const { StatsCalculator } = await import('./statsCalculator');
+        const date = DateUtils.getTodayDateString();
+        const timestamp = new Date(`${date}T05:59:00`).getTime();
+        const requestId = `${timestamp}_target`;
+        const folder = join(dir, 'usages', date);
+        await mkdir(folder, { recursive: true });
+        const estimated = {
+            ...createRequestLog(requestId),
+            timestamp,
+            isoTime: new Date(timestamp).toISOString(),
+            status: 'estimated' as const
+        };
+        const completed = {
+            ...estimated,
+            timestamp: timestamp + 2 * 60_000,
+            isoTime: new Date(timestamp + 2 * 60_000).toISOString(),
+            status: 'completed' as const,
+            rawUsage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }
+        };
+        await writeFile(join(folder, '05.jsonl'), `${JSON.stringify(estimated)}\n`);
+        await writeFile(join(folder, '06.jsonl'), `${JSON.stringify(completed)}\n`);
+
+        const logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+        const internals = logger as unknown as {
+            readManager: {
+                hourDetailsCache: Map<string, unknown>;
+                getRequestDetails: () => Promise<TokenRequestLog[]>;
+            };
+        };
+        internals.readManager.getRequestDetails = async () => {
+            throw new Error('full-day read should not run');
+        };
+
+        assert.equal(
+            await logger.backfillSessionTitle({ requestId, sessionId: 'session-a', sessionTitle: 'Recovered title' }),
+            true
+        );
+        assert.equal(internals.readManager.hourDetailsCache.size, 0);
+        const merged = StatsCalculator.mergeLogsByRequestId(await logger.readDateLogs(date)).get(requestId);
+        assert.equal(merged?.status, 'completed');
+        assert.equal(merged?.rawUsage?.total_tokens, 12);
+        assert.equal(merged?.sessionTitle, 'Recovered title');
+        await logger.dispose();
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('historical snapshot cache stays within entry and record budgets', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-snapshot-cache-budget-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const limits = SnapshotManager as unknown as {
+            MAX_RECORD_CACHE_ENTRIES: number;
+            MAX_RECORD_CACHE_RECORDS: number;
+        };
+        const originalEntryLimit = limits.MAX_RECORD_CACHE_ENTRIES;
+        const originalRecordLimit = limits.MAX_RECORD_CACHE_RECORDS;
+        limits.MAX_RECORD_CACHE_ENTRIES = 2;
+        limits.MAX_RECORD_CACHE_RECORDS = 3;
+        try {
+            const manager = new SnapshotManager(new LogPathManager(dir), () => {});
+            for (const [date, count] of [
+                ['2026-09-20', 1],
+                ['2026-09-21', 1],
+                ['2026-09-22', 2]
+            ] as const) {
+                const logs = Array.from({ length: count }, (_, index) => createRequestLog(`${date}-${index}`));
+                await manager.buildSnapshotFromLogs(date, logs);
+                assert.equal((await manager.read(date))?.length, count);
+            }
+
+            const internals = manager as unknown as {
+                recordCache: Map<string, unknown>;
+                cachedSnapshotRecords: number;
+                readFile: (filePath: string) => Promise<Record<string, unknown>>;
+            };
+            assert.equal(internals.recordCache.has('snapshot:2026-09-20'), false);
+            assert.equal(internals.recordCache.has('snapshot:2026-09-21'), true);
+            assert.equal(internals.recordCache.has('snapshot:2026-09-22'), true);
+            assert.equal(internals.recordCache.size, 2);
+            assert.equal(internals.cachedSnapshotRecords, 3);
+            manager.clearCache();
+            assert.equal(internals.cachedSnapshotRecords, 0);
+
+            const raceDate = '2026-09-23';
+            await manager.buildSnapshotFromLogs(raceDate, [createRequestLog('snapshot-race')]);
+            manager.clearCache();
+            const originalReadFile = internals.readFile.bind(manager);
+            let signalReadStarted!: () => void;
+            let releaseRead!: () => void;
+            const readStarted = new Promise<void>(resolve => {
+                signalReadStarted = resolve;
+            });
+            internals.readFile = async filePath => {
+                signalReadStarted();
+                await new Promise<void>(resolve => {
+                    releaseRead = resolve;
+                });
+                return originalReadFile(filePath);
+            };
+            const pendingRead = manager.read(raceDate);
+            await readStarted;
+            manager.clearCache();
+            releaseRead();
+            assert.equal((await pendingRead)?.length, 1);
+            assert.equal(internals.recordCache.size, 0);
+            assert.equal(internals.cachedSnapshotRecords, 0);
+        } finally {
+            limits.MAX_RECORD_CACHE_ENTRIES = originalEntryLimit;
+            limits.MAX_RECORD_CACHE_RECORDS = originalRecordLimit;
+        }
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('date detail invalidation clears hourly and snapshot caches together', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-date-detail-invalidation-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+        const today = DateUtils.getTodayDateString();
+        const historicalDate = DateUtils.getDateStringDaysAgo(3);
+        const todayFolder = join(dir, 'usages', today);
+        await mkdir(todayFolder, { recursive: true });
+        await writeFile(join(todayFolder, '00.jsonl'), `${JSON.stringify(createRequestLog('today-cache'))}\n`);
+
+        const internals = logger as unknown as {
+            readManager: { hourDetailsCache: Map<string, unknown> };
+            snapshotManager: {
+                recordCache: Map<string, unknown>;
+                buildSnapshotFromLogs: (date: string, logs: TokenRequestLog[]) => Promise<void>;
+            };
+            invalidateDetailCaches?: (date: string) => void;
+        };
+        await logger.getRequestDetails(today);
+        await internals.snapshotManager.buildSnapshotFromLogs(historicalDate, [createRequestLog('snapshot-cache')]);
+        await logger.getRequestDetails(historicalDate);
+        assert.equal(internals.readManager.hourDetailsCache.has(`${today}:0`), true);
+        assert.equal(internals.snapshotManager.recordCache.has(`snapshot:${historicalDate}`), true);
+        assert.equal(typeof internals.invalidateDetailCaches, 'function');
+
+        internals.invalidateDetailCaches?.(today);
+        internals.invalidateDetailCaches?.(historicalDate);
+        assert.equal(internals.readManager.hourDetailsCache.has(`${today}:0`), false);
+        assert.equal(internals.snapshotManager.recordCache.has(`snapshot:${historicalDate}`), false);
+    } finally {
+        await logger?.dispose();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
 test('transient hourly read failure is retried rather than cached as an empty result', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-hour-read-failure-'));
     const originalRequire = NodeModule.prototype.require;
@@ -447,7 +680,6 @@ for (const lateWrite of ['append', 'new-hour'] as const) {
         }
     });
 }
-
 test('raw statistics without hourly source metadata are regenerated', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-missing-hour-metadata-'));
     const restoreHost = mockLoggerHost();
@@ -729,7 +961,6 @@ for (const corruption of ['{', 'null', 'missing-total', 'array-total'] as const)
         }
     });
 }
-
 for (const code of ['EBUSY', 'EACCES', 'ENOENT'] as const) {
     test(`snapshot read failure (${code}) cannot publish empty regenerated stats`, async context => {
         const dir = await mkdtemp(join(tmpdir(), 'gcmp-snapshot-read-failure-'));
@@ -795,120 +1026,6 @@ for (const code of ['EBUSY', 'EACCES', 'ENOENT'] as const) {
             assert.equal((await stat(snapshotPath)).mtimeMs, sourceMtime);
         } finally {
             context.mock.restoreAll();
-            await logger?.dispose();
-            restoreHost();
-            await rm(dir, { recursive: true, force: true });
-        }
-    });
-}
-
-test('missing and empty snapshots remain readable and allow the first record to be written', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'gcmp-empty-snapshot-'));
-    const restoreHost = mockLoggerHost();
-    try {
-        const { SnapshotManager } = await import('./snapshotManager');
-        const { LogPathManager } = await import('./logPathManager');
-        const paths = new LogPathManager(dir);
-        const snapshot = new SnapshotManager(paths, () => {});
-        const date = DateUtils.getDateStringDaysAgo(3);
-        assert.equal(await snapshot.read(date), null);
-        await mkdir(paths.getDateFolderPath(date), { recursive: true });
-        await writeFile(paths.getSnapshotFilePath(date), '');
-        assert.equal(await snapshot.read(date), null);
-        await snapshot.upsertRecord(date, createRequestLog('first'));
-        assert.deepEqual(
-            (await snapshot.read(date))?.map(record => record.requestId),
-            ['first']
-        );
-    } finally {
-        restoreHost();
-        await rm(dir, { recursive: true, force: true });
-    }
-});
-
-for (const recoveryPath of ['fast-index', 'cached-stats'] as const) {
-    test(`${recoveryPath} repairs a failed index write without rereading raw hours`, async () => {
-        const dir = await mkdtemp(join(tmpdir(), 'gcmp-index-write-retry-'));
-        const restoreHost = mockLoggerHost();
-        const { AtomicJsonFile } = await import('../atomicJsonFile');
-        const write = AtomicJsonFile.writeJsonAtomically;
-        let logger: import('./index').TokenFileLogger | undefined;
-        try {
-            const { TokenFileLogger } = await import('./index');
-            const { LogIndexManager } = await import('./logIndexManager');
-            logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
-            const { readManager, indexManager, logStatsManager } = logger as unknown as {
-                readManager: import('./logReadManager').LogReadManager;
-                indexManager: import('./logIndexManager').LogIndexManager;
-                logStatsManager: import('./logStatsManager').LogStatsManager;
-            };
-            const date = DateUtils.getTodayDateString();
-            const folder = join(dir, 'usages', date);
-            const rawFile = join(folder, '00.jsonl');
-            await mkdir(folder, { recursive: true });
-            await writeFile(rawFile, `${JSON.stringify(createRequestLog('first'))}\n`);
-            const oldTime = new Date(Date.now() - 60_000);
-            await utimes(rawFile, oldTime, oldTime);
-            assert.equal((await logger.getDateStats(date, true)).total.requests, 1);
-            await logger.getIndex();
-            const indexPath = indexManager.getIndexPath();
-            const internals = indexManager as unknown as { getAllStatsDates(): Promise<string[]> };
-            const getAllStatsDates = internals.getAllStatsDates.bind(indexManager);
-            let scans = 0;
-            internals.getAllStatsDates = async () => {
-                scans++;
-                return getAllStatsDates();
-            };
-            let failWrites = true;
-            let statsWrites = 0;
-            AtomicJsonFile.writeJsonAtomically = async (file, value, serializer) => {
-                if (file === indexPath && failWrites) {
-                    throw new Error('Injected index write failure');
-                }
-                if (file === join(folder, 'stats.json')) {
-                    statsWrites++;
-                }
-                return write.call(AtomicJsonFile, file, value, serializer);
-            };
-            await writeFile(
-                rawFile,
-                `${await readFile(rawFile, 'utf8')}${JSON.stringify(createRequestLog('second'))}\n`
-            );
-            assert.equal((await logger.getDateStats(date)).total.requests, 2);
-            statsWrites = 0;
-            let rawReads = 0;
-            const readHourLogs = readManager.readHourLogs.bind(readManager);
-            readManager.readHourLogs = async (...args) => {
-                rawReads++;
-                return readHourLogs(...args);
-            };
-            if (recoveryPath === 'cached-stats') {
-                logStatsManager.setCanWriteStats(() => false);
-                assert.equal((await logger.getDateStats(date)).total.requests, 2);
-                assert.equal(scans, 0);
-                logStatsManager.setCanWriteStats(() => true);
-                assert.equal((await logger.getDateStats(date)).total.requests, 2);
-                assert.equal(scans, 1);
-            }
-            failWrites = false;
-            if (recoveryPath === 'fast-index') {
-                assert.equal((await logger.getIndexFast())[date].total_requests, 2);
-            } else {
-                assert.equal((await logger.getDateStats(date)).total.requests, 2);
-                const observer = new LogIndexManager(dir);
-                assert.equal((await observer.getIndexFast())[date].total_requests, 2);
-            }
-            const recoveredScans = scans;
-            assert.equal(recoveredScans, recoveryPath === 'fast-index' ? 1 : 2);
-            for (let attempt = 0; attempt < 3; attempt++) {
-                assert.equal((await logger.getDateStats(date)).total.requests, 2);
-                assert.equal((await logger.getIndexFast())[date].total_requests, 2);
-            }
-            assert.equal(rawReads, 0);
-            assert.equal(statsWrites, 0);
-            assert.equal(scans, recoveredScans);
-        } finally {
-            AtomicJsonFile.writeJsonAtomically = write;
             await logger?.dispose();
             restoreHost();
             await rm(dir, { recursive: true, force: true });

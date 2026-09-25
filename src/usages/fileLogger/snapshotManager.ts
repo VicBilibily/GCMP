@@ -26,6 +26,11 @@ import { UsageParser, type ExtendedTokenRequestLog } from './usageParser';
 import type { TokenRequestLog } from './types';
 
 export class SnapshotManager {
+    private static readonly MAX_RECORD_CACHE_ENTRIES = 2;
+    private static readonly MAX_RECORD_CACHE_RECORDS = 20_000;
+    private static readonly SNAPSHOT_LOCK_WAIT_MS = 30_000;
+    private static readonly SNAPSHOT_LOCK_RETRY_MS = 25;
+    private static readonly SNAPSHOT_LOCK_ORPHAN_MS = 5_000;
     private readonly pathManager: LogPathManager;
     private readonly onRawLogsDeleted: (dateStr: string) => void;
 
@@ -36,8 +41,11 @@ export class SnapshotManager {
             records: ExtendedTokenRequestLog[] | null;
             mtime: number;
             value?: SnapshotFile;
+            recordCount: number;
         }
     >();
+    private cachedSnapshotRecords = 0;
+    private cacheGeneration = 0;
 
     // 同一天的 requests.jsonl 写入串行化，避免并发构建时旧快照覆盖新快照
     private readonly snapshotWriteChains = new Map<string, Promise<void>>();
@@ -55,14 +63,34 @@ export class SnapshotManager {
         }
 
         const snapshotCacheKey = `snapshot:${dateStr}`;
+        const cacheGeneration = this.cacheGeneration;
         const snapshotFileMtime = fsSync.statSync(snapshotPath).mtimeMs;
         const snapshotCache = this.recordCache.get(snapshotCacheKey);
         let store: SnapshotFile;
         if (snapshotCache && snapshotCache.mtime === snapshotFileMtime) {
+            this.recordCache.delete(snapshotCacheKey);
+            this.recordCache.set(snapshotCacheKey, snapshotCache);
             store = snapshotCache.value as SnapshotFile;
         } else {
             store = await this.readFile(snapshotPath);
-            this.recordCache.set(snapshotCacheKey, { records: null, mtime: snapshotFileMtime, value: store });
+            if (this.cacheGeneration === cacheGeneration) {
+                this.setRecordCache(snapshotCacheKey, snapshotFileMtime, store);
+            }
+        }
+        const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+        try {
+            const rawFiles = await this.listRawFiles(dateFolder);
+            if (rawFiles.length > 0) {
+                store = mergeSnapshotFiles(await this.readRawStore(dateFolder, rawFiles), store);
+            }
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw error;
+            }
+            const latestSnapshotPath = this.getExistingSnapshotPath(dateStr);
+            if (latestSnapshotPath) {
+                store = await this.readFile(latestSnapshotPath);
+            }
         }
 
         const records = Object.values(store)
@@ -78,6 +106,15 @@ export class SnapshotManager {
         return records;
     }
 
+    async readRecord(dateStr: string, requestId: string): Promise<ExtendedTokenRequestLog | null> {
+        const snapshotPath = this.getExistingSnapshotPath(dateStr);
+        if (!snapshotPath) {
+            return null;
+        }
+        const record = (await this.readFile(snapshotPath))[requestId];
+        return record ? this.fromSnapshot(record) : null;
+    }
+
     /** 从请求记录构建历史 requests.jsonl 快照，并直接写入 */
     async buildSnapshotFromLogs(dateStr: string, logs: TokenRequestLog[]): Promise<void> {
         const store: SnapshotFile = {};
@@ -87,11 +124,6 @@ export class SnapshotManager {
 
         await this.writeSnapshotFile(dateStr, store);
         StatusLogger.debug(`[SnapshotManager] Built requests snapshot for ${dateStr}: ${logs.length} records`);
-
-        const todayStr = this.getDateStr(Date.now());
-        if (dateStr !== todayStr) {
-            await this.purgeJsonlForDate(dateStr);
-        }
     }
 
     /** 向 requests 快照补写/覆盖单条请求记录（保留其他 requestId 不变）。 */
@@ -130,67 +162,49 @@ export class SnapshotManager {
 
                 const dateFolder = this.pathManager.getDateFolderPath(dateStr);
                 try {
-                    const files = await fs.readdir(dateFolder);
-                    const jsonlFiles = files.filter(f => /^\d{2}\.jsonl$/.test(f));
-                    if (jsonlFiles.length === 0) {
-                        continue;
-                    }
+                    const compacted = await this.withSnapshotLock(dateStr, async () => {
+                        const files = await fs.readdir(dateFolder);
+                        const jsonlFiles = files.filter(f => /^\d{2}\.jsonl$/.test(f)).sort();
+                        if (jsonlFiles.length === 0) {
+                            return false;
+                        }
+                        const sourceSignature = await this.getRawSourceSignature(dateFolder);
 
-                    // 读所有 hourly .jsonl（保留原始 TokenRequestLog，先合并再转 requests.jsonl 快照）
-                    const allLogs: TokenRequestLog[] = [];
-                    for (const f of jsonlFiles.sort()) {
-                        const content = await fs.readFile(path.join(dateFolder, f), 'utf-8');
-                        const lines = content.split('\n').filter(line => line.trim());
-                        for (const line of lines) {
+                        // 读所有 hourly .jsonl（保留原始 TokenRequestLog，先合并再转 requests.jsonl 快照）
+                        let store = await this.readRawStore(dateFolder, jsonlFiles);
+
+                        // 防御：合并已有快照中 hourly jsonl 不涵盖的独有记录。
+                        const existingSnapshotPath = this.getExistingSnapshotPath(dateStr);
+                        if (existingSnapshotPath) {
                             try {
-                                const log = JSON.parse(line) as TokenRequestLog;
-                                if (log.requestId) {
-                                    allLogs.push(log);
-                                }
+                                const existingSnapshot = await this.readFile(existingSnapshotPath);
+                                store = mergeSnapshotFiles(store, existingSnapshot);
                             } catch {
-                                /* 跳过畸行 */
+                                /* 旧快照读取失败，忽略 */
                             }
                         }
-                    }
-
-                    const store: SnapshotFile = {};
-                    if (allLogs.length > 0) {
-                        // 合并去重：与 statsCalculator.mergeLogsByRequestId 相同规则
-                        // - timestamp 保留最早（请求开始时间）
-                        // - status/rawUsage/stream* 取最后一条
-                        const mergedMap = StatsCalculator.mergeLogsByRequestId(allLogs);
-                        for (const log of mergedMap.values()) {
-                            store[log.requestId] = this.toSnapshotRecord(log);
+                        if (Object.keys(store).length === 0) {
+                            return false;
                         }
-                    }
 
-                    // 防御：合并已有快照中 hourly jsonl 不涵盖的独有记录。
-                    const existingSnapshotPath = this.getExistingSnapshotPath(dateStr);
-                    if (existingSnapshotPath) {
-                        try {
-                            const existingSnapshot = await this.readFile(existingSnapshotPath);
-                            for (const [reqId, record] of Object.entries(existingSnapshot)) {
-                                if (record && !store[reqId]) {
-                                    store[reqId] = record;
-                                }
-                            }
-                        } catch {
-                            /* 旧快照读取失败，忽略 */
+                        await this.writeSnapshotStoreLocked(dateStr, store);
+                        if ((await this.getRawSourceSignature(dateFolder)) !== sourceSignature) {
+                            StatusLogger.debug(
+                                `[SnapshotManager] Raw logs changed during compaction, keeping source files: ${dateStr}`
+                            );
+                            return false;
                         }
-                    }
-                    if (Object.keys(store).length === 0) {
-                        continue;
-                    }
 
-                    // 写 requests.jsonl 快照
-                    await this.writeSnapshotFile(dateStr, store);
-                    // 删除原始 .jsonl（已全量合入 requests.jsonl），释放磁盘空间
-                    await Promise.all(jsonlFiles.map(f => fs.rm(path.join(dateFolder, f), { force: true })));
-                    this.onRawLogsDeleted(dateStr);
-                    compactedCount++;
-                    StatusLogger.debug(
-                        `[SnapshotManager] Compacted historical date ${dateStr}: ${Object.keys(store).length} records`
-                    );
+                        await Promise.all(jsonlFiles.map(f => fs.rm(path.join(dateFolder, f), { force: true })));
+                        this.onRawLogsDeleted(dateStr);
+                        StatusLogger.debug(
+                            `[SnapshotManager] Compacted historical date ${dateStr}: ${Object.keys(store).length} records`
+                        );
+                        return true;
+                    });
+                    if (compacted) {
+                        compactedCount++;
+                    }
                 } catch (err) {
                     StatusLogger.warn(`[SnapshotManager] Failed to compact historical date ${dateStr}`, err);
                 }
@@ -202,24 +216,6 @@ export class SnapshotManager {
         return compactedCount;
     }
 
-    async purgeJsonlForDate(dateStr: string): Promise<void> {
-        const dateFolder = this.pathManager.getDateFolderPath(dateStr);
-        if (!fsSync.existsSync(dateFolder)) {
-            return;
-        }
-        try {
-            const files = await fs.readdir(dateFolder);
-            const jsonlFiles = files.filter(f => /^\d{2}\.jsonl$/.test(f));
-            if (jsonlFiles.length === 0) {
-                return;
-            }
-            await Promise.all(jsonlFiles.map(f => fs.rm(path.join(dateFolder, f), { force: true })));
-            this.onRawLogsDeleted(dateStr);
-        } catch (err) {
-            StatusLogger.warn(`[SnapshotManager] Failed to purge .jsonl for ${dateStr}`, err);
-        }
-    }
-
     /**
      * 写入历史 requests.jsonl 快照。
      */
@@ -228,11 +224,7 @@ export class SnapshotManager {
 
         const next = previous
             .catch(() => undefined)
-            .then(async () => {
-                const mergedStore = await this.mergeWithLatestSnapshot(dateStr, store);
-                await this.atomicWriteStore(this.pathManager.getSnapshotFilePath(dateStr), mergedStore);
-                this.invalidateCache(dateStr);
-            })
+            .then(() => this.withSnapshotLock(dateStr, () => this.writeSnapshotStoreLocked(dateStr, store)))
             .finally(() => {
                 if (this.snapshotWriteChains.get(dateStr) === next) {
                     this.snapshotWriteChains.delete(dateStr);
@@ -241,6 +233,196 @@ export class SnapshotManager {
 
         this.snapshotWriteChains.set(dateStr, next);
         await next;
+    }
+
+    private async writeSnapshotStoreLocked(dateStr: string, store: SnapshotFile): Promise<void> {
+        const mergedStore = await this.mergeWithLatestSnapshot(dateStr, store);
+        await this.atomicWriteStore(this.pathManager.getSnapshotFilePath(dateStr), mergedStore);
+        this.invalidateCache(dateStr);
+    }
+
+    private async withSnapshotLock<T>(dateStr: string, operation: () => Promise<T>): Promise<T> {
+        const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+        const lockPath = path.join(dateFolder, '.requests.lock');
+        const reclaimPath = `${lockPath}.reclaim`;
+        const ownerPath = path.join(lockPath, 'owner.json');
+        const token = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+        const deadline = Date.now() + SnapshotManager.SNAPSHOT_LOCK_WAIT_MS;
+        await fs.mkdir(dateFolder, { recursive: true });
+
+        while (true) {
+            if (fsSync.existsSync(reclaimPath)) {
+                if (await this.removeOrphanedReclaimGuard(reclaimPath)) {
+                    continue;
+                }
+                if (Date.now() >= deadline) {
+                    throw new Error(`Timed out waiting for snapshot lock: ${dateStr}`);
+                }
+                await this.delay(SnapshotManager.SNAPSHOT_LOCK_RETRY_MS);
+                continue;
+            }
+            try {
+                await fs.mkdir(lockPath);
+                try {
+                    await fs.writeFile(ownerPath, JSON.stringify({ pid: process.pid, token }), 'utf-8');
+                } catch (error) {
+                    await fs.rm(lockPath, { recursive: true, force: true });
+                    throw error;
+                }
+                break;
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+                    throw error;
+                }
+                if (await this.removeStaleSnapshotLock(lockPath, ownerPath, reclaimPath)) {
+                    continue;
+                }
+                if (Date.now() >= deadline) {
+                    throw new Error(`Timed out waiting for snapshot lock: ${dateStr}`);
+                }
+                await this.delay(SnapshotManager.SNAPSHOT_LOCK_RETRY_MS);
+            }
+        }
+
+        try {
+            return await operation();
+        } finally {
+            const owner = await this.readSnapshotLockOwner(ownerPath);
+            if (owner?.token === token) {
+                await fs.rm(lockPath, { recursive: true, force: true });
+            }
+        }
+    }
+
+    private async removeOrphanedReclaimGuard(reclaimPath: string): Promise<boolean> {
+        try {
+            const stats = await fs.stat(reclaimPath);
+            if (Date.now() - stats.mtimeMs < SnapshotManager.SNAPSHOT_LOCK_WAIT_MS) {
+                return false;
+            }
+            await fs.rm(reclaimPath, { recursive: true, force: true });
+            return true;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return true;
+            }
+            throw error;
+        }
+    }
+
+    private async removeStaleSnapshotLock(lockPath: string, ownerPath: string, reclaimPath: string): Promise<boolean> {
+        try {
+            await fs.mkdir(reclaimPath);
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === 'EEXIST') {
+                return false;
+            }
+            if (code === 'ENOENT') {
+                return true;
+            }
+            throw error;
+        }
+        try {
+            const owner = await this.readSnapshotLockOwner(ownerPath);
+            if (owner && this.isProcessAlive(owner.pid)) {
+                return false;
+            }
+            if (!owner) {
+                try {
+                    const stats = await fs.stat(lockPath);
+                    if (Date.now() - stats.mtimeMs < SnapshotManager.SNAPSHOT_LOCK_ORPHAN_MS) {
+                        return false;
+                    }
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                        return true;
+                    }
+                    throw error;
+                }
+            }
+            await fs.rm(lockPath, { recursive: true, force: true });
+            return true;
+        } finally {
+            await fs.rm(reclaimPath, { recursive: true, force: true });
+        }
+    }
+
+    private async readSnapshotLockOwner(ownerPath: string): Promise<{ pid: number; token: string } | undefined> {
+        let content: string;
+        try {
+            content = await fs.readFile(ownerPath, 'utf-8');
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return undefined;
+            }
+            throw error;
+        }
+        try {
+            const owner = JSON.parse(content) as { pid?: unknown; token?: unknown };
+            return typeof owner.pid === 'number' && typeof owner.token === 'string' ?
+                    { pid: owner.pid, token: owner.token }
+                :   undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private isProcessAlive(pid: number): boolean {
+        try {
+            process.kill(pid, 0);
+            return true;
+        } catch (error) {
+            return (error as NodeJS.ErrnoException).code === 'EPERM';
+        }
+    }
+
+    private async getRawSourceSignature(dateFolder: string): Promise<string> {
+        try {
+            const files = await this.listRawFiles(dateFolder);
+            const signatures = await Promise.all(
+                files.map(async file => {
+                    const stats = await fs.stat(path.join(dateFolder, file));
+                    return `${file}:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`;
+                })
+            );
+            return signatures.join('|');
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return 'changed';
+            }
+            throw error;
+        }
+    }
+
+    private async listRawFiles(dateFolder: string): Promise<string[]> {
+        return (await fs.readdir(dateFolder)).filter(file => /^\d{2}\.jsonl$/.test(file)).sort();
+    }
+
+    private async readRawStore(dateFolder: string, files: readonly string[]): Promise<SnapshotFile> {
+        const allLogs: TokenRequestLog[] = [];
+        for (const file of files) {
+            const content = await fs.readFile(path.join(dateFolder, file), 'utf-8');
+            for (const line of content.split('\n')) {
+                if (!line.trim()) {
+                    continue;
+                }
+                try {
+                    const log = JSON.parse(line) as TokenRequestLog;
+                    if (log.requestId) {
+                        allLogs.push(log);
+                    }
+                } catch {
+                    // 跳过畸行
+                }
+            }
+        }
+
+        const store: SnapshotFile = {};
+        for (const log of StatsCalculator.mergeLogsByRequestId(allLogs).values()) {
+            store[log.requestId] = this.toSnapshotRecord(log);
+        }
+        return store;
     }
 
     private async mergeWithLatestSnapshot(dateStr: string, incomingStore: SnapshotFile): Promise<SnapshotFile> {
@@ -253,15 +435,44 @@ export class SnapshotManager {
     }
 
     invalidateCache(dateStr: string): void {
+        this.cacheGeneration += 1;
         for (const key of this.recordCache.keys()) {
             if (key === dateStr || key.endsWith(`:${dateStr}`)) {
-                this.recordCache.delete(key);
+                this.deleteRecordCacheEntry(key);
             }
         }
     }
 
     clearCache(): void {
+        this.cacheGeneration += 1;
         this.recordCache.clear();
+        this.cachedSnapshotRecords = 0;
+    }
+
+    private setRecordCache(cacheKey: string, mtime: number, value: SnapshotFile): void {
+        this.deleteRecordCacheEntry(cacheKey);
+        const recordCount = Object.keys(value).length;
+        this.recordCache.set(cacheKey, { records: null, mtime, value, recordCount });
+        this.cachedSnapshotRecords += recordCount;
+        while (
+            this.recordCache.size > SnapshotManager.MAX_RECORD_CACHE_ENTRIES ||
+            this.cachedSnapshotRecords > SnapshotManager.MAX_RECORD_CACHE_RECORDS
+        ) {
+            const oldestKey = this.recordCache.keys().next().value;
+            if (typeof oldestKey !== 'string') {
+                break;
+            }
+            this.deleteRecordCacheEntry(oldestKey);
+        }
+    }
+
+    private deleteRecordCacheEntry(cacheKey: string): void {
+        const cached = this.recordCache.get(cacheKey);
+        if (!cached) {
+            return;
+        }
+        this.recordCache.delete(cacheKey);
+        this.cachedSnapshotRecords -= cached.recordCount;
     }
 
     private getExistingSnapshotPath(dateStr: string): string | null {

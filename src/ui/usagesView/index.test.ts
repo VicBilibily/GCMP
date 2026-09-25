@@ -163,6 +163,27 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 return { dispose() {} };
             }
         };
+        const emptyOverview = {
+            allSummary: {
+                requestCount: 0,
+                totalTokens: 0,
+                completedCount: 0,
+                failedCount: 0,
+                cancelledCount: 0
+            },
+            allTotals: {
+                inputTokens: 0,
+                cacheTokens: 0,
+                outputTokens: 0,
+                totalCost: 0,
+                totalCostRmb: 0,
+                nativeCosts: { USD: 0, RMB: 0 },
+                costedRequests: 0,
+                rmbExactRequests: 0
+            },
+            nativeSplitIndex: { total: {}, providers: {}, models: {}, hours: {}, hourProviders: {}, hourModels: {} },
+            sessionGroups: []
+        };
         const view = new TokenUsagesView({ subscriptions: [] } as never);
         Object.defineProperty(view, 'getWebviewContent', { value: () => '' });
         let detailCallCount = 0;
@@ -239,7 +260,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 }
                 return { providers: {}, hourly: {} };
             },
-            getDateRecords: async () => []
+            getDateOverview: async () => emptyOverview
         });
         const actions = view as unknown as {
             handleMessage: (message: WebViewMessage) => Promise<void>;
@@ -258,17 +279,23 @@ test('opening usages view reconciles a stale index once, without slowing event r
         const today = DateUtils.getTodayDateString();
         let signalTodayStarted!: () => void;
         let releaseToday!: () => void;
+        let signalLatestStarted!: () => void;
         const todayStarted = new Promise<void>(resolve => {
             signalTodayStarted = resolve;
         });
         const todayBlocked = new Promise<void>(resolve => {
             releaseToday = resolve;
         });
+        const latestStarted = new Promise<void>(resolve => {
+            signalLatestStarted = resolve;
+        });
         Object.assign(manager, {
             getDateStatsFromFile: async (date: string) => {
                 if (date === today) {
                     signalTodayStarted();
                     await todayBlocked;
+                } else if (date === '2026-09-22') {
+                    signalLatestStarted();
                 }
                 return { providers: {}, hourly: {} };
             }
@@ -278,22 +305,186 @@ test('opening usages view reconciles a stale index once, without slowing event r
         const oldRefresh = actions.doSmartRefresh();
         await todayStarted;
         const latestSelection = actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
+        assert.equal(
+            await Promise.race([
+                latestStarted.then(() => true),
+                new Promise<boolean>(resolve => setImmediate(() => resolve(false)))
+            ]),
+            true
+        );
         releaseToday();
         await Promise.all([oldRefresh, latestSelection]);
         assert.deepEqual(detailDates, ['2026-09-22']);
         assert.equal(actions.currentSelectedDate, '2026-09-22');
 
+        await t.test('detail requests forward bounded query results without a full-day view cache', async () => {
+            Object.assign(manager, {
+                getRecordsPage: async (params: { page: number; pageSize: number }) => ({
+                    mode: 'all',
+                    page: params.page,
+                    pageSize: params.pageSize,
+                    totalItems: 1,
+                    records: [{ requestId: 'page-record' }],
+                    summary: emptyOverview.allSummary,
+                    totals: emptyOverview.allTotals
+                }),
+                getTrackRecords: async () => ({
+                    groups: [{ sessionId: 'session-a', records: [{ requestId: 'track-record' }] }]
+                })
+            });
+            messages.length = 0;
+            await actions.handleMessage({
+                command: 'getRecordsPage',
+                date: '2026-09-22',
+                mode: 'all',
+                page: 2,
+                pageSize: 20
+            });
+            assert.equal(messages[0]?.command, 'recordsPage');
+            assert.equal(
+                (messages[0] as { records: Array<{ requestId: string }> }).records[0].requestId,
+                'page-record'
+            );
+
+            await actions.handleMessage({
+                command: 'getTrackRecords',
+                date: '2026-09-22',
+                sessionIds: ['session-a', 'session-b'],
+                limitPerSession: 10
+            });
+            assert.equal(messages[1]?.command, 'trackRecords');
+            assert.equal(
+                (messages[1] as { groups: Array<{ records: Array<{ requestId: string }> }> }).groups[0].records[0]
+                    .requestId,
+                'track-record'
+            );
+            assert.equal('detailsCache' in view, false);
+        });
+
+        await t.test('rapid paging skips superseded queued requests', async () => {
+            const calledPages: number[] = [];
+            let signalOldStarted!: () => void;
+            let releaseOld!: () => void;
+            const oldStarted = new Promise<void>(resolve => {
+                signalOldStarted = resolve;
+            });
+            Object.assign(manager, {
+                getRecordsPage: async (params: { page: number; pageSize: number }) => {
+                    calledPages.push(params.page);
+                    if (params.page === 1) {
+                        signalOldStarted();
+                        await new Promise<void>(resolve => {
+                            releaseOld = resolve;
+                        });
+                    }
+                    return {
+                        mode: 'all',
+                        page: params.page,
+                        pageSize: params.pageSize,
+                        totalItems: 1,
+                        records: [{ requestId: `page-${params.page}` }],
+                        summary: emptyOverview.allSummary,
+                        totals: emptyOverview.allTotals
+                    };
+                }
+            });
+            messages.length = 0;
+            const request = (page: number, mode: 'all' | 'session' = 'all', sessionId?: string) => ({
+                command: 'getRecordsPage' as const,
+                date: '2026-09-22',
+                mode,
+                sessionId,
+                page,
+                pageSize: 20
+            });
+            const oldRequest = actions.handleMessage(request(1));
+            await oldStarted;
+            const supersededRequest = actions.handleMessage(request(2, 'session', 'session-a'));
+            const latestRequest = actions.handleMessage(request(3));
+            await supersededRequest;
+            await new Promise<void>(resolve => setImmediate(resolve));
+            assert.deepEqual(calledPages, [1]);
+            releaseOld();
+            await Promise.all([oldRequest, latestRequest]);
+
+            assert.deepEqual(calledPages, [1, 3]);
+            assert.deepEqual(
+                messages.map(message =>
+                    message.command === 'recordsPage' ? message.records[0]?.requestId : message.command
+                ),
+                ['page-3']
+            );
+        });
+
+        await t.test('switching dates invalidates an in-flight detail response', async () => {
+            let signalPageStarted!: () => void;
+            let releasePage!: () => void;
+            let signalDateStarted!: () => void;
+            let releaseDate!: () => void;
+            const pageStarted = new Promise<void>(resolve => {
+                signalPageStarted = resolve;
+            });
+            const dateStarted = new Promise<void>(resolve => {
+                signalDateStarted = resolve;
+            });
+            Object.assign(manager, {
+                getRecordsPage: async () => {
+                    signalPageStarted();
+                    await new Promise<void>(resolve => {
+                        releasePage = resolve;
+                    });
+                    return {
+                        mode: 'all',
+                        page: 1,
+                        pageSize: 20,
+                        totalItems: 1,
+                        records: [{ requestId: 'old-date-record' }],
+                        summary: emptyOverview.allSummary,
+                        totals: emptyOverview.allTotals
+                    };
+                },
+                getDateStatsFromFile: async (date: string) => {
+                    if (date === '2026-09-21') {
+                        signalDateStarted();
+                        await new Promise<void>(resolve => {
+                            releaseDate = resolve;
+                        });
+                    }
+                    return { providers: {}, hourly: {} };
+                },
+                getDateOverview: async () => emptyOverview
+            });
+            actions.currentSelectedDate = '2026-09-22';
+            messages.length = 0;
+            const oldPage = actions.handleMessage({
+                command: 'getRecordsPage',
+                date: '2026-09-22',
+                mode: 'all',
+                page: 1,
+                pageSize: 20
+            });
+            await pageStarted;
+            const selection = actions.handleMessage({ command: 'selectDate', date: '2026-09-21' });
+            await dateStarted;
+            releasePage();
+            await oldPage;
+            const publishedOldPage = messages.some(message => message.command === 'recordsPage');
+            releaseDate();
+            await selection;
+            assert.equal(publishedOldPage, false);
+        });
+
         await t.test('history read failure reports an error and permits retry', async () => {
             Object.assign(manager, {
                 getDateStatsFromFile: async () => ({ providers: {}, hourly: {} }),
-                getDateRecords: async () => {
+                getDateOverview: async () => {
                     throw new Error('transient read failure');
                 }
             });
             messages.length = 0;
             await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
             assert.deepEqual(messages, [{ command: 'dateLoadError', date: '2026-09-22' }]);
-            Object.assign(manager, { getDateRecords: async () => [] });
+            Object.assign(manager, { getDateOverview: async () => emptyOverview });
             await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
             assert.equal(messages.at(-1)?.command, 'updateDateDetails');
         });
@@ -303,7 +494,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 getDateStatsFromFile: async () => {
                     throw new Error('stats unavailable');
                 },
-                getDateRecords: async () => []
+                getDateOverview: async () => emptyOverview
             });
             messages.length = 0;
             await actions.handleMessage({ command: 'getInitialData' });
@@ -323,7 +514,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 });
                 Object.assign(manager, {
                     getDateStatsFromFile: async () => ({ providers: {}, hourly: {} }),
-                    getDateRecords: async () => {
+                    getDateOverview: async () => {
                         signalRead();
                         return pending;
                     }

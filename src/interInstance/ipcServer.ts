@@ -17,6 +17,8 @@ export interface IpcServerOptions {
     onClientDisconnected?: (instanceId: string) => void;
 }
 
+export type IpcTargetSendResult = 'sent' | 'not-connected' | 'too-large';
+
 /**
  * Leader IPC 服务端
  */
@@ -26,8 +28,11 @@ export class IpcServer {
     private currentPath: string | undefined;
     private options: IpcServerOptions;
     private socketInstanceIds = new Map<net.Socket, string>();
+    private backpressuredSockets = new Map<net.Socket, { timer: ReturnType<typeof setTimeout>; onDrain: () => void }>();
     /** 单连接接收缓冲区上限，防止异常对端持续发送无换行数据导致内存无限增长 */
     private static readonly MAX_BUFFER_BYTES = 1024 * 1024; // 1MB
+    private static readonly MAX_TARGET_EVENT_BYTES = 768 * 1024;
+    private static readonly TARGET_DRAIN_TIMEOUT_MS = 2000;
     /** server.close 等待超时，避免挂起连接拖垮 stop */
     private static readonly CLOSE_TIMEOUT_MS = 2000;
 
@@ -80,12 +85,7 @@ export class IpcServer {
                 // 直接 toString 会产生不可恢复的 U+FFFD 导致整行事件丢弃
                 const decoder = new StringDecoder('utf8');
                 const cleanupSocket = () => {
-                    const instanceId = this.socketInstanceIds.get(socket);
-                    this.sockets.delete(socket);
-                    this.socketInstanceIds.delete(socket);
-                    if (instanceId && !this.hasConnectedInstance(instanceId)) {
-                        this.options.onClientDisconnected?.(instanceId);
-                    }
+                    this.removeSocket(socket);
                 };
 
                 socket.on('data', data => {
@@ -100,10 +100,10 @@ export class IpcServer {
                     const { events, remaining } = parseEventsFromBuffer(buffer);
                     buffer = remaining;
                     if (events.length > 0) {
-                        // 记录发送者 instanceId，避免把事件原路广播回去
-                        const firstEvent = events[0];
-                        if (firstEvent?.senderInstanceId) {
-                            this.socketInstanceIds.set(socket, firstEvent.senderInstanceId);
+                        if (!this.acceptSocketEvents(socket, events)) {
+                            cleanupSocket();
+                            socket.destroy();
+                            return;
                         }
                         // Leader 本地派发，并把来自 Follower 的消息中继给其他 Follower
                         for (const event of events) {
@@ -145,24 +145,55 @@ export class IpcServer {
         if (this.sockets.size === 0) {
             return;
         }
+        this.backpressuredSockets ??= new Map();
 
         const payload = serializeEvent(event);
         for (const socket of this.sockets) {
-            if (socket === excludeSocket) {
+            if (socket === excludeSocket || !this.socketInstanceIds.has(socket)) {
+                continue;
+            }
+            if (this.backpressuredSockets.has(socket)) {
+                this.disconnectSocket(socket);
                 continue;
             }
             try {
-                socket.write(payload);
+                if (!socket.write(payload)) {
+                    this.trackSocketBackpressure(socket);
+                }
             } catch (error) {
                 StatusLogger.warn('[IpcServer] Failed to write to socket', error);
-                const instanceId = this.socketInstanceIds.get(socket);
-                this.sockets.delete(socket);
-                this.socketInstanceIds.delete(socket);
-                if (instanceId && !this.hasConnectedInstance(instanceId)) {
-                    this.options.onClientDisconnected?.(instanceId);
-                }
+                this.disconnectSocket(socket);
             }
         }
+    }
+
+    sendToInstance(instanceId: string, event: InterInstanceEvent): IpcTargetSendResult {
+        this.backpressuredSockets ??= new Map();
+        const payload = serializeEvent(event);
+        if (Buffer.byteLength(payload, 'utf8') > IpcServer.MAX_TARGET_EVENT_BYTES) {
+            return 'too-large';
+        }
+
+        let sent = false;
+        for (const [socket, connectedInstanceId] of this.socketInstanceIds) {
+            if (connectedInstanceId !== instanceId) {
+                continue;
+            }
+            if (this.backpressuredSockets.has(socket)) {
+                this.disconnectSocket(socket);
+                continue;
+            }
+            try {
+                if (!socket.write(payload)) {
+                    this.trackSocketBackpressure(socket);
+                }
+                sent = true;
+            } catch (error) {
+                StatusLogger.warn('[IpcServer] Failed to write targeted event', error);
+                this.disconnectSocket(socket);
+            }
+        }
+        return sent ? 'sent' : 'not-connected';
     }
 
     /**
@@ -173,8 +204,46 @@ export class IpcServer {
             return;
         }
         for (const event of events) {
+            if (
+                event.type === 'remoteInstanceCapabilities' ||
+                event.type === 'usagesQueryRequested' ||
+                event.type === 'usagesQueryCompleted'
+            ) {
+                continue;
+            }
             this.broadcast(event, sourceSocket);
         }
+    }
+
+    private acceptSocketEvents(socket: net.Socket, events: InterInstanceEvent[]): boolean {
+        const firstEvent = events[0];
+        const senderInstanceId = firstEvent?.senderInstanceId;
+        if (
+            typeof senderInstanceId !== 'string' ||
+            senderInstanceId.length === 0 ||
+            senderInstanceId.length > 128 ||
+            events.some(event => event.senderInstanceId !== senderInstanceId)
+        ) {
+            StatusLogger.warn('[IpcServer] Rejecting events with an invalid or mixed sender identity');
+            return false;
+        }
+
+        const boundInstanceId = this.socketInstanceIds.get(socket);
+        if (boundInstanceId) {
+            if (boundInstanceId !== senderInstanceId) {
+                StatusLogger.warn('[IpcServer] Rejecting socket sender identity change');
+                return false;
+            }
+            return true;
+        }
+
+        if (firstEvent.type !== 'remoteInstanceHello' || this.hasConnectedInstance(senderInstanceId)) {
+            StatusLogger.warn('[IpcServer] Rejecting socket without a unique instance handshake');
+            return false;
+        }
+
+        this.socketInstanceIds.set(socket, senderInstanceId);
+        return true;
     }
 
     /**
@@ -193,12 +262,58 @@ export class IpcServer {
         return false;
     }
 
+    private removeSocket(socket: net.Socket): void {
+        this.backpressuredSockets ??= new Map();
+        const instanceId = this.socketInstanceIds.get(socket);
+        this.clearSocketBackpressure(socket);
+        this.sockets.delete(socket);
+        this.socketInstanceIds.delete(socket);
+        if (instanceId && !this.hasConnectedInstance(instanceId)) {
+            this.options.onClientDisconnected?.(instanceId);
+        }
+    }
+
+    private trackSocketBackpressure(socket: net.Socket): void {
+        this.backpressuredSockets ??= new Map();
+        if (this.backpressuredSockets.has(socket)) {
+            return;
+        }
+        const onDrain = () => this.clearSocketBackpressure(socket);
+        const timer = setTimeout(() => {
+            StatusLogger.warn('[IpcServer] Socket drain timed out, destroying connection');
+            this.disconnectSocket(socket);
+        }, IpcServer.TARGET_DRAIN_TIMEOUT_MS);
+        this.backpressuredSockets.set(socket, { timer, onDrain });
+        socket.once('drain', onDrain);
+    }
+
+    private clearSocketBackpressure(socket: net.Socket): void {
+        this.backpressuredSockets ??= new Map();
+        const state = this.backpressuredSockets.get(socket);
+        if (!state) {
+            return;
+        }
+        clearTimeout(state.timer);
+        socket.off('drain', state.onDrain);
+        this.backpressuredSockets.delete(socket);
+    }
+
+    private disconnectSocket(socket: net.Socket): void {
+        this.removeSocket(socket);
+        try {
+            socket.destroy();
+        } catch {
+            // ignore
+        }
+    }
+
     /**
      * 停止 IPC 服务器，清理所有连接和 IPC 路径
      */
     async stop(): Promise<void> {
         // 强制销毁所有 socket：end() 需等对端响应，若对端进程挂起会导致 server.close 回调永不触发
         for (const socket of this.sockets) {
+            this.clearSocketBackpressure(socket);
             try {
                 socket.destroy();
             } catch {
@@ -207,6 +322,7 @@ export class IpcServer {
         }
         this.sockets.clear();
         this.socketInstanceIds.clear();
+        this.backpressuredSockets.clear();
 
         if (this.server) {
             const server = this.server;

@@ -1,7 +1,13 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { INTER_INSTANCE_EVENT_TYPES, parseEventsFromBuffer, parseIncrementalEvents } from './eventProtocol';
+import {
+    INTER_INSTANCE_EVENT_TYPES,
+    USAGES_QUERY_PROTOCOL_VERSION,
+    isUsagesQueryCapabilityCompatible,
+    parseEventsFromBuffer,
+    parseIncrementalEvents
+} from './eventProtocol';
 
 test('parseEventsFromBuffer returns trailing partial line as remaining', () => {
     const firstChunk =
@@ -43,7 +49,10 @@ test('rate limit event types are registered in the event type set', () => {
         'liveMetricsSnapshotRequested',
         'liveMetricsSnapshotSync',
         'remoteInstanceHello',
+        'remoteInstanceCapabilities',
         'remoteInstanceDisconnected',
+        'usagesQueryRequested',
+        'usagesQueryCompleted',
         'rateLimitAcquireRequested',
         'rateLimitAcquireGranted',
         'rateLimitQueueUpdated',
@@ -60,7 +69,10 @@ test('parseEventsFromBuffer accepts rate limit events', () => {
         '{"type":"liveMetricsSnapshotRequested","payload":{},"timestamp":0,"senderInstanceId":"follower-a"}',
         '{"type":"liveMetricsSnapshotSync","payload":{"targetInstanceId":"follower-a","authorityTerm":"leader-a:1","entries":[{"event":{"type":"rateLimitWaiting","requestId":"req-1","requestStartTime":1000,"providerName":"GCMP","modelName":"test-model","queuePosition":2},"sourceInstanceId":"leader-a"}]},"timestamp":0,"senderInstanceId":"leader-a"}',
         '{"type":"remoteInstanceHello","payload":{},"timestamp":0,"senderInstanceId":"follower-a"}',
+        '{"type":"remoteInstanceCapabilities","payload":{"targetInstanceId":"follower-a","extensionVersion":"1.0.0","usagesQueryProtocolVersion":1},"timestamp":0,"senderInstanceId":"leader-a"}',
         '{"type":"remoteInstanceDisconnected","payload":{"instanceId":"follower-a"},"timestamp":0,"senderInstanceId":"leader"}',
+        '{"type":"usagesQueryRequested","payload":{"requestId":"usage-1","requestedBy":"follower-a","authorityTerm":"leader-a:1","query":{"kind":"recentRecords","limit":3}},"timestamp":0,"senderInstanceId":"follower-a"}',
+        '{"type":"usagesQueryCompleted","payload":{"requestId":"usage-1","targetInstanceId":"follower-a","authorityTerm":"leader-a:1","result":{"kind":"recentRecords","value":[]}},"timestamp":0,"senderInstanceId":"leader-a"}',
         '{"type":"rateLimitAcquireRequested","payload":{"authorityTerm":"leader-a:1","requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
         '{"type":"rateLimitAcquireGranted","payload":{"authorityTerm":"leader-a:1","requestId":"r1","waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
         '{"type":"rateLimitQueueUpdated","payload":{"authorityTerm":"leader-a:1","requestId":"r1","queuePosition":2},"timestamp":3,"senderInstanceId":"b"}',
@@ -71,16 +83,45 @@ test('parseEventsFromBuffer accepts rate limit events', () => {
 
     const { events, remaining } = parseEventsFromBuffer(lines + '\n');
 
-    assert.equal(events.length, 10);
+    assert.equal(events.length, 13);
     assert.equal(events[0]?.type, 'liveMetricsSnapshotRequested');
     assert.equal(events[1]?.type, 'liveMetricsSnapshotSync');
     assert.equal(events[2]?.type, 'remoteInstanceHello');
-    assert.equal(events[3]?.type, 'remoteInstanceDisconnected');
-    assert.equal(events[4]?.type, 'rateLimitAcquireRequested');
-    assert.equal(events[5]?.type, 'rateLimitAcquireGranted');
-    assert.equal(events[6]?.type, 'rateLimitQueueUpdated');
-    assert.equal(events[7]?.type, 'rateLimitAcquireCancelled');
-    assert.equal(events[8]?.type, 'rateLimitReleased');
-    assert.equal(events[9]?.type, 'rateLimitLeaseRenewed');
+    assert.equal(events[3]?.type, 'remoteInstanceCapabilities');
+    assert.equal(events[4]?.type, 'remoteInstanceDisconnected');
+    assert.equal(events[5]?.type, 'usagesQueryRequested');
+    assert.equal(events[6]?.type, 'usagesQueryCompleted');
+    assert.equal(events[7]?.type, 'rateLimitAcquireRequested');
+    assert.equal(events[8]?.type, 'rateLimitAcquireGranted');
+    assert.equal(events[9]?.type, 'rateLimitQueueUpdated');
+    assert.equal(events[10]?.type, 'rateLimitAcquireCancelled');
+    assert.equal(events[11]?.type, 'rateLimitReleased');
+    assert.equal(events[12]?.type, 'rateLimitLeaseRenewed');
     assert.equal(remaining, '');
+});
+
+test('usage query capability requires matching extension and protocol versions', () => {
+    const capability = {
+        targetInstanceId: 'follower-a',
+        extensionVersion: '1.0.0',
+        usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
+    };
+
+    assert.equal(isUsagesQueryCapabilityCompatible('1.0.0', capability), true);
+    assert.equal(isUsagesQueryCapabilityCompatible('1.0.1', capability), false);
+    assert.equal(
+        isUsagesQueryCapabilityCompatible('1.0.0', {
+            ...capability,
+            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION + 1
+        }),
+        false
+    );
+    assert.equal(isUsagesQueryCapabilityCompatible('1.0.0', undefined), false);
+    assert.equal(
+        isUsagesQueryCapabilityCompatible('1.0.0', {
+            ...capability,
+            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION - 1
+        }),
+        false
+    );
 });

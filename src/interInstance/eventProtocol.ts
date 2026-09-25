@@ -10,6 +10,9 @@ import type {
     RateLimitRefund,
     RateLimitStoreSnapshot
 } from '../rateLimit/rateLimitStore';
+import type { UsagesPendingRecord, UsagesQuery, UsagesQueryResult } from '../usages/query/types';
+
+export const USAGES_QUERY_PROTOCOL_VERSION = 1;
 
 /**
  * 跨实例事件基类
@@ -172,6 +175,30 @@ export interface RemoteInstanceHelloEvent extends InterInstanceEventBase {
 }
 
 /**
+ * Leader 定向返回其支持的跨实例能力。
+ */
+export interface RemoteInstanceCapabilitiesEvent extends InterInstanceEventBase {
+    type: 'remoteInstanceCapabilities';
+    payload: {
+        targetInstanceId: string;
+        extensionVersion: string;
+        usagesQueryProtocolVersion: number;
+    };
+}
+
+export function isUsagesQueryCapabilityCompatible(localExtensionVersion: string, payload: unknown): boolean {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+    const capability = payload as Partial<RemoteInstanceCapabilitiesEvent['payload']>;
+    return (
+        localExtensionVersion.length > 0 &&
+        capability.extensionVersion === localExtensionVersion &&
+        capability.usagesQueryProtocolVersion === USAGES_QUERY_PROTOCOL_VERSION
+    );
+}
+
+/**
  * 远端实例已断开
  * 用于清理该实例残留的实时流式状态。
  */
@@ -257,6 +284,36 @@ export interface StatsRefreshCompletedEvent extends InterInstanceEventBase {
         requestId: string;
         /** 成功重建的日期列表 */
         regeneratedDates: string[];
+    };
+}
+
+/**
+ * 用量明细查询请求。
+ * Follower 仅通过 IPC 发送，Leader 在持有全量明细缓存的进程内完成聚合与分页。
+ */
+export interface UsagesQueryRequestedEvent extends InterInstanceEventBase {
+    type: 'usagesQueryRequested';
+    payload: {
+        requestId: string;
+        requestedBy: string;
+        authorityTerm?: string;
+        query: UsagesQuery;
+        pendingRecords?: UsagesPendingRecord[];
+    };
+}
+
+/**
+ * 用量明细查询定向回执。
+ * 结果受 IPC 单消息大小限制；超限或执行失败时 Follower 回退为本地读取。
+ */
+export interface UsagesQueryCompletedEvent extends InterInstanceEventBase {
+    type: 'usagesQueryCompleted';
+    payload: {
+        requestId: string;
+        targetInstanceId: string;
+        authorityTerm?: string;
+        result?: UsagesQueryResult;
+        error?: 'invalid-request' | 'query-failed' | 'response-too-large' | 'busy';
     };
 }
 
@@ -371,11 +428,14 @@ export type InterInstanceEvent =
     | LiveMetricsSnapshotRequestedEvent
     | LiveMetricsSnapshotSyncEvent
     | RemoteInstanceHelloEvent
+    | RemoteInstanceCapabilitiesEvent
     | RemoteInstanceDisconnectedEvent
     | CliAuthRefreshRequestedEvent
     | CliAuthRefreshCompletedEvent
     | StatsRefreshRequestedEvent
     | StatsRefreshCompletedEvent
+    | UsagesQueryRequestedEvent
+    | UsagesQueryCompletedEvent
     | RateLimitAcquireRequestedEvent
     | RateLimitAcquireGrantedEvent
     | RateLimitQueueUpdatedEvent
@@ -398,11 +458,14 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'liveMetricsSnapshotRequested',
     'liveMetricsSnapshotSync',
     'remoteInstanceHello',
+    'remoteInstanceCapabilities',
     'remoteInstanceDisconnected',
     'cliAuthRefreshRequested',
     'cliAuthRefreshCompleted',
     'statsRefreshRequested',
     'statsRefreshCompleted',
+    'usagesQueryRequested',
+    'usagesQueryCompleted',
     'rateLimitAcquireRequested',
     'rateLimitAcquireGranted',
     'rateLimitQueueUpdated',

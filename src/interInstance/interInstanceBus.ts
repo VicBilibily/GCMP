@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { InterInstanceEvent, InterInstanceEventHandler, type RemoteInstanceDisconnectedEvent } from './eventProtocol';
-import { IpcServer } from './ipcServer';
+import {
+    InterInstanceEvent,
+    InterInstanceEventHandler,
+    type RemoteInstanceDisconnectedEvent,
+    USAGES_QUERY_PROTOCOL_VERSION,
+    isUsagesQueryCapabilityCompatible
+} from './eventProtocol';
+import { IpcServer, type IpcTargetSendResult } from './ipcServer';
 import { IpcClient } from './ipcClient';
 import { FallbackTransport } from './fallbackTransport';
 import { resolveIpcPath } from './pathResolver';
@@ -51,6 +57,8 @@ export class InterInstanceBus {
     private static fallbackTransport: FallbackTransport | undefined;
     /** IPC 完全失败时启用文件 fallback；保留此标记用于调试 fallback 触发场景 */
     private static fallbackActive = false;
+    private static extensionVersion = '';
+    private static remoteUsagesQueryCompatible = false;
 
     private static handlers = new Map<string, Set<InterInstanceEventHandler<InterInstanceEvent>>>();
     private static leaderChangeDisposable: vscode.Disposable | undefined;
@@ -76,6 +84,9 @@ export class InterInstanceBus {
 
         this.lifecycleGeneration++;
         this.context = context;
+        const extensionVersion = context.extension?.packageJSON?.version;
+        this.extensionVersion = typeof extensionVersion === 'string' ? extensionVersion : '';
+        this.remoteUsagesQueryCompatible = false;
 
         // 远程开发环境（Remote/SSH/WSL/Container）下禁用 IPC，仅使用文件系统降级通道
         const isLocalHost = typeof vscode.env.remoteName === 'undefined';
@@ -153,6 +164,8 @@ export class InterInstanceBus {
 
         this.handlers.clear();
         this.context = undefined;
+        this.extensionVersion = '';
+        this.remoteUsagesQueryCompatible = false;
         this.roleSwitchChain = Promise.resolve();
         this.roleTransitioning = 0;
 
@@ -213,9 +226,9 @@ export class InterInstanceBus {
      * 用于高频实时事件（如 liveMetrics），避免 fallback 文件 I/O 开销。
      * IPC 未连接时直接丢弃。
      */
-    static publishIpcOnly(event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>): void {
+    static publishIpcOnly(event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>): boolean {
         if (!this.initialized || !this.context) {
-            return;
+            return false;
         }
 
         const fullEvent = {
@@ -227,9 +240,28 @@ export class InterInstanceBus {
         // 设计意图：高频实时状态只走 IPC，IPC 不可用时直接降级为“当前 session 内可见”。
         if (this.server) {
             this.server.broadcast(fullEvent);
+            return true;
         } else if (this.client?.isConnected()) {
             this.client.send(fullEvent);
+            return true;
         }
+        return false;
+    }
+
+    static publishToInstance(
+        targetInstanceId: string,
+        event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>
+    ): IpcTargetSendResult {
+        if (!this.initialized || !this.context || !this.server) {
+            return 'not-connected';
+        }
+
+        const fullEvent = {
+            ...event,
+            timestamp: Date.now(),
+            senderInstanceId: this.instanceId ?? 'unknown'
+        } as InterInstanceEvent;
+        return this.server.sendToInstance(targetInstanceId, fullEvent);
     }
 
     /**
@@ -270,6 +302,13 @@ export class InterInstanceBus {
             return !!this.server;
         }
         return this.client?.isConnected() === true;
+    }
+
+    static hasCompatibleUsagesQueryTransport(): boolean {
+        if (LeaderElectionService.isLeader()) {
+            return !!this.server;
+        }
+        return this.client?.isConnected() === true && this.remoteUsagesQueryCompatible;
     }
 
     /** 角色/连接切换中：term 可能尚未更新，调用方不应把短暂缺失当成权威不可用 */
@@ -471,14 +510,15 @@ export class InterInstanceBus {
                 return;
             }
 
-            this.setAuthorityTerm(currentTarget.authorityTerm);
-            this.reconnectAttempts = 0;
+            // 任期监听器可能同步发送业务消息，hello 必须先入队。
             this.client.send({
                 type: 'remoteInstanceHello',
                 payload: {},
                 timestamp: Date.now(),
                 senderInstanceId: this.instanceId ?? 'unknown'
             });
+            this.setAuthorityTerm(currentTarget.authorityTerm);
+            this.reconnectAttempts = 0;
             StatusLogger.info(`[InterInstanceBus] Connected to leader at ${target.ipcPath}`);
         } catch (error) {
             StatusLogger.warn('[InterInstanceBus] Failed to connect to leader IPC', error);
@@ -566,7 +606,38 @@ export class InterInstanceBus {
             return;
         }
 
+        if (LeaderElectionService.isLeader() && event.type === 'remoteInstanceHello') {
+            this.publishToInstance(event.senderInstanceId, {
+                type: 'remoteInstanceCapabilities',
+                payload: {
+                    targetInstanceId: event.senderInstanceId,
+                    extensionVersion: this.extensionVersion,
+                    usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
+                }
+            });
+        } else if (!LeaderElectionService.isLeader() && event.type === 'remoteInstanceCapabilities') {
+            const payload = event.payload as unknown;
+            const authorityInstanceId = this.getAuthorityInstanceId();
+            if (
+                payload &&
+                typeof payload === 'object' &&
+                !Array.isArray(payload) &&
+                (payload as { targetInstanceId?: unknown }).targetInstanceId === this.instanceId &&
+                event.senderInstanceId === authorityInstanceId
+            ) {
+                this.remoteUsagesQueryCompatible = isUsagesQueryCapabilityCompatible(this.extensionVersion, payload);
+            }
+        }
+
         this.invokeHandlers(event);
+    }
+
+    private static getAuthorityInstanceId(): string | undefined {
+        if (!this.authorityTerm) {
+            return undefined;
+        }
+        const separator = this.authorityTerm.lastIndexOf(':');
+        return separator > 0 ? this.authorityTerm.slice(0, separator) : undefined;
     }
 
     private static invokeHandlers(event: InterInstanceEvent): void {
@@ -614,6 +685,7 @@ export class InterInstanceBus {
             return;
         }
         this.authorityTerm = authorityTerm;
+        this.remoteUsagesQueryCompatible = false;
         this.authorityChangedEmitter.fire(authorityTerm);
     }
 }

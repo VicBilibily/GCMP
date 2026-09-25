@@ -9,12 +9,18 @@ import type { DateSummary } from '../../usages/types';
 import type {
     FileLoggerProviderStats,
     FileLoggerModelStats as ModelData,
-    HourlyStats,
-    NativeCostSplit
+    HourlyStats
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { RateLimitWaitScope } from '../../types/sharedTypes';
+import type {
+    NativeCostSplitIndex,
+    RequestTotals,
+    SessionGroupSummary,
+    SessionRecoveryDebugSummary,
+    SessionSummary
+} from '../../usages/query/types';
 
 export interface LiveRequestUiState {
     isRateLimitWaiting: boolean;
@@ -31,78 +37,6 @@ export interface LiveRequestUiState {
  */
 export interface ProviderData extends FileLoggerProviderStats {
     providerKey: string;
-}
-
-export interface NativeCostSplitIndex {
-    total: NativeCostSplit;
-    providers: Record<string, NativeCostSplit>;
-    models: Record<string, Record<string, NativeCostSplit>>;
-    hours: Record<string, NativeCostSplit>;
-    hourProviders: Record<string, Record<string, NativeCostSplit>>;
-    hourModels: Record<string, Record<string, Record<string, NativeCostSplit>>>;
-}
-
-/**
- * 会话级汇总信息
- */
-export interface SessionSummary {
-    requestCount: number;
-    totalTokens: number;
-    startTime?: number;
-    endTime?: number;
-    completedCount: number;
-    failedCount: number;
-    cancelledCount: number;
-    avgSpeed?: number;
-}
-
-export interface RequestTotals {
-    inputTokens: number;
-    cacheTokens: number;
-    outputTokens: number;
-    avgLatency?: number;
-    avgDuration?: number;
-    totalCost: number;
-    totalCostRmb: number;
-    nativeCosts: NativeCostSplit;
-    costedRequests: number;
-    rmbExactRequests: number;
-}
-
-/**
- * 会话分组结果，包含展示信息与原始记录
- */
-export interface SessionGroup {
-    sessionId: string;
-    displayId: string;
-    /** 会话标题（仅 VS Code 正式标题 generated），无则回退 displayId 展示 */
-    title?: string;
-    records: ExtendedTokenRequestLog[];
-    summary: SessionSummary;
-    totals: RequestTotals;
-}
-
-/**
- * 会话级恢复调试统计（扩展侧全量计算，随摘要推送）
- */
-export interface SessionRecoveryDebugSummary {
-    bridgeCount: number;
-    newUuidCount: number;
-}
-
-/**
- * 会话分组摘要（不含明细记录，供摘要消息与 UI 展示）
- */
-export interface SessionGroupSummary {
-    sessionId: string;
-    displayId: string;
-    /** 会话标题（仅 VS Code 正式标题 generated），无则回退 displayId 展示 */
-    title?: string;
-    summary: SessionSummary;
-    totals: RequestTotals;
-    /** 组内记录总数（分页 totalItems 用） */
-    recordCount: number;
-    recoveryDebug?: SessionRecoveryDebugSummary;
 }
 
 /**
@@ -130,6 +64,14 @@ export interface TrackRecordsState {
 
 export type { DateSummary, ModelData, HourlyStats };
 export type { ExtendedTokenRequestLog };
+export type {
+    NativeCostSplitIndex,
+    RequestTotals,
+    SessionGroup,
+    SessionGroupSummary,
+    SessionRecoveryDebugSummary,
+    SessionSummary
+} from '../../usages/query/types';
 
 // ============= 消息类型定义 =============
 

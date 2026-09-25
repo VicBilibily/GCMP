@@ -25,13 +25,40 @@ import type {
 import type { MultiDayAnalysisResult } from './multiDay/types';
 import { MultiDayAggregator } from './multiDay/multiDayAggregator';
 import { TrendCalculator } from './multiDay/trendCalculator';
+import {
+    buildNativeCostSplitIndex,
+    buildRequestTotals,
+    buildSessionGroupSummaries,
+    filterRecordsBySession,
+    sliceRecordsPage,
+    sortRecordsByTimestampDesc,
+    summarizeSessionRecords,
+    summarizeSessionRecoveryDebugInfo
+} from '../ui/usagesView/aggregation';
+import { UsagesQueryCoordinator } from './query/usagesQueryCoordinator';
+import { normalizeUsagesPendingRecords } from './query/validation';
+import type {
+    UsagesDateOverview,
+    UsagesPendingRecord,
+    UsagesQuery,
+    UsagesQueryResult,
+    UsagesRecordsPageResult,
+    UsagesTrackRecordsResult
+} from './query/types';
 
 const MAX_SESSION_TITLE_LOOKBACK_DAYS = 7;
 const SESSION_TITLE_MISS_CACHE_TTL_MS = 30 * 60 * 1000;
+const MAX_DATE_RECORD_CACHE_ENTRIES = 2;
+const MAX_DATE_RECORD_CACHE_RECORDS = 20_000;
 
 interface HistoricalSessionTitleCacheEntry {
     title: string | null;
     checkedAt: number;
+}
+
+interface DateRecordsCacheEntry {
+    signature: string;
+    records: ExtendedTokenRequestLog[];
 }
 
 /** updateActualTokens 参数（请求完成后调用） */
@@ -64,6 +91,13 @@ export class TokenUsagesManager {
     private eventEmitter: EventEmitter;
     private initialized: boolean = false;
     private readonly historicalSessionTitleCache = new Map<string, HistoricalSessionTitleCacheEntry>();
+    private usagesQueryCoordinator: UsagesQueryCoordinator | undefined;
+    private leaderChangeDisposable: vscode.Disposable | undefined;
+    private cacheInvalidationDisposable: vscode.Disposable | undefined;
+    private dateRecordsCache = new Map<string, DateRecordsCacheEntry>();
+    private dateRecordsBuilds = new Map<string, Promise<ExtendedTokenRequestLog[]>>();
+    private cachedDateRecords = 0;
+    private dateRecordsCacheGeneration = 0;
 
     private constructor() {
         this.eventEmitter = new EventEmitter();
@@ -90,6 +124,51 @@ export class TokenUsagesManager {
         // 初始化文件日志系统
         this.fileLogger = new TokenFileLogger(context);
         await this.fileLogger.initialize();
+
+        this.usagesQueryCoordinator = new UsagesQueryCoordinator(
+            (query, pendingRecords, isRemote) => this.executeUsagesQuery(query, pendingRecords, isRemote),
+            () => {
+                this.fileLogger.clearDetailCaches();
+                this.clearDateRecordsCache();
+            },
+            (query, expectedPendingRecords) => {
+                if (query.kind === 'sessionTitle') {
+                    return true;
+                }
+                const date = 'date' in query ? query.date : undefined;
+                const pendingLogs = this.fileLogger.getPendingLogs();
+                if (
+                    pendingLogs.some(
+                        log =>
+                            log.status !== 'estimated' &&
+                            (!date || DateUtils.formatDate(new Date(log.timestamp)) === date)
+                    )
+                ) {
+                    return false;
+                }
+                if (!expectedPendingRecords) {
+                    return true;
+                }
+                const currentPendingRecords = normalizeUsagesPendingRecords(this.getEstimatedPendingRecords(date));
+                return (
+                    currentPendingRecords !== undefined &&
+                    this.arePendingRecordsEqual(expectedPendingRecords, currentPendingRecords)
+                );
+            }
+        );
+        this.leaderChangeDisposable = LeaderElectionService.onLeaderChanged(isLeader => {
+            if (!isLeader) {
+                this.fileLogger.clearDetailCaches();
+                this.clearDateRecordsCache();
+            }
+        });
+        this.cacheInvalidationDisposable = InterInstanceBus.subscribe('tokenUsageUpdated', event => {
+            const date = (event.payload as { date?: unknown }).date;
+            if (typeof date === 'string') {
+                this.fileLogger.invalidateDetailCaches(date);
+                this.clearDateRecordsCache(date);
+            }
+        });
 
         this.initialized = true;
 
@@ -176,6 +255,8 @@ export class TokenUsagesManager {
         // requestId 仅用于日志关联、内存索引和 UI 的 data-request-id；
         // OpenCode 请求头会通过 formatOpenCodeId 进一步格式化，无需额外做文件名级字符限制。
         const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const timestamp = params.timestamp ?? Date.now();
+        const recordDate = DateUtils.formatDate(new Date(timestamp));
 
         try {
             // 记录到文件日志系统（不等待结果）
@@ -197,9 +278,10 @@ export class TokenUsagesManager {
                     capturingTokenCorrelationId: params.capturingTokenCorrelationId,
                     otelTraceContext: params.otelTraceContext,
                     telemetryTurn: params.telemetryTurn,
-                    timestamp: params.timestamp
+                    timestamp
                 })
                 .finally(() => {
+                    this.clearDateRecordsCache(recordDate);
                     // 通知更新
                     this.notifyUpdate();
                 });
@@ -227,6 +309,11 @@ export class TokenUsagesManager {
         }
 
         try {
+            const pendingLog = this.fileLogger.getPendingLogs().find(log => log.requestId === params.requestId);
+            const recordDate =
+                pendingLog ?
+                    DateUtils.formatDate(new Date(pendingLog.timestamp))
+                :   this.getRequestDate(params.requestId);
             // 将 rawUsage 中的 null 值转换为 undefined（适配 fileLogger 的期望类型）
             let normalizedUsage: GenericUsageData | undefined;
             if (params.rawUsage) {
@@ -256,6 +343,7 @@ export class TokenUsagesManager {
                     costBreakdown: params.costBreakdown
                 })
                 .finally(() => {
+                    this.clearDateRecordsCache(recordDate);
                     // 通知更新
                     this.notifyUpdate();
                 });
@@ -354,52 +442,303 @@ export class TokenUsagesManager {
      * 性能优化：只读取最近 limit*2 条已完成请求，减少大量日志场景下的内存占用
      */
     async getRecentRecords(limit: number = 100): Promise<ExtendedTokenRequestLog[]> {
+        if (this.usagesQueryCoordinator) {
+            const pendingRecords = await this.flushBeforeRemoteQuery();
+            return this.usagesQueryCoordinator.run({ kind: 'recentRecords', limit }, pendingRecords);
+        }
+        return this.getRecentRecordsLocal(limit);
+    }
+
+    private async getRecentRecordsLocal(
+        limit: number,
+        pendingRecords: readonly UsagesPendingRecord[] = [],
+        throwOnFailure = false
+    ): Promise<ExtendedTokenRequestLog[]> {
         const today = DateUtils.getTodayDateString();
         // 使用性能优化版本，只读取最近 limit*2 条（以防过滤后不足）
-        const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2);
-        // 获取内存中的 pending 日志（还未完成的请求）
-        const pendingLogs = this.fileLogger.getPendingLogs();
-        // 创建一个 pending requestId 的集合，用于快速查找
-        const pendingRequestIds = new Set(pendingLogs.map(log => log.requestId));
-        // 过滤文件中的日志：只保留那些不在 pending 中的（已完成的）
-        const completedRequests = details.filter(log => !pendingRequestIds.has(log.requestId));
-        // 合并完成的请求和仍在进行中的 pending 请求
-        const allLogs = [...completedRequests, ...pendingLogs];
-        // 按时间戳倒序排序（最新的在前）
-        allLogs.sort((a, b) => b.timestamp - a.timestamp);
-        this.seedSessionTitlesFromLogs(allLogs);
+        const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2, throwOnFailure);
+        const allLogs = this.mergePendingLogs(details, pendingRecords);
+        this.seedSessionTitlesFromLogs(allLogs, pendingRecords);
         await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
 
         // 扩展记录，添加便捷访问方法
-        const extended = this.enrichSessionTitles(UsageParser.extendLogs(allLogs));
+        const extended = this.enrichSessionTitles(UsageParser.extendLogs(allLogs), pendingRecords);
         // 返回最近的 N 条记录
         return extended.slice(0, limit);
+    }
+
+    async getDateOverview(date: string): Promise<UsagesDateOverview> {
+        if (!this.usagesQueryCoordinator) {
+            return this.buildDateOverview(await this.getDateRecords(date));
+        }
+        const pendingRecords = await this.flushBeforeRemoteQuery(date);
+        return this.usagesQueryCoordinator.run({ kind: 'dateOverview', date }, pendingRecords);
+    }
+
+    async getRecordsPage(params: {
+        date: string;
+        mode: 'all' | 'session';
+        sessionId?: string;
+        page: number;
+        pageSize: number;
+    }): Promise<UsagesRecordsPageResult> {
+        if (!this.usagesQueryCoordinator) {
+            return this.buildRecordsPage(await this.getDateRecords(params.date), params);
+        }
+        const pendingRecords = await this.flushBeforeRemoteQuery(params.date);
+        return this.usagesQueryCoordinator.run({ kind: 'recordsPage', ...params }, pendingRecords);
+    }
+
+    async getTrackRecords(params: {
+        date: string;
+        sessionIds: string[];
+        limitPerSession: number;
+    }): Promise<UsagesTrackRecordsResult> {
+        if (!this.usagesQueryCoordinator) {
+            return this.buildTrackRecords(await this.getDateRecords(params.date), params);
+        }
+        const pendingRecords = await this.flushBeforeRemoteQuery(params.date);
+        return this.usagesQueryCoordinator.run({ kind: 'trackRecords', ...params }, pendingRecords);
     }
 
     /**
      * 获取指定日期的请求记录
      */
-    async getDateRecords(date: string): Promise<ExtendedTokenRequestLog[]> {
-        const details = await this.fileLogger.getRequestDetails(date);
-        // 合并当日内存中的 pending 记录：estimated 写盘是异步的，
-        // 限流 Waiting 事件触发 UI 刷新时新请求可能尚未落盘，需从内存补齐
-        const pendingLogs = this.fileLogger
+    async getDateRecords(
+        date: string,
+        pendingRecords: readonly UsagesPendingRecord[] = []
+    ): Promise<ExtendedTokenRequestLog[]> {
+        const datePending = pendingRecords.filter(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
+        const hasLocalPending = this.fileLogger
             .getPendingLogs()
-            .filter(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
-        let allLogs = details;
-        if (pendingLogs.length > 0) {
-            const pendingRequestIds = new Set(pendingLogs.map(log => log.requestId));
-            allLogs = [...details.filter(log => !pendingRequestIds.has(log.requestId)), ...pendingLogs];
-            allLogs.sort((a, b) => b.timestamp - a.timestamp);
+            .some(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
+        if (datePending.length > 0 || hasLocalPending) {
+            return this.buildDateRecords(date, datePending);
         }
-        this.seedSessionTitlesFromLogs(allLogs);
+
+        this.dateRecordsCache ??= new Map();
+        this.dateRecordsBuilds ??= new Map();
+        this.cachedDateRecords ??= 0;
+        this.dateRecordsCacheGeneration ??= 0;
+
+        const signature = this.fileLogger.getDetailSourceSignature(date);
+        const cached = this.dateRecordsCache.get(date);
+        if (cached?.signature === signature) {
+            this.dateRecordsCache.delete(date);
+            this.dateRecordsCache.set(date, cached);
+            await this.hydrateSessionTitles(this.collectSessionIds(cached.records));
+            return this.enrichSessionTitles(cached.records);
+        }
+        if (cached) {
+            this.deleteDateRecordsCacheEntry(date);
+        }
+
+        const buildKey = `${date}\0${signature}`;
+        const existingBuild = this.dateRecordsBuilds.get(buildKey);
+        if (existingBuild) {
+            return existingBuild;
+        }
+
+        const generation = this.dateRecordsCacheGeneration;
+        const build = this.buildDateRecords(date, datePending)
+            .then(records => {
+                const signatureAfter = this.fileLogger.getDetailSourceSignature(date);
+                const stillStable = !this.fileLogger
+                    .getPendingLogs()
+                    .some(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
+                if (generation === this.dateRecordsCacheGeneration && signatureAfter === signature && stillStable) {
+                    this.setDateRecordsCache(date, signature, records);
+                }
+                return records;
+            })
+            .finally(() => {
+                if (this.dateRecordsBuilds.get(buildKey) === build) {
+                    this.dateRecordsBuilds.delete(buildKey);
+                }
+            });
+        this.dateRecordsBuilds.set(buildKey, build);
+        return build;
+    }
+
+    private async buildDateRecords(
+        date: string,
+        pendingRecords: readonly UsagesPendingRecord[]
+    ): Promise<ExtendedTokenRequestLog[]> {
+        const details = await this.fileLogger.getRequestDetails(date);
+        const allLogs = this.mergePendingLogs(details, pendingRecords, date);
+        this.seedSessionTitlesFromLogs(allLogs, pendingRecords);
         await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
-        return this.enrichSessionTitles(UsageParser.extendLogs(allLogs));
+        return this.enrichSessionTitles(UsageParser.extendLogs(allLogs), pendingRecords);
+    }
+
+    private mergePendingLogs(
+        details: TokenRequestLog[],
+        pendingRecords: readonly UsagesPendingRecord[],
+        date?: string
+    ): TokenRequestLog[] {
+        const terminalIds = new Set(details.filter(log => log.status !== 'estimated').map(log => log.requestId));
+        // 在途快照不能把已经落盘的终态回退为 estimated。
+        const pending = new Map<string, TokenRequestLog>(
+            pendingRecords.filter(log => !terminalIds.has(log.requestId)).map(log => [log.requestId, log])
+        );
+        for (const log of this.fileLogger.getPendingLogs()) {
+            if (!date || DateUtils.formatDate(new Date(log.timestamp)) === date) {
+                pending.set(log.requestId, log);
+            }
+        }
+        if (pending.size === 0) {
+            return details;
+        }
+        return [...details.filter(log => !pending.has(log.requestId)), ...pending.values()].sort(
+            (a, b) => b.timestamp - a.timestamp
+        );
     }
 
     async hydrateSessionTitle(sessionId: string): Promise<string | undefined> {
+        const localTitle = SessionTitleService.instance.getTitle(sessionId);
+        if (localTitle) {
+            this.setHistoricalSessionTitleCache(sessionId, localTitle);
+            return localTitle;
+        }
+        const historicalTitle = this.historicalSessionTitleCache.get(sessionId)?.title;
+        if (historicalTitle) {
+            SessionTitleService.instance.rememberResolvedTitle(sessionId, historicalTitle);
+            return historicalTitle;
+        }
+        if (this.usagesQueryCoordinator) {
+            const title = await this.usagesQueryCoordinator.run({ kind: 'sessionTitle', sessionId });
+            const resolvedLocally = SessionTitleService.instance.getTitle(sessionId);
+            if (resolvedLocally) {
+                this.setHistoricalSessionTitleCache(sessionId, resolvedLocally);
+                return resolvedLocally;
+            }
+            if (title) {
+                SessionTitleService.instance.rememberResolvedTitle(sessionId, title);
+                this.setHistoricalSessionTitleCache(sessionId, title);
+            }
+            return title;
+        }
+        return this.hydrateSessionTitleLocal(sessionId);
+    }
+
+    private async hydrateSessionTitleLocal(sessionId: string): Promise<string | undefined> {
         await this.hydrateSessionTitles([sessionId]);
         return SessionTitleService.instance.getTitle(sessionId);
+    }
+
+    private async flushBeforeRemoteQuery(date?: string): Promise<TokenRequestLog[]> {
+        if (!LeaderElectionService.isLeader() && InterInstanceBus.hasCompatibleUsagesQueryTransport()) {
+            const pendingRecords = this.getEstimatedPendingRecords(date);
+            await this.fileLogger.flush();
+            return pendingRecords;
+        }
+        return [];
+    }
+
+    private getEstimatedPendingRecords(date?: string): TokenRequestLog[] {
+        return this.fileLogger
+            .getPendingLogs()
+            .filter(
+                log => log.status === 'estimated' && (!date || DateUtils.formatDate(new Date(log.timestamp)) === date)
+            )
+            .map(log => ({
+                ...log,
+                sessionTitle:
+                    (log.sessionId ? SessionTitleService.instance.getTitle(log.sessionId) : undefined) ??
+                    log.sessionTitle
+            }));
+    }
+
+    private arePendingRecordsEqual(
+        expected: readonly UsagesPendingRecord[],
+        current: readonly UsagesPendingRecord[]
+    ): boolean {
+        if (expected.length !== current.length) {
+            return false;
+        }
+        const expectedRecords = expected.map(record => JSON.stringify(record)).sort();
+        const currentRecords = current.map(record => JSON.stringify(record)).sort();
+        return expectedRecords.every((record, index) => record === currentRecords[index]);
+    }
+
+    private async executeUsagesQuery(
+        query: UsagesQuery,
+        pendingRecords: readonly UsagesPendingRecord[] = [],
+        isRemote = false
+    ): Promise<UsagesQueryResult> {
+        switch (query.kind) {
+            case 'dateOverview':
+                return {
+                    kind: query.kind,
+                    value: this.buildDateOverview(await this.getDateRecords(query.date, pendingRecords))
+                };
+            case 'recordsPage':
+                return {
+                    kind: query.kind,
+                    value: this.buildRecordsPage(await this.getDateRecords(query.date, pendingRecords), query)
+                };
+            case 'trackRecords':
+                return {
+                    kind: query.kind,
+                    value: this.buildTrackRecords(await this.getDateRecords(query.date, pendingRecords), query)
+                };
+            case 'recentRecords':
+                return {
+                    kind: query.kind,
+                    value: await this.getRecentRecordsLocal(query.limit, pendingRecords, isRemote)
+                };
+            case 'sessionTitle':
+                return { kind: query.kind, value: await this.hydrateSessionTitleLocal(query.sessionId) };
+        }
+    }
+
+    private buildDateOverview(records: ExtendedTokenRequestLog[]): UsagesDateOverview {
+        return {
+            allSummary: summarizeSessionRecords(records),
+            allTotals: buildRequestTotals(records),
+            nativeSplitIndex: buildNativeCostSplitIndex(records),
+            sessionGroups: buildSessionGroupSummaries(records)
+        };
+    }
+
+    private buildRecordsPage(
+        records: ExtendedTokenRequestLog[],
+        params: {
+            mode: 'all' | 'session';
+            sessionId?: string;
+            page: number;
+            pageSize: number;
+        }
+    ): UsagesRecordsPageResult {
+        const effectiveMode = params.mode === 'session' && params.sessionId ? 'session' : 'all';
+        const source = effectiveMode === 'session' ? filterRecordsBySession(records, params.sessionId!) : records;
+        const page = sliceRecordsPage(source, params.page, params.pageSize);
+        return {
+            mode: effectiveMode,
+            sessionId: effectiveMode === 'session' ? params.sessionId : undefined,
+            page: params.page,
+            pageSize: params.pageSize,
+            totalItems: page.totalItems,
+            records: page.records,
+            summary: summarizeSessionRecords(source),
+            totals: buildRequestTotals(source),
+            recoveryDebug: summarizeSessionRecoveryDebugInfo(source)
+        };
+    }
+
+    private buildTrackRecords(
+        records: ExtendedTokenRequestLog[],
+        params: { sessionIds: string[]; limitPerSession: number }
+    ): UsagesTrackRecordsResult {
+        return {
+            groups: params.sessionIds.map(sessionId => ({
+                sessionId,
+                records: sortRecordsByTimestampDesc(filterRecordsBySession(records, sessionId)).slice(
+                    0,
+                    params.limitPerSession
+                )
+            }))
+        };
     }
 
     async backfillResolvedSessionTitle(sessionId: string, title: string, requestId?: string): Promise<void> {
@@ -423,6 +762,8 @@ export class TokenUsagesManager {
                 StatusLogger.debug(
                     `[UsagesManager] Skip late session title backfill because request log was not found: ${requestId}`
                 );
+            } else {
+                this.clearDateRecordsCache(this.getRequestDate(requestId));
             }
         } catch (error) {
             StatusLogger.warn(
@@ -432,10 +773,19 @@ export class TokenUsagesManager {
     }
 
     private seedSessionTitlesFromLogs(
-        logs: ReadonlyArray<Pick<ExtendedTokenRequestLog, 'sessionId' | 'sessionTitle' | 'timestamp'>>
+        logs: ReadonlyArray<
+            Pick<ExtendedTokenRequestLog, 'requestId' | 'status' | 'sessionId' | 'sessionTitle' | 'timestamp'>
+        >,
+        pendingRecords: readonly UsagesPendingRecord[] = []
     ): void {
+        // 远端 pending 的请求时间不是标题版本，不能写入长期缓存。
+        const remotePendingIds = new Set(pendingRecords.map(log => log.requestId));
         for (const log of logs) {
-            if (!log.sessionId || !log.sessionTitle) {
+            if (
+                !log.sessionId ||
+                !log.sessionTitle ||
+                (log.status === 'estimated' && remotePendingIds.has(log.requestId))
+            ) {
                 continue;
             }
             SessionTitleService.instance.rememberResolvedTitle(log.sessionId, log.sessionTitle, log.timestamp);
@@ -520,14 +870,73 @@ export class TokenUsagesManager {
         });
     }
 
-    private enrichSessionTitles(records: ExtendedTokenRequestLog[]): ExtendedTokenRequestLog[] {
-        // 以当前进程内 SessionTitleService 的权威映射覆盖日志快照：
-        // 标题请求晚到时，已完成请求在本窗口内仍可立即显示正式标题。
+    private setDateRecordsCache(date: string, signature: string, records: ExtendedTokenRequestLog[]): void {
+        this.deleteDateRecordsCacheEntry(date);
+        if (records.length > MAX_DATE_RECORD_CACHE_RECORDS) {
+            return;
+        }
+        this.dateRecordsCache.set(date, { signature, records });
+        this.cachedDateRecords += records.length;
+        while (
+            this.dateRecordsCache.size > MAX_DATE_RECORD_CACHE_ENTRIES ||
+            this.cachedDateRecords > MAX_DATE_RECORD_CACHE_RECORDS
+        ) {
+            const oldestDate = this.dateRecordsCache.keys().next().value;
+            if (typeof oldestDate !== 'string') {
+                break;
+            }
+            this.deleteDateRecordsCacheEntry(oldestDate);
+        }
+    }
+
+    private deleteDateRecordsCacheEntry(date: string): void {
+        const cached = this.dateRecordsCache.get(date);
+        if (!cached) {
+            return;
+        }
+        this.dateRecordsCache.delete(date);
+        this.cachedDateRecords -= cached.records.length;
+    }
+
+    private clearDateRecordsCache(date?: string): void {
+        this.dateRecordsCache ??= new Map();
+        this.dateRecordsBuilds ??= new Map();
+        this.cachedDateRecords ??= 0;
+        this.dateRecordsCacheGeneration = (this.dateRecordsCacheGeneration ?? 0) + 1;
+        if (date) {
+            this.deleteDateRecordsCacheEntry(date);
+            return;
+        }
+        this.dateRecordsCache.clear();
+        this.cachedDateRecords = 0;
+    }
+
+    private getRequestDate(requestId: string): string | undefined {
+        const timestamp = Number(requestId.split('_', 1)[0]);
+        return Number.isFinite(timestamp) && timestamp > 0 ? DateUtils.formatDate(new Date(timestamp)) : undefined;
+    }
+
+    private enrichSessionTitles(
+        records: ExtendedTokenRequestLog[],
+        pendingRecords: readonly UsagesPendingRecord[] = []
+    ): ExtendedTokenRequestLog[] {
+        const pendingTitles = new Map<string, string>();
+        if (pendingRecords.length > 0) {
+            const activeIds = new Set(
+                records.filter(record => record.status === 'estimated').map(record => record.requestId)
+            );
+            for (const record of pendingRecords) {
+                if (activeIds.has(record.requestId) && record.sessionId && record.sessionTitle) {
+                    pendingTitles.set(record.sessionId, record.sessionTitle);
+                }
+            }
+        }
         for (const record of records) {
             if (!record.sessionId) {
                 continue;
             }
-            const title = SessionTitleService.instance.getTitle(record.sessionId);
+            const title =
+                pendingTitles.get(record.sessionId) ?? SessionTitleService.instance.getTitle(record.sessionId);
             if (title) {
                 record.sessionTitle = title;
             }
@@ -644,6 +1053,14 @@ export class TokenUsagesManager {
         if (!this.initialized) {
             return;
         }
+        this.usagesQueryCoordinator?.dispose();
+        this.usagesQueryCoordinator = undefined;
+        this.leaderChangeDisposable?.dispose();
+        this.leaderChangeDisposable = undefined;
+        this.cacheInvalidationDisposable?.dispose();
+        this.cacheInvalidationDisposable = undefined;
+        this.clearDateRecordsCache();
+        this.dateRecordsBuilds.clear();
         await this.fileLogger.dispose();
         this.initialized = false;
     }

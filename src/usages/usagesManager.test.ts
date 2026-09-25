@@ -38,10 +38,21 @@ test('optional historical title hydration preserves readable usage records', asy
             return { window: {}, env: { language: 'zh-cn' } };
         }
         if (id.endsWith('/leaderElectionService')) {
-            return { LeaderElectionService: { getLeaderId: () => 'self', getInstanceId: () => 'self' } };
+            return {
+                LeaderElectionService: {
+                    getLeaderId: () => 'self',
+                    getInstanceId: () => 'self',
+                    isLeader: () => false
+                }
+            };
         }
         if (id.endsWith('/interInstance')) {
-            return { InterInstanceBus: { subscribe: () => ({ dispose() {} }) } };
+            return {
+                InterInstanceBus: {
+                    subscribe: () => ({ dispose() {} }),
+                    hasCompatibleUsagesQueryTransport: () => false
+                }
+            };
         }
         if (id.endsWith('/liveMetrics')) {
             return { onLiveMetrics: () => ({ dispose() {} }) };
@@ -52,6 +63,7 @@ test('optional historical title hydration preserves readable usage records', asy
     try {
         const { TokenUsagesManager } = await import('./usagesManager');
         const { TokenFileLogger } = await import('./fileLogger');
+        const { SessionTitleService } = await import('./sessionTitleService');
         const today = DateUtils.getTodayDateString();
         const yesterday = DateUtils.getDateStringDaysAgo(1);
         const olderDate = DateUtils.getDateStringDaysAgo(2);
@@ -225,6 +237,84 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal((await manager.getDateRecords(today)).length, 1);
             assert.equal((await manager.getRecentRecords()).length, 1);
             assert.equal(detailsReads.filter(date => date === yesterday).length, 1);
+        });
+
+        await t.test('remote title hydration seeds the current process title cache', async () => {
+            const sessionId = 'remote-hydrated-title';
+            const titleCache = new Map<string, { title: string | null; checkedAt: number }>();
+            SessionTitleService.instance.registerSession(sessionId, '恢复历史会话标题');
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                historicalSessionTitleCache: titleCache,
+                usagesQueryCoordinator: {
+                    run: async () => '远端恢复标题'
+                }
+            });
+
+            assert.equal(await manager.hydrateSessionTitle(sessionId), '远端恢复标题');
+            assert.equal(SessionTitleService.instance.getTitle(sessionId), '远端恢复标题');
+            assert.equal(titleCache.get(sessionId)?.title, '远端恢复标题');
+        });
+
+        await t.test('known local title bypasses remote hydration', async () => {
+            const sessionId = 'known-local-title';
+            let remoteCalls = 0;
+            SessionTitleService.instance.rememberResolvedTitle(sessionId, '本地正式标题');
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                historicalSessionTitleCache: new Map(),
+                usagesQueryCoordinator: {
+                    run: async () => {
+                        remoteCalls += 1;
+                        return '远端过期标题';
+                    }
+                }
+            });
+
+            assert.equal(await manager.hydrateSessionTitle(sessionId), '本地正式标题');
+            assert.equal(remoteCalls, 0);
+            assert.equal(SessionTitleService.instance.getTitle(sessionId), '本地正式标题');
+        });
+
+        await t.test('known historical title bypasses remote hydration', async () => {
+            const sessionId = 'known-historical-title';
+            let remoteCalls = 0;
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                historicalSessionTitleCache: new Map([[sessionId, { title: '历史正式标题', checkedAt: Date.now() }]]),
+                usagesQueryCoordinator: {
+                    run: async () => {
+                        remoteCalls += 1;
+                        return '远端过期标题';
+                    }
+                }
+            });
+
+            assert.equal(await manager.hydrateSessionTitle(sessionId), '历史正式标题');
+            assert.equal(remoteCalls, 0);
+            assert.equal(SessionTitleService.instance.getTitle(sessionId), '历史正式标题');
+        });
+
+        await t.test('local title resolved during remote hydration wins over the remote result', async () => {
+            const sessionId = 'concurrent-local-title';
+            let resolveRemote!: (title: string) => void;
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                historicalSessionTitleCache: new Map(),
+                usagesQueryCoordinator: {
+                    run: () =>
+                        new Promise<string>(resolve => {
+                            resolveRemote = resolve;
+                        })
+                }
+            });
+
+            const hydration = manager.hydrateSessionTitle(sessionId);
+            SessionTitleService.instance.rememberResolvedTitle(sessionId, '并发生成标题');
+            resolveRemote('远端过期标题');
+
+            assert.equal(await hydration, '并发生成标题');
+            assert.equal(SessionTitleService.instance.getTitle(sessionId), '并发生成标题');
         });
     } finally {
         NodeModule.prototype.require = originalRequire;

@@ -18,24 +18,24 @@ import {
     UpdateDateListMessage,
     UpdateLiveMetricsMessage
 } from './types';
-import type { ExtendedTokenRequestLog, WebViewMessage } from './types';
+import type { WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
-import {
-    buildNativeCostSplitIndex,
-    buildRequestTotals,
-    buildSessionGroupSummaries,
-    filterRecordsBySession,
-    sliceRecordsPage,
-    sortRecordsByTimestampDesc,
-    summarizeSessionRecords,
-    summarizeSessionRecoveryDebugInfo
-} from './aggregation';
 import { MultiDayView } from '../multiDayView';
 import { onLiveMetrics, getActiveMetricsSnapshot, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { InterInstanceBus } from '../../interInstance';
 
 /** 明细分页大小（与前端 requestRecords PAGE_SIZE 保持一致） */
 const PAGE_SIZE = 20;
+
+interface QueuedDetailQuery {
+    run: () => Promise<void>;
+    resolve: () => void;
+}
+
+interface DetailQueryQueue {
+    running: boolean;
+    queued?: QueuedDetailQuery;
+}
 
 /**
  * Token 用量 WebView 视图
@@ -52,11 +52,12 @@ export class TokenUsagesView {
     private smartRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private smartRefreshInFlight: Promise<void> | null = null;
     private smartRefreshPending: boolean = false; // 执行期间又有新请求，需再刷一次
-    // 单槽明细缓存：聚合与页拉取共用，避免翻页/重拉反复读盘
-    private detailsCache: { date: string; records: ExtendedTokenRequestLog[]; seq: number } | null = null;
     // 摘要单调递增序列号，随每次摘要推送递增，页响应携带用于前端防竞态
     private detailSeq: number = 0;
-    private detailRefreshQueue: Promise<void> = Promise.resolve();
+    private detailRequestGeneration: number = 0;
+    private detailRefreshGeneration: number = 0;
+    private readonly detailRefreshQueues = new Map<string, Promise<void>>();
+    private readonly detailQueryQueues = new Map<string, DetailQueryQueue>();
 
     constructor(private context: vscode.ExtensionContext) {
         this.usagesManager = TokenUsagesManager.instance;
@@ -131,7 +132,9 @@ export class TokenUsagesView {
                 this.smartRefreshTimer = null;
             }
             this.smartRefreshPending = false;
-            this.detailRefreshQueue = Promise.resolve();
+            this.detailRefreshGeneration += 1;
+            this.detailRefreshQueues.clear();
+            this.clearQueuedDetailQueries();
         });
     }
 
@@ -321,27 +324,6 @@ export class TokenUsagesView {
     }
 
     /**
-     * 读取当日最新记录并刷新单槽明细缓存（摘要聚合时调用，保证读到最新落盘数据）
-     */
-    private async readDateRecordsFresh(date: string, cache = true): Promise<ExtendedTokenRequestLog[]> {
-        const records = await this.usagesManager.getDateRecords(date);
-        if (cache) {
-            this.detailsCache = { date, records, seq: this.detailSeq };
-        }
-        return records;
-    }
-
-    /**
-     * 读取当日记录（页拉取用，命中缓存避免翻页/重拉反复读盘）
-     */
-    private async readDateRecordsCached(date: string): Promise<ExtendedTokenRequestLog[]> {
-        if (this.detailsCache?.date === date) {
-            return this.detailsCache.records;
-        }
-        return this.readDateRecordsFresh(date);
-    }
-
-    /**
      * 处理来自 WebView 的消息
      */
     private async handleMessage(message: WebViewMessage): Promise<void> {
@@ -352,6 +334,8 @@ export class TokenUsagesView {
                 break;
 
             case 'selectDate':
+                this.detailRequestGeneration += 1;
+                this.clearQueuedDetailQueries();
                 this.currentSelectedDate = message.date;
                 await this.updateDateDetails(message.date);
                 this.pushActiveLiveMetricsSnapshot();
@@ -462,35 +446,51 @@ export class TokenUsagesView {
             return;
         }
 
-        const refresh = this.detailRefreshQueue.then(() => this.updateDateDetailsInternal(panel, date));
-        this.detailRefreshQueue = refresh.catch(() => undefined);
+        const requestGeneration = ++this.detailRefreshGeneration;
+        const previous = this.detailRefreshQueues.get(date) ?? Promise.resolve();
+        const refresh = previous.then(() => this.updateDateDetailsInternal(panel, date, requestGeneration));
+        const chain = refresh.then(
+            () => undefined,
+            () => undefined
+        );
+        this.detailRefreshQueues.set(date, chain);
+        void chain.then(() => {
+            if (this.detailRefreshQueues.get(date) === chain) {
+                this.detailRefreshQueues.delete(date);
+            }
+        });
         await refresh;
     }
 
-    private async updateDateDetailsInternal(panel: vscode.WebviewPanel, date: string): Promise<void> {
+    private async updateDateDetailsInternal(
+        panel: vscode.WebviewPanel,
+        date: string,
+        requestGeneration: number
+    ): Promise<void> {
         try {
-            if (this.panel !== panel || this.currentSelectedDate !== date) {
+            if (
+                this.panel !== panel ||
+                this.currentSelectedDate !== date ||
+                requestGeneration !== this.detailRefreshGeneration
+            ) {
                 return;
             }
             const today = getTodayDateString();
 
-            // 并行读取 stats 和 records（两者无依赖）；聚合必须读到最新记录，不走缓存
-            const [dateStats, dateRecords] = await Promise.all([
+            const [dateStats, overview] = await Promise.all([
                 this.usagesManager.getDateStatsFromFile(date),
-                this.readDateRecordsFresh(date, false)
+                this.usagesManager.getDateOverview(date)
             ]);
 
-            if (this.panel !== panel || this.currentSelectedDate !== date) {
+            if (
+                this.panel !== panel ||
+                this.currentSelectedDate !== date ||
+                requestGeneration !== this.detailRefreshGeneration
+            ) {
                 return;
             }
 
-            // 聚合计算（与旧前端逻辑一致的口径）
             this.detailSeq += 1;
-            this.detailsCache = { date, records: dateRecords, seq: this.detailSeq };
-            const sessionGroups = buildSessionGroupSummaries(dateRecords);
-            const allSummary = summarizeSessionRecords(dateRecords);
-            const allTotals = buildRequestTotals(dateRecords);
-            const nativeSplitIndex = buildNativeCostSplitIndex(dateRecords);
 
             // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
             const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
@@ -512,14 +512,16 @@ export class TokenUsagesView {
                 isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
                 providers,
                 hourlyStats: dateStats.hourly || {},
-                allSummary,
-                allTotals,
-                nativeSplitIndex,
-                sessionGroups,
+                allSummary: overview.allSummary,
+                allTotals: overview.allTotals,
+                nativeSplitIndex: overview.nativeSplitIndex,
+                sessionGroups: overview.sessionGroups,
                 updateSeq: this.detailSeq
             } as UpdateDateDetailsMessage);
 
-            StatusLogger.debug(`[TokenUsagesView] Updated date details: ${date}, recordCount=${dateRecords.length}`);
+            StatusLogger.debug(
+                `[TokenUsagesView] Updated date details: ${date}, recordCount=${overview.allSummary.requestCount}`
+            );
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update date details:', err);
             if (this.panel === panel && this.currentSelectedDate === date) {
@@ -532,48 +534,50 @@ export class TokenUsagesView {
         }
     }
 
-    /**
-     * 处理明细分页拉取请求：从缓存切片并返回当前页（附 updateSeq 供前端防竞态）
-     */
+    /** 处理明细分页拉取请求（附 updateSeq 供前端防竞态） */
     private async handleGetRecordsPage(message: Extract<WebViewMessage, { command: 'getRecordsPage' }>): Promise<void> {
         const panel = this.panel;
         if (!panel) {
             return;
         }
+        const requestGeneration = ++this.detailRequestGeneration;
+        const updateSeq = this.detailSeq;
+        const queueKey = `detail:${message.date}`;
+        await this.enqueueDetailQuery(queueKey, async () => {
+            try {
+                const pageSize = message.pageSize ?? PAGE_SIZE;
+                const page = await this.usagesManager.getRecordsPage({
+                    date: message.date,
+                    mode: message.mode,
+                    sessionId: message.sessionId,
+                    page: message.page,
+                    pageSize
+                });
+                if (!this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date)) {
+                    return;
+                }
 
-        try {
-            const records = await this.readDateRecordsCached(message.date);
-            const pageSize = message.pageSize ?? PAGE_SIZE;
-            // session 模式必须携带 sessionId，缺失时退化为 all，避免响应语义错位
-            const effectiveMode = message.mode === 'session' && !message.sessionId ? 'all' : message.mode;
-            const source = effectiveMode === 'session' ? filterRecordsBySession(records, message.sessionId!) : records;
-            const { records: pageRecords, totalItems } = sliceRecordsPage(source, message.page, pageSize);
-
-            await panel.webview.postMessage({
-                command: 'recordsPage',
-                date: message.date,
-                mode: effectiveMode,
-                sessionId: effectiveMode === 'session' ? message.sessionId : undefined,
-                page: message.page,
-                pageSize,
-                totalItems,
-                records: pageRecords,
-                summary: summarizeSessionRecords(source),
-                totals: buildRequestTotals(source),
-                recoveryDebug: summarizeSessionRecoveryDebugInfo(source),
-                updateSeq: this.detailSeq
-            } as RecordsPageMessage);
-        } catch (err) {
-            StatusLogger.error('[TokenUsagesView] Failed to get records page:', err);
-            await panel.webview.postMessage({
-                command: 'detailLoadError',
-                date: message.date,
-                mode: message.mode === 'session' && message.sessionId ? 'session' : 'all',
-                sessionId: message.sessionId,
-                page: message.page,
-                updateSeq: this.detailSeq
-            } as DetailLoadErrorMessage);
-        }
+                await panel.webview.postMessage({
+                    command: 'recordsPage',
+                    date: message.date,
+                    ...page,
+                    updateSeq
+                } as RecordsPageMessage);
+            } catch (err) {
+                StatusLogger.error('[TokenUsagesView] Failed to get records page:', err);
+                if (!this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date)) {
+                    return;
+                }
+                await panel.webview.postMessage({
+                    command: 'detailLoadError',
+                    date: message.date,
+                    mode: message.mode === 'session' && message.sessionId ? 'session' : 'all',
+                    sessionId: message.sessionId,
+                    page: message.page,
+                    updateSeq
+                } as DetailLoadErrorMessage);
+            }
+        });
     }
 
     /**
@@ -586,33 +590,98 @@ export class TokenUsagesView {
         if (!panel) {
             return;
         }
+        const requestGeneration = ++this.detailRequestGeneration;
+        const updateSeq = this.detailSeq;
+        const queueKey = `detail:${message.date}`;
+        await this.enqueueDetailQuery(queueKey, async () => {
+            try {
+                const result = await this.usagesManager.getTrackRecords({
+                    date: message.date,
+                    sessionIds: message.sessionIds,
+                    limitPerSession: message.limitPerSession
+                });
+                if (!this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date)) {
+                    return;
+                }
 
-        try {
-            const records = await this.readDateRecordsCached(message.date);
-            const groups = message.sessionIds.map(sessionId => ({
-                sessionId,
-                records: sortRecordsByTimestampDesc(filterRecordsBySession(records, sessionId)).slice(
-                    0,
-                    message.limitPerSession
-                )
-            }));
+                await panel.webview.postMessage({
+                    command: 'trackRecords',
+                    date: message.date,
+                    updateSeq,
+                    groups: result.groups
+                } as TrackRecordsMessage);
+            } catch (err) {
+                StatusLogger.error('[TokenUsagesView] Failed to get track records:', err);
+                if (!this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date)) {
+                    return;
+                }
+                await panel.webview.postMessage({
+                    command: 'detailLoadError',
+                    date: message.date,
+                    mode: 'track',
+                    sessionIds: message.sessionIds,
+                    updateSeq
+                } as DetailLoadErrorMessage);
+            }
+        });
+    }
 
-            await panel.webview.postMessage({
-                command: 'trackRecords',
-                date: message.date,
-                updateSeq: this.detailSeq,
-                groups
-            } as TrackRecordsMessage);
-        } catch (err) {
-            StatusLogger.error('[TokenUsagesView] Failed to get track records:', err);
-            await panel.webview.postMessage({
-                command: 'detailLoadError',
-                date: message.date,
-                mode: 'track',
-                sessionIds: message.sessionIds,
-                updateSeq: this.detailSeq
-            } as DetailLoadErrorMessage);
+    private enqueueDetailQuery(key: string, run: () => Promise<void>): Promise<void> {
+        return new Promise(resolve => {
+            const task = { run, resolve };
+            const existing = this.detailQueryQueues.get(key);
+            if (existing?.running) {
+                existing.queued?.resolve();
+                existing.queued = task;
+                return;
+            }
+
+            const queue = existing ?? { running: true };
+            queue.running = true;
+            this.detailQueryQueues.set(key, queue);
+            void this.runDetailQueryQueue(key, queue, task);
+        });
+    }
+
+    private async runDetailQueryQueue(key: string, queue: DetailQueryQueue, first: QueuedDetailQuery): Promise<void> {
+        let current: QueuedDetailQuery | undefined = first;
+        while (current) {
+            try {
+                await current.run();
+            } catch (error) {
+                StatusLogger.warn('[TokenUsagesView] Detail query queue failed:', error);
+            } finally {
+                current.resolve();
+            }
+            current = queue.queued;
+            queue.queued = undefined;
         }
+        queue.running = false;
+        if (this.detailQueryQueues.get(key) === queue) {
+            this.detailQueryQueues.delete(key);
+        }
+    }
+
+    private clearQueuedDetailQueries(): void {
+        for (const queue of this.detailQueryQueues.values()) {
+            queue.queued?.resolve();
+            queue.queued = undefined;
+        }
+        this.detailQueryQueues.clear();
+    }
+
+    private isCurrentDetailRequest(
+        panel: vscode.WebviewPanel,
+        requestGeneration: number,
+        updateSeq: number,
+        date: string
+    ): boolean {
+        return (
+            this.panel === panel &&
+            this.currentSelectedDate === date &&
+            requestGeneration === this.detailRequestGeneration &&
+            updateSeq === this.detailSeq
+        );
     }
 
     /**
@@ -679,13 +748,13 @@ export class TokenUsagesView {
             this.smartRefreshTimer = null;
         }
         this.smartRefreshPending = false;
-        this.detailRefreshQueue = Promise.resolve();
+        this.detailRefreshGeneration += 1;
+        this.detailRefreshQueues.clear();
+        this.clearQueuedDetailQueries();
         this.updateDisposable?.dispose();
         this.panel?.dispose();
         this.multiDayView?.dispose();
         this.multiDayView = undefined;
-        // 释放明细缓存与序列号，避免面板重开后读到旧日期残留数据
-        this.detailsCache = null;
         this.detailSeq = 0;
     }
 }

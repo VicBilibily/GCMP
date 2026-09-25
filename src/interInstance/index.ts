@@ -17,6 +17,7 @@ export {
     type LiveMetricsSnapshotRequestedEvent,
     type LiveMetricsSnapshotSyncEvent,
     type RemoteInstanceHelloEvent,
+    type RemoteInstanceCapabilitiesEvent,
     type RemoteInstanceDisconnectedEvent,
     type CliAuthRefreshRequestedEvent,
     type CliAuthRefreshCompletedEvent,
@@ -26,8 +27,12 @@ export {
     type RateLimitAcquireCancelledEvent,
     type RateLimitReleasedEvent,
     type RateLimitLeaseRenewedEvent,
+    type UsagesQueryRequestedEvent,
+    type UsagesQueryCompletedEvent,
     type InterInstanceEventHandler,
     INTER_INSTANCE_EVENT_TYPES,
+    USAGES_QUERY_PROTOCOL_VERSION,
+    isUsagesQueryCapabilityCompatible,
     serializeEvent,
     parseEventsFromBuffer
 } from './eventProtocol';

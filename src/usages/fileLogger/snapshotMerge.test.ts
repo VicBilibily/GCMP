@@ -1,6 +1,11 @@
 ﻿import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
+import { DateUtils } from './dateUtils';
 import { UsageParser } from './usageParser';
 import {
     mergeSnapshotFiles,
@@ -10,6 +15,49 @@ import {
     type SnapshotFile,
     type SnapshotRequestRecord
 } from './snapshotMerge';
+import type { TokenRequestLog } from './types';
+
+const require = createRequire(import.meta.url);
+const NodeModule = require('node:module') as {
+    prototype: { require: (id: string) => unknown };
+};
+
+function createRequestLog(requestId: string): TokenRequestLog {
+    return {
+        requestId,
+        timestamp: Date.now(),
+        isoTime: new Date().toISOString(),
+        providerKey: 'test',
+        providerName: 'Test',
+        modelId: 'test',
+        modelName: 'Test',
+        estimatedInput: 1,
+        rawUsage: null,
+        status: 'completed'
+    };
+}
+
+function mockLoggerHost(): () => void {
+    const originalRequire = NodeModule.prototype.require;
+    NodeModule.prototype.require = function (id: string): unknown {
+        if (id === 'vscode') {
+            return { window: {}, env: { language: 'zh-cn' } };
+        }
+        if (id.endsWith('/leaderElectionService')) {
+            return { LeaderElectionService: { getLeaderId: () => 'self', getInstanceId: () => 'self' } };
+        }
+        if (id.endsWith('/interInstance')) {
+            return { InterInstanceBus: { subscribe: () => ({ dispose() {} }) } };
+        }
+        if (id.endsWith('/liveMetrics')) {
+            return { onLiveMetrics: () => ({ dispose() {} }) };
+        }
+        return originalRequire.call(this, id);
+    };
+    return () => {
+        NodeModule.prototype.require = originalRequire;
+    };
+}
 
 function createRecord(overrides: Partial<SnapshotRequestRecord> = {}): SnapshotRequestRecord {
     return {
@@ -414,3 +462,520 @@ test('UsageParser reparses historical snapshot rawUsage with unified OpenAI-comp
     assert.equal(extended.outputTokens, 26);
     assert.equal(extended.totalTokens, 5844);
 });
+
+test('missing and empty snapshots remain readable and allow the first record to be written', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-empty-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        assert.equal(await snapshot.read(date), null);
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(paths.getSnapshotFilePath(date), '');
+        assert.equal(await snapshot.read(date), null);
+        await snapshot.upsertRecord(date, createRequestLog('first'));
+        assert.deepEqual(
+            (await snapshot.read(date))?.map(record => record.requestId),
+            ['first']
+        );
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('independent snapshot managers preserve concurrent records', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-cross-host-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const first = new SnapshotManager(paths, () => {});
+        const second = new SnapshotManager(paths, () => {});
+
+        await Promise.all([
+            first.upsertRecord(date, createRequestLog('cross-host-a')),
+            second.upsertRecord(date, createRequestLog('cross-host-b'))
+        ]);
+
+        assert.deepEqual((await first.read(date))?.map(record => record.requestId).sort(), [
+            'cross-host-a',
+            'cross-host-b'
+        ]);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('snapshot writes reclaim a lock left by a stopped host', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-stale-snapshot-lock-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const folder = paths.getDateFolderPath(date);
+        const lockPath = join(folder, '.requests.lock');
+        const snapshot = new SnapshotManager(paths, () => {});
+        await mkdir(lockPath, { recursive: true });
+        await writeFile(join(lockPath, 'owner.json'), JSON.stringify({ pid: process.pid, token: 'stopped-host' }));
+
+        const internals = snapshot as unknown as { isProcessAlive: (pid: number) => boolean };
+        internals.isProcessAlive = () => false;
+        await snapshot.upsertRecord(date, createRequestLog('after-stale-lock'));
+
+        assert.deepEqual(
+            (await snapshot.read(date))?.map(record => record.requestId),
+            ['after-stale-lock']
+        );
+        await assert.rejects(stat(lockPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+        await assert.rejects(stat(`${lockPath}.reclaim`), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('snapshot writes reclaim an ownerless orphaned lock', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-ownerless-snapshot-lock-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const lockPath = join(paths.getDateFolderPath(date), '.requests.lock');
+        const snapshot = new SnapshotManager(paths, () => {});
+        await mkdir(lockPath, { recursive: true });
+        const staleTime = new Date(Date.now() - 10_000);
+        await utimes(lockPath, staleTime, staleTime);
+
+        await snapshot.upsertRecord(date, createRequestLog('after-ownerless-lock'));
+
+        assert.deepEqual(
+            (await snapshot.read(date))?.map(record => record.requestId),
+            ['after-ownerless-lock']
+        );
+        await assert.rejects(stat(lockPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+        await assert.rejects(stat(`${lockPath}.reclaim`), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('snapshot writes recover an orphaned stale-lock reclaim guard', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-orphaned-snapshot-reclaim-'));
+    const restoreHost = mockLoggerHost();
+    let constants:
+        | {
+              SNAPSHOT_LOCK_WAIT_MS: number;
+              SNAPSHOT_LOCK_RETRY_MS: number;
+          }
+        | undefined;
+    let originalWaitMs = 0;
+    let originalRetryMs = 0;
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        constants = SnapshotManager as unknown as typeof constants & object;
+        originalWaitMs = constants.SNAPSHOT_LOCK_WAIT_MS;
+        originalRetryMs = constants.SNAPSHOT_LOCK_RETRY_MS;
+        constants.SNAPSHOT_LOCK_WAIT_MS = 100;
+        constants.SNAPSHOT_LOCK_RETRY_MS = 5;
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const reclaimPath = join(paths.getDateFolderPath(date), '.requests.lock.reclaim');
+        const snapshot = new SnapshotManager(paths, () => {});
+        await mkdir(reclaimPath, { recursive: true });
+        const staleTime = new Date(Date.now() - 1_000);
+        await utimes(reclaimPath, staleTime, staleTime);
+
+        await snapshot.upsertRecord(date, createRequestLog('after-orphaned-reclaim'));
+
+        assert.deepEqual(
+            (await snapshot.read(date))?.map(record => record.requestId),
+            ['after-orphaned-reclaim']
+        );
+        await assert.rejects(stat(reclaimPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+    } finally {
+        if (constants) {
+            constants.SNAPSHOT_LOCK_WAIT_MS = originalWaitMs;
+            constants.SNAPSHOT_LOCK_RETRY_MS = originalRetryMs;
+        }
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('historical compaction keeps raw logs when their source changes during the write', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-compaction-source-race-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const folder = paths.getDateFolderPath(date);
+        const rawFile = paths.getHourFilePath(date, 0);
+        const concurrentRawFile = paths.getHourFilePath(date, 1);
+        const snapshot = new SnapshotManager(paths, () => {});
+        await mkdir(folder, { recursive: true });
+        await writeFile(rawFile, `${JSON.stringify(createRequestLog('before-compaction'))}\n`);
+
+        const internals = snapshot as unknown as {
+            atomicWriteStore: (filePath: string, store: SnapshotFile) => Promise<void>;
+        };
+        const atomicWriteStore = internals.atomicWriteStore.bind(snapshot);
+        let injected = false;
+        internals.atomicWriteStore = async (filePath, store) => {
+            if (!injected) {
+                injected = true;
+                await writeFile(concurrentRawFile, `${JSON.stringify(createRequestLog('during-compaction'))}\n`);
+            }
+            await atomicWriteStore(filePath, store);
+        };
+
+        assert.equal(await snapshot.compactHistoricalDates(2), 0);
+        await assert.doesNotReject(readFile(rawFile, 'utf8'));
+        await assert.doesNotReject(readFile(concurrentRawFile, 'utf8'));
+        assert.deepEqual((await snapshot.read(date))?.map(record => record.requestId).sort(), [
+            'before-compaction',
+            'during-compaction'
+        ]);
+
+        internals.atomicWriteStore = atomicWriteStore;
+        assert.equal(await snapshot.compactHistoricalDates(2), 1);
+        await assert.rejects(readFile(rawFile, 'utf8'), error => {
+            return (error as NodeJS.ErrnoException).code === 'ENOENT';
+        });
+        await assert.rejects(readFile(concurrentRawFile, 'utf8'), error => {
+            return (error as NodeJS.ErrnoException).code === 'ENOENT';
+        });
+        assert.deepEqual((await snapshot.read(date))?.map(record => record.requestId).sort(), [
+            'before-compaction',
+            'during-compaction'
+        ]);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+for (const scenario of [
+    { name: 'completed across hours', status: 'completed', startHour: 10, daysAgo: 0 },
+    { name: 'cancelled across hours', status: 'cancelled', startHour: 10, daysAgo: 0 },
+    { name: 'failed across hours', status: 'failed', startHour: 10, daysAgo: 0 },
+    { name: 'completed within one hour', status: 'completed', startHour: 11, daysAgo: 0 },
+    { name: 'completed yesterday across hours', status: 'completed', startHour: 10, daysAgo: 1 }
+] as const) {
+    test(`title backfill preserves hourly totals for ${scenario.name}`, async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'gcmp-hourly-title-totals-'));
+        const restoreHost = mockLoggerHost();
+        let logger: import('./index').TokenFileLogger | undefined;
+        try {
+            const { TokenFileLogger } = await import('./index');
+            const date = DateUtils.getDateStringDaysAgo(scenario.daysAgo);
+            const startedAt = new Date(`${date}T${scenario.startHour}:00:00`).getTime();
+            const completedAt = new Date(`${date}T11:01:00`).getTime();
+            const requestId = `${startedAt}_title-totals`;
+            const estimated: TokenRequestLog = {
+                ...createRequestLog(requestId),
+                timestamp: startedAt,
+                isoTime: new Date(startedAt).toISOString(),
+                estimatedInput: 10,
+                status: 'estimated',
+                sessionId: 'session-a'
+            };
+            const terminal: TokenRequestLog = {
+                ...estimated,
+                timestamp: completedAt,
+                isoTime: new Date(completedAt).toISOString(),
+                status: scenario.status,
+                sessionTitle: 'Original title',
+                rawUsage:
+                    scenario.status === 'failed' ? null : { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+                ...(scenario.status === 'failed' ? {} : { estimatedCost: 0.25 }),
+                streamStartTime: startedAt + 500,
+                streamEndTime: completedAt
+            };
+            const folder = join(dir, 'usages', date);
+            const sourcePath = join(folder, `${scenario.startHour}.jsonl`);
+            const terminalPath = join(folder, '11.jsonl');
+            const estimatedContent = `${JSON.stringify(estimated)}\n`;
+            const terminalContent = `${JSON.stringify(terminal)}\n`;
+            await mkdir(folder, { recursive: true });
+            if (sourcePath === terminalPath) {
+                await writeFile(terminalPath, estimatedContent + terminalContent);
+            } else {
+                await writeFile(sourcePath, estimatedContent);
+                await writeFile(terminalPath, terminalContent);
+            }
+            logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+            const before = await logger.getDateStats(date, true);
+            if (scenario.status !== 'failed') {
+                assert.equal(before.total.actualInput, 10);
+                assert.equal(before.total.outputTokens, 2);
+                assert.equal(before.total.estimatedCost, 0.25);
+            }
+
+            for (const title of ['Resolved title', 'Renamed title']) {
+                assert.equal(
+                    await logger.backfillSessionTitle({ requestId, sessionId: 'session-a', sessionTitle: title }),
+                    true
+                );
+                await logger.flush();
+                const after = await logger.getDateStats(date, true);
+                assert.deepEqual(after.total, before.total);
+                assert.deepEqual(after.providers, before.providers);
+                for (const [hour, stats] of Object.entries(before.hourly ?? {})) {
+                    assert.deepEqual({ ...after.hourly?.[hour], modifiedTime: stats.modifiedTime }, stats);
+                }
+                if (sourcePath !== terminalPath) {
+                    assert.equal(await readFile(sourcePath, 'utf8'), estimatedContent);
+                }
+                const terminalLines = (await readFile(terminalPath, 'utf8')).trim().split('\n');
+                const appended = JSON.parse(terminalLines[terminalLines.length - 1]) as TokenRequestLog;
+                assert.deepEqual(appended, { ...terminal, sessionTitle: title });
+                logger.clearDetailCaches();
+                const details = await logger.getRequestDetails(date);
+                assert.equal(details.length, 1);
+                assert.equal(details[0].timestamp, startedAt);
+                assert.equal(details[0].status, scenario.status);
+                assert.equal(details[0].sessionTitle, title);
+                assert.deepEqual(details[0].rawUsage, terminal.rawUsage);
+                const persisted = await readFile(terminalPath, 'utf8');
+                assert.equal(
+                    await logger.backfillSessionTitle({ requestId, sessionId: 'session-a', sessionTitle: title }),
+                    true
+                );
+                assert.equal(await readFile(terminalPath, 'utf8'), persisted);
+            }
+        } finally {
+            await logger?.dispose();
+            restoreHost();
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+}
+
+test('historical title backfill updates the locked snapshot instead of appending compactable raw logs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-historical-title-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const startedAt = new Date(`${date}T10:00:00`).getTime();
+        const completedAt = new Date(`${date}T11:00:00`).getTime();
+        const requestId = `${startedAt}_historical-title`;
+        const estimated: TokenRequestLog = {
+            ...createRequestLog(requestId),
+            timestamp: startedAt,
+            isoTime: new Date(startedAt).toISOString(),
+            status: 'estimated',
+            sessionId: 'historical-session'
+        };
+        const terminal: TokenRequestLog = {
+            ...estimated,
+            timestamp: completedAt,
+            isoTime: new Date(completedAt).toISOString(),
+            status: 'completed',
+            sessionTitle: 'Original title',
+            rawUsage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        };
+        const folder = join(dir, 'usages', date);
+        const rawFile = join(folder, '10.jsonl');
+        const appendedRawFile = join(folder, '11.jsonl');
+        const rawContent = `${JSON.stringify(estimated)}\n${JSON.stringify(terminal)}\n`;
+        await mkdir(folder, { recursive: true });
+        await writeFile(rawFile, rawContent);
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+
+        assert.equal(
+            await logger.backfillSessionTitle({
+                requestId,
+                sessionId: 'historical-session',
+                sessionTitle: 'Resolved historical title'
+            }),
+            true
+        );
+        assert.equal(await readFile(rawFile, 'utf8'), rawContent);
+        await assert.rejects(readFile(appendedRawFile, 'utf8'), error => {
+            return (error as NodeJS.ErrnoException).code === 'ENOENT';
+        });
+        logger.clearDetailCaches();
+        assert.equal((await logger.getRequestDetails(date))[0]?.sessionTitle, 'Resolved historical title');
+
+        const snapshotManager = (logger as unknown as { snapshotManager: import('./snapshotManager').SnapshotManager })
+            .snapshotManager;
+        assert.equal(await snapshotManager.compactHistoricalDates(2), 1);
+        await assert.rejects(readFile(rawFile, 'utf8'), error => {
+            return (error as NodeJS.ErrnoException).code === 'ENOENT';
+        });
+        logger.clearDetailCaches();
+        assert.equal((await logger.getRequestDetails(date))[0]?.sessionTitle, 'Resolved historical title');
+    } finally {
+        await logger?.dispose();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('late title backfill does not overwrite a cross-midnight terminal record', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-cross-midnight-title-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        const sourceDate = DateUtils.getDateStringDaysAgo(1);
+        const completedDate = DateUtils.getTodayDateString();
+        const startedAt = new Date(`${sourceDate}T23:59:00`).getTime();
+        const completedAt = new Date(`${completedDate}T00:01:00`).getTime();
+        const requestId = `${startedAt}_cross-midnight`;
+        const sourceFolder = join(dir, 'usages', sourceDate);
+        const completedFolder = join(dir, 'usages', completedDate);
+        const baseLog = {
+            ...createRequestLog(requestId),
+            sessionId: 'session-a'
+        };
+        await mkdir(sourceFolder, { recursive: true });
+        await mkdir(completedFolder, { recursive: true });
+        await writeFile(
+            join(sourceFolder, '23.jsonl'),
+            `${JSON.stringify({
+                ...baseLog,
+                timestamp: startedAt,
+                isoTime: new Date(startedAt).toISOString(),
+                rawUsage: null,
+                status: 'estimated'
+            })}\n`
+        );
+        await writeFile(
+            join(completedFolder, '00.jsonl'),
+            `${JSON.stringify({
+                ...baseLog,
+                timestamp: completedAt,
+                isoTime: new Date(completedAt).toISOString(),
+                rawUsage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+                status: 'completed'
+            })}\n`
+        );
+
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+        assert.equal(
+            await logger.backfillSessionTitle({ requestId, sessionId: 'session-a', sessionTitle: 'Late title' }),
+            true
+        );
+        await logger.flush();
+
+        const sourceRecord = (await logger.getRequestDetails(sourceDate)).find(log => log.requestId === requestId);
+        const completedRecord = (await logger.getRequestDetails(completedDate)).find(
+            log => log.requestId === requestId
+        );
+        assert.equal(sourceRecord?.sessionTitle, 'Late title');
+        assert.equal(completedRecord?.status, 'completed');
+        assert.equal(completedRecord?.rawUsage?.total_tokens, 12);
+    } finally {
+        await logger?.dispose();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+for (const recoveryPath of ['fast-index', 'cached-stats'] as const) {
+    test(`${recoveryPath} repairs a failed index write without rereading raw hours`, async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'gcmp-index-write-retry-'));
+        const restoreHost = mockLoggerHost();
+        const { AtomicJsonFile } = await import('../atomicJsonFile');
+        const write = AtomicJsonFile.writeJsonAtomically;
+        let logger: import('./index').TokenFileLogger | undefined;
+        try {
+            const { TokenFileLogger } = await import('./index');
+            const { LogIndexManager } = await import('./logIndexManager');
+            logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+            const { readManager, indexManager, logStatsManager } = logger as unknown as {
+                readManager: import('./logReadManager').LogReadManager;
+                indexManager: import('./logIndexManager').LogIndexManager;
+                logStatsManager: import('./logStatsManager').LogStatsManager;
+            };
+            const date = DateUtils.getTodayDateString();
+            const folder = join(dir, 'usages', date);
+            const rawFile = join(folder, '00.jsonl');
+            await mkdir(folder, { recursive: true });
+            await writeFile(rawFile, `${JSON.stringify(createRequestLog('first'))}\n`);
+            const oldTime = new Date(Date.now() - 60_000);
+            await utimes(rawFile, oldTime, oldTime);
+            assert.equal((await logger.getDateStats(date, true)).total.requests, 1);
+            await logger.getIndex();
+            const indexPath = indexManager.getIndexPath();
+            const internals = indexManager as unknown as { getAllStatsDates(): Promise<string[]> };
+            const getAllStatsDates = internals.getAllStatsDates.bind(indexManager);
+            let scans = 0;
+            internals.getAllStatsDates = async () => {
+                scans++;
+                return getAllStatsDates();
+            };
+            let failWrites = true;
+            let statsWrites = 0;
+            AtomicJsonFile.writeJsonAtomically = async (file, value, serializer) => {
+                if (file === indexPath && failWrites) {
+                    throw new Error('Injected index write failure');
+                }
+                if (file === join(folder, 'stats.json')) {
+                    statsWrites++;
+                }
+                return write.call(AtomicJsonFile, file, value, serializer);
+            };
+            await writeFile(
+                rawFile,
+                `${await readFile(rawFile, 'utf8')}${JSON.stringify(createRequestLog('second'))}\n`
+            );
+            assert.equal((await logger.getDateStats(date)).total.requests, 2);
+            statsWrites = 0;
+            let rawReads = 0;
+            const readHourLogs = readManager.readHourLogs.bind(readManager);
+            readManager.readHourLogs = async (...args) => {
+                rawReads++;
+                return readHourLogs(...args);
+            };
+            if (recoveryPath === 'cached-stats') {
+                logStatsManager.setCanWriteStats(() => false);
+                assert.equal((await logger.getDateStats(date)).total.requests, 2);
+                assert.equal(scans, 0);
+                logStatsManager.setCanWriteStats(() => true);
+                assert.equal((await logger.getDateStats(date)).total.requests, 2);
+                assert.equal(scans, 1);
+            }
+            failWrites = false;
+            if (recoveryPath === 'fast-index') {
+                assert.equal((await logger.getIndexFast())[date].total_requests, 2);
+            } else {
+                assert.equal((await logger.getDateStats(date)).total.requests, 2);
+                const observer = new LogIndexManager(dir);
+                assert.equal((await observer.getIndexFast())[date].total_requests, 2);
+            }
+            const recoveredScans = scans;
+            assert.equal(recoveredScans, recoveryPath === 'fast-index' ? 1 : 2);
+            for (let attempt = 0; attempt < 3; attempt++) {
+                assert.equal((await logger.getDateStats(date)).total.requests, 2);
+                assert.equal((await logger.getIndexFast())[date].total_requests, 2);
+            }
+            assert.equal(rawReads, 0);
+            assert.equal(statsWrites, 0);
+            assert.equal(scans, recoveredScans);
+        } finally {
+            AtomicJsonFile.writeJsonAtomically = write;
+            await logger?.dispose();
+            restoreHost();
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+}

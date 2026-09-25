@@ -233,6 +233,52 @@ export class TokenFileLogger {
         return this.pathManager.getBaseDir();
     }
 
+    clearDetailCaches(): void {
+        this.readManager.clearCache();
+        this.snapshotManager.clearCache();
+    }
+
+    invalidateDetailCaches(dateStr: string): void {
+        this.readManager.invalidateDateCache(dateStr);
+        this.snapshotManager.invalidateCache(dateStr);
+    }
+
+    getDetailSourceSignature(dateStr: string): string {
+        try {
+            const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+            if (!fsSync.existsSync(dateFolder)) {
+                return 'missing';
+            }
+            const entries = fsSync.readdirSync(dateFolder);
+            const rawFiles = entries.filter(file => /^\d{2}\.jsonl$/.test(file)).sort();
+            const hasSnapshot = entries.includes('requests.jsonl');
+            const shouldReadRaw =
+                dateStr === DateUtils.getTodayDateString() || dateStr === DateUtils.getDateStringDaysAgo(1);
+            const files =
+                shouldReadRaw && rawFiles.length > 0 ? rawFiles
+                : hasSnapshot ? ['requests.jsonl', ...rawFiles]
+                : rawFiles;
+            if (files.length === 0) {
+                return 'empty';
+            }
+            return files
+                .map(file => {
+                    const filePath =
+                        file === 'requests.jsonl' ?
+                            this.pathManager.getSnapshotFilePath(dateStr)
+                        :   this.pathManager.getHourFilePath(dateStr, Number.parseInt(file.slice(0, 2), 10));
+                    const stats = fsSync.statSync(filePath);
+                    return `${file}:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`;
+                })
+                .join('|');
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return 'missing';
+            }
+            throw error;
+        }
+    }
+
     // ==================== 写入操作 ====================
 
     /**
@@ -316,6 +362,7 @@ export class TokenFileLogger {
 
         // 写入文件
         await this.writeManager.appendLog(log);
+        this.invalidateDetailCaches(DateUtils.formatDate(new Date(log.timestamp)));
 
         // 通知状态栏有新的预估请求
         this.notifyUpdate();
@@ -423,6 +470,7 @@ export class TokenFileLogger {
 
             // 写入文件(追加新行,形成流水记录)
             await this.writeManager.appendLog(pendingLog);
+            this.invalidateDetailCaches(DateUtils.formatDate(new Date(pendingLog.timestamp)));
 
             // 从内存移除
             this.pendingLogs.delete(params.requestId);
@@ -461,7 +509,16 @@ export class TokenFileLogger {
             return false;
         }
 
-        const existingLog = (await this.getRequestDetails(dateStr)).find(log => log.requestId === params.requestId);
+        let existingLog: TokenRequestLog | null | undefined;
+        const hasRawJsonlFiles = this.hasRawJsonlFiles(dateStr);
+        if (this.shouldReadRawJsonl(dateStr) && hasRawJsonlFiles) {
+            existingLog = await this.readManager.findLatestRequestLog(dateStr, params.requestId);
+        } else {
+            existingLog = (await this.snapshotManager.read(dateStr))?.find(log => log.requestId === params.requestId);
+            if (!existingLog && hasRawJsonlFiles) {
+                existingLog = await this.readManager.findLatestRequestLog(dateStr, params.requestId);
+            }
+        }
         if (!existingLog) {
             return false;
         }
@@ -469,20 +526,19 @@ export class TokenFileLogger {
             return true;
         }
 
-        const timestamp = Math.max(Date.now(), existingLog.timestamp + 1);
+        // 沿用来源记录的时间，避免跨日期或跨小时重复统计。
         const updatedLog: TokenRequestLog = {
             ...existingLog,
-            timestamp,
-            isoTime: new Date(timestamp).toISOString(),
             sessionId: params.sessionId || existingLog.sessionId,
             sessionTitle: params.sessionTitle
         };
 
-        if (this.hasRawJsonlFiles(dateStr)) {
+        if (this.shouldReadRawJsonl(dateStr) && hasRawJsonlFiles) {
             await this.writeManager.appendLog(updatedLog);
         } else {
             await this.snapshotManager.upsertRecord(dateStr, updatedLog);
         }
+        this.invalidateDetailCaches(dateStr);
 
         this.notifyUpdate();
         return true;
@@ -637,7 +693,7 @@ export class TokenFileLogger {
     /**
      * 判断指定日期目录是否存在原始 hourly .jsonl 文件。
      */
-    private hasRawJsonlFiles(dateStr: string): boolean {
+    private hasRawJsonlFiles(dateStr: string, throwOnFailure = false): boolean {
         const dateFolder = this.pathManager.getDateFolderPath(dateStr);
         if (!fsSync.existsSync(dateFolder)) {
             return false;
@@ -645,7 +701,10 @@ export class TokenFileLogger {
         try {
             const files = fsSync.readdirSync(dateFolder);
             return files.some((f: string) => /^\d{2}\.jsonl$/.test(f));
-        } catch {
+        } catch (error) {
+            if (throwOnFailure) {
+                throw error;
+            }
             return false;
         }
     }
@@ -664,16 +723,20 @@ export class TokenFileLogger {
      * 仅读取最近 N 条请求，避免在有大量日志时加载整个日期的数据
      * 用于状态栏等需要快速响应的场景
      */
-    async getRecentRequestDetails(dateStr: string, limit: number = 100): Promise<TokenRequestLog[]> {
+    async getRecentRequestDetails(
+        dateStr: string,
+        limit: number = 100,
+        throwOnFailure = false
+    ): Promise<TokenRequestLog[]> {
         const pendingLogs = this.getPendingLogs();
         const pendingRequestIds = new Set(pendingLogs.map(l => l.requestId));
 
         if (this.shouldReadRawJsonl(dateStr)) {
             // 若 raw hourly .jsonl 存在，优先用它；仅在 raw 被清理后才 fallback snapshot，
             // 避免今天/昨天有 raw 时仍读到旧的 requests.jsonl 快照。
-            const useRaw = this.hasRawJsonlFiles(dateStr);
+            const useRaw = this.hasRawJsonlFiles(dateStr, throwOnFailure);
             if (useRaw) {
-                const details = await this.readManager.getRecentRequestDetails(dateStr, limit);
+                const details = await this.readManager.getRecentRequestDetails(dateStr, limit, throwOnFailure);
                 const completed = details.filter(l => !pendingRequestIds.has(l.requestId));
                 return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
             }
@@ -695,7 +758,7 @@ export class TokenFileLogger {
             return all;
         }
         // 回退路径
-        const details = await this.readManager.getRecentRequestDetails(dateStr, limit);
+        const details = await this.readManager.getRecentRequestDetails(dateStr, limit, throwOnFailure);
         // 异步构建 requests.jsonl 快照（buildSnapshotFromLogs 内部已处理今天不删 .jsonl）
         if (details.length > 0) {
             this.readManager
