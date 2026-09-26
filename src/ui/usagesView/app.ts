@@ -21,6 +21,9 @@ import { LiveMetricsRenderer } from './liveMetricsRenderer';
 import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateDateLoadError, updateMainContent } from './components/mainContent';
 import {
+    cacheRecordsPage,
+    createRecordsErrorSection,
+    createRecordsLoadingSection,
     createRequestRecordsSection,
     fetchDetailByCurrentView,
     getTrackedRecordsLimit,
@@ -28,6 +31,9 @@ import {
     isStaleDetailError,
     isStaleDetailResponse,
     isTrackModeActive,
+    prefetchRecordsPages,
+    primeCurrentRecordsPage,
+    preserveRecordsViewport,
     refreshRequestRecordCosts,
     resetRequestRecordsState
 } from './components/requestRecords';
@@ -45,6 +51,7 @@ const state: State = {
     selectedSessionIds: [],
     displayCurrency: 'MIXED',
     dateList: [],
+    dateStatsPreview: null,
     dateDetails: null,
     dateLoadError: null,
     loading: {
@@ -173,9 +180,45 @@ function handleVSCodeMessage(event: MessageEvent): void {
             });
             break;
 
+        case 'updateDateStats': {
+            const displayedDate = state.dateDetails?.date ?? state.dateStatsPreview?.date;
+            const dateChanged = displayedDate !== message.date;
+            if (dateChanged) {
+                resetRequestRecordsState();
+            }
+            const patch: Partial<State> = {
+                selectedDate: message.date,
+                dateLoadError: null,
+                selectedSessionId: dateChanged ? null : state.selectedSessionId,
+                selectedSessionIds: dateChanged ? [] : state.selectedSessionIds,
+                dateStatsPreview: {
+                    date: message.date,
+                    isToday: message.isToday,
+                    isExtensionHostDebugMode: message.isExtensionHostDebugMode,
+                    providers: message.providers,
+                    hourlyStats: message.hourlyStats
+                },
+                loading: {
+                    ...state.loading,
+                    dateDetails: false
+                }
+            };
+            if (dateChanged) {
+                patch.dateDetails = null;
+            }
+            setState(patch);
+            liveMetricsRenderer.onDateChanged(message.isToday, dateChanged);
+            if (dateChanged && shouldCollapseSidebar()) {
+                toggleSidebar(false);
+            }
+            break;
+        }
+
         case 'updateDateDetails': {
             const sessionGroups = message.sessionGroups;
-            const dateChanged = state.dateDetails?.date !== message.date;
+            const displayedDate = state.dateDetails?.date ?? state.dateStatsPreview?.date;
+            const dateChanged = displayedDate !== message.date;
+            const detailsChanged = state.dateDetails?.date !== message.date;
             let nextSelectedSessionId =
                 (
                     !dateChanged &&
@@ -201,8 +244,27 @@ function handleVSCodeMessage(event: MessageEvent): void {
 
             const prevDetails = state.dateDetails;
             const nextTrackMode = message.isToday && nextSelectedSessionIds.length >= 2;
+            const initialPage = message.initialRecordsPage;
+            const useInitialRecordsPage =
+                !nextTrackMode &&
+                !nextSelectedSessionId &&
+                initialPage?.mode === 'all' &&
+                (detailsChanged ||
+                    !prevDetails?.recordsView ||
+                    (prevDetails.recordsView.mode === 'all' && prevDetails.recordsView.page === 1));
             const nextRecordsView =
-                dateChanged ? null
+                useInitialRecordsPage ?
+                    {
+                        mode: initialPage.mode,
+                        sessionId: initialPage.sessionId,
+                        page: initialPage.page,
+                        totalItems: initialPage.totalItems,
+                        records: initialPage.records,
+                        summary: initialPage.summary,
+                        totals: initialPage.totals,
+                        recoveryDebug: initialPage.recoveryDebug
+                    }
+                : dateChanged ? null
                 : nextTrackMode ? null
                 : nextSelectedSessionId ?
                     (
@@ -214,7 +276,10 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 : prevDetails?.recordsView?.mode === 'all' ? prevDetails.recordsView
                 : null;
             const nextTrackRecords = dateChanged || !nextTrackMode ? null : (prevDetails?.trackRecords ?? null);
-            const nextDetailLoading = dateChanged ? true : (prevDetails?.detailLoading ?? false);
+            const nextDetailLoading =
+                useInitialRecordsPage ? false
+                : detailsChanged ? true
+                : (prevDetails?.detailLoading ?? false);
 
             setState({
                 selectedDate: message.date,
@@ -222,6 +287,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 selectedSessionId: nextSelectedSessionId,
                 selectedSessionIds: nextSelectedSessionIds,
                 displayCurrency: normalizeDisplayCurrency(state.displayCurrency, message.allTotals),
+                dateStatsPreview: null,
                 dateDetails: {
                     date: message.date,
                     isToday: message.isToday,
@@ -241,8 +307,10 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 },
                 loading: {
                     ...state.loading,
-                    // 切日期时等首个明细响应到达后再关闭遮罩，避免先看到占位态再闪回真实内容
-                    dateDetails: dateChanged ? state.loading.dateDetails : false
+                    dateDetails:
+                        useInitialRecordsPage ? false
+                        : dateChanged ? state.loading.dateDetails
+                        : false
                 }
             });
 
@@ -255,12 +323,21 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 toggleSidebar(false);
             }
 
-            // 摘要到达后按当前视图状态拉取明细
-            fetchDetailByCurrentView();
+            if (useInitialRecordsPage) {
+                primeCurrentRecordsPage();
+            } else {
+                fetchDetailByCurrentView();
+            }
             break;
         }
 
         case 'recordsPage': {
+            if (message.prefetch) {
+                if (cacheRecordsPage(message)) {
+                    prefetchRecordsPages();
+                }
+                break;
+            }
             const details = state.dateDetails;
             // 过期响应：切日期 / 已进入跟踪模式 / 参数与最近请求不一致
             if (!details || details.date !== message.date || isTrackModeActive() || isStaleDetailResponse(message)) {
@@ -299,6 +376,8 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     dateDetails: false
                 }
             });
+            cacheRecordsPage(message);
+            prefetchRecordsPages();
             break;
         }
 
@@ -386,6 +465,12 @@ function handleVSCodeMessage(event: MessageEvent): void {
 function updateRequestRecords(): void {
     // 找到请求记录容器，如果不存在则创建
     let recordsSection = document.querySelector('#records-section')?.parentElement;
+    const showLoadError = !state.dateDetails && state.dateLoadError === state.selectedDate;
+    const showLoadingSkeleton = !state.dateDetails && !showLoadError && !!state.dateStatsPreview;
+    if (!state.dateDetails && !showLoadError && !showLoadingSkeleton) {
+        recordsSection?.remove();
+        return;
+    }
     if (!recordsSection) {
         const content = document.querySelector('.content');
         if (content) {
@@ -404,6 +489,10 @@ function updateRequestRecords(): void {
         if (existingContainer && state.dateDetails) {
             // 使用容器复用（页码与视图模式由 dateDetails.recordsView / trackRecords 维护）
             createRequestRecordsSection(state.dateDetails.sessionGroups, existingContainer);
+        } else if (existingContainer && showLoadError) {
+            createRecordsErrorSection(existingContainer);
+        } else if (existingContainer && showLoadingSkeleton) {
+            createRecordsLoadingSection(existingContainer);
         }
     }
 }
@@ -420,14 +509,29 @@ function refreshViews(prevState: State, patch: Partial<State>): void {
     }
 
     if (patch.dateDetails) {
-        // 摘要未变（仅明细页刷新：翻页/跟踪响应）时跳过主内容区重建，避免图表闪烁；
-        // 摘要刷新（updateSeq 变化）才重建 provider/hourly 统计与图表
-        if (prevState.dateDetails?.updateSeq === state.dateDetails?.updateSeq) {
-            updateRequestRecords();
-        } else {
+        preserveRecordsViewport(() => {
+            // 摘要未变（仅明细页刷新：翻页/跟踪响应）时跳过主内容区重建，避免图表闪烁；
+            // 摘要刷新（updateSeq 变化）才重建 provider/hourly 统计与图表
+            if (prevState.dateDetails?.updateSeq === state.dateDetails?.updateSeq) {
+                updateRequestRecords();
+            } else {
+                updateMainContent();
+                updateRequestRecords();
+            }
+        });
+        return;
+    }
+
+    if (patch.dateStatsPreview) {
+        preserveRecordsViewport(() => {
             updateMainContent();
             updateRequestRecords();
-        }
+        });
+        return;
+    }
+
+    if (patch.dateLoadError) {
+        preserveRecordsViewport(updateRequestRecords);
         return;
     }
 

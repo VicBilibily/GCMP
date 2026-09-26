@@ -239,6 +239,88 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(detailsReads.filter(date => date === yesterday).length, 1);
         });
 
+        await t.test('date overview does not wait for optional historical title hydration', async context => {
+            const sessionId = 'background-overview-title';
+            const { manager, logger } = await createFixture(context, {
+                [today]: [createLog('background-current', today, sessionId)],
+                [yesterday]: [createLog('background-history', yesterday, sessionId, '后台恢复标题')]
+            });
+            const getRequestDetails = logger.getRequestDetails.bind(logger);
+            let todayReads = 0;
+            let signalHydrationStarted!: () => void;
+            let releaseHydration!: () => void;
+            const hydrationStarted = new Promise<void>(resolve => {
+                signalHydrationStarted = resolve;
+            });
+            const hydrationBlocked = new Promise<void>(resolve => {
+                releaseHydration = resolve;
+            });
+            context.after(() => releaseHydration());
+            logger.getRequestDetails = async date => {
+                if (date === today && ++todayReads === 2) {
+                    signalHydrationStarted();
+                    await hydrationBlocked;
+                }
+                return getRequestDetails(date);
+            };
+
+            const overview = manager.getDateOverview(today);
+            await hydrationStarted;
+            assert.equal(
+                await Promise.race([
+                    overview.then(() => true),
+                    new Promise<boolean>(resolve => setImmediate(() => resolve(false)))
+                ]),
+                true
+            );
+            assert.equal((await overview).allSummary.requestCount, 1);
+
+            releaseHydration();
+            await (
+                manager as unknown as {
+                    backgroundSessionTitleHydration: Promise<void> | undefined;
+                }
+            ).backgroundSessionTitleHydration;
+            assert.equal(SessionTitleService.instance.getTitle(sessionId), '后台恢复标题');
+        });
+
+        await t.test('date overview builds the official first page from the same complete read', async () => {
+            const date = '2026-09-20';
+            const completed = createLog('overview-completed', date, 'overview-session');
+            const pendingTimestamp = completed.timestamp + 1000;
+            const pending: TokenRequestLog = {
+                ...createLog('overview-pending', date, 'overview-session'),
+                timestamp: pendingTimestamp,
+                isoTime: new Date(pendingTimestamp).toISOString(),
+                status: 'estimated',
+                rawUsage: null
+            };
+            let fullReads = 0;
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                fileLogger: {
+                    getRequestDetails: async () => {
+                        fullReads++;
+                        return [completed];
+                    },
+                    getPendingLogs: () => [pending]
+                },
+                historicalSessionTitleCache: new Map(),
+                backgroundSessionTitleIds: new Set(),
+                scheduleSessionTitleHydration() {}
+            });
+
+            const overview = await manager.getDateOverview(date);
+            assert.equal(fullReads, 1);
+            assert.deepEqual(
+                overview.initialRecordsPage?.records.map(record => record.requestId),
+                ['overview-pending', 'overview-completed']
+            );
+            assert.equal(overview.initialRecordsPage?.totalItems, 2);
+            assert.equal(overview.initialRecordsPage?.summary, overview.allSummary);
+            assert.equal(overview.initialRecordsPage?.totals, overview.allTotals);
+        });
+
         await t.test('remote title hydration seeds the current process title cache', async () => {
             const sessionId = 'remote-hydrated-title';
             const titleCache = new Map<string, { title: string | null; checkedAt: number }>();
@@ -254,6 +336,36 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(await manager.hydrateSessionTitle(sessionId), '远端恢复标题');
             assert.equal(SessionTitleService.instance.getTitle(sessionId), '远端恢复标题');
             assert.equal(titleCache.get(sessionId)?.title, '远端恢复标题');
+        });
+
+        await t.test('remote overview seeds returned titles in the follower process', async () => {
+            const sessionId = 'remote-overview-title';
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                initialized: true,
+                historicalSessionTitleCache: new Map(),
+                backgroundSessionTitleIds: new Set(),
+                usagesQueryCoordinator: {
+                    run: async () => ({
+                        allSummary: {},
+                        allTotals: {},
+                        nativeSplitIndex: {},
+                        sessionGroups: [
+                            {
+                                sessionId,
+                                displayId: sessionId,
+                                title: 'Follower 会话标题',
+                                summary: {},
+                                totals: {},
+                                recordCount: 1
+                            }
+                        ]
+                    })
+                }
+            });
+
+            await manager.getDateOverview(today);
+            assert.equal(SessionTitleService.instance.getTitle(sessionId), 'Follower 会话标题');
         });
 
         await t.test('known local title bypasses remote hydration', async () => {

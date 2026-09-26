@@ -7,6 +7,7 @@ import test, { type TestContext } from 'node:test';
 import { DateUtils } from '../../usages/fileLogger/dateUtils';
 import { StatsCalculator } from '../../usages/fileLogger/statsCalculator';
 import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile } from '../../usages/fileLogger/types';
+import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { HostMessage, WebViewMessage } from './types';
 
 const require = createRequire(import.meta.url);
@@ -25,6 +26,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
     let onDispose: () => void = () => {};
     const detailDates: string[] = [];
     const messages: HostMessage[] = [];
+    let activeMetricsSnapshot: LiveStreamMetricEvent[] = [];
     const panel = {
         webview: {
             html: '',
@@ -87,7 +89,10 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 return { MultiDayView: class {} };
             }
             if (id.endsWith('/liveMetrics')) {
-                return { onLiveMetrics: () => ({ dispose() {} }), getActiveMetricsSnapshot: () => [] };
+                return {
+                    onLiveMetrics: () => ({ dispose() {} }),
+                    getActiveMetricsSnapshot: () => activeMetricsSnapshot
+                };
             }
             if (id.endsWith('/interInstance')) {
                 return { InterInstanceBus: { subscribe: () => ({ dispose() {} }) } };
@@ -317,6 +322,95 @@ test('opening usages view reconciles a stale index once, without slowing event r
         assert.deepEqual(detailDates, ['2026-09-22']);
         assert.equal(actions.currentSelectedDate, '2026-09-22');
 
+        await t.test('fast stats are published before a blocked full overview', async () => {
+            let signalOverviewStarted!: () => void;
+            let releaseOverview!: () => void;
+            const overviewStarted = new Promise<void>(resolve => {
+                signalOverviewStarted = resolve;
+            });
+            const blockedOverview = new Promise<void>(resolve => {
+                releaseOverview = resolve;
+            });
+            Object.assign(manager, {
+                getDateStatsFromFile: async () => ({ providers: {}, hourly: {} }),
+                getDateOverview: async () => {
+                    signalOverviewStarted();
+                    await blockedOverview;
+                    return emptyOverview;
+                }
+            });
+            actions.currentSelectedDate = '2026-09-22';
+            messages.length = 0;
+            const selection = actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
+            await overviewStarted;
+            await new Promise<void>(resolve => setImmediate(resolve));
+            assert.deepEqual(
+                messages.map(message => message.command),
+                ['updateDateStats']
+            );
+            releaseOverview();
+            await selection;
+            assert.deepEqual(
+                messages.map(message => message.command),
+                ['updateDateStats', 'updateDateDetails']
+            );
+        });
+
+        await t.test('active live metrics are published before the initial overview completes', async () => {
+            let signalOverviewStarted!: () => void;
+            let releaseOverview!: () => void;
+            const overviewStarted = new Promise<void>(resolve => {
+                signalOverviewStarted = resolve;
+            });
+            const blockedOverview = new Promise<void>(resolve => {
+                releaseOverview = resolve;
+            });
+            activeMetricsSnapshot = [
+                {
+                    type: 'requestStarted',
+                    requestId: 'active-first-screen',
+                    requestStartTime: Date.now(),
+                    providerName: 'GCMP',
+                    modelName: 'test-model'
+                }
+            ];
+            Object.assign(manager, {
+                getDateStatsFromFile: async () => ({ providers: {}, hourly: {} }),
+                getDateOverview: async () => {
+                    signalOverviewStarted();
+                    await blockedOverview;
+                    return emptyOverview;
+                }
+            });
+            const initialDateList = new Promise<void>(resolve => {
+                resolveNextList = () => resolve();
+            });
+            messages.length = 0;
+            const initialData = actions.handleMessage({ command: 'getInitialData' });
+            await overviewStarted;
+            await new Promise<void>(resolve => setImmediate(resolve));
+            assert.equal(
+                messages.some(message => message.command === 'updateLiveMetrics'),
+                true
+            );
+            assert.equal(
+                messages.some(message => message.command === 'updateDateDetails'),
+                false
+            );
+            assert.equal(
+                await Promise.race([
+                    initialDateList.then(() => true),
+                    new Promise(resolve => setTimeout(() => resolve(false), 100))
+                ]),
+                true
+            );
+
+            releaseOverview();
+            await initialData;
+            activeMetricsSnapshot = [];
+            actions.currentSelectedDate = '2026-09-22';
+        });
+
         await t.test('detail requests forward bounded query results without a full-day view cache', async () => {
             Object.assign(manager, {
                 getRecordsPage: async (params: { page: number; pageSize: number }) => ({
@@ -346,15 +440,30 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 'page-record'
             );
 
+            messages.length = 0;
+            await actions.handleMessage({
+                command: 'getRecordsPage',
+                date: '2026-09-22',
+                mode: 'all',
+                page: 3,
+                pageSize: 20,
+                prefetch: true,
+                prefetchRequestId: 7
+            });
+            assert.equal(messages[0]?.command, 'recordsPage');
+            assert.equal((messages[0] as { prefetch?: boolean }).prefetch, true);
+            assert.equal((messages[0] as { prefetchRequestId?: number }).prefetchRequestId, 7);
+
+            messages.length = 0;
             await actions.handleMessage({
                 command: 'getTrackRecords',
                 date: '2026-09-22',
                 sessionIds: ['session-a', 'session-b'],
                 limitPerSession: 10
             });
-            assert.equal(messages[1]?.command, 'trackRecords');
+            assert.equal(messages[0]?.command, 'trackRecords');
             assert.equal(
-                (messages[1] as { groups: Array<{ records: Array<{ requestId: string }> }> }).groups[0].records[0]
+                (messages[0] as { groups: Array<{ records: Array<{ requestId: string }> }> }).groups[0].records[0]
                     .requestId,
                 'track-record'
             );
@@ -414,6 +523,62 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 ),
                 ['page-3']
             );
+        });
+
+        await t.test('background prefetch does not supersede an in-flight foreground page', async () => {
+            let signalForegroundStarted!: () => void;
+            let releaseForeground!: () => void;
+            const foregroundStarted = new Promise<void>(resolve => {
+                signalForegroundStarted = resolve;
+            });
+            Object.assign(manager, {
+                getRecordsPage: async (params: { page: number; pageSize: number }) => {
+                    if (params.page === 1) {
+                        signalForegroundStarted();
+                        await new Promise<void>(resolve => {
+                            releaseForeground = resolve;
+                        });
+                    }
+                    return {
+                        mode: 'all',
+                        page: params.page,
+                        pageSize: params.pageSize,
+                        totalItems: 60,
+                        records: [{ requestId: `page-${params.page}` }],
+                        summary: emptyOverview.allSummary,
+                        totals: emptyOverview.allTotals
+                    };
+                }
+            });
+            messages.length = 0;
+            const foreground = actions.handleMessage({
+                command: 'getRecordsPage',
+                date: '2026-09-22',
+                mode: 'all',
+                page: 1,
+                pageSize: 20
+            });
+            await foregroundStarted;
+            await actions.handleMessage({
+                command: 'getRecordsPage',
+                date: '2026-09-22',
+                mode: 'all',
+                page: 2,
+                pageSize: 20,
+                prefetch: true,
+                prefetchRequestId: 8
+            });
+            assert.equal(messages.length, 1);
+            assert.equal(messages[0]?.command, 'recordsPage');
+            assert.equal((messages[0] as { page?: number }).page, 2);
+            assert.equal((messages[0] as { prefetch?: boolean }).prefetch, true);
+            assert.equal((messages[0] as { prefetchRequestId?: number }).prefetchRequestId, 8);
+
+            releaseForeground();
+            await foreground;
+            assert.equal(messages.length, 2);
+            assert.equal((messages[1] as { page?: number }).page, 1);
+            assert.equal((messages[1] as { prefetch?: boolean }).prefetch, undefined);
         });
 
         await t.test('switching dates invalidates an in-flight detail response', async () => {
@@ -483,7 +648,10 @@ test('opening usages view reconciles a stale index once, without slowing event r
             });
             messages.length = 0;
             await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
-            assert.deepEqual(messages, [{ command: 'dateLoadError', date: '2026-09-22' }]);
+            assert.deepEqual(
+                messages.map(message => message.command),
+                ['updateDateStats', 'dateLoadError']
+            );
             Object.assign(manager, { getDateOverview: async () => emptyOverview });
             await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
             assert.equal(messages.at(-1)?.command, 'updateDateDetails');
@@ -522,6 +690,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 messages.length = 0;
                 const selection = actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
                 await started;
+                messages.length = 0;
                 if (obsolete === 'selection') {
                     actions.currentSelectedDate = '2026-09-21';
                 } else {

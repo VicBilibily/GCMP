@@ -15,6 +15,7 @@ import {
     RecordsPageMessage,
     TrackRecordsMessage,
     UpdateDateDetailsMessage,
+    UpdateDateStatsMessage,
     UpdateDateListMessage,
     UpdateLiveMetricsMessage
 } from './types';
@@ -315,7 +316,8 @@ export class TokenUsagesView {
         try {
             const displayDate = getTodayDateString();
             this.currentSelectedDate = displayDate;
-            await this.updateDateDetails(displayDate, panel);
+            const initialDateList = this.updateDateListOnly(panel);
+            await Promise.all([initialDateList, this.updateDateDetails(displayDate, panel)]);
             await this.updateDateListOnly(panel);
             StatusLogger.debug('[TokenUsagesView] Initial data sent');
         } catch (err) {
@@ -328,18 +330,22 @@ export class TokenUsagesView {
      */
     private async handleMessage(message: WebViewMessage): Promise<void> {
         switch (message.command) {
-            case 'getInitialData':
-                await this.sendInitialData();
+            case 'getInitialData': {
+                const initialData = this.sendInitialData();
                 this.pushActiveLiveMetricsSnapshot();
+                await initialData;
                 break;
+            }
 
-            case 'selectDate':
+            case 'selectDate': {
                 this.detailRequestGeneration += 1;
                 this.clearQueuedDetailQueries();
                 this.currentSelectedDate = message.date;
-                await this.updateDateDetails(message.date);
+                const details = this.updateDateDetails(message.date);
                 this.pushActiveLiveMetricsSnapshot();
+                await details;
                 break;
+            }
 
             case 'getRecordsPage':
                 await this.handleGetRecordsPage(message);
@@ -477,10 +483,12 @@ export class TokenUsagesView {
             }
             const today = getTodayDateString();
 
-            const [dateStats, overview] = await Promise.all([
-                this.usagesManager.getDateStatsFromFile(date),
-                this.usagesManager.getDateOverview(date)
-            ]);
+            const overviewResult = this.usagesManager.getDateOverview(date).then(
+                overview => ({ ok: true as const, overview }),
+                error => ({ ok: false as const, error })
+            );
+
+            const dateStats = await this.usagesManager.getDateStatsFromFile(date);
 
             if (
                 this.panel !== panel ||
@@ -489,8 +497,6 @@ export class TokenUsagesView {
             ) {
                 return;
             }
-
-            this.detailSeq += 1;
 
             // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
             const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
@@ -504,6 +510,40 @@ export class TokenUsagesView {
             // 更新面板标题
             panel.title = `${t('GCMP Token Usage', 'GCMP Token 消耗统计')} - ${date}`;
 
+            // 统计文件通常可快速读取，先解除全屏等待并显示提供商/小时统计。
+            await panel.webview.postMessage({
+                command: 'updateDateStats',
+                date,
+                isToday: date === today,
+                isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
+                providers,
+                hourlyStats: dateStats.hourly || {}
+            } as UpdateDateStatsMessage);
+
+            if (
+                this.panel !== panel ||
+                this.currentSelectedDate !== date ||
+                requestGeneration !== this.detailRefreshGeneration
+            ) {
+                return;
+            }
+
+            const overviewSettled = await overviewResult;
+            if (!overviewSettled.ok) {
+                throw overviewSettled.error;
+            }
+            const overview = overviewSettled.overview;
+
+            if (
+                this.panel !== panel ||
+                this.currentSelectedDate !== date ||
+                requestGeneration !== this.detailRefreshGeneration
+            ) {
+                return;
+            }
+
+            this.detailSeq += 1;
+
             // 推送聚合摘要给 WebView
             await panel.webview.postMessage({
                 command: 'updateDateDetails',
@@ -516,6 +556,7 @@ export class TokenUsagesView {
                 allTotals: overview.allTotals,
                 nativeSplitIndex: overview.nativeSplitIndex,
                 sessionGroups: overview.sessionGroups,
+                initialRecordsPage: overview.initialRecordsPage,
                 updateSeq: this.detailSeq
             } as UpdateDateDetailsMessage);
 
@@ -540,9 +581,10 @@ export class TokenUsagesView {
         if (!panel) {
             return;
         }
-        const requestGeneration = ++this.detailRequestGeneration;
+        const isPrefetch = message.prefetch === true;
+        const requestGeneration = isPrefetch ? this.detailRequestGeneration : ++this.detailRequestGeneration;
         const updateSeq = this.detailSeq;
-        const queueKey = `detail:${message.date}`;
+        const queueKey = `${isPrefetch ? 'prefetch' : 'detail'}:${message.date}`;
         await this.enqueueDetailQuery(queueKey, async () => {
             try {
                 const pageSize = message.pageSize ?? PAGE_SIZE;
@@ -553,7 +595,13 @@ export class TokenUsagesView {
                     page: message.page,
                     pageSize
                 });
-                if (!this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date)) {
+                const isCurrent =
+                    isPrefetch ?
+                        this.panel === panel &&
+                        this.currentSelectedDate === message.date &&
+                        updateSeq === this.detailSeq
+                    :   this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date);
+                if (!isCurrent) {
                     return;
                 }
 
@@ -561,9 +609,15 @@ export class TokenUsagesView {
                     command: 'recordsPage',
                     date: message.date,
                     ...page,
-                    updateSeq
+                    updateSeq,
+                    prefetch: isPrefetch || undefined,
+                    prefetchRequestId: isPrefetch ? message.prefetchRequestId : undefined
                 } as RecordsPageMessage);
             } catch (err) {
+                if (isPrefetch) {
+                    StatusLogger.debug('[TokenUsagesView] Failed to prefetch records page:', err);
+                    return;
+                }
                 StatusLogger.error('[TokenUsagesView] Failed to get records page:', err);
                 if (!this.isCurrentDetailRequest(panel, requestGeneration, updateSeq, message.date)) {
                     return;

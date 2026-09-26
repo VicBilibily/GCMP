@@ -219,6 +219,13 @@ test('remote usages queries preserve caller pending state without retaining full
                             overview.sessionGroups.find(group => group.sessionId === sessionA)?.recordCount,
                             1
                         );
+                        assert.deepEqual(
+                            overview.initialRecordsPage?.records.map(record => record.requestId),
+                            [second.requestId, first.requestId]
+                        );
+                        assert.equal(overview.initialRecordsPage?.records[1]?.streamStartTime, first.timestamp + 250);
+                        assert.equal(overview.initialRecordsPage?.records[1]?.outputSpeed, 12.5);
+                        assert.equal(overview.initialRecordsPage?.records[1]?.sessionTitle, '本窗正式标题');
                         break;
                     }
                     case 'recordsPage': {
@@ -264,6 +271,35 @@ test('remote usages queries preserve caller pending state without retaining full
                 assert.equal(cache.size, 0);
             });
         }
+
+        await t.test('date overview hydrates session titles beyond the initial records page', async context => {
+            const { follower, logger, addPending } = await fixture(context);
+            const sessionIds = Array.from(
+                { length: 21 },
+                (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`
+            );
+            const baseTimestamp = Date.now() - sessionIds.length * 1000;
+            for (const [index, sessionId] of sessionIds.entries()) {
+                const { requestId } = await addPending(sessionId, baseTimestamp + index * 1000);
+                await logger.updateActualTokens({ requestId, status: 'completed' });
+            }
+
+            const hydratedSessionIds = new Set<string>();
+            const followerInternals = follower as unknown as {
+                scheduleSessionTitleHydration: (sessionIds: Iterable<string>) => void;
+            };
+            followerInternals.scheduleSessionTitleHydration = sessionIdsToHydrate => {
+                for (const sessionId of sessionIdsToHydrate) {
+                    hydratedSessionIds.add(sessionId);
+                }
+            };
+
+            const overview = await follower.getDateOverview(today);
+
+            assert.equal(overview.initialRecordsPage?.records.length, 20);
+            assert.equal(overview.sessionGroups.length, 21);
+            assert.deepEqual([...hydratedSessionIds].sort(), [...sessionIds].sort());
+        });
 
         await t.test(
             'late generated title for an existing session survives isolated instance title caches',
@@ -706,6 +742,10 @@ test('remote usages queries preserve caller pending state without retaining full
             await follower.backfillResolvedSessionTitle(sessionA, '本地回退标题', requestId);
             transportFailure = true;
             assert.equal((await follower.getRecentRecords(1))[0]?.sessionTitle, '本地回退标题');
+            assert.equal(
+                (await follower.getDateOverview(today)).initialRecordsPage?.records[0]?.sessionTitle,
+                '本地回退标题'
+            );
             assert.equal(remoteExecutions, 0);
         });
 

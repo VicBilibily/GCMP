@@ -58,11 +58,19 @@ export function updateDateLoadError(): void {
     }
     const error = createElement('p', 'date-load-error', { role: 'alert' });
     const message = createElement('span');
-    message.textContent = t(
-        'Could not load usage details for {0}. Displayed data has not been updated. ',
-        '{0} 的用量详情加载失败，当前内容未更新。 ',
-        date
-    );
+    const hasStats = window.usagesState.dateStatsPreview?.date === date;
+    message.textContent =
+        hasStats ?
+            t(
+                'Could not finish loading {0}. Lightweight statistics remain available. ',
+                '{0} 未能完成加载，轻量统计仍可查看。 ',
+                date
+            )
+        :   t(
+                'Could not load usage details for {0}. Displayed data has not been updated. ',
+                '{0} 的用量详情加载失败，当前内容未更新。 ',
+                date
+            );
     const retry = createElement('button', 'secondary', { type: 'button' });
     retry.textContent = t('Retry', '重试');
     retry.onclick = () => {
@@ -72,7 +80,7 @@ export function updateDateLoadError(): void {
     error.appendChild(message);
     error.appendChild(retry);
     content.insertBefore(error, content.querySelector('#details-content'));
-    if (!window.usagesState.dateDetails) {
+    if (!window.usagesState.dateDetails && !window.usagesState.dateStatsPreview) {
         const title = content.querySelector('#details-title');
         if (title) {
             title.textContent = t('{0} Usage Details', '{0} 使用详情', date);
@@ -92,14 +100,18 @@ export function updateMainContent(options?: { currencyOnly?: boolean }): void {
     const title = content.querySelector('#details-title') as HTMLElement;
     const detailsContent = content.querySelector('#details-content') as HTMLElement;
     const dateDetails = window.usagesState.dateDetails;
+    const dateStats =
+        window.usagesState.dateStatsPreview?.date === dateDetails?.date ?
+            window.usagesState.dateStatsPreview
+        :   (dateDetails ?? window.usagesState.dateStatsPreview);
     const displayText =
-        dateDetails?.date && isToday(dateDetails.date) ?
+        dateStats?.isToday || (dateStats?.date && isToday(dateStats.date)) ?
             t('Today', '今日')
-        :   dateDetails?.date || t('Loading...', '加载中...');
+        :   dateStats?.date || t('Loading...', '加载中...');
     title.textContent = t('{0} Usage Details', '{0} 使用详情', displayText);
 
     // 更新内容
-    if (dateDetails && dateDetails.providers && dateDetails.providers.length > 0) {
+    if (dateStats && dateStats.providers && dateStats.providers.length > 0) {
         if (options?.currencyOnly) {
             const existingProviderSection = detailsContent.querySelector(
                 '.provider-stats-section'
@@ -107,13 +119,13 @@ export function updateMainContent(options?: { currencyOnly?: boolean }): void {
             const existingStatsSection = detailsContent.querySelector('.hourly-stats-section') as HTMLElement | null;
 
             if (existingProviderSection) {
-                existingProviderSection.replaceWith(createProviderStats(dateDetails.providers));
+                existingProviderSection.replaceWith(createProviderStats(dateStats.providers));
             }
 
             if (existingStatsSection) {
                 // 返回值被有意丢弃：数据容器会被就地复用更新（引用仍有效）；
                 // 空容器场景下新旧均为空态，无需替换插回。
-                createHourlyStats(dateDetails.providers, dateDetails.hourlyStats, existingStatsSection);
+                createHourlyStats(dateStats.providers, dateStats.hourlyStats, existingStatsSection);
             }
             return;
         }
@@ -133,11 +145,11 @@ export function updateMainContent(options?: { currencyOnly?: boolean }): void {
         detailsContent.innerHTML = '';
 
         // 创建各部分内容
-        const providerSection = createProviderStats(dateDetails.providers);
-        const hourlyChartSection = createHourlyChart(dateDetails.hourlyStats, existingChartSection || undefined);
+        const providerSection = createProviderStats(dateStats.providers);
+        const hourlyChartSection = createHourlyChart(dateStats.hourlyStats, existingChartSection || undefined);
         const hourlySection = createHourlyStats(
-            dateDetails.providers,
-            dateDetails.hourlyStats,
+            dateStats.providers,
+            dateStats.hourlyStats,
             existingStatsSection || undefined
         );
 
@@ -147,9 +159,9 @@ export function updateMainContent(options?: { currencyOnly?: boolean }): void {
         detailsContent.appendChild(hourlySection);
     } else {
         const displayText2 =
-            dateDetails?.date && isToday(dateDetails.date) ?
+            dateStats?.isToday || (dateStats?.date && isToday(dateStats.date)) ?
                 t('Today', '今日')
-            :   dateDetails?.date || t('Today', '今日');
+            :   dateStats?.date || t('Today', '今日');
         detailsContent.innerHTML = '';
         detailsContent.appendChild(createEmptyContent(displayText2));
     }

@@ -256,7 +256,16 @@ test('accepts bounded results that match their original queries', () => {
                             totals,
                             recordCount: 1
                         }
-                    ]
+                    ],
+                    initialRecordsPage: {
+                        mode: 'all',
+                        page: 1,
+                        pageSize: 20,
+                        totalItems: 1,
+                        records: [record],
+                        summary,
+                        totals
+                    }
                 }
             },
             { kind: 'dateOverview', date: '2026-09-25' }
@@ -273,6 +282,14 @@ test('accepts bounded results that match their original queries', () => {
 });
 
 test('rejects malformed records and results that do not match their original queries', () => {
+    const record = {
+        ...pendingRecord(),
+        actualInput: 10,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        outputTokens: 25,
+        totalTokens: 35
+    };
     assert.equal(
         isUsagesQueryResult({ kind: 'recentRecords', value: [{}] }, { kind: 'recentRecords', limit: 1 }),
         false
@@ -316,6 +333,67 @@ test('rejects malformed records and results that do not match their original que
                     allTotals: {},
                     nativeSplitIndex: {},
                     sessionGroups: []
+                }
+            },
+            { kind: 'dateOverview', date: '2026-09-25' }
+        ),
+        false
+    );
+    assert.equal(
+        isUsagesQueryResult(
+            {
+                kind: 'dateOverview',
+                value: {
+                    allSummary: {
+                        requestCount: 1,
+                        totalTokens: 0,
+                        completedCount: 0,
+                        failedCount: 0,
+                        cancelledCount: 0
+                    },
+                    allTotals: {
+                        inputTokens: 0,
+                        cacheTokens: 0,
+                        outputTokens: 0,
+                        totalCost: 0,
+                        totalCostRmb: 0,
+                        nativeCosts: createEmptyNativeCostSplit(),
+                        costedRequests: 0,
+                        rmbExactRequests: 0
+                    },
+                    nativeSplitIndex: {
+                        total: createEmptyNativeCostSplit(),
+                        providers: {},
+                        models: {},
+                        hours: {},
+                        hourProviders: {},
+                        hourModels: {}
+                    },
+                    sessionGroups: [],
+                    initialRecordsPage: {
+                        mode: 'all',
+                        page: 1,
+                        pageSize: 20,
+                        totalItems: 2,
+                        records: [record],
+                        summary: {
+                            requestCount: 2,
+                            totalTokens: 0,
+                            completedCount: 0,
+                            failedCount: 0,
+                            cancelledCount: 0
+                        },
+                        totals: {
+                            inputTokens: 0,
+                            cacheTokens: 0,
+                            outputTokens: 0,
+                            totalCost: 0,
+                            totalCostRmb: 0,
+                            nativeCosts: createEmptyNativeCostSplit(),
+                            costedRequests: 0,
+                            rmbExactRequests: 0
+                        }
+                    }
                 }
             },
             { kind: 'dateOverview', date: '2026-09-25' }

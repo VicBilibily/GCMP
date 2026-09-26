@@ -82,6 +82,8 @@ function getRequestKindCssClass(kind: string | undefined): string {
 
 const PAGE_SIZE = 20;
 const REQUEST_COST_SPAN_SELECTOR = '[data-request-cost="true"]';
+const PREFETCH_AHEAD_PAGES = 2;
+const MAX_CACHED_RECORD_PAGES = 6;
 
 /** 活跃日期多选跟踪：所有会话共享的记录行数预算（按会话数均分，有下限） */
 const MULTI_TRACK_ROW_BUDGET = 20;
@@ -171,6 +173,225 @@ interface DetailRequestParams {
 }
 
 let lastDetailRequest: DetailRequestParams | null = null;
+const recordsPageCache = new Map<string, RecordsPageMessage>();
+const pendingRecordsPagePrefetches = new Map<string, number>();
+let recordsPagePrefetchRequestId = 0;
+
+function getRecordsPageCacheKey(params: {
+    date: string;
+    updateSeq: number;
+    mode: 'all' | 'session';
+    sessionId?: string;
+    page: number;
+}): string {
+    return `${params.date}\u0000${params.updateSeq}\u0000${params.mode}\u0000${params.sessionId ?? ''}\u0000${params.page}`;
+}
+
+export function cacheRecordsPage(message: RecordsPageMessage): boolean {
+    const cacheKey = getRecordsPageCacheKey(message);
+    if (message.prefetch) {
+        if (
+            message.prefetchRequestId === undefined ||
+            pendingRecordsPagePrefetches.get(cacheKey) !== message.prefetchRequestId
+        ) {
+            return false;
+        }
+    }
+    pendingRecordsPagePrefetches.delete(cacheKey);
+    const details = getCurrentDateDetails();
+    const view = details?.recordsView;
+    const activeRequest = lastDetailRequest;
+    if (
+        !details ||
+        !view ||
+        !activeRequest ||
+        activeRequest.command !== 'getRecordsPage' ||
+        activeRequest.date !== message.date ||
+        activeRequest.mode !== message.mode ||
+        activeRequest.sessionId !== message.sessionId ||
+        details.date !== message.date ||
+        details.updateSeq !== message.updateSeq ||
+        view.mode !== message.mode ||
+        view.sessionId !== message.sessionId
+    ) {
+        return false;
+    }
+
+    recordsPageCache.delete(cacheKey);
+    recordsPageCache.set(cacheKey, message);
+    while (recordsPageCache.size > MAX_CACHED_RECORD_PAGES) {
+        const oldestKey = recordsPageCache.keys().next().value;
+        if (oldestKey === undefined) {
+            break;
+        }
+        recordsPageCache.delete(oldestKey);
+    }
+    return true;
+}
+
+export function prefetchRecordsPages(): void {
+    const details = getCurrentDateDetails();
+    const view = details?.recordsView;
+    if (!details || !view) {
+        return;
+    }
+
+    const totalPages = Math.ceil(view.totalItems / PAGE_SIZE);
+    const lastPrefetchPage = Math.min(totalPages, view.page + PREFETCH_AHEAD_PAGES);
+    for (let page = view.page + 1; page <= lastPrefetchPage; page++) {
+        const params = {
+            date: details.date,
+            updateSeq: details.updateSeq,
+            mode: view.mode,
+            sessionId: view.sessionId,
+            page
+        };
+        const cacheKey = getRecordsPageCacheKey(params);
+        if (recordsPageCache.has(cacheKey) || pendingRecordsPagePrefetches.has(cacheKey)) {
+            continue;
+        }
+        const prefetchRequestId = ++recordsPagePrefetchRequestId;
+        while (pendingRecordsPagePrefetches.size >= MAX_CACHED_RECORD_PAGES) {
+            const oldestKey = pendingRecordsPagePrefetches.keys().next().value;
+            if (oldestKey === undefined) {
+                break;
+            }
+            pendingRecordsPagePrefetches.delete(oldestKey);
+        }
+        pendingRecordsPagePrefetches.set(cacheKey, prefetchRequestId);
+        postToVSCode({
+            command: 'getRecordsPage',
+            date: params.date,
+            mode: params.mode,
+            sessionId: params.sessionId,
+            page: params.page,
+            prefetch: true,
+            prefetchRequestId
+        });
+        break;
+    }
+}
+
+export function primeCurrentRecordsPage(): void {
+    const details = getCurrentDateDetails();
+    const view = details?.recordsView;
+    if (!details || !view) {
+        return;
+    }
+    recordDetailRequest({
+        command: 'getRecordsPage',
+        date: details.date,
+        mode: view.mode,
+        sessionId: view.sessionId,
+        page: view.page
+    });
+    cacheRecordsPage({
+        command: 'recordsPage',
+        date: details.date,
+        mode: view.mode,
+        sessionId: view.sessionId,
+        page: view.page,
+        pageSize: PAGE_SIZE,
+        totalItems: view.totalItems,
+        records: view.records,
+        summary: view.summary,
+        totals: view.totals,
+        recoveryDebug: view.recoveryDebug,
+        updateSeq: details.updateSeq
+    });
+    prefetchRecordsPages();
+}
+
+function clearRecordsPageCache(): void {
+    recordsPageCache.clear();
+    pendingRecordsPagePrefetches.clear();
+}
+
+interface RecordsViewportState {
+    content?: HTMLElement;
+    contentScrollTop: number;
+    recordsOffsetTop?: number;
+    recordsWasVisible: boolean;
+    detailScrollLeft: number;
+    detailScrollTop: number;
+    sessionScrollTop: number;
+    focusKey?: string;
+}
+
+function captureRecordsViewport(): RecordsViewportState {
+    const content = document.querySelector('.content') as HTMLElement | null;
+    const records = document.querySelector('#records-container') as HTMLElement | null;
+    const detailContent = records?.querySelector('.records-detail-content') as HTMLElement | null;
+    const sessionList = records?.querySelector('.session-filter-list') as HTMLElement | null;
+    let recordsOffsetTop: number | undefined;
+    let recordsWasVisible = false;
+    if (
+        content &&
+        records &&
+        typeof content.getBoundingClientRect === 'function' &&
+        typeof records.getBoundingClientRect === 'function'
+    ) {
+        const contentRect = content.getBoundingClientRect();
+        const recordsRect = records.getBoundingClientRect();
+        recordsOffsetTop = recordsRect.top - contentRect.top;
+        recordsWasVisible = recordsRect.bottom >= contentRect.top && recordsRect.top <= contentRect.bottom;
+    }
+
+    const activeElement = document.activeElement as HTMLElement | null;
+    const focusKey =
+        activeElement && records?.contains(activeElement) ? activeElement.dataset.recordsFocusKey : undefined;
+    return {
+        content: content ?? undefined,
+        contentScrollTop: content?.scrollTop ?? 0,
+        recordsOffsetTop,
+        recordsWasVisible,
+        detailScrollLeft: detailContent?.scrollLeft ?? 0,
+        detailScrollTop: detailContent?.scrollTop ?? 0,
+        sessionScrollTop: sessionList?.scrollTop ?? 0,
+        focusKey
+    };
+}
+
+function restoreRecordsViewport(state: RecordsViewportState): void {
+    const records = document.querySelector('#records-container') as HTMLElement | null;
+    if (state.content) {
+        let nextScrollTop = state.contentScrollTop;
+        if (
+            state.recordsWasVisible &&
+            state.recordsOffsetTop !== undefined &&
+            records &&
+            typeof state.content.getBoundingClientRect === 'function' &&
+            typeof records.getBoundingClientRect === 'function'
+        ) {
+            const contentTop = state.content.getBoundingClientRect().top;
+            const nextRecordsOffsetTop = records.getBoundingClientRect().top - contentTop;
+            nextScrollTop += nextRecordsOffsetTop - state.recordsOffsetTop;
+        }
+        state.content.scrollTop = nextScrollTop;
+    }
+
+    const detailContent = records?.querySelector('.records-detail-content') as HTMLElement | null;
+    if (detailContent) {
+        detailContent.scrollLeft = state.detailScrollLeft;
+        detailContent.scrollTop = state.detailScrollTop;
+    }
+    const sessionList = records?.querySelector('.session-filter-list') as HTMLElement | null;
+    if (sessionList) {
+        sessionList.scrollTop = state.sessionScrollTop;
+    }
+    if (state.focusKey) {
+        const focusTarget = records?.querySelector(
+            `[data-records-focus-key="${state.focusKey}"]`
+        ) as HTMLElement | null;
+        focusTarget?.focus({ preventScroll: true });
+    }
+}
+
+export function preserveRecordsViewport(update: () => void): void {
+    const viewport = captureRecordsViewport();
+    update();
+    restoreRecordsViewport(viewport);
+}
 
 function recordDetailRequest(params: DetailRequestParams): void {
     lastDetailRequest = params;
@@ -282,7 +503,7 @@ function rerenderRequestRecords(): void {
         return;
     }
 
-    createRequestRecordsSection(getCurrentSessionGroups(), recordsContainer);
+    preserveRecordsViewport(() => createRequestRecordsSection(getCurrentSessionGroups(), recordsContainer));
 }
 
 /**
@@ -363,6 +584,7 @@ function changeSelectedSession(sessionId: string | null, multiSelectKey = false)
         details.detailLoading = true;
         details.detailError = null;
     }
+    clearRecordsPageCache();
     fetchDetailByCurrentView(true);
     rerenderRequestRecords();
 }
@@ -370,16 +592,13 @@ function changeSelectedSession(sessionId: string | null, multiSelectKey = false)
 /**
  * 更新当前分页并重新拉取该页
  */
-function changePage(page: number): void {
+export function changeRecordsPage(page: number): void {
     const details = getCurrentDateDetails();
     const view = details?.recordsView;
     if (!details || !view) {
         return;
     }
 
-    // 乐观更新页码，响应到达后刷新数据
-    details.detailLoading = true;
-    details.detailError = null;
     const params = {
         command: 'getRecordsPage' as const,
         date: details.date,
@@ -388,6 +607,31 @@ function changePage(page: number): void {
         page
     };
     recordDetailRequest(params);
+    const cacheKey = getRecordsPageCacheKey({ ...params, updateSeq: details.updateSeq });
+    const cachedPage = recordsPageCache.get(cacheKey);
+    if (cachedPage) {
+        recordsPageCache.delete(cacheKey);
+        recordsPageCache.set(cacheKey, cachedPage);
+        details.recordsView = {
+            mode: cachedPage.mode,
+            sessionId: cachedPage.sessionId,
+            page: cachedPage.page,
+            totalItems: cachedPage.totalItems,
+            records: cachedPage.records,
+            summary: cachedPage.summary,
+            totals: cachedPage.totals,
+            recoveryDebug: cachedPage.recoveryDebug
+        };
+        details.detailLoading = false;
+        details.trackRecords = null;
+        details.detailError = null;
+        rerenderRequestRecords();
+        prefetchRecordsPages();
+        return;
+    }
+
+    details.detailLoading = true;
+    details.detailError = null;
     postToVSCode(params);
     rerenderRequestRecords();
 }
@@ -400,14 +644,16 @@ function createPagination(page: number, totalPages: number, totalItems: number):
 
     const prevBtn = createElement('button') as HTMLButtonElement;
     prevBtn.textContent = t('Previous', '上一页');
+    prevBtn.dataset.recordsFocusKey = 'page-previous';
     prevBtn.disabled = page <= 1;
-    prevBtn.onclick = () => page > 1 && changePage(page - 1);
+    prevBtn.onclick = () => page > 1 && changeRecordsPage(page - 1);
     container.appendChild(prevBtn);
 
     const firstPageBtn = createElement('button') as HTMLButtonElement;
     firstPageBtn.textContent = '1';
+    firstPageBtn.dataset.recordsFocusKey = 'page-1';
     firstPageBtn.className = `page-number${page === 1 ? ' active' : ''}`;
-    firstPageBtn.onclick = () => page !== 1 && changePage(1);
+    firstPageBtn.onclick = () => page !== 1 && changeRecordsPage(1);
     container.appendChild(firstPageBtn);
 
     const maxPages = 5;
@@ -426,8 +672,9 @@ function createPagination(page: number, totalPages: number, totalItems: number):
     for (let i = startPage; i <= endPage; i++) {
         const pageBtn = createElement('button') as HTMLButtonElement;
         pageBtn.textContent = String(i);
+        pageBtn.dataset.recordsFocusKey = `page-${i}`;
         pageBtn.className = `page-number${i === page ? ' active' : ''}`;
-        pageBtn.onclick = () => i !== page && changePage(i);
+        pageBtn.onclick = () => i !== page && changeRecordsPage(i);
         container.appendChild(pageBtn);
     }
 
@@ -440,15 +687,17 @@ function createPagination(page: number, totalPages: number, totalItems: number):
     if (totalPages > 1) {
         const lastPageBtn = createElement('button') as HTMLButtonElement;
         lastPageBtn.textContent = String(totalPages);
+        lastPageBtn.dataset.recordsFocusKey = `page-${totalPages}`;
         lastPageBtn.className = `page-number${page === totalPages ? ' active' : ''}`;
-        lastPageBtn.onclick = () => page !== totalPages && changePage(totalPages);
+        lastPageBtn.onclick = () => page !== totalPages && changeRecordsPage(totalPages);
         container.appendChild(lastPageBtn);
     }
 
     const nextBtn = createElement('button') as HTMLButtonElement;
     nextBtn.textContent = t('Next', '下一页');
+    nextBtn.dataset.recordsFocusKey = 'page-next';
     nextBtn.disabled = page >= totalPages;
-    nextBtn.onclick = () => page < totalPages && changePage(page + 1);
+    nextBtn.onclick = () => page < totalPages && changeRecordsPage(page + 1);
     container.appendChild(nextBtn);
 
     const info = createElement('span', 'pagination-info');
@@ -749,10 +998,11 @@ function appendTotalsRow(
  */
 export function createRequestRecordsTable(
     records: ExtendedTokenRequestLog[],
-    summary: SessionSummary,
-    totals: RequestTotals,
+    summary: SessionSummary | undefined,
+    totals: RequestTotals | undefined,
     visibleSessionIds: Set<string>,
-    showRequestCount = false
+    showRequestCount = false,
+    showTotals = true
 ): HTMLElement {
     const table = createElement('table', 'records-table');
     const thead = createElement('thead');
@@ -1031,10 +1281,40 @@ export function createRequestRecordsTable(
         tbody.appendChild(row);
     });
 
-    appendTotalsRow(tbody, summary, totals, currency, showRequestCount);
+    if (showTotals && summary && totals) {
+        appendTotalsRow(tbody, summary, totals, currency, showRequestCount);
+    }
 
     table.appendChild(tbody);
     return table;
+}
+
+function createSessionFilterPlaceholder(): HTMLElement {
+    const placeholder = createElement('div', 'session-filter session-filter-placeholder');
+    placeholder.setAttribute('aria-hidden', 'true');
+    return placeholder;
+}
+
+export function createRecordsLoadingSection(existingContainer?: HTMLElement): HTMLElement {
+    const container = existingContainer || createElement('div', '', { id: 'records-container' });
+    container.id = 'records-container';
+    container.innerHTML = '';
+    const layout = createElement('div', 'records-layout');
+    layout.appendChild(createSessionFilterPlaceholder());
+    layout.appendChild(createLoadingDetail());
+    container.appendChild(layout);
+    return container;
+}
+
+export function createRecordsErrorSection(existingContainer?: HTMLElement): HTMLElement {
+    const container = existingContainer || createElement('div', '', { id: 'records-container' });
+    container.id = 'records-container';
+    container.innerHTML = '';
+    const layout = createElement('div', 'records-layout');
+    layout.appendChild(createSessionFilterPlaceholder());
+    layout.appendChild(createErrorDetail());
+    container.appendChild(layout);
+    return container;
 }
 
 /**
@@ -1273,6 +1553,7 @@ function createErrorDetail(): HTMLElement {
  */
 export function resetRequestRecordsState(): void {
     isSessionPopoverOpen = false;
+    clearRecordsPageCache();
 }
 
 /**

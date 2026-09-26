@@ -19,7 +19,8 @@ import type {
     RequestTotals,
     SessionGroupSummary,
     SessionRecoveryDebugSummary,
-    SessionSummary
+    SessionSummary,
+    UsagesRecordsPageResult
 } from '../../usages/query/types';
 
 export interface LiveRequestUiState {
@@ -90,6 +91,8 @@ export type WebViewMessage =
           sessionId?: string;
           page: number;
           pageSize?: number;
+          prefetch?: boolean;
+          prefetchRequestId?: number;
       }
     | {
           command: 'getTrackRecords';
@@ -108,6 +111,18 @@ export interface UpdateDateListMessage {
     today: string;
 }
 
+export interface DateStatsPreview {
+    date: string;
+    isToday: boolean;
+    isExtensionHostDebugMode: boolean;
+    providers: ProviderData[];
+    hourlyStats: Record<string, HourlyStats>;
+}
+
+export interface UpdateDateStatsMessage extends DateStatsPreview {
+    command: 'updateDateStats';
+}
+
 export interface UpdateDateDetailsMessage {
     command: 'updateDateDetails';
     date: string;
@@ -120,6 +135,7 @@ export interface UpdateDateDetailsMessage {
     allTotals: RequestTotals;
     nativeSplitIndex: NativeCostSplitIndex;
     sessionGroups: SessionGroupSummary[];
+    initialRecordsPage?: UsagesRecordsPageResult;
     /** 单调递增序列号，页拉取防竞态 */
     updateSeq: number;
 }
@@ -140,6 +156,8 @@ export interface RecordsPageMessage {
     totals: RequestTotals;
     recoveryDebug?: SessionRecoveryDebugSummary;
     updateSeq: number;
+    prefetch?: boolean;
+    prefetchRequestId?: number;
 }
 
 /**
@@ -177,6 +195,7 @@ export interface UpdateLiveMetricsMessage {
 
 export type HostMessage =
     | UpdateDateListMessage
+    | UpdateDateStatsMessage
     | UpdateDateDetailsMessage
     | RecordsPageMessage
     | TrackRecordsMessage
@@ -197,6 +216,8 @@ export interface State {
     selectedSessionIds: string[];
     displayCurrency: 'MIXED' | 'USD' | 'RMB';
     dateList: DateSummary[];
+    /** 完整聚合完成前先显示的轻量统计。 */
+    dateStatsPreview: DateStatsPreview | null;
     dateDetails: DateDetails | null;
     dateLoadError: string | null;
     loading: {

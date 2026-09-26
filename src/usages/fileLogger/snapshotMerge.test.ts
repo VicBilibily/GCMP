@@ -416,15 +416,18 @@ test('snapshot JSONL parse skips corrupt lines and keeps valid request records',
 
 test('snapshot JSONL stringify writes one final request record per line', () => {
     const store: SnapshotFile = {
-        'req-1': createRecord({ requestId: 'req-1' }),
-        'req-2': createRecord({ requestId: 'req-2', timestamp: 2000 })
+        'req-2': createRecord({ requestId: 'req-2', timestamp: 2000 }),
+        'req-1': createRecord({ requestId: 'req-1' })
     };
 
     const content = stringifySnapshotFile(store);
     const lines = content.split('\n');
 
     assert.equal(lines.length, 2);
-    assert.deepEqual(lines.map(line => JSON.parse(line).requestId).sort(), ['req-1', 'req-2']);
+    assert.deepEqual(
+        lines.map(line => JSON.parse(line).requestId),
+        ['req-1', 'req-2']
+    );
 });
 
 test('UsageParser reparses historical snapshot rawUsage with unified OpenAI-compatible semantics', () => {
@@ -482,6 +485,236 @@ test('missing and empty snapshots remain readable and allow the first record to 
             ['first']
         );
     } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('reverse snapshot read returns newest records without reading the full file', async context => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-reverse-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const baseTimestamp = new Date(`${date}T00:00:00`).getTime();
+        const logs = Array.from({ length: 2000 }, (_, index) => ({
+            ...createRequestLog(`reverse-${index}`),
+            timestamp: baseTimestamp + index,
+            isoTime: new Date(baseTimestamp + index).toISOString()
+        }));
+
+        await snapshot.buildSnapshotFromLogs(date, logs);
+        const snapshotPath = paths.getSnapshotFilePath(date);
+        const snapshotSize = (await stat(snapshotPath)).size;
+        const fs = require('fs/promises') as typeof import('node:fs/promises');
+        const openFile = fs.open;
+        let bytesRead = 0;
+        context.mock.method(fs, 'open', async (...args: Parameters<typeof openFile>) => {
+            const handle = await openFile(...args);
+            if (args[0] !== snapshotPath) {
+                return handle;
+            }
+            const readAt = handle.read.bind(handle) as unknown as (
+                buffer: Buffer,
+                offset: number,
+                length: number,
+                position: number | null
+            ) => Promise<{ bytesRead: number; buffer: Buffer }>;
+            return {
+                stat: () => handle.stat(),
+                read: async (buffer: Buffer, offset: number, length: number, position: number | null) => {
+                    const result = await readAt(buffer, offset, Math.min(length, 1024), position);
+                    bytesRead += result.bytesRead;
+                    return result;
+                },
+                close: () => handle.close()
+            } as typeof handle;
+        });
+
+        assert.deepEqual(
+            (await snapshot.readRecent(date, 20))?.map(record => record.requestId),
+            Array.from({ length: 20 }, (_, index) => `reverse-${1999 - index}`)
+        );
+        assert.ok(bytesRead < snapshotSize);
+    } finally {
+        context.mock.restoreAll();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('reverse snapshot read preserves a record larger than one read chunk', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-large-reverse-snapshot-record-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const baseTimestamp = new Date(`${date}T00:00:00`).getTime();
+        const oversizedRecord = {
+            ...createRequestLog('oversized-record'),
+            timestamp: baseTimestamp + 1,
+            isoTime: new Date(baseTimestamp + 1).toISOString(),
+            sessionTitle: 'x'.repeat(70 * 1024)
+        };
+        const newestRecord = {
+            ...createRequestLog('newest-after-oversized'),
+            timestamp: baseTimestamp + 2,
+            isoTime: new Date(baseTimestamp + 2).toISOString()
+        };
+
+        await snapshot.buildSnapshotFromLogs(date, [oversizedRecord, newestRecord]);
+
+        const records = await snapshot.readRecent(date, 2);
+        assert.deepEqual(
+            records?.map(record => record.requestId),
+            ['newest-after-oversized', 'oversized-record']
+        );
+        assert.equal(records?.[1].sessionTitle?.length, 70 * 1024);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('bounded snapshot read supports legacy files written newest first', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-legacy-descending-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const baseTimestamp = new Date(`${date}T00:00:00`).getTime();
+        const records = Array.from({ length: 50 }, (_, index) => ({
+            ...createRequestLog(`legacy-desc-${index}`),
+            timestamp: baseTimestamp + index,
+            isoTime: new Date(baseTimestamp + index).toISOString()
+        })).reverse();
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(paths.getSnapshotFilePath(date), records.map(record => JSON.stringify(record)).join('\n'));
+
+        assert.deepEqual(
+            (await snapshot.readRecent(date, 20))?.map(record => record.requestId),
+            Array.from({ length: 20 }, (_, index) => `legacy-desc-${49 - index}`)
+        );
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('reverse snapshot read skips corrupt tail lines', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-corrupt-snapshot-tail-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        await snapshot.buildSnapshotFromLogs(date, [createRequestLog('authoritative-record')]);
+        const snapshotPath = paths.getSnapshotFilePath(date);
+        await writeFile(snapshotPath, `${await readFile(snapshotPath, 'utf8')}\n{bad json`, 'utf8');
+
+        assert.deepEqual(
+            (await snapshot.readRecent(date, 20))?.map(record => record.requestId),
+            ['authoritative-record']
+        );
+        assert.deepEqual(
+            (await snapshot.read(date))?.map(record => record.requestId),
+            ['authoritative-record']
+        );
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('reverse snapshot read rejects records when the authoritative snapshot changes during the read', async context => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-racing-reverse-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        await snapshot.buildSnapshotFromLogs(date, [createRequestLog('old-record')]);
+
+        const fs = require('fs/promises') as typeof import('node:fs/promises');
+        const statFile = fs.stat;
+        context.mock.method(fs, 'stat', async (...args: Parameters<typeof statFile>) => {
+            const stats = await statFile(...args);
+            if (args[0] === paths.getSnapshotFilePath(date)) {
+                return Object.assign(stats, { mtimeMs: Number(stats.mtimeMs) + 1 });
+            }
+            return stats;
+        });
+
+        assert.equal(await snapshot.readRecent(date, 20), null);
+    } finally {
+        context.mock.restoreAll();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('reverse snapshot read is disabled while uncompressed raw logs remain', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-reverse-snapshot-with-raw-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const record = createRequestLog('saved-record');
+        await snapshot.buildSnapshotFromLogs(date, [record]);
+        await writeFile(paths.getHourFilePath(date, 0), `${JSON.stringify(record)}\n`, 'utf8');
+
+        assert.equal(await snapshot.readRecent(date, 20), null);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('recent historical records read the snapshot tail without parsing the full snapshot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-bounded-reverse-preview-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const record = createRequestLog('legacy-full-record');
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(paths.getSnapshotFilePath(date), stringifySnapshotFile({ [record.requestId]: record }), 'utf8');
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+        const { snapshotManager } = logger as unknown as {
+            snapshotManager: import('./snapshotManager').SnapshotManager;
+        };
+        let fullReads = 0;
+        snapshotManager.read = async () => {
+            fullReads++;
+            throw new Error('full snapshot read must not run');
+        };
+
+        assert.deepEqual(
+            (await logger.getRecentRequestDetails(date, 20, true)).map(item => item.requestId),
+            ['legacy-full-record']
+        );
+        assert.equal(fullReads, 0);
+    } finally {
+        await logger?.dispose();
         restoreHost();
         await rm(dir, { recursive: true, force: true });
     }

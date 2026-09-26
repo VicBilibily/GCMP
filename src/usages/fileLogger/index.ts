@@ -728,7 +728,9 @@ export class TokenFileLogger {
         limit: number = 100,
         throwOnFailure = false
     ): Promise<TokenRequestLog[]> {
-        const pendingLogs = this.getPendingLogs();
+        const pendingLogs = this.getPendingLogs().filter(
+            log => DateUtils.formatDate(new Date(log.timestamp)) === dateStr
+        );
         const pendingRequestIds = new Set(pendingLogs.map(l => l.requestId));
 
         if (this.shouldReadRawJsonl(dateStr)) {
@@ -741,7 +743,8 @@ export class TokenFileLogger {
                 return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
             }
             // raw jsonl 已被清理：用 snapshot 兜底，仍按限制返回
-            const snapshotRecords = await this.snapshotManager.read(dateStr);
+            const recentSnapshotRecords = await this.snapshotManager.readRecent(dateStr, limit);
+            const snapshotRecords = recentSnapshotRecords ?? (await this.snapshotManager.read(dateStr));
             if (snapshotRecords) {
                 const completed = snapshotRecords.filter(l => !pendingRequestIds.has(l.requestId));
                 return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
@@ -749,8 +752,9 @@ export class TokenFileLogger {
             return pendingLogs.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
         }
 
-        // 历史日期：先读 requests.jsonl 快照（更快）
-        const snapshotRecords = await this.snapshotManager.read(dateStr);
+        // 历史日期：从 requests.jsonl 尾部倒序读取，避免完整解析。
+        const recentSnapshotRecords = await this.snapshotManager.readRecent(dateStr, limit);
+        const snapshotRecords = recentSnapshotRecords ?? (await this.snapshotManager.read(dateStr));
         if (snapshotRecords) {
             // 合并 pending logs（内存中未完成的请求）
             const completed = snapshotRecords.filter(l => !pendingRequestIds.has(l.requestId));

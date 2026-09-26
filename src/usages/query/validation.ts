@@ -6,6 +6,7 @@ const MAX_TRACKED_SESSIONS = 3;
 const MAX_TRACKED_RECORDS_PER_SESSION = 100;
 const MAX_RECENT_RECORDS = 100;
 const MAX_SESSION_ID_LENGTH = 512;
+const INITIAL_RECORDS_PAGE_SIZE = 20;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PENDING_RECORDS = 100;
 const MAX_PENDING_BYTES = 256 * 1024;
@@ -98,27 +99,8 @@ export function isUsagesQueryResult(result: unknown, query: UsagesQuery): result
                         group.records.every(isExtendedRecord)
                 )
             );
-        case 'recordsPage': {
-            if (
-                !isRecord(value) ||
-                value.mode !== query.mode ||
-                value.sessionId !== (query.mode === 'session' ? query.sessionId : undefined) ||
-                value.page !== query.page ||
-                value.pageSize !== query.pageSize ||
-                !isNonNegativeInteger(value.totalItems) ||
-                !Array.isArray(value.records) ||
-                value.records.length > query.pageSize ||
-                !value.records.every(isExtendedRecord) ||
-                !isSessionSummary(value.summary) ||
-                value.summary.requestCount !== value.totalItems ||
-                !isRequestTotals(value.totals) ||
-                (value.recoveryDebug !== undefined && !isRecoveryDebugSummary(value.recoveryDebug))
-            ) {
-                return false;
-            }
-            const pageStart = (query.page - 1) * query.pageSize;
-            return value.records.length <= Math.max(0, value.totalItems - pageStart);
-        }
+        case 'recordsPage':
+            return isRecordsPageResult(value, query);
         case 'dateOverview':
             if (
                 !isRecord(value) ||
@@ -126,7 +108,14 @@ export function isUsagesQueryResult(result: unknown, query: UsagesQuery): result
                 !isRequestTotals(value.allTotals) ||
                 !isNativeCostSplitIndex(value.nativeSplitIndex) ||
                 !Array.isArray(value.sessionGroups) ||
-                !value.sessionGroups.every(isSessionGroupSummary)
+                !value.sessionGroups.every(isSessionGroupSummary) ||
+                (value.initialRecordsPage !== undefined &&
+                    (!isRecordsPageResult(value.initialRecordsPage, {
+                        mode: 'all',
+                        page: 1,
+                        pageSize: INITIAL_RECORDS_PAGE_SIZE
+                    }) ||
+                        value.initialRecordsPage.totalItems !== value.allSummary.requestCount))
             ) {
                 return false;
             }
@@ -135,6 +124,31 @@ export function isUsagesQueryResult(result: unknown, query: UsagesQuery): result
                 value.allSummary.requestCount
             );
     }
+}
+
+function isRecordsPageResult(
+    value: unknown,
+    expected: { mode: 'all' | 'session'; sessionId?: string; page: number; pageSize: number }
+): value is Record<string, unknown> {
+    if (
+        !isRecord(value) ||
+        value.mode !== expected.mode ||
+        value.sessionId !== (expected.mode === 'session' ? expected.sessionId : undefined) ||
+        value.page !== expected.page ||
+        value.pageSize !== expected.pageSize ||
+        !isNonNegativeInteger(value.totalItems) ||
+        !Array.isArray(value.records) ||
+        value.records.length > expected.pageSize ||
+        !value.records.every(isExtendedRecord) ||
+        !isSessionSummary(value.summary) ||
+        value.summary.requestCount !== value.totalItems ||
+        !isRequestTotals(value.totals) ||
+        (value.recoveryDebug !== undefined && !isRecoveryDebugSummary(value.recoveryDebug))
+    ) {
+        return false;
+    }
+    const pageStart = (expected.page - 1) * expected.pageSize;
+    return value.records.length <= Math.max(0, value.totalItems - pageStart);
 }
 
 function isDate(value: unknown): value is string {

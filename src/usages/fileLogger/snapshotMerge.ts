@@ -56,25 +56,31 @@ function isSnapshotRequestRecord(value: unknown): value is SnapshotRequestRecord
     );
 }
 
+export function parseSnapshotRecordLine(line: string): SnapshotRequestRecord | undefined {
+    try {
+        const record = JSON.parse(line) as unknown;
+        return isSnapshotRequestRecord(record) ? record : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 export function parseSnapshotFileContent(content: string): SnapshotFile {
     const store: SnapshotFile = {};
     const lines = content.split('\n').filter(line => line.trim());
     for (const line of lines) {
-        try {
-            const record = JSON.parse(line) as unknown;
-            if (isSnapshotRequestRecord(record)) {
-                store[record.requestId] = record;
-            }
-        } catch {
-            /* 跳过损坏行 */
+        const record = parseSnapshotRecordLine(line);
+        if (record) {
+            store[record.requestId] = record;
         }
     }
     return store;
 }
 
 export function stringifySnapshotFile(store: SnapshotFile): string {
-    return Object.keys(store)
-        .map(requestId => JSON.stringify(store[requestId]))
+    return Object.values(store)
+        .sort((a, b) => a.timestamp - b.timestamp || a.requestId.localeCompare(b.requestId))
+        .map(record => JSON.stringify(record))
         .join('\n');
 }
 

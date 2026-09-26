@@ -68,6 +68,7 @@ export interface UsagesDateOverview {
     allTotals: RequestTotals;
     nativeSplitIndex: NativeCostSplitIndex;
     sessionGroups: SessionGroupSummary[];
+    initialRecordsPage?: UsagesRecordsPageResult;
 }
 
 export interface UsagesRecordsPageResult {

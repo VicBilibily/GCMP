@@ -459,6 +459,8 @@ body {
 
 /* 记录表格特定样式 */
 #records-container {
+    overflow-anchor: none;
+
     .records-layout {
         display: flex;
         align-items: stretch;
@@ -589,6 +591,10 @@ body {
             font-size: 11px;
             line-height: 1.4;
         }
+    }
+
+    .session-filter-placeholder {
+        pointer-events: none;
     }
 
     .records-detail {

@@ -33,7 +33,8 @@ import {
     sliceRecordsPage,
     sortRecordsByTimestampDesc,
     summarizeSessionRecords,
-    summarizeSessionRecoveryDebugInfo
+    summarizeSessionRecoveryDebugInfo,
+    UNKNOWN_SESSION_ID
 } from '../ui/usagesView/aggregation';
 import { UsagesQueryCoordinator } from './query/usagesQueryCoordinator';
 import { normalizeUsagesPendingRecords } from './query/validation';
@@ -50,6 +51,7 @@ const MAX_SESSION_TITLE_LOOKBACK_DAYS = 7;
 const SESSION_TITLE_MISS_CACHE_TTL_MS = 30 * 60 * 1000;
 const MAX_DATE_RECORD_CACHE_ENTRIES = 2;
 const MAX_DATE_RECORD_CACHE_RECORDS = 20_000;
+const INITIAL_RECORDS_PAGE_SIZE = 20;
 
 interface HistoricalSessionTitleCacheEntry {
     title: string | null;
@@ -98,6 +100,8 @@ export class TokenUsagesManager {
     private dateRecordsBuilds = new Map<string, Promise<ExtendedTokenRequestLog[]>>();
     private cachedDateRecords = 0;
     private dateRecordsCacheGeneration = 0;
+    private backgroundSessionTitleIds = new Set<string>();
+    private backgroundSessionTitleHydration: Promise<void> | undefined;
 
     private constructor() {
         this.eventEmitter = new EventEmitter();
@@ -469,10 +473,30 @@ export class TokenUsagesManager {
 
     async getDateOverview(date: string): Promise<UsagesDateOverview> {
         if (!this.usagesQueryCoordinator) {
-            return this.buildDateOverview(await this.getDateRecords(date));
+            return this.buildDateOverview(await this.getDateRecordsForQuery(date));
         }
         const pendingRecords = await this.flushBeforeRemoteQuery(date);
-        return this.usagesQueryCoordinator.run({ kind: 'dateOverview', date }, pendingRecords);
+        const overview = await this.usagesQueryCoordinator.run({ kind: 'dateOverview', date }, pendingRecords);
+        if (this.initialized) {
+            for (const group of overview.sessionGroups) {
+                if (group.title && !SessionTitleService.instance.getTitle(group.sessionId)) {
+                    SessionTitleService.instance.rememberResolvedTitle(group.sessionId, group.title);
+                }
+            }
+            const records = overview.initialRecordsPage?.records ?? [];
+            this.seedSessionTitlesFromLogs(records, pendingRecords);
+            this.scheduleSessionTitleHydration(
+                overview.sessionGroups
+                    .filter(group => {
+                        const terminalCount =
+                            group.summary.completedCount + group.summary.failedCount + group.summary.cancelledCount;
+                        return group.sessionId !== UNKNOWN_SESSION_ID && terminalCount > 0;
+                    })
+                    .map(group => group.sessionId)
+            );
+            this.enrichSessionTitles(records, pendingRecords);
+        }
+        return overview;
     }
 
     async getRecordsPage(params: {
@@ -483,10 +507,18 @@ export class TokenUsagesManager {
         pageSize: number;
     }): Promise<UsagesRecordsPageResult> {
         if (!this.usagesQueryCoordinator) {
-            return this.buildRecordsPage(await this.getDateRecords(params.date), params);
+            return this.buildRecordsPage(await this.getDateRecordsForQuery(params.date), params);
         }
         const pendingRecords = await this.flushBeforeRemoteQuery(params.date);
-        return this.usagesQueryCoordinator.run({ kind: 'recordsPage', ...params }, pendingRecords);
+        const page = await this.usagesQueryCoordinator.run({ kind: 'recordsPage', ...params }, pendingRecords);
+        if (this.initialized) {
+            this.seedSessionTitlesFromLogs(page.records, pendingRecords);
+            this.scheduleSessionTitleHydration(
+                this.collectSessionIds(page.records.filter(record => record.status !== 'estimated'))
+            );
+            this.enrichSessionTitles(page.records, pendingRecords);
+        }
+        return page;
     }
 
     async getTrackRecords(params: {
@@ -495,10 +527,19 @@ export class TokenUsagesManager {
         limitPerSession: number;
     }): Promise<UsagesTrackRecordsResult> {
         if (!this.usagesQueryCoordinator) {
-            return this.buildTrackRecords(await this.getDateRecords(params.date), params);
+            return this.buildTrackRecords(await this.getDateRecordsForQuery(params.date), params);
         }
         const pendingRecords = await this.flushBeforeRemoteQuery(params.date);
-        return this.usagesQueryCoordinator.run({ kind: 'trackRecords', ...params }, pendingRecords);
+        const result = await this.usagesQueryCoordinator.run({ kind: 'trackRecords', ...params }, pendingRecords);
+        if (this.initialized) {
+            const records = result.groups.flatMap(group => group.records);
+            this.seedSessionTitlesFromLogs(records, pendingRecords);
+            this.scheduleSessionTitleHydration(
+                this.collectSessionIds(records.filter(record => record.status !== 'estimated'))
+            );
+            this.enrichSessionTitles(records, pendingRecords);
+        }
+        return result;
     }
 
     /**
@@ -508,12 +549,30 @@ export class TokenUsagesManager {
         date: string,
         pendingRecords: readonly UsagesPendingRecord[] = []
     ): Promise<ExtendedTokenRequestLog[]> {
+        return this.getDateRecordsInternal(date, pendingRecords, true);
+    }
+
+    private getDateRecordsForQuery(
+        date: string,
+        pendingRecords: readonly UsagesPendingRecord[] = [],
+        scheduleTitleHydration = true
+    ): Promise<ExtendedTokenRequestLog[]> {
+        return this.getDateRecordsInternal(date, pendingRecords, false, scheduleTitleHydration);
+    }
+
+    private async getDateRecordsInternal(
+        date: string,
+        pendingRecords: readonly UsagesPendingRecord[],
+        waitForSessionTitles: boolean,
+        scheduleTitleHydration = true
+    ): Promise<ExtendedTokenRequestLog[]> {
         const datePending = pendingRecords.filter(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
         const hasLocalPending = this.fileLogger
             .getPendingLogs()
             .some(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
         if (datePending.length > 0 || hasLocalPending) {
-            return this.buildDateRecords(date, datePending);
+            const records = await this.buildDateRecords(date, datePending);
+            return this.completeDateRecords(records, datePending, waitForSessionTitles, scheduleTitleHydration);
         }
 
         this.dateRecordsCache ??= new Map();
@@ -526,8 +585,7 @@ export class TokenUsagesManager {
         if (cached?.signature === signature) {
             this.dateRecordsCache.delete(date);
             this.dateRecordsCache.set(date, cached);
-            await this.hydrateSessionTitles(this.collectSessionIds(cached.records));
-            return this.enrichSessionTitles(cached.records);
+            return this.completeDateRecords(cached.records, [], waitForSessionTitles, scheduleTitleHydration);
         }
         if (cached) {
             this.deleteDateRecordsCacheEntry(date);
@@ -536,7 +594,7 @@ export class TokenUsagesManager {
         const buildKey = `${date}\0${signature}`;
         const existingBuild = this.dateRecordsBuilds.get(buildKey);
         if (existingBuild) {
-            return existingBuild;
+            return this.completeDateRecords(await existingBuild, [], waitForSessionTitles, scheduleTitleHydration);
         }
 
         const generation = this.dateRecordsCacheGeneration;
@@ -557,7 +615,7 @@ export class TokenUsagesManager {
                 }
             });
         this.dateRecordsBuilds.set(buildKey, build);
-        return build;
+        return this.completeDateRecords(await build, [], waitForSessionTitles, scheduleTitleHydration);
     }
 
     private async buildDateRecords(
@@ -567,8 +625,60 @@ export class TokenUsagesManager {
         const details = await this.fileLogger.getRequestDetails(date);
         const allLogs = this.mergePendingLogs(details, pendingRecords, date);
         this.seedSessionTitlesFromLogs(allLogs, pendingRecords);
-        await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
-        return this.enrichSessionTitles(UsageParser.extendLogs(allLogs), pendingRecords);
+        return UsageParser.extendLogs(allLogs);
+    }
+
+    private async completeDateRecords(
+        records: ExtendedTokenRequestLog[],
+        pendingRecords: readonly UsagesPendingRecord[],
+        waitForSessionTitles: boolean,
+        scheduleTitleHydration: boolean
+    ): Promise<ExtendedTokenRequestLog[]> {
+        const sessionIds = this.collectSessionIds(records);
+        if (waitForSessionTitles) {
+            await this.hydrateSessionTitles(sessionIds);
+        } else if (scheduleTitleHydration) {
+            this.scheduleSessionTitleHydration(sessionIds);
+        }
+        return this.enrichSessionTitles(records, pendingRecords);
+    }
+
+    private scheduleSessionTitleHydration(sessionIds: Iterable<string>): void {
+        this.backgroundSessionTitleIds ??= new Set();
+        for (const sessionId of sessionIds) {
+            if (sessionId && !SessionTitleService.instance.getTitle(sessionId)) {
+                this.backgroundSessionTitleIds.add(sessionId);
+            }
+        }
+        if (this.backgroundSessionTitleIds.size === 0 || this.backgroundSessionTitleHydration) {
+            return;
+        }
+
+        let titlesChanged = false;
+        const hydration = (async () => {
+            while (this.backgroundSessionTitleIds.size > 0) {
+                const pendingIds = [...this.backgroundSessionTitleIds];
+                this.backgroundSessionTitleIds.clear();
+                await this.hydrateSessionTitles(pendingIds);
+                titlesChanged ||= pendingIds.some(sessionId => !!SessionTitleService.instance.getTitle(sessionId));
+            }
+        })();
+        this.backgroundSessionTitleHydration = hydration;
+        void hydration
+            .catch(error => {
+                StatusLogger.warn('[UsagesManager] Background session title hydration failed:', error);
+            })
+            .finally(() => {
+                if (this.backgroundSessionTitleHydration === hydration) {
+                    this.backgroundSessionTitleHydration = undefined;
+                }
+                if (titlesChanged && this.initialized) {
+                    this.eventEmitter.emit('update');
+                }
+                if (this.backgroundSessionTitleIds.size > 0) {
+                    this.scheduleSessionTitleHydration([]);
+                }
+            });
     }
 
     private mergePendingLogs(
@@ -626,7 +736,7 @@ export class TokenUsagesManager {
         return SessionTitleService.instance.getTitle(sessionId);
     }
 
-    private async flushBeforeRemoteQuery(date?: string): Promise<TokenRequestLog[]> {
+    private async flushBeforeRemoteQuery(date?: string): Promise<UsagesPendingRecord[]> {
         if (!LeaderElectionService.isLeader() && InterInstanceBus.hasCompatibleUsagesQueryTransport()) {
             const pendingRecords = this.getEstimatedPendingRecords(date);
             await this.fileLogger.flush();
@@ -635,7 +745,7 @@ export class TokenUsagesManager {
         return [];
     }
 
-    private getEstimatedPendingRecords(date?: string): TokenRequestLog[] {
+    private getEstimatedPendingRecords(date?: string): UsagesPendingRecord[] {
         return this.fileLogger
             .getPendingLogs()
             .filter(
@@ -643,6 +753,8 @@ export class TokenUsagesManager {
             )
             .map(log => ({
                 ...log,
+                status: 'estimated' as const,
+                rawUsage: null,
                 sessionTitle:
                     (log.sessionId ? SessionTitleService.instance.getTitle(log.sessionId) : undefined) ??
                     log.sessionTitle
@@ -670,17 +782,25 @@ export class TokenUsagesManager {
             case 'dateOverview':
                 return {
                     kind: query.kind,
-                    value: this.buildDateOverview(await this.getDateRecords(query.date, pendingRecords))
+                    value: this.buildDateOverview(
+                        await this.getDateRecordsForQuery(query.date, pendingRecords, !isRemote)
+                    )
                 };
             case 'recordsPage':
                 return {
                     kind: query.kind,
-                    value: this.buildRecordsPage(await this.getDateRecords(query.date, pendingRecords), query)
+                    value: this.buildRecordsPage(
+                        await this.getDateRecordsForQuery(query.date, pendingRecords, !isRemote),
+                        query
+                    )
                 };
             case 'trackRecords':
                 return {
                     kind: query.kind,
-                    value: this.buildTrackRecords(await this.getDateRecords(query.date, pendingRecords), query)
+                    value: this.buildTrackRecords(
+                        await this.getDateRecordsForQuery(query.date, pendingRecords, !isRemote),
+                        query
+                    )
                 };
             case 'recentRecords':
                 return {
@@ -693,11 +813,24 @@ export class TokenUsagesManager {
     }
 
     private buildDateOverview(records: ExtendedTokenRequestLog[]): UsagesDateOverview {
+        const allSummary = summarizeSessionRecords(records);
+        const allTotals = buildRequestTotals(records);
+        const initialPage = sliceRecordsPage(records, 1, INITIAL_RECORDS_PAGE_SIZE);
         return {
-            allSummary: summarizeSessionRecords(records),
-            allTotals: buildRequestTotals(records),
+            allSummary,
+            allTotals,
             nativeSplitIndex: buildNativeCostSplitIndex(records),
-            sessionGroups: buildSessionGroupSummaries(records)
+            sessionGroups: buildSessionGroupSummaries(records),
+            initialRecordsPage: {
+                mode: 'all',
+                page: 1,
+                pageSize: INITIAL_RECORDS_PAGE_SIZE,
+                totalItems: initialPage.totalItems,
+                records: initialPage.records,
+                summary: allSummary,
+                totals: allTotals,
+                recoveryDebug: summarizeSessionRecoveryDebugInfo(records)
+            }
         };
     }
 
@@ -1061,6 +1194,7 @@ export class TokenUsagesManager {
         this.cacheInvalidationDisposable = undefined;
         this.clearDateRecordsCache();
         this.dateRecordsBuilds.clear();
+        this.backgroundSessionTitleIds.clear();
         await this.fileLogger.dispose();
         this.initialized = false;
     }

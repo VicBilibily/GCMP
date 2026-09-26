@@ -161,7 +161,7 @@ function createEmptyNativeCostSplit(): NativeCostSplit {
     };
 }
 
-function createRendererDeps(): LiveMetricsRendererDeps {
+function createRendererDeps(overrides: Partial<State> = {}): LiveMetricsRendererDeps {
     const state: State = {
         selectedDate: '2026-08-14',
         today: '2026-08-14',
@@ -170,6 +170,7 @@ function createRendererDeps(): LiveMetricsRendererDeps {
         displayCurrency: 'MIXED',
         dateList: [],
         dateLoadError: null,
+        dateStatsPreview: null,
         dateDetails: {
             date: '2026-08-14',
             isToday: true,
@@ -212,11 +213,40 @@ function createRendererDeps(): LiveMetricsRendererDeps {
             dateDetails: false
         }
     };
+    Object.assign(state, overrides);
 
     return {
         getState: () => state
     };
 }
+
+test('LiveMetricsRenderer renders during the first-screen stats preview', () => {
+    const { statusLabel } = createRendererDom('req-first-screen');
+    const renderer = new LiveMetricsRenderer(
+        createRendererDeps({
+            selectedDate: '2026-09-26',
+            today: '2026-09-26',
+            dateStatsPreview: {
+                date: '2026-09-26',
+                isToday: true,
+                isExtensionHostDebugMode: false,
+                providers: [],
+                hourlyStats: {}
+            },
+            dateDetails: null
+        })
+    );
+
+    renderer.handleEvent({
+        type: 'requestStarted',
+        requestId: 'req-first-screen',
+        requestStartTime: 1000,
+        providerName: 'GCMP',
+        modelName: 'test-model'
+    });
+
+    assert.equal(statusLabel.textContent, 'ACTIVE');
+});
 
 test('LiveMetricsRenderer switches status label between WAIT and ACTIVE', () => {
     const { statusCell, statusLabel, outputCell } = createRendererDom('req-1');

@@ -15,6 +15,7 @@ import * as path from 'path';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import {
     mergeSnapshotFiles,
+    parseSnapshotRecordLine,
     parseSnapshotFileContent,
     stringifySnapshotFile,
     type SnapshotFile,
@@ -31,6 +32,7 @@ export class SnapshotManager {
     private static readonly SNAPSHOT_LOCK_WAIT_MS = 30_000;
     private static readonly SNAPSHOT_LOCK_RETRY_MS = 25;
     private static readonly SNAPSHOT_LOCK_ORPHAN_MS = 5_000;
+    private static readonly REVERSE_READ_CHUNK_SIZE = 64 * 1024;
     private readonly pathManager: LogPathManager;
     private readonly onRawLogsDeleted: (dateStr: string) => void;
 
@@ -104,6 +106,157 @@ export class SnapshotManager {
             return null;
         }
         return records;
+    }
+
+    /** 从权威快照尾部倒序读取最近记录；存在未压缩 raw 日志时返回 null。 */
+    async readRecent(dateStr: string, limit: number): Promise<ExtendedTokenRequestLog[] | null> {
+        const snapshotPath = this.getExistingSnapshotPath(dateStr);
+        if (!snapshotPath) {
+            return null;
+        }
+
+        if (limit <= 0) {
+            return [];
+        }
+
+        let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+        try {
+            const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+            if ((await this.listRawFiles(dateFolder)).length > 0) {
+                return null;
+            }
+            handle = await fs.open(snapshotPath, 'r');
+            const snapshotStats = await handle.stat();
+            let records: SnapshotRequestRecord[] = [];
+            const requestIds = new Set<string>();
+            let position = snapshotStats.size;
+            let carry = Buffer.alloc(0);
+
+            while (position > 0 && records.length < limit) {
+                const start = Math.max(0, position - SnapshotManager.REVERSE_READ_CHUNK_SIZE);
+                const length = position - start;
+                const chunk = Buffer.allocUnsafe(length);
+                let bytesRead = 0;
+                while (bytesRead < length) {
+                    const result = await handle.read(chunk, bytesRead, length - bytesRead, start + bytesRead);
+                    if (result.bytesRead === 0) {
+                        break;
+                    }
+                    bytesRead += result.bytesRead;
+                }
+                if (bytesRead !== length) {
+                    return null;
+                }
+
+                const data = Buffer.concat([chunk.subarray(0, bytesRead), carry]);
+                let lineEnd = data.length;
+                for (let index = data.length - 1; index >= 0 && records.length < limit; index--) {
+                    if (data[index] !== 0x0a) {
+                        continue;
+                    }
+                    this.appendRecentRecord(data.subarray(index + 1, lineEnd), records, requestIds);
+                    lineEnd = index;
+                }
+                carry = data.subarray(0, lineEnd);
+                position = start;
+            }
+
+            if (position === 0 && records.length < limit) {
+                this.appendRecentRecord(carry, records, requestIds);
+            }
+            if (records.length === 0) {
+                return null;
+            }
+            if (!this.areRecordsNewestFirst(records)) {
+                const recordsFromStart = await this.readRecentFromStart(handle, snapshotStats.size, limit);
+                if (
+                    !recordsFromStart ||
+                    recordsFromStart.length === 0 ||
+                    !this.areRecordsNewestFirst(recordsFromStart)
+                ) {
+                    return null;
+                }
+                records = recordsFromStart;
+            }
+            const latestSnapshotStats = await fs.stat(snapshotPath);
+            if (
+                latestSnapshotStats.size !== snapshotStats.size ||
+                latestSnapshotStats.mtimeMs !== snapshotStats.mtimeMs ||
+                latestSnapshotStats.ctimeMs !== snapshotStats.ctimeMs
+            ) {
+                return null;
+            }
+            if ((await this.listRawFiles(dateFolder)).length > 0) {
+                return null;
+            }
+            return records
+                .map(record => this.fromSnapshot(record))
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, limit);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return null;
+            }
+            throw error;
+        } finally {
+            await handle?.close();
+        }
+    }
+
+    private appendRecentRecord(line: Buffer, records: SnapshotRequestRecord[], requestIds: Set<string>): void {
+        const record = parseSnapshotRecordLine(line.toString('utf-8').trim());
+        if (record && !requestIds.has(record.requestId)) {
+            requestIds.add(record.requestId);
+            records.push(record);
+        }
+    }
+
+    private async readRecentFromStart(
+        handle: Awaited<ReturnType<typeof fs.open>>,
+        fileSize: number,
+        limit: number
+    ): Promise<SnapshotRequestRecord[] | null> {
+        const records: SnapshotRequestRecord[] = [];
+        const requestIds = new Set<string>();
+        let position = 0;
+        let carry = Buffer.alloc(0);
+
+        while (position < fileSize && records.length < limit) {
+            const length = Math.min(SnapshotManager.REVERSE_READ_CHUNK_SIZE, fileSize - position);
+            const chunk = Buffer.allocUnsafe(length);
+            let bytesRead = 0;
+            while (bytesRead < length) {
+                const result = await handle.read(chunk, bytesRead, length - bytesRead, position + bytesRead);
+                if (result.bytesRead === 0) {
+                    break;
+                }
+                bytesRead += result.bytesRead;
+            }
+            if (bytesRead !== length) {
+                return null;
+            }
+
+            const data = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
+            let lineStart = 0;
+            for (let index = 0; index < data.length && records.length < limit; index++) {
+                if (data[index] !== 0x0a) {
+                    continue;
+                }
+                this.appendRecentRecord(data.subarray(lineStart, index), records, requestIds);
+                lineStart = index + 1;
+            }
+            carry = data.subarray(lineStart);
+            position += bytesRead;
+        }
+
+        if (position >= fileSize && records.length < limit) {
+            this.appendRecentRecord(carry, records, requestIds);
+        }
+        return records;
+    }
+
+    private areRecordsNewestFirst(records: readonly SnapshotRequestRecord[]): boolean {
+        return records.every((record, index) => index === 0 || record.timestamp <= records[index - 1].timestamp);
     }
 
     async readRecord(dateStr: string, requestId: string): Promise<ExtendedTokenRequestLog | null> {
@@ -481,7 +634,10 @@ export class SnapshotManager {
     }
 
     private async atomicWriteStore(filePath: string, store: SnapshotFile): Promise<void> {
-        const serialized = stringifySnapshotFile(store);
+        await this.atomicWriteText(filePath, stringifySnapshotFile(store));
+    }
+
+    private async atomicWriteText(filePath: string, serialized: string): Promise<void> {
         const dirPath = path.dirname(filePath);
         const tempPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}.tmp`;
         await fs.mkdir(dirPath, { recursive: true });

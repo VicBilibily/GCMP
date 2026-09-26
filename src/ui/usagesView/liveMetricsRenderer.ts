@@ -175,7 +175,8 @@ export class LiveMetricsRenderer {
     isViewingToday(): boolean {
         const appState = this.getState();
         const today = appState.today || getTodayDateString();
-        return appState.dateDetails?.isToday === true || appState.dateDetails?.date === today;
+        const viewedDate = appState.selectedDate || appState.dateStatsPreview?.date || appState.dateDetails?.date;
+        return viewedDate === today;
     }
 
     /**
