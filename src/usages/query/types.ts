@@ -98,7 +98,7 @@ export type UsagesQuery =
           pageSize: number;
       }
     | { kind: 'trackRecords'; date: string; sessionIds: string[]; limitPerSession: number }
-    | { kind: 'recentRecords'; limit: number }
+    | { kind: 'recentRecords'; limit: number; hydrateSessionTitles?: boolean }
     | { kind: 'sessionTitle'; sessionId: string };
 
 export interface UsagesQueryResultMap {

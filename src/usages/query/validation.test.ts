@@ -41,6 +41,15 @@ test('normalizes bounded usages queries', () => {
             limitPerSession: 10
         }
     );
+    assert.deepEqual(normalizeUsagesQuery({ kind: 'recentRecords', limit: 3 }), {
+        kind: 'recentRecords',
+        limit: 3
+    });
+    assert.deepEqual(normalizeUsagesQuery({ kind: 'recentRecords', limit: 3, hydrateSessionTitles: false }), {
+        kind: 'recentRecords',
+        limit: 3,
+        hydrateSessionTitles: false
+    });
 });
 
 test('rejects malformed or unbounded usages queries', () => {
@@ -62,6 +71,7 @@ test('rejects malformed or unbounded usages queries', () => {
             limitPerSession: 10
         },
         { kind: 'recentRecords', limit: 101 },
+        { kind: 'recentRecords', limit: 3, hydrateSessionTitles: 'false' } as unknown as UsagesQuery,
         { kind: 'sessionTitle', sessionId: 'x'.repeat(513) }
     ];
 

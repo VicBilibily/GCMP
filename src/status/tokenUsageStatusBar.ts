@@ -25,6 +25,14 @@ export class TokenUsageStatusBar {
     private statusBarItem: vscode.StatusBarItem | undefined;
     private usagesManager: TokenUsagesManager;
     private updateTimer: NodeJS.Timeout | undefined;
+    private delayedUpdateTimer: NodeJS.Timeout | undefined;
+    private refreshInFlight: Promise<void> | undefined;
+    private refreshPending = false;
+    private refreshGeneration = 0;
+    private disposed = false;
+    private lastStatsDate: string | undefined;
+    private lastStats: TokenUsageStatsFromFile | undefined;
+    private lastRecentRequests: ExtendedTokenRequestLog[] = [];
     private lastUpdateTime = 0;
     private readonly UPDATE_INTERVAL = 30000; // 30秒更新一次
     private readonly UPDATE_COOLDOWN = 10000; // 最近更新后10秒内不重复更新
@@ -130,6 +138,7 @@ export class TokenUsageStatusBar {
      * 初始化状态栏
      */
     async initialize(): Promise<void> {
+        this.disposed = false;
         this.statusBarItem = vscode.window.createStatusBarItem(
             'gcmp.statusBar.tokenUsage',
             vscode.StatusBarAlignment.Right,
@@ -149,22 +158,22 @@ export class TokenUsageStatusBar {
 
         // 监听本实例的统计更新事件
         this.context.subscriptions.push(
-            this.usagesManager.onStatsUpdate(async () => {
-                await this.updateDisplay();
+            this.usagesManager.onStatsUpdate(() => {
+                void this.updateDisplay();
             })
         );
 
         // 监听跨实例的 Token 用量更新事件
         this.context.subscriptions.push(
-            InterInstanceBus.subscribe('tokenUsageUpdated', async () => {
-                await this.updateDisplay();
+            InterInstanceBus.subscribe('tokenUsageUpdated', () => {
+                void this.updateDisplay();
             })
         );
 
         // 监听主/子实例角色变更事件
         this.context.subscriptions.push(
-            LeaderElectionService.onLeaderChanged(async () => {
-                await this.updateDisplay();
+            LeaderElectionService.onLeaderChanged(() => {
+                this.refreshCachedPresentation();
             })
         );
 
@@ -172,7 +181,7 @@ export class TokenUsageStatusBar {
         this.context.subscriptions.push(
             vscode.workspace.onDidChangeConfiguration(event => {
                 if (event.affectsConfiguration('gcmp.debug.captureHar')) {
-                    void this.updateDisplay();
+                    this.refreshCachedPresentation();
                 }
             })
         );
@@ -192,8 +201,8 @@ export class TokenUsageStatusBar {
             clearInterval(this.updateTimer);
         }
 
-        this.updateTimer = setInterval(async () => {
-            await this.periodicUpdate();
+        this.updateTimer = setInterval(() => {
+            void this.periodicUpdate();
         }, this.UPDATE_INTERVAL);
 
         StatusLogger.debug(`[TokenUsageStatusBar] Started periodic updates (${this.UPDATE_INTERVAL}ms)`);
@@ -238,53 +247,137 @@ export class TokenUsageStatusBar {
      * 更新显示
      */
     async updateDisplay(): Promise<void> {
-        if (!this.statusBarItem) {
+        if (!this.statusBarItem || this.disposed) {
             return;
         }
 
-        // 主实例用实心图层图标，从实例用空心图层图标
-        const roleIcon = LeaderElectionService.isLeader() ? '$(layers-dot)' : '$(layers)';
+        this.refreshPending = true;
+        if (this.refreshInFlight) {
+            return this.refreshInFlight;
+        }
+
+        const execution = this.runRefreshLoop();
+        const shared = execution.finally(() => {
+            if (this.refreshInFlight === shared) {
+                this.refreshInFlight = undefined;
+            }
+            if (this.refreshPending && !this.disposed) {
+                void this.updateDisplay();
+            }
+        });
+        this.refreshInFlight = shared;
+        return shared;
+    }
+
+    private async runRefreshLoop(): Promise<void> {
+        while (this.refreshPending && !this.disposed) {
+            this.refreshPending = false;
+            const generation = ++this.refreshGeneration;
+            await this.updateDisplayOnce(generation);
+        }
+    }
+
+    private async updateDisplayOnce(generation: number): Promise<void> {
+        if (!this.statusBarItem || this.disposed) {
+            return;
+        }
 
         try {
             const today = DateUtils.getTodayDateString();
             const todayStats = await this.usagesManager.getDateStats(today);
-
-            // 计算今日总 token
-            let totalInputTokens = 0;
-            let totalOutputTokens = 0;
-            let totalRequests = 0;
-
-            for (const stats of Object.values(todayStats.providers)) {
-                totalInputTokens += stats.actualInput;
-                totalOutputTokens += stats.outputTokens;
-                totalRequests += stats.requests;
+            if (!this.canApplyRefresh(generation, today)) {
+                return;
             }
 
-            const totalTokens = totalInputTokens + totalOutputTokens;
-
-            // 更新状态栏文本：角色图标 + Token 用量 + 预估成本
-            const tokenPart = totalRequests === 0 ? '' : ` ${this.formatTokens(totalTokens)}`;
-            const displayCost = this.formatStatusBarCost(todayStats);
-            const costPart = displayCost ? ` ${displayCost}` : '';
-            this.statusBarItem.text = `${roleIcon}${tokenPart}${costPart}`;
-
-            // 更新 Tooltip (异步生成)
-            this.statusBarItem.tooltip = await this.generateTooltip(todayStats);
-            this.statusBarItem.show();
-
-            // 更新最后更新时间
+            const cachedRecentRequests = this.lastStatsDate === today ? this.lastRecentRequests : [];
+            this.lastStatsDate = today;
+            this.lastStats = todayStats;
+            this.lastRecentRequests = cachedRecentRequests;
+            this.renderStatusBar(todayStats, cachedRecentRequests);
             this.lastUpdateTime = Date.now();
+            if (this.refreshPending) {
+                return;
+            }
+
+            try {
+                const recentRequests = await this.usagesManager.getRecentRecords(3, {
+                    hydrateSessionTitles: false
+                });
+                if (!this.canApplyRefresh(generation, today) || this.refreshPending) {
+                    return;
+                }
+                this.lastRecentRequests = recentRequests;
+                this.renderStatusBar(todayStats, recentRequests);
+            } catch (err) {
+                StatusLogger.debug('[TokenUsageStatusBar] Failed to load recent request records:', err);
+            }
         } catch (err) {
             StatusLogger.error('[TokenUsageStatusBar] Failed to update display:', err);
-            this.statusBarItem.text = `${roleIcon}`;
-            this.statusBarItem.show();
+            if (this.statusBarItem && !this.disposed) {
+                this.statusBarItem.text = LeaderElectionService.isLeader() ? '$(layers-dot)' : '$(layers)';
+                this.statusBarItem.show();
+            }
         }
+    }
+
+    private canApplyRefresh(generation: number, date: string): boolean {
+        return (
+            !this.disposed &&
+            !!this.statusBarItem &&
+            generation === this.refreshGeneration &&
+            date === DateUtils.getTodayDateString()
+        );
+    }
+
+    private refreshCachedPresentation(): void {
+        if (this.disposed || !this.statusBarItem) {
+            return;
+        }
+        const today = DateUtils.getTodayDateString();
+        if (!this.lastStats || this.lastStatsDate !== today) {
+            if (!this.refreshInFlight) {
+                void this.updateDisplay();
+            }
+            return;
+        }
+        this.renderStatusBar(this.lastStats, this.lastRecentRequests);
+    }
+
+    private renderStatusBar(todayStats: TokenUsageStatsFromFile, recentRequests: ExtendedTokenRequestLog[]): void {
+        if (!this.statusBarItem || this.disposed) {
+            return;
+        }
+
+        const roleIcon = LeaderElectionService.isLeader() ? '$(layers-dot)' : '$(layers)';
+
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let totalRequests = 0;
+
+        for (const stats of Object.values(todayStats.providers)) {
+            totalInputTokens += stats.actualInput;
+            totalOutputTokens += stats.outputTokens;
+            totalRequests += stats.requests;
+        }
+
+        const totalTokens = totalInputTokens + totalOutputTokens;
+
+        const tokenPart = totalRequests === 0 ? '' : ` ${this.formatTokens(totalTokens)}`;
+        const displayCost = this.formatStatusBarCost(todayStats);
+        const costPart = displayCost ? ` ${displayCost}` : '';
+        this.statusBarItem.text = `${roleIcon}${tokenPart}${costPart}`;
+
+        this.statusBarItem.tooltip = this.generateTooltip(todayStats, recentRequests);
+        this.statusBarItem.show();
     }
 
     /**
      * 生成 Tooltip（显示今日分提供商统计 + 最近历史记录）
      */
-    private async generateTooltip(stats: TokenUsageStatsFromFile): Promise<vscode.MarkdownString> {
+    private generateTooltip(
+        stats: TokenUsageStatsFromFile,
+        recentRequests: readonly ExtendedTokenRequestLog[]
+    ): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
         md.isTrusted = true;
@@ -353,82 +446,61 @@ export class TokenUsageStatusBar {
             );
         }
 
-        // ========== 最近请求记录表格 ==========
-        try {
-            const recentRequests = await this.usagesManager.getRecentRecords(3); // 获取最近 3 条
+        if (recentRequests.length > 0) {
+            md.appendMarkdown('\n\n ---- \n\n\n\n');
+            md.appendMarkdown(
+                `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | ${t('Delay', 'TTFT')} | ${t('Duration', 'TPOT')} | ${t('Speed', '输出速度')} |\n`
+            );
+            md.appendMarkdown(
+                '| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: | -----: |\n'
+            );
 
-            if (recentRequests.length > 0) {
-                md.appendMarkdown('\n\n ---- \n\n\n\n');
-                // 创建表格标题
-                md.appendMarkdown(
-                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | ${t('Delay', 'TTFT')} | ${t('Duration', 'TPOT')} | ${t('Speed', '输出速度')} |\n`
-                );
-                md.appendMarkdown(
-                    '| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: | -----: |\n'
-                );
-
-                // 反转数组，让最近的请求在最下方显示
-                const reversedRequests = [...recentRequests].reverse();
-                for (const req of reversedRequests) {
-                    const startTime = new Date(req.timestamp);
-                    // 确定状态图标：仅当有 rawUsage 且状态为 completed 时才显示 ✅
-                    let statusIcon = '⏳'; // 默认为进行中
-                    if (req.status === 'completed' && req.rawUsage) {
-                        statusIcon = '✅'; // 真正完成
-                    } else if (req.status === 'failed') {
-                        statusIcon = '❌'; // 失败
-                    } else if (req.status === 'cancelled') {
-                        statusIcon = '🚫'; // 已取消
-                    } else if (req.status === 'estimated') {
-                        statusIcon = '⏳'; // 预估中
-                    }
-                    const timeStr = startTime.toLocaleTimeString('zh-CN');
-
-                    // 直接访问扩展属性
-                    const outputTokens = req.outputTokens;
-                    const totalTokens = req.totalTokens;
-
-                    // 格式化输出速度
-                    const speedStr = req.outputSpeed !== undefined ? `${req.outputSpeed.toFixed(1)} t/s` : '-';
-
-                    // 格式化延迟与耗时
-                    let latencyStr = '-';
-                    let durationStr = '-';
-                    const metricStartTime = req.requestMetricStartTime ?? req.timestamp;
-                    if (req.streamStartTime !== undefined && metricStartTime !== undefined) {
-                        const latency = req.streamStartTime - metricStartTime;
-                        if (Number.isFinite(latency) && latency >= 0) {
-                            latencyStr =
-                                latency > 100 ? `${(latency / 1000).toFixed(1)} s` : `${Math.round(latency)} ms`;
-                        }
-                    }
-                    if (req.streamEndTime !== undefined && req.streamStartTime !== undefined) {
-                        const duration = req.streamEndTime - req.streamStartTime;
-                        if (Number.isFinite(duration) && duration >= 0) {
-                            durationStr =
-                                duration > 100 ? `${(duration / 1000).toFixed(1)} s` : `${Math.round(duration)} ms`;
-                        }
-                    }
-
-                    const inputStr = this.formatRecentInputTokens(req);
-
-                    let outputStr = '-';
-                    const hasActualUsage =
-                        (req.status === 'completed' || req.status === 'cancelled') && !!req.rawUsage && totalTokens > 0;
-                    if (hasActualUsage && outputTokens > 0) {
-                        outputStr = this.formatTokens(outputTokens);
-                    }
-
-                    const costStr = this.getRecordDisplayCost(req);
-
-                    md.appendMarkdown(
-                        `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${durationStr} | ${speedStr} |\n`
-                    );
+            const reversedRequests = [...recentRequests].reverse();
+            for (const req of reversedRequests) {
+                const startTime = new Date(req.timestamp);
+                let statusIcon = '⏳';
+                if (req.status === 'completed' && req.rawUsage) {
+                    statusIcon = '✅';
+                } else if (req.status === 'failed') {
+                    statusIcon = '❌';
+                } else if (req.status === 'cancelled') {
+                    statusIcon = '🚫';
                 }
+                const timeStr = startTime.toLocaleTimeString('zh-CN');
+                const outputTokens = req.outputTokens;
+                const totalTokens = req.totalTokens;
+                const speedStr = req.outputSpeed !== undefined ? `${req.outputSpeed.toFixed(1)} t/s` : '-';
+
+                let latencyStr = '-';
+                let durationStr = '-';
+                const metricStartTime = req.requestMetricStartTime ?? req.timestamp;
+                if (req.streamStartTime !== undefined && metricStartTime !== undefined) {
+                    const latency = req.streamStartTime - metricStartTime;
+                    if (Number.isFinite(latency) && latency >= 0) {
+                        latencyStr = latency > 100 ? `${(latency / 1000).toFixed(1)} s` : `${Math.round(latency)} ms`;
+                    }
+                }
+                if (req.streamEndTime !== undefined && req.streamStartTime !== undefined) {
+                    const duration = req.streamEndTime - req.streamStartTime;
+                    if (Number.isFinite(duration) && duration >= 0) {
+                        durationStr =
+                            duration > 100 ? `${(duration / 1000).toFixed(1)} s` : `${Math.round(duration)} ms`;
+                    }
+                }
+
+                const inputStr = this.formatRecentInputTokens(req);
+                let outputStr = '-';
+                const hasActualUsage =
+                    (req.status === 'completed' || req.status === 'cancelled') && !!req.rawUsage && totalTokens > 0;
+                if (hasActualUsage && outputTokens > 0) {
+                    outputStr = this.formatTokens(outputTokens);
+                }
+
+                const costStr = this.getRecordDisplayCost(req);
+                md.appendMarkdown(
+                    `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${durationStr} | ${speedStr} |\n`
+                );
             }
-        } catch (err) {
-            // 忽略错误，不影响基本功能
-            StatusLogger.debug('[TokenUsageStatusBar] Failed to load recent request records:', err);
         }
 
         // ========== 统一底部栏：同步状态 + 点击引导 ==========
@@ -584,8 +656,15 @@ export class TokenUsageStatusBar {
      * 延迟更新
      */
     delayedUpdate(delayMs: number = 1000): void {
-        setTimeout(() => {
-            this.updateDisplay();
+        if (this.disposed) {
+            return;
+        }
+        if (this.delayedUpdateTimer) {
+            clearTimeout(this.delayedUpdateTimer);
+        }
+        this.delayedUpdateTimer = setTimeout(() => {
+            this.delayedUpdateTimer = undefined;
+            void this.updateDisplay();
         }, delayMs);
     }
 
@@ -593,7 +672,18 @@ export class TokenUsageStatusBar {
      * 销毁状态栏
      */
     dispose(): void {
+        this.disposed = true;
+        this.refreshPending = false;
+        this.refreshGeneration += 1;
+        if (this.delayedUpdateTimer) {
+            clearTimeout(this.delayedUpdateTimer);
+            this.delayedUpdateTimer = undefined;
+        }
         this.stopPeriodicUpdate();
         this.statusBarItem?.dispose();
+        this.statusBarItem = undefined;
+        this.lastStats = undefined;
+        this.lastStatsDate = undefined;
+        this.lastRecentRequests = [];
     }
 }

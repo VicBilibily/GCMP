@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 
 import { DateUtils } from './fileLogger/dateUtils';
-import type { TokenRequestLog } from './fileLogger/types';
+import type { TokenRequestLog, TokenUsageStatsFromFile } from './fileLogger/types';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -239,6 +239,46 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(detailsReads.filter(date => date === yesterday).length, 1);
         });
 
+        await t.test('recent records can skip historical title hydration', async context => {
+            const sessionId = 'status-bar-no-title-hydration';
+            const { manager, detailsReads } = await createFixture(context, {
+                [today]: [createLog('status-bar-current', today, sessionId)],
+                [yesterday]: [createLog('status-bar-history', yesterday, sessionId, '无需读取的标题')]
+            });
+
+            const records = await manager.getRecentRecords(3, { hydrateSessionTitles: false });
+            assert.equal(records.length, 1);
+            assert.equal(records[0].sessionTitle, undefined);
+            assert.deepEqual(detailsReads, []);
+        });
+
+        await t.test('concurrent date stats reads share one file task', async () => {
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            let calls = 0;
+            let resolveStats!: (stats: TokenUsageStatsFromFile) => void;
+            const statsPromise = new Promise<TokenUsageStatsFromFile>(resolve => {
+                resolveStats = resolve;
+            });
+            Object.assign(manager, {
+                fileLogger: {
+                    getDateStats: () => {
+                        calls += 1;
+                        return statsPromise;
+                    }
+                }
+            });
+
+            const first = manager.getDateStats(today);
+            const second = manager.getDateStats(today);
+            assert.equal(calls, 1);
+            resolveStats({ total: {} as never, providers: {} });
+            assert.equal((await first).date, today);
+            assert.equal((await second).date, today);
+
+            await manager.getDateStats(today);
+            assert.equal(calls, 2);
+        });
+
         await t.test('date overview does not wait for optional historical title hydration', async context => {
             const sessionId = 'background-overview-title';
             const { manager, logger } = await createFixture(context, {
@@ -429,6 +469,240 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(SessionTitleService.instance.getTitle(sessionId), '并发生成标题');
         });
     } finally {
+        NodeModule.prototype.require = originalRequire;
+    }
+});
+
+test('token usage status bar coalesces refreshes and reuses cached data for presentation changes', async () => {
+    const originalRequire = NodeModule.prototype.require;
+    let statusBar:
+        | {
+              initialize(): Promise<void>;
+              delayedUpdate(delayMs?: number): void;
+              dispose(): void;
+          }
+        | undefined;
+    let statsListener: () => void = () => {};
+    let usageListener: () => void = () => {};
+    let leaderListener: () => void = () => {};
+    let configurationListener: (event: { affectsConfiguration(section: string): boolean }) => void = () => {};
+    let leader = false;
+    let statsCalls = 0;
+    let recentCalls = 0;
+    const recentOptions: unknown[] = [];
+    let resolveFirstRecent!: (records: unknown[]) => void;
+    const firstRecent = new Promise<unknown[]>(resolve => {
+        resolveFirstRecent = resolve;
+    });
+    let resolveThirdRecent!: (records: unknown[]) => void;
+    const thirdRecent = new Promise<unknown[]>(resolve => {
+        resolveThirdRecent = resolve;
+    });
+
+    class MarkdownString {
+        value = '';
+        supportHtml = false;
+        isTrusted = false;
+
+        appendMarkdown(value: string): void {
+            this.value += value;
+        }
+    }
+
+    const baseStats = {
+        estimatedInput: 120,
+        actualInput: 100,
+        cacheTokens: 20,
+        outputTokens: 50,
+        requests: 2,
+        costedRequests: 2,
+        rmbExactRequests: 0,
+        estimatedCost: 0.02,
+        estimatedCostRmb: 0.14,
+        inputCost: 0.01,
+        inputCostRmb: 0.07,
+        outputCost: 0.01,
+        outputCostRmb: 0.07,
+        cacheReadCost: 0,
+        cacheReadCostRmb: 0,
+        cacheWriteCost: 0,
+        cacheWriteCostRmb: 0,
+        completedRequests: 2,
+        failedRequests: 0,
+        cancelledRequests: 0
+    };
+    const stats: TokenUsageStatsFromFile = {
+        total: baseStats,
+        providers: { test: { ...baseStats, providerName: 'Test Provider', models: {} } },
+        hourly: {}
+    };
+    const recentRecord = {
+        requestId: 'recent-request',
+        timestamp: Date.now(),
+        isoTime: new Date().toISOString(),
+        providerKey: 'recent',
+        providerName: 'Recent Request Provider',
+        modelId: 'recent-model',
+        modelName: 'Recent Model',
+        estimatedInput: 10,
+        rawUsage: null,
+        status: 'estimated',
+        actualInput: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        outputTokens: 0,
+        totalTokens: 10
+    };
+    const statusBarItem = {
+        name: '',
+        command: '',
+        text: '',
+        tooltip: '' as string | MarkdownString,
+        disposed: false,
+        show() {},
+        dispose() {
+            this.disposed = true;
+        }
+    };
+    const manager = {
+        onStatsUpdate(listener: () => void) {
+            statsListener = listener;
+            return { dispose() {} };
+        },
+        async getDateStats() {
+            statsCalls += 1;
+            return stats;
+        },
+        async getRecentRecords(_limit: number, options?: unknown) {
+            recentCalls += 1;
+            recentOptions.push(options);
+            if (recentCalls === 1) {
+                return firstRecent;
+            }
+            return recentCalls === 2 ? [recentRecord] : thirdRecent;
+        }
+    };
+    const waitFor = async (predicate: () => boolean) => {
+        const deadline = Date.now() + 1000;
+        while (!predicate()) {
+            if (Date.now() >= deadline) {
+                throw new Error('Timed out waiting for condition');
+            }
+            await new Promise<void>(resolve => setTimeout(resolve, 1));
+        }
+    };
+
+    try {
+        NodeModule.prototype.require = function (id: string): unknown {
+            if (id === 'vscode') {
+                return {
+                    window: { createStatusBarItem: () => statusBarItem },
+                    workspace: {
+                        onDidChangeConfiguration: (
+                            listener: (event: { affectsConfiguration(section: string): boolean }) => void
+                        ) => {
+                            configurationListener = listener;
+                            return { dispose() {} };
+                        }
+                    },
+                    env: { language: 'zh-cn' },
+                    StatusBarAlignment: { Right: 2 },
+                    MarkdownString
+                };
+            }
+            if (id.endsWith('/usagesManager')) {
+                return { TokenUsagesManager: { instance: manager } };
+            }
+            if (id.endsWith('/statusLogger')) {
+                return { StatusLogger: { debug() {}, trace() {}, warn() {}, error() {} } };
+            }
+            if (id.endsWith('/userActivityService')) {
+                return { UserActivityService: { isUserActive: () => true } };
+            }
+            if (id.endsWith('/interInstance')) {
+                return {
+                    InterInstanceBus: {
+                        subscribe: (_type: string, listener: () => void) => {
+                            usageListener = listener;
+                            return { dispose() {} };
+                        }
+                    }
+                };
+            }
+            if (id.endsWith('/leaderElectionService')) {
+                return {
+                    LeaderElectionService: {
+                        isLeader: () => leader,
+                        onLeaderChanged: (listener: () => void) => {
+                            leaderListener = listener;
+                            return { dispose() {} };
+                        }
+                    }
+                };
+            }
+            if (id.endsWith('/harRecorder')) {
+                return { HarRecorder: { getInstance: () => ({ isEnabled: () => false }) } };
+            }
+            if (id.endsWith('/l10n')) {
+                return { t: (_key: string, fallback: string) => fallback };
+            }
+            if (id.endsWith('/pricingCurrency')) {
+                return { convertUsdToRmb: (value: number) => value * 7 };
+            }
+            if (id.endsWith('/ui/utils')) {
+                return { formatCost: (value: number) => `$${value.toFixed(4)}` };
+            }
+            return originalRequire.call(this, id);
+        };
+
+        const { TokenUsageStatusBar } = await import('../status/tokenUsageStatusBar');
+        statusBar = new TokenUsageStatusBar({ subscriptions: [] } as never);
+        await statusBar.initialize();
+
+        await waitFor(() => statsCalls === 1 && recentCalls === 1);
+        assert.match(statusBarItem.text, /150/);
+        assert.ok(statusBarItem.tooltip instanceof MarkdownString);
+        assert.match(statusBarItem.tooltip.value, /Test Provider/);
+        assert.deepEqual(recentOptions, [{ hydrateSessionTitles: false }]);
+
+        statsListener();
+        usageListener();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(statsCalls, 1);
+        assert.equal(recentCalls, 1);
+
+        resolveFirstRecent([]);
+        await waitFor(() => statsCalls === 2 && recentCalls === 2);
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(statsCalls, 2);
+        assert.equal(recentCalls, 2);
+        assert.match((statusBarItem.tooltip as MarkdownString).value, /Recent Request Provider/);
+
+        statsListener();
+        await waitFor(() => statsCalls === 3 && recentCalls === 3);
+        assert.match((statusBarItem.tooltip as MarkdownString).value, /Recent Request Provider/);
+        resolveThirdRecent([]);
+        await waitFor(() => !(statusBarItem.tooltip as MarkdownString).value.includes('Recent Request Provider'));
+
+        leader = true;
+        leaderListener();
+        configurationListener({ affectsConfiguration: section => section === 'gcmp.debug.captureHar' });
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(statsCalls, 3);
+        assert.equal(recentCalls, 3);
+        assert.match(statusBarItem.text, /^\$\(layers-dot\)/);
+        assert.match((statusBarItem.tooltip as MarkdownString).value, /主实例/);
+
+        statusBar.delayedUpdate(10);
+        statusBar.dispose();
+        await new Promise<void>(resolve => setTimeout(resolve, 20));
+        assert.equal(statsCalls, 3);
+        assert.equal(recentCalls, 3);
+        assert.equal(statusBarItem.disposed, true);
+    } finally {
+        resolveFirstRecent([]);
+        resolveThirdRecent([]);
+        statusBar?.dispose();
         NodeModule.prototype.require = originalRequire;
     }
 });

@@ -272,6 +272,29 @@ test('remote usages queries preserve caller pending state without retaining full
             });
         }
 
+        await t.test('remote recent records can skip session title hydration', async context => {
+            const { leader, follower, addPending } = await fixture(context);
+            const { requestId } = await addPending(sessionA);
+            let hydrationCalls = 0;
+            (
+                leader as unknown as {
+                    hydrateSessionTitles(sessionIds: Iterable<string>): Promise<void>;
+                }
+            ).hydrateSessionTitles = async () => {
+                hydrationCalls += 1;
+            };
+
+            const records = await follower.getRecentRecords(1, { hydrateSessionTitles: false });
+
+            assert.equal(records[0]?.requestId, requestId);
+            assert.equal(hydrationCalls, 0);
+            assert.deepEqual(requests.at(-1)?.payload.query, {
+                kind: 'recentRecords',
+                limit: 1,
+                hydrateSessionTitles: false
+            });
+        });
+
         await t.test('date overview hydrates session titles beyond the initial records page', async context => {
             const { follower, logger, addPending } = await fixture(context);
             const sessionIds = Array.from(

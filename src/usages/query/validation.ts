@@ -68,7 +68,16 @@ export function normalizeUsagesQuery(query: UsagesQuery): UsagesQuery | undefine
                 limitPerSession: query.limitPerSession
             };
         case 'recentRecords':
-            return isPositiveInteger(query.limit) && query.limit <= MAX_RECENT_RECORDS ? { ...query } : undefined;
+            if (
+                !isPositiveInteger(query.limit) ||
+                query.limit > MAX_RECENT_RECORDS ||
+                (query.hydrateSessionTitles !== undefined && typeof query.hydrateSessionTitles !== 'boolean')
+            ) {
+                return undefined;
+            }
+            return query.hydrateSessionTitles === false ?
+                    { kind: query.kind, limit: query.limit, hydrateSessionTitles: false }
+                :   { kind: query.kind, limit: query.limit };
         case 'sessionTitle':
             return isSessionId(query.sessionId) ? { ...query } : undefined;
     }

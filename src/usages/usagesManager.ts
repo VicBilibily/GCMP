@@ -84,6 +84,10 @@ export interface UpdateActualTokensParams {
     costBreakdown?: CostBreakdownLog;
 }
 
+export interface GetRecentRecordsOptions {
+    hydrateSessionTitles?: boolean;
+}
+
 /**
  * Token 用量管理器
  * 全局静态对象，管理 Token 消耗统计
@@ -100,6 +104,10 @@ export class TokenUsagesManager {
     private dateRecordsBuilds = new Map<string, Promise<ExtendedTokenRequestLog[]>>();
     private cachedDateRecords = 0;
     private dateRecordsCacheGeneration = 0;
+    private dateStatsReads = new Map<
+        string,
+        Promise<TokenUsageStatsFromFile & { date: string; lastUpdated: number }>
+    >();
     private backgroundSessionTitleIds = new Set<string>();
     private backgroundSessionTitleHydration: Promise<void> | undefined;
 
@@ -392,12 +400,26 @@ export class TokenUsagesManager {
      * 适用于状态栏等需要快速响应的场景
      */
     async getDateStats(date: string): Promise<TokenUsageStatsFromFile & { date: string; lastUpdated: number }> {
-        const stats = await this.fileLogger.getDateStats(date);
-        return {
-            ...stats,
-            date,
-            lastUpdated: Date.now()
-        };
+        this.dateStatsReads ??= new Map();
+        const existing = this.dateStatsReads.get(date);
+        if (existing) {
+            return existing;
+        }
+
+        const read = this.fileLogger
+            .getDateStats(date)
+            .then(stats => ({
+                ...stats,
+                date,
+                lastUpdated: Date.now()
+            }))
+            .finally(() => {
+                if (this.dateStatsReads.get(date) === read) {
+                    this.dateStatsReads.delete(date);
+                }
+            });
+        this.dateStatsReads.set(date, read);
+        return read;
     }
 
     /**
@@ -445,25 +467,39 @@ export class TokenUsagesManager {
      * 包括已完成的记录和仍在进行中的 pending 记录
      * 性能优化：只读取最近 limit*2 条已完成请求，减少大量日志场景下的内存占用
      */
-    async getRecentRecords(limit: number = 100): Promise<ExtendedTokenRequestLog[]> {
+    async getRecentRecords(
+        limit: number = 100,
+        options: GetRecentRecordsOptions = {}
+    ): Promise<ExtendedTokenRequestLog[]> {
+        const hydrateSessionTitles = options.hydrateSessionTitles !== false;
         if (this.usagesQueryCoordinator) {
             const pendingRecords = await this.flushBeforeRemoteQuery();
-            return this.usagesQueryCoordinator.run({ kind: 'recentRecords', limit }, pendingRecords);
+            return this.usagesQueryCoordinator.run(
+                {
+                    kind: 'recentRecords',
+                    limit,
+                    ...(hydrateSessionTitles ? {} : { hydrateSessionTitles: false })
+                },
+                pendingRecords
+            );
         }
-        return this.getRecentRecordsLocal(limit);
+        return this.getRecentRecordsLocal(limit, [], false, hydrateSessionTitles);
     }
 
     private async getRecentRecordsLocal(
         limit: number,
         pendingRecords: readonly UsagesPendingRecord[] = [],
-        throwOnFailure = false
+        throwOnFailure = false,
+        hydrateSessionTitles = true
     ): Promise<ExtendedTokenRequestLog[]> {
         const today = DateUtils.getTodayDateString();
         // 使用性能优化版本，只读取最近 limit*2 条（以防过滤后不足）
         const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2, throwOnFailure);
         const allLogs = this.mergePendingLogs(details, pendingRecords);
         this.seedSessionTitlesFromLogs(allLogs, pendingRecords);
-        await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
+        if (hydrateSessionTitles) {
+            await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
+        }
 
         // 扩展记录，添加便捷访问方法
         const extended = this.enrichSessionTitles(UsageParser.extendLogs(allLogs), pendingRecords);
@@ -805,7 +841,12 @@ export class TokenUsagesManager {
             case 'recentRecords':
                 return {
                     kind: query.kind,
-                    value: await this.getRecentRecordsLocal(query.limit, pendingRecords, isRemote)
+                    value: await this.getRecentRecordsLocal(
+                        query.limit,
+                        pendingRecords,
+                        isRemote,
+                        query.hydrateSessionTitles !== false
+                    )
                 };
             case 'sessionTitle':
                 return { kind: query.kind, value: await this.hydrateSessionTitleLocal(query.sessionId) };
@@ -1097,8 +1138,7 @@ export class TokenUsagesManager {
 
         // 异步广播跨实例 Token 用量更新
         const today = DateUtils.getTodayDateString();
-        void this.fileLogger
-            .getTodayStats()
+        void this.getDateStats(today)
             .then(stats => {
                 InterInstanceBus.publish({
                     type: 'tokenUsageUpdated',
@@ -1194,6 +1234,7 @@ export class TokenUsagesManager {
         this.cacheInvalidationDisposable = undefined;
         this.clearDateRecordsCache();
         this.dateRecordsBuilds.clear();
+        this.dateStatsReads.clear();
         this.backgroundSessionTitleIds.clear();
         await this.fileLogger.dispose();
         this.initialized = false;
