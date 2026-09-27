@@ -20,6 +20,21 @@
             "tokenPricing": { "RMB": [6, 30, 1.2] }
         },
         {
+            "id": "ark-code-doubao-seed-2.1-pro",
+            "name": "Doubao-Seed-2.1-pro (CodingPlan)",
+            "model": "doubao-seed-2.1-pro",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Doubao-Seed-2.1-pro 是 Doubao-Seed-Evolving 的稳定版，面向高复杂度任务探索，支持 1M 超长上下文，具备更强的复杂推理与长链路任务执行能力。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
+        },
+        {
             "id": "ark-code-doubao-seed-2.1-turbo",
             "name": "Doubao-Seed-2.1-turbo (CodingPlan)",
             "model": "doubao-seed-2.1-turbo",
