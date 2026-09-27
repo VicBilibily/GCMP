@@ -15,7 +15,8 @@ import {
     ProviderRetryOverride,
     RateLimitConfig,
     ModelConfig,
-    ModelOverride
+    ModelOverride,
+    MachineOverrides
 } from '../../types/sharedTypes';
 import { collectInvalidTierCrons, normalizeTokenPricing } from '../pricing/pricingTierResolver';
 import { configProviders } from '../../providers/config';
@@ -184,6 +185,8 @@ export interface GCMPConfig {
     commit: CommitConfig;
     /** 全局代理服务器地址 */
     proxy?: string;
+    /** `gcmp.machineOverrides` 的归一化结果，键为区分大小写的 Provider lookupKey */
+    machineOverrides: MachineOverrides;
     /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
     /** 视觉分析配置 */
@@ -191,7 +194,7 @@ export interface GCMPConfig {
 }
 
 interface ProxyFetchOptions {
-    modelConfig?: Pick<ModelConfig, 'proxy' | 'provider'>;
+    modelConfig?: Partial<Pick<ModelConfig, 'id' | 'model' | 'proxy' | 'provider'>>;
     providerKey?: string;
     proxyUrl?: string;
     /** 跳过 HAR 记录。FIM/NES 补全等高频请求应设为 true */
@@ -346,6 +349,7 @@ export class ConfigManager {
         const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
 
         const providerOverrides = config.get<UserConfigOverrides>('providerOverrides') ?? {};
+        const machineOverrides = this.normalizeMachineOverrides(config.get<unknown>('machineOverrides'));
 
         this.cache = {
             debug: {
@@ -424,6 +428,7 @@ export class ConfigManager {
                 }
             },
             proxy: config.get<string>('proxy') || undefined,
+            machineOverrides,
             // VS Code configuration objects may carry proxy getters for nested paths.
             // Deep-clone here so flat keys like "retry.xfyun-coding" remain plain own-properties
             // and later property reads do not accidentally trigger dotted-path resolution.
@@ -432,6 +437,49 @@ export class ConfigManager {
 
         Logger.debug('Config loaded', sanitizeConfigForLogging(this.cache));
         return this.cache;
+    }
+
+    private static normalizeMachineOverrides(value: unknown): MachineOverrides {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return {};
+        }
+
+        const overrides = Object.create(null) as MachineOverrides;
+        for (const [providerKey, rawOverride] of Object.entries(value)) {
+            if (!providerKey.trim() || !rawOverride || typeof rawOverride !== 'object' || Array.isArray(rawOverride)) {
+                continue;
+            }
+
+            const rawProxy = Reflect.get(rawOverride, 'proxy');
+            const proxy = typeof rawProxy === 'string' && rawProxy.trim() ? rawProxy.trim() : undefined;
+            const models = [];
+            const rawModels = Reflect.get(rawOverride, 'models');
+            if (Array.isArray(rawModels)) {
+                for (const rawModel of rawModels) {
+                    if (!rawModel || typeof rawModel !== 'object' || Array.isArray(rawModel)) {
+                        continue;
+                    }
+                    const rawId = Reflect.get(rawModel, 'id');
+                    const rawModelProxy = Reflect.get(rawModel, 'proxy');
+                    if (
+                        typeof rawId === 'string' &&
+                        rawId.trim() &&
+                        typeof rawModelProxy === 'string' &&
+                        rawModelProxy.trim()
+                    ) {
+                        models.push({ id: rawId.trim(), proxy: rawModelProxy.trim() });
+                    }
+                }
+            }
+
+            if (proxy || models.length > 0) {
+                overrides[providerKey] = {
+                    ...(proxy && { proxy }),
+                    ...(models.length > 0 && { models })
+                };
+            }
+        }
+        return overrides;
     }
 
     /**
@@ -1187,12 +1235,6 @@ export class ConfigManager {
                 target.extraBody = { ...target.extraBody, ...modelOverride.extraBody };
                 Logger.debug(`  Model ${modelOverride.id}: merge extraBody = ${JSON.stringify(target.extraBody)}`);
             }
-            if (modelOverride.proxy !== undefined) {
-                target.proxy = modelOverride.proxy;
-                Logger.debug(
-                    `  Model ${modelOverride.id}: override proxy = ${redactProxyUrl(modelOverride.proxy) || '(cleared)'}`
-                );
-            }
             if (modelOverride.tokenPricing !== undefined) {
                 const normalized = normalizeTokenPricing(modelOverride.tokenPricing);
                 if (normalized) {
@@ -1220,10 +1262,6 @@ export class ConfigManager {
         if (override.baseUrl) {
             config.baseUrl = override.baseUrl;
             Logger.debug(`  Override baseUrl: ${override.baseUrl}`);
-        }
-        if (override.proxy !== undefined) {
-            config.proxy = override.proxy;
-            Logger.debug(`  Override proxy: ${redactProxyUrl(override.proxy) || '(cleared)'}`);
         }
         if (override.customHeader) {
             config.customHeader = mergeCustomHeaders(config.customHeader, override.customHeader);
@@ -1257,16 +1295,6 @@ export class ConfigManager {
                     Logger.info(`  Added new model: ${modelOverride.id}`);
                 }
             }
-        }
-
-        // 将提供商级别的 proxy 合并到所有模型中（模型级别 proxy 优先）
-        if (override.proxy !== undefined) {
-            for (const model of config.models) {
-                if (model.proxy === undefined) {
-                    model.proxy = override.proxy;
-                }
-            }
-            Logger.debug(`  Provider ${providerKey}: merged provider-level proxy into all models`);
         }
 
         // 将提供商级别的 customHeader 合并到所有模型中（模型级别 customHeader 优先）
@@ -1309,38 +1337,86 @@ export class ConfigManager {
         return proxyValue || undefined;
     }
 
-    /**
-     * 解析模型请求应使用的代理地址
-     * 优先级：model.proxy > providerOverrides.{provider}.proxy > providerOverrides.compatible.proxy（非内置 provider） > provider config.proxy > gcmp.proxy > VS Code http.proxy > 环境变量
-     * 当显式设置为 `noproxy` 时，停止继续回退并直接绕过代理。
-     */
+    // lookupKey 由 modelConfig.provider、providerKey 依次展开为精确 Provider、内置根 Provider 或 compatible；id = modelConfig.id ?? modelConfig.model，均区分大小写。
+    // 查找链：gcmp.machineOverrides[lookupKey].models[id].proxy → modelConfig.proxy → gcmp.machineOverrides[lookupKey].proxy → gcmp.providerOverrides[lookupKey].models[id].proxy → gcmp.providerOverrides[lookupKey].proxy → configProviders[lookupKey].proxy。
+    // 后续回退：gcmp.proxy → http.proxy（仅 http.proxySupport !== 'off'）→ HTTPS_PROXY / https_proxy / HTTP_PROXY / http_proxy → createProxiedFetch() 自动探测的操作系统代理。
+    // 任一层显式设置 noproxy 时立即停止回退并直连。
     static resolveProxyForModel(
-        modelConfig?: Pick<ModelConfig, 'proxy' | 'provider'>,
+        modelConfig?: Partial<Pick<ModelConfig, 'id' | 'model' | 'proxy' | 'provider'>>,
         providerKey?: string
     ): string | undefined {
-        // 1. 模型级别
-        if (modelConfig?.proxy !== undefined) {
-            return this.resolveExplicitProxyValue(modelConfig.proxy, 'model-level proxy');
+        const proxyLookupKeys = new Set<string>();
+        for (const candidateKey of [modelConfig?.provider, providerKey]) {
+            if (!candidateKey) {
+                continue;
+            }
+            for (const lookupKey of this.getProxyLookupKeys(candidateKey)) {
+                proxyLookupKeys.add(lookupKey);
+            }
+        }
+        if (
+            providerKey &&
+            providerKey !== 'compatible' &&
+            modelConfig?.provider &&
+            modelConfig.provider !== providerKey &&
+            proxyLookupKeys.delete('compatible')
+        ) {
+            proxyLookupKeys.add('compatible');
         }
 
-        // 2. providerOverrides 级别
-        // 兼容模型（providerKey === 'compatible'）时，优先使用 modelConfig.provider 指定的 provider
-        const effectiveProviderKey = providerKey === 'compatible' ? modelConfig?.provider : providerKey;
+        if (proxyLookupKeys.size > 0) {
+            const config = this.getConfig();
+            const machineOverrides = config.machineOverrides;
+            const synchronizedOverrides = config.providerOverrides;
 
-        if (effectiveProviderKey) {
-            const proxyLookupKeys = this.getProxyLookupKeys(effectiveProviderKey);
-            const overrides = this.getProviderOverrides();
-            for (const lookupKey of proxyLookupKeys) {
-                const providerOverride = overrides[lookupKey];
-                if (providerOverride?.proxy !== undefined) {
-                    return this.resolveExplicitProxyValue(
-                        providerOverride.proxy,
-                        `provider-level proxy (${lookupKey})`
+            const modelId = modelConfig?.id ?? modelConfig?.model;
+            if (modelId) {
+                for (const lookupKey of proxyLookupKeys) {
+                    const modelOverride = machineOverrides[lookupKey]?.models?.find(
+                        override => override.id === modelId
                     );
+                    if (modelOverride) {
+                        return this.resolveExplicitProxyValue(
+                            modelOverride.proxy,
+                            `machine model proxy (${lookupKey}/${modelId})`
+                        );
+                    }
                 }
             }
 
-            // 3. providerConfig 级别
+            if (modelConfig?.proxy !== undefined) {
+                return this.resolveExplicitProxyValue(modelConfig.proxy, 'model-level proxy');
+            }
+
+            for (const lookupKey of proxyLookupKeys) {
+                const proxy = machineOverrides[lookupKey]?.proxy;
+                if (proxy !== undefined) {
+                    return this.resolveExplicitProxyValue(proxy, `machine provider proxy (${lookupKey})`);
+                }
+            }
+
+            if (modelId) {
+                for (const lookupKey of proxyLookupKeys) {
+                    const modelOverrides = synchronizedOverrides[lookupKey]?.models ?? [];
+                    for (let index = modelOverrides.length - 1; index >= 0; index--) {
+                        const modelOverride = modelOverrides[index];
+                        if (modelOverride.id === modelId && modelOverride.proxy !== undefined) {
+                            return this.resolveExplicitProxyValue(
+                                modelOverride.proxy,
+                                `synchronized model proxy (${lookupKey}/${modelId})`
+                            );
+                        }
+                    }
+                }
+            }
+
+            for (const lookupKey of proxyLookupKeys) {
+                const proxy = synchronizedOverrides[lookupKey]?.proxy;
+                if (proxy !== undefined) {
+                    return this.resolveExplicitProxyValue(proxy, `synchronized provider proxy (${lookupKey})`);
+                }
+            }
+
             for (const lookupKey of proxyLookupKeys) {
                 const originalProviderConfig =
                     lookupKey in configProviders ?
@@ -1355,13 +1431,15 @@ export class ConfigManager {
             }
         }
 
-        // 4. 全局设置
+        if (modelConfig?.proxy !== undefined) {
+            return this.resolveExplicitProxyValue(modelConfig.proxy, 'model-level proxy');
+        }
+
         const globalProxy = this.getProxy();
         if (globalProxy) {
             return this.resolveExplicitProxyValue(globalProxy, 'global proxy');
         }
 
-        // 5. VS Code 代理设置
         // proxySupport 可选值：'off'（禁用）| 'on'（强制）| 'override'（默认，仅对 VS Code 托管的请求生效）
         // 对扩展自身发起的 fetch，'override' 和 'on' 均应启用代理
         const httpConfig = vscode.workspace.getConfiguration('http');
@@ -1372,7 +1450,6 @@ export class ConfigManager {
             return vscodeProxy;
         }
 
-        // 6. 环境变量 fallback
         const envProxy =
             process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
         if (envProxy) {

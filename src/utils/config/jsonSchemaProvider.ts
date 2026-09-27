@@ -17,6 +17,9 @@ import {
     OPENAI_COMPATIBLE_SERVICE_TIERS
 } from '../model/compatibleServiceTier';
 
+const PROXY_ENDPOINT_PATTERN =
+    '^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$';
+
 /**
  * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
  */
@@ -296,6 +299,28 @@ export class JsonSchemaProvider {
             'Custom HTTP headers for the model, supporting ${APIKEY} placeholder replacement',
             '模型自定义HTTP头部，支持 ${APIKEY} 和 ${SESSIONID} 占位符替换'
         );
+    }
+
+    private static getProxyValueSchema(allowEmpty: boolean): JSONSchema7 {
+        return {
+            type: 'string',
+            anyOf: [...(allowEmpty ? [{ const: '' }] : []), { const: 'noproxy' }, { pattern: PROXY_ENDPOINT_PATTERN }]
+        };
+    }
+
+    private static getSynchronizedProxySchema(level: 'provider' | 'model'): JSONSchema7 {
+        const isProvider = level === 'provider';
+        const settingPath =
+            isProvider ? 'gcmp.providerOverrides.<provider>.proxy' : 'gcmp.providerOverrides.<provider>.models[].proxy';
+        const precedingPaths = `matching gcmp.machineOverrides.<provider>.models[], modelConfig.proxy, gcmp.machineOverrides.<provider>.proxy${isProvider ? ', and matching gcmp.providerOverrides.<provider>.models[]' : ''}`;
+        const precedingPathsZh = `匹配的 gcmp.machineOverrides.<provider>.models[]、modelConfig.proxy、gcmp.machineOverrides.<provider>.proxy${isProvider ? ' 和 gcmp.providerOverrides.<provider>.models[]' : ''}`;
+        return {
+            ...this.getProxyValueSchema(true),
+            description: t(
+                `${settingPath} is a synchronized ${level}-level proxy fallback evaluated after ${precedingPaths}. Credentials in the URL are masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass configured and system proxies.`,
+                `${settingPath} 是会参与设置同步的${isProvider ? '提供商' : '模型'}级代理回退，其优先级低于${precedingPathsZh}。URL 中的凭据将在日志中脱敏；127.0.0.1:7890 等 host:port 可省略协议。填写“noproxy”可绕过已配置代理和系统代理。`
+            )
+        };
     }
 
     private static getCustomHeaderDescription(): string {
@@ -839,6 +864,16 @@ export class JsonSchemaProvider {
             patternProperties['^compatible$'] = this.createSimpleProviderSchema('Compatible');
         }
 
+        const proxyProviderEntries = { ...allProviderEntries };
+        for (const [rootProviderKey, config] of Object.entries(providerConfigs)) {
+            for (const model of config.models) {
+                const providerKey = model.provider?.trim();
+                if (providerKey && !proxyProviderEntries[providerKey]) {
+                    proxyProviderEntries[providerKey] = `${config.displayName || rootProviderKey} (${providerKey})`;
+                }
+            }
+        }
+
         // 生成 propertyNames（带顺序：内置 → 已知 → 自定义）
         const providerKeysOrdered = Object.keys(allProviderEntries);
         const propertyNames: JSONSchema7 = {
@@ -846,6 +881,16 @@ export class JsonSchemaProvider {
             description: t('Provider configuration key', '提供商配置键名'),
             enum: providerKeysOrdered,
             enumDescriptions: providerKeysOrdered.map(k => allProviderEntries[k])
+        };
+        const proxyProviderKeysOrdered = Object.keys(proxyProviderEntries);
+        const proxyPropertyNames: JSONSchema7 = {
+            type: 'string',
+            description: t(
+                'Case-sensitive proxy provider key; it must exactly match the model or built-in provider ID.',
+                '区分大小写的代理提供商键名；必须与模型或内置 Provider ID 完全一致。'
+            ),
+            enum: proxyProviderKeysOrdered,
+            enumDescriptions: proxyProviderKeysOrdered.map(k => proxyProviderEntries[k])
         };
 
         // 获取所有可用的提供商ID（用于其它配置项，如 fim/nes/compatibleModels.provider）
@@ -869,6 +914,55 @@ export class JsonSchemaProvider {
                     ),
                     patternProperties,
                     propertyNames
+                },
+                'gcmp.machineOverrides': {
+                    type: 'object',
+                    description: t(
+                        'Machine-specific overrides keyed by case-sensitive provider ID. Each key must exactly match the model or built-in provider ID. Currently supports an optional provider proxy or model-specific proxies. These values are not synchronized across machines.',
+                        '按区分大小写的 Provider ID 配置机器专属覆盖，键名必须与模型或内置 Provider ID 完全一致。目前支持配置 Provider 级代理或模型级代理，且不会在机器间同步。'
+                    ),
+                    propertyNames: proxyPropertyNames,
+                    additionalProperties: {
+                        type: 'object',
+                        minProperties: 1,
+                        properties: {
+                            proxy: {
+                                ...this.getProxyValueSchema(true),
+                                description: t(
+                                    'Provider-level proxy URL for this machine. Use "noproxy" to bypass configured and system proxies.',
+                                    '当前机器的 Provider 级代理地址。填写“noproxy”可绕过已配置代理和系统代理。'
+                                )
+                            },
+                            models: {
+                                type: 'array',
+                                minItems: 1,
+                                description: t(
+                                    'Model-specific proxy overrides for this machine.',
+                                    '当前机器的模型级代理覆盖。'
+                                ),
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        id: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            description: t('Model ID', '模型 ID')
+                                        },
+                                        proxy: {
+                                            ...this.getProxyValueSchema(false),
+                                            description: t(
+                                                'Model-level proxy URL for this machine. Use "noproxy" to bypass configured and system proxies.',
+                                                '当前机器的模型级代理地址。填写“noproxy”可绕过已配置代理和系统代理。'
+                                            )
+                                        }
+                                    },
+                                    required: ['id', 'proxy'],
+                                    additionalProperties: false
+                                }
+                            }
+                        },
+                        additionalProperties: false
+                    }
                 },
                 'gcmp.fimCompletion.modelConfig': {
                     type: 'object',
@@ -1140,20 +1234,11 @@ export class JsonSchemaProvider {
                                 }
                             },
                             proxy: {
-                                type: 'string',
+                                ...this.getProxyValueSchema(true),
                                 description: t(
                                     'Proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
                                     'API 请求的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
-                                ),
-                                anyOf: [
-                                    { const: '' },
-                                    { const: 'noproxy' },
-                                    { format: 'uri' },
-                                    {
-                                        pattern:
-                                            '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
-                                    }
-                                ]
+                                )
                             },
                             extraBody: {
                                 type: 'object',
@@ -1636,22 +1721,7 @@ export class JsonSchemaProvider {
                         ...this.getCustomHeaderValueSchema()
                     }
                 },
-                proxy: {
-                    type: 'string',
-                    description: t(
-                        'Override the provider-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
-                        '覆盖提供商级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
-                    ),
-                    anyOf: [
-                        { const: '' },
-                        { const: 'noproxy' },
-                        { format: 'uri' },
-                        {
-                            pattern:
-                                '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
-                        }
-                    ]
-                },
+                proxy: this.getSynchronizedProxySchema('provider'),
                 balanceWarning: this.getBalanceWarningThresholdSchema(),
                 retry: this.getProviderRetryOverrideSchema(),
                 ...this.getKnownSubProviderRetryOverrideProperties(providerKey),
@@ -1748,22 +1818,7 @@ export class JsonSchemaProvider {
                                     ...this.getCustomHeaderValueSchema()
                                 }
                             },
-                            proxy: {
-                                type: 'string',
-                                description: t(
-                                    'Override the model-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
-                                    '覆盖模型级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
-                                ),
-                                anyOf: [
-                                    { const: '' },
-                                    { const: 'noproxy' },
-                                    { format: 'uri' },
-                                    {
-                                        pattern:
-                                            '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
-                                    }
-                                ]
-                            },
+                            proxy: this.getSynchronizedProxySchema('model'),
                             extraBody: {
                                 type: 'object',
                                 description: this.getExtraBodyDescription(true),
@@ -2420,7 +2475,7 @@ export class JsonSchemaProvider {
 
     /**
      * 为已知/自定义/compatible 提供商生成简化的 JSON Schema
-     * 仅包含 customHeader、proxy 字段，不含 models 列表定义及 baseUrl 覆盖
+     * 不含 models 列表定义及 baseUrl 覆盖
      */
     private static createSimpleProviderSchema(displayName: string): JSONSchema7 {
         return {
@@ -2438,22 +2493,7 @@ export class JsonSchemaProvider {
                         ...this.getCustomHeaderValueSchema()
                     }
                 },
-                proxy: {
-                    type: 'string',
-                    description: t(
-                        'Override the provider-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
-                        '覆盖提供商级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写"noproxy"可显式绕过已配置代理和系统代理。'
-                    ),
-                    anyOf: [
-                        { const: '' },
-                        { const: 'noproxy' },
-                        { format: 'uri' },
-                        {
-                            pattern:
-                                '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
-                        }
-                    ]
-                },
+                proxy: this.getSynchronizedProxySchema('provider'),
                 balanceWarning: this.getBalanceWarningThresholdSchema(),
                 retry: this.getProviderRetryOverrideSchema(),
                 limit: this.getRateLimitSchema()

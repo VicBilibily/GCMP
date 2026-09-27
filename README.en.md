@@ -207,11 +207,11 @@ npm install -g @openai/codex@latest
 
 - **Supported models**: See [config/codex.json](src/providers/config/codex.json).
 - **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.
-- **Independent proxy settings**: Codex CLI uses its own proxy configuration (independent of the extension-wide `gcmp.proxy`). You can specify a dedicated proxy for Codex requests via `gcmp.providerOverrides.codex.proxy`.
+- **Independent proxy settings**: use this machine's `gcmp.machineOverrides.codex.proxy` to assign a dedicated proxy for Codex requests without affecting other machines.
 
 ```json
 {
-    "gcmp.providerOverrides": {
+    "gcmp.machineOverrides": {
         "codex": {
             "proxy": "http://127.0.0.1:10808"
         }
@@ -233,7 +233,7 @@ irm https://x.ai/cli/install.ps1 | iex
 
 - **Supported models**: See [config/grok.json](src/providers/config/grok.json).
 - **Usage tracking**: The status bar displays remaining Grok/SuperGrok subscription quota and reset time. Weekly quota is preferred; unified-billing accounts show monthly quota.
-- **Independent proxy settings**: Use `gcmp.providerOverrides.grok.proxy` for Grok requests. Set `GROK_CLI_CHAT_PROXY_BASE_URL` to override the Grok CLI billing service base URL.
+- **Independent proxy settings**: use this machine's `gcmp.machineOverrides.grok.proxy` for Grok requests. Set `GROK_CLI_CHAT_PROXY_BASE_URL` to override the Grok CLI billing service base URL.
 
 ## ⚙️ Advanced Configuration
 
@@ -381,12 +381,29 @@ Balance-based status bars show a yellow background when the available balance is
 ```jsonc
 {
     "gcmp.proxy": "http://127.0.0.1:7890", // Optional global proxy, full URL recommended
+    "gcmp.machineOverrides": {
+        "dashscope": {
+            "proxy": "http://127.0.0.1:7891", // Provider proxy for this machine
+            "models": [
+                {
+                    "id": "deepseek-v3.2",
+                    "proxy": "noproxy" // Bypass proxies only for this model on this machine
+                }
+            ]
+        },
+        "codex": {
+            "proxy": "noproxy" // Bypass proxies for all Codex models on this machine
+        }
+    },
     "gcmp.tls.useSystemCertificates": true // Append OS root CAs (enabled by default)
 }
 ```
 
 - `gcmp.proxy` acts as the default proxy for all extension network requests, including chat requests, FIM / NES completions, web search tools, MCP clients, status-bar quota/balance queries, Compatible Provider model discovery requests, and CLI OAuth refresh calls.
-- Proxy precedence is: `model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.providerOverrides.compatible.proxy` (non-built-in only) → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`) → **System proxy (auto-detected)**.
+- `gcmp.machineOverrides` is the machine-scoped override entry excluded from Settings Sync. It currently supports a provider-level `proxy` or model-level entries under `models[]` in each Remote SSH window's Remote settings.
+- Provider IDs in `gcmp.machineOverrides` are case-sensitive and must exactly match the provider ID in the model or built-in configuration; for example, `Acme` and `acme` are different providers.
+- `gcmp.providerOverrides.<provider>.proxy` and built-in provider `models[].proxy` remain supported and participate in Settings Sync. Use `gcmp.machineOverrides` when each machine needs a different proxy. Direct `gcmp.compatibleModels[*].proxy` values remain model-owned settings.
+- Proxy precedence is: matching `gcmp.machineOverrides.<provider>.models[]` entry → model-owned `model.proxy` → `gcmp.machineOverrides.<provider>.proxy` → matching `gcmp.providerOverrides.<provider>.models[]` entry → `gcmp.providerOverrides.<provider>.proxy` → built-in provider proxy → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`) → **System proxy (auto-detected)**.
 - Supports `host:port` shorthand (e.g., `127.0.0.1:7890`), but using a full URL like `http://127.0.0.1:7890` is recommended.
 - Set to `noproxy` to bypass all proxies (including system proxies and configured ones). When any layer in the proxy chain is set to `noproxy`, fallback short-circuits immediately.
 - When no explicit proxy is configured, the extension automatically detects system proxy settings from the Windows Registry or macOS `scutil`.
@@ -396,23 +413,23 @@ Balance-based status bars show a yellow background when the available balance is
 
 #### Provider Configuration Overrides
 
-GCMP supports overriding provider defaults through the `gcmp.providerOverrides` setting. Support varies by provider type:
+GCMP uses the synchronized `gcmp.providerOverrides` setting for provider defaults, including the original synchronized proxy fields. Use `gcmp.machineOverrides` for machine-specific proxy overrides; these take precedence.
 
 | Provider Type                        | Supported Fields                                        | models[]                               |
 | ------------------------------------ | ------------------------------------------------------- | -------------------------------------- |
-| **Built-in** (deepseek/zhipu etc.)   | `baseUrl`, `customHeader`, `proxy`, `retry`, `models[]` | ✅ Full model add/override             |
-| **Known** (aihubmix/openrouter etc.) | `customHeader`, `proxy`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
-| **Custom** (from compatibleModels)   | `customHeader`, `proxy`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
-| **compatible** itself                | `customHeader`, `proxy`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **Built-in** (deepseek/zhipu etc.)   | `baseUrl`, `proxy`, `customHeader`, `retry`, `models[]` | ✅ Full model add/override             |
+| **Known** (aihubmix/openrouter etc.) | `proxy`, `customHeader`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **Custom** (from compatibleModels)   | `proxy`, `customHeader`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **compatible** itself                | `proxy`, `customHeader`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
 
 **Override precedence**:
 
 ```
-model-level > providerOverrides.{provider} > providerOverrides.compatible
+model-level non-proxy settings > providerOverrides.{provider} > providerOverrides.compatible
 ```
 
 - `providerOverrides.compatible` acts as global defaults for all Compatible Provider models
-- Proxy: `model.proxy` > `providerOverrides.{provider}.proxy` > `providerOverrides.compatible.proxy` (non-built-in only) > `gcmp.proxy` > VS Code `http.proxy` > environment variables
+- Proxy: `machineOverrides.{provider}.models[]` > `model.proxy` > `machineOverrides.{provider}.proxy` > `providerOverrides.{provider}.models[].proxy` > `providerOverrides.{provider}.proxy` > built-in provider proxy > `gcmp.proxy` > VS Code `http.proxy` > environment variables
 - Custom headers: `providerOverrides.{provider}.customHeader` > model `customHeader` > `providerOverrides.compatible.customHeader`
 - Retry: `providerOverrides["retry.{subProvider}"]` > `providerOverrides.retry` > built-in preset > global `gcmp.retry.*`
 
@@ -422,7 +439,6 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
 {
     "gcmp.providerOverrides": {
         "dashscope": {
-            "proxy": "http://127.0.0.1:7890", // Optional provider-level default proxy
             "models": [
                 {
                     "id": "deepseek-v3.2", // Add extra model: not in suggestions, but allows custom additions
@@ -438,7 +454,6 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
             ]
         },
         "aihubmix": {
-            "proxy": "http://127.0.0.1:7890", // proxy override also supported
             "customHeader": { "X-Custom": "value" },
             "retry": {
                 // provider-level retry override
@@ -446,9 +461,6 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
                 "maxAttempts": 5,
                 "maxDelayMs": 30000
             }
-        },
-        "compatible": {
-            "proxy": "http://127.0.0.1:7890" // global default proxy for all Compatible Provider models
         }
     }
 }
@@ -470,7 +482,7 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 
 > Aggregation/relay providers may receive built-in special adaptations and are not listed as standalone providers.<br/>
 > If you need built-in or special adaptation support, please submit an Issue with relevant information.<br/>
-> Known providers support `gcmp.providerOverrides.{providerId}` for `customHeader` and `proxy` overrides.
+> Known providers support synchronized `proxy`, `customHeader`, and `retry` overrides through `gcmp.providerOverrides.{providerId}`. Use `gcmp.machineOverrides.{providerId}` for machine-specific proxies.
 
 | Provider ID     | Provider Name                                                 | Description | Balance Query   |
 | --------------- | ------------------------------------------------------------- | ----------- | --------------- |

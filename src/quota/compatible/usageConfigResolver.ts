@@ -200,7 +200,6 @@ export function mergeProviderUsageOverride(
     return {
         baseUrl: override?.baseUrl ?? baseOverride?.baseUrl,
         customHeader: mergeRecord(baseOverride?.customHeader, override?.customHeader),
-        proxy: override?.proxy ?? baseOverride?.proxy,
         models: override?.models ?? baseOverride?.models,
         usage: resolveUsageConfig(baseOverride?.usage, override?.usage),
         usages: mergeUsages(baseOverride?.usages, override?.usages)

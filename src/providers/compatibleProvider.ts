@@ -152,14 +152,6 @@ export class CompatibleProvider extends GenericModelProvider {
                         k => k.toLowerCase() === model.provider!.toLowerCase()
                     );
                     const providerOverride = providerOverrideKey ? allOverrides[providerOverrideKey] : undefined;
-                    for (const override of [providerOverride, compatibleOverride]) {
-                        if (!override) {
-                            continue;
-                        }
-                        if (override.proxy && !config.proxy) {
-                            config.proxy = override.proxy;
-                        }
-                    }
                     const providerCustomHeader = mergeCustomHeaders(
                         knownProvider?.customHeader,
                         compatibleOverride?.customHeader,
@@ -170,9 +162,6 @@ export class CompatibleProvider extends GenericModelProvider {
                     }
                 } else if (compatibleOverride) {
                     // 无 provider 的模型仅应用 compatible 全局默认
-                    if (compatibleOverride.proxy && !config.proxy) {
-                        config.proxy = compatibleOverride.proxy;
-                    }
                     if (compatibleOverride.customHeader) {
                         config.customHeader = mergeCustomHeaders(compatibleOverride.customHeader, model.customHeader);
                     }

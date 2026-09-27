@@ -190,10 +190,7 @@ export interface ModelConfig {
      * 仅 sdkMode=openai-responses 生效；anthropic 模式仅取其中的 web_search 项。
      */
     nativeTools?: NativeToolConfig[];
-    /**
-     * 模型特定的代理服务器地址（可选）
-     * 如果提供，将覆盖提供商级别的代理设置
-     */
+    /** 请求模型自身的 `modelConfig.proxy`，低于 `gcmp.machineOverrides.<provider>.models[].proxy`，高于 `gcmp.machineOverrides.<provider>.proxy` */
     proxy?: string;
     /**
      * Token 定价，用于客户端成本估算和模型选择器展示。
@@ -457,6 +454,8 @@ export interface ModelOverride {
     };
     /** 覆盖baseUrl */
     baseUrl?: string;
+    /** `gcmp.providerOverrides.<provider>.models[].proxy`，按模型 ID 匹配并位于机器级覆盖之后 */
+    proxy?: string;
     /** 模型的 family 标识（可选） */
     family?: string;
     /** 深度思考模式选项列表（可选） */
@@ -491,8 +490,6 @@ export interface ModelOverride {
     webSearchTool?: boolean | WebSearchToolConfig;
     /** 额外原生工具箱。覆盖目标模型的 nativeTools 字段；重复配置时以新值为准。仅 openai-responses 生效，anthropic 仅取 web_search 项 */
     nativeTools?: NativeToolConfig[];
-    /** 模型特定的代理服务器地址（可选） */
-    proxy?: string;
     /**
      * Token 定价覆盖（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
      * 若提供，将完全替换对应模型的内置定价。
@@ -632,10 +629,10 @@ export interface RateLimitConfig {
 export interface ProviderOverride {
     /** 覆盖提供商级别的baseUrl */
     baseUrl?: string;
+    /** `gcmp.providerOverrides.<provider>.proxy`，在同一 lookupKey 的 `gcmp.providerOverrides.<provider>.models[].proxy` 未命中时使用 */
+    proxy?: string;
     /** 提供商级别的自定义HTTP头部（可选） */
     customHeader?: CustomHeaders;
-    /** 提供商级别的代理服务器地址（可选） */
-    proxy?: string;
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
     /** 自定义提供商默认/单模式余额/用量查询配置（可选） */
@@ -678,11 +675,7 @@ export interface ProviderConfig {
      * 模型级别的 customHeader 会覆盖提供商级别的同名头部
      */
     customHeader?: CustomHeaders;
-    /**
-     * 提供商级别的代理服务器地址（可选）
-     * 如果提供，将作用于该提供商的所有API请求
-     * 模型级别的 proxy 会覆盖提供商级别的 proxy
-     */
+    /** `configProviders.<provider>.proxy` 内置回退，仅在机器级、模型自身及同步覆盖均未命中时使用 */
     proxy?: string;
     /**
      * 内置预置重试配置（可选）。
@@ -713,6 +706,22 @@ export type ConfigProvider = Record<string, ProviderConfig>;
  * 用户配置覆盖接口 - 来自VS Code设置
  */
 export type UserConfigOverrides = Record<string, ProviderOverride>;
+
+export interface MachineModelOverride {
+    /** 与 `modelConfig.id ?? modelConfig.model` 区分大小写匹配 */
+    id: string;
+    /** `gcmp.machineOverrides.<provider>.models[].proxy`，代理查找链的最高优先级 */
+    proxy: string;
+}
+
+export interface MachineProviderOverride {
+    /** `gcmp.machineOverrides.<provider>.proxy`，位于 `modelConfig.proxy` 之后、同步覆盖之前 */
+    proxy?: string;
+    models?: MachineModelOverride[];
+}
+
+/** `gcmp.machineOverrides` 的运行时结构，Record 键为区分大小写的 Provider lookupKey */
+export type MachineOverrides = Record<string, MachineProviderOverride>;
 
 /**
  * API密钥验证结果

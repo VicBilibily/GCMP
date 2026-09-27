@@ -207,11 +207,11 @@ npm install -g @openai/codex@latest
 
 - **支持模型**：详见 [config/codex.json](src/providers/config/codex.json)。
 - **用量查询**：已支持状态栏显示 ChatGPT 订阅周期剩余用量，可查看订阅余量信息。
-- **独立代理设置**：Codex CLI 使用自己的代理配置（与扩展全局代理 `gcmp.proxy` 独立）。可通过 `gcmp.providerOverrides.codex.proxy` 单独指定 Codex 请求的代理地址。
+- **独立代理设置**：可通过当前机器的 `gcmp.machineOverrides.codex.proxy` 单独指定 Codex 请求的代理地址，不影响其他机器。
 
 ```json
 {
-    "gcmp.providerOverrides": {
+    "gcmp.machineOverrides": {
         "codex": {
             "proxy": "http://127.0.0.1:10808"
         }
@@ -233,7 +233,7 @@ irm https://x.ai/cli/install.ps1 | iex
 
 - **支持模型**：详见 [config/grok.json](src/providers/config/grok.json)。
 - **用量查询**：已支持状态栏显示 Grok/SuperGrok 订阅剩余额度与重置时间。优先展示每周额度；统一账单账户会展示月度额度。
-- **独立代理设置**：可通过 `gcmp.providerOverrides.grok.proxy` 指定 Grok 请求代理。自定义 Grok CLI billing 服务地址时，可设置环境变量 `GROK_CLI_CHAT_PROXY_BASE_URL`。
+- **独立代理设置**：可通过当前机器的 `gcmp.machineOverrides.grok.proxy` 指定 Grok 请求代理。自定义 Grok CLI billing 服务地址时，可设置环境变量 `GROK_CLI_CHAT_PROXY_BASE_URL`。
 
 ## ⚙️ 高级配置
 
@@ -380,12 +380,29 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置�
 ```jsonc
 {
     "gcmp.proxy": "http://127.0.0.1:7890", // 全局代理（可选），推荐使用完整 URL
+    "gcmp.machineOverrides": {
+        "dashscope": {
+            "proxy": "http://127.0.0.1:7891", // 当前机器的提供商代理
+            "models": [
+                {
+                    "id": "deepseek-v3.2",
+                    "proxy": "noproxy" // 当前机器上仅此模型绕过代理
+                }
+            ]
+        },
+        "codex": {
+            "proxy": "noproxy" // 当前机器上所有 Codex 模型绕过代理
+        }
+    },
     "gcmp.tls.useSystemCertificates": true // 追加系统根证书（默认开启）
 }
 ```
 
 - `gcmp.proxy` 会作为扩展内所有网络请求的默认代理，包括：聊天请求、FIM / NES 补全、联网搜索、MCP 客户端、状态栏余额/用量查询、Compatible Provider 的"获取模型"请求，以及 CLI OAuth 刷新请求。
-- 代理优先级为：`model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.providerOverrides.compatible.proxy`（仅非内置 provider） → `gcmp.proxy` → VS Code `http.proxy` → 环境变量（`HTTPS_PROXY` / `HTTP_PROXY`）→ **系统代理（自动检测）**。
+- `gcmp.machineOverrides` 是不会参与设置同步的机器级总配置入口；当前支持在每个 Remote SSH 窗口的“远程”设置中按 provider 配置 `proxy`，或在 `models[]` 中按模型 `id` 配置 `proxy`。
+- `gcmp.machineOverrides` 的 Provider ID 区分大小写，键名必须与模型或内置配置中的 Provider ID 完全一致；例如 `Acme` 与 `acme` 是两个不同的 Provider。
+- `gcmp.providerOverrides.<provider>.proxy` 与内置 Provider 的 `models[].proxy` 保持兼容并参与设置同步；需要每台机器使用不同代理时，请使用 `gcmp.machineOverrides`。`gcmp.compatibleModels[*].proxy` 仍是模型自身配置。
+- 代理优先级为：`gcmp.machineOverrides.<provider>.models[]` 匹配模型 → 模型自身 `model.proxy` → `gcmp.machineOverrides.<provider>.proxy` → `gcmp.providerOverrides.<provider>.models[]` 匹配模型 → `gcmp.providerOverrides.<provider>.proxy` → 提供商内置代理 → `gcmp.proxy` → VS Code `http.proxy` → 环境变量（`HTTPS_PROXY` / `HTTP_PROXY`）→ **系统代理（自动检测）**。
 - 代理地址支持 `host:port` 简写（如 `127.0.0.1:7890`），但推荐使用完整 URL，如 `http://127.0.0.1:7890`。
 - 填写 `noproxy` 可显式绕过所有代理（包括系统代理和已配置代理），且在代理链路上任一层次设为 `noproxy` 时立即短路，不再继续回退。
 - 当无显式代理配置时，扩展会自动检测 Windows 注册表或 macOS `scutil` 中的系统代理设置并自动沿用。
@@ -395,27 +412,27 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置�
 
 #### 提供商配置覆盖
 
-GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认设置，包括 `baseUrl`、`proxy`、`customHeader` 等。
+GCMP 支持通过会参与设置同步的 `gcmp.providerOverrides` 覆盖提供商默认设置，包括兼容原有的同步代理字段；仅当前机器使用的代理覆盖请使用 `gcmp.machineOverrides`，且其优先级更高。
 
 **支持范围因提供商类型而异**：
 
 | 提供商类型                                             | 支持覆盖的字段                                          | models[]                                |
 | ------------------------------------------------------ | ------------------------------------------------------- | --------------------------------------- |
-| **内置提供商**（deepseek/zhipu 等）                    | `baseUrl`、`customHeader`、`proxy`、`retry`、`models[]` | ✅ 支持新增和覆盖模型                   |
-| **已知提供商**（aihubmix/openrouter 等）               | `customHeader`、`proxy`、`retry`                        | ❌ 不支持（走 `gcmp.compatibleModels`） |
-| **自定义提供商**（compatibleModels 中自定义 provider） | `customHeader`、`proxy`、`retry`                        | ❌ 不支持（走 `gcmp.compatibleModels`） |
-| **compatible** 自身                                    | `customHeader`、`proxy`、`retry`                        | ❌ 不支持（走 `gcmp.compatibleModels`） |
+| **内置提供商**（deepseek/zhipu 等）                    | `baseUrl`、`proxy`、`customHeader`、`retry`、`models[]` | ✅ 支持新增和覆盖模型                   |
+| **已知提供商**（aihubmix/openrouter 等）               | `proxy`、`customHeader`、`retry`                        | ❌ 不支持（走 `gcmp.compatibleModels`） |
+| **自定义提供商**（compatibleModels 中自定义 provider） | `proxy`、`customHeader`、`retry`                        | ❌ 不支持（走 `gcmp.compatibleModels`） |
+| **compatible** 自身                                    | `proxy`、`customHeader`、`retry`                        | ❌ 不支持（走 `gcmp.compatibleModels`） |
 
 已知/自定义/compatible 提供商不支持 `models[]`，模型定义统一通过 `gcmp.compatibleModels` 配置。
 
 **配置优先级**：
 
 ```
-模型自身设置 > providerOverrides.{provider} > providerOverrides.compatible
+模型自身非代理设置 > providerOverrides.{provider} > providerOverrides.compatible
 ```
 
 - `providerOverrides.compatible` 作为全局默认值，对所有 Compatible Provider 下的模型生效
-- 代理地址：`model.proxy` > `providerOverrides.{provider}.proxy` > `providerOverrides.compatible.proxy`（仅非内置 provider） > `gcmp.proxy` > VS Code `http.proxy` > 环境变量
+- 代理地址：`machineOverrides.{provider}.models[]` > `model.proxy` > `machineOverrides.{provider}.proxy` > `providerOverrides.{provider}.models[].proxy` > `providerOverrides.{provider}.proxy` > 提供商内置代理 > `gcmp.proxy` > VS Code `http.proxy` > 环境变量
 - 自定义 HTTP 头：`providerOverrides.{provider}.customHeader` > 模型自身 `customHeader` > `providerOverrides.compatible.customHeader`
 - 重试配置：`providerOverrides["retry.{subProvider}"]` > `providerOverrides.retry` > 内置预置 > 全局 `gcmp.retry.*`
 
@@ -425,7 +442,6 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 {
     "gcmp.providerOverrides": {
         "dashscope": {
-            "proxy": "http://127.0.0.1:7890", // 可选：提供商级默认代理
             "models": [
                 {
                     "id": "deepseek-v3.2", // 增加额外模型：不在提示可选选项，但允许自定义新增
@@ -443,7 +459,6 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
             ]
         },
         "aihubmix": {
-            "proxy": "http://127.0.0.1:7890", // 已知或自定义提供商也支持代理覆盖
             "customHeader": { "X-Custom": "value" },
             "retry": {
                 // 提供商级重试覆盖
@@ -451,9 +466,6 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
                 "maxAttempts": 5,
                 "maxDelayMs": 30000
             }
-        },
-        "compatible": {
-            "proxy": "http://127.0.0.1:7890" // 全局默认代理，所有 Compatible Provider 模型生效
         }
     }
 }
@@ -475,7 +487,7 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 > 聚合转发类型的提供商可提供内置特殊适配，不作为单一提供商提供。<br/>
 > 若需要内置或特殊适配的请通过 Issue 提供相关信息。<br/>
-> 已知提供商支持通过 `gcmp.providerOverrides.{providerId}` 覆盖 `customHeader`、`proxy`。
+> 已知提供商支持通过 `gcmp.providerOverrides.{providerId}` 覆盖同步的 `proxy`、`customHeader`、`retry`；仅当前机器使用的代理请配置 `gcmp.machineOverrides.{providerId}`。
 
 | 提供商ID        | 提供商名称                                                    | 提供商描述      | 余额查询     |
 | --------------- | ------------------------------------------------------------- | --------------- | ------------ |

@@ -371,10 +371,7 @@
                             "const": "noproxy"
                         },
                         {
-                            "format": "uri"
-                        },
-                        {
-                            "pattern": "^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$"
+                            "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
                         }
                     ],
                     "scope": "machine"
@@ -593,10 +590,7 @@
                                     "const": "noproxy"
                                 },
                                 {
-                                    "format": "uri"
-                                },
-                                {
-                                    "pattern": "^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$"
+                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
                                 }
                             ]
                         },
@@ -713,10 +707,7 @@
                                     "const": "noproxy"
                                 },
                                 {
-                                    "format": "uri"
-                                },
-                                {
-                                    "pattern": "^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$"
+                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
                                 }
                             ]
                         },
@@ -862,6 +853,62 @@
                     "default": {},
                     "description": "%setting.providerOverrides.description%",
                     "scope": "application"
+                },
+                "gcmp.machineOverrides": {
+                    "type": "object",
+                    "default": {},
+                    "description": "%setting.machineOverrides.description%",
+                    "scope": "machine",
+                    "additionalProperties": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "properties": {
+                            "proxy": {
+                                "type": "string",
+                                "anyOf": [
+                                    {
+                                        "const": ""
+                                    },
+                                    {
+                                        "const": "noproxy"
+                                    },
+                                    {
+                                        "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
+                                    }
+                                ]
+                            },
+                            "models": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                        },
+                                        "proxy": {
+                                            "type": "string",
+                                            "anyOf": [
+                                                {
+                                                    "const": "noproxy"
+                                                },
+                                                {
+                                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "proxy"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 },
                 "gcmp.compatibleModels": {
                     "type": "array",

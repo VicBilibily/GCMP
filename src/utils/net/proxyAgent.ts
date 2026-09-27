@@ -13,6 +13,7 @@ import type { CustomHeaders } from '../../types/sharedTypes';
 
 export type ProxiedFetch = typeof globalThis.fetch;
 export const NO_PROXY_SENTINEL = 'noproxy';
+const INVALID_PROXY_URL_REDACTION = '[invalid proxy URL]';
 
 type ManagedProxyDispatcher = ProxyAgent | EnvHttpProxyAgent;
 
@@ -393,7 +394,16 @@ function configureTlsCertificates(): void {
  */
 export function redactProxyUrl(raw: string): string {
     try {
-        const u = new URL(raw);
+        if (!raw.trim()) {
+            return raw;
+        }
+
+        const normalized = normalizeProxyEndpoint(raw);
+        if (!normalized) {
+            return INVALID_PROXY_URL_REDACTION;
+        }
+
+        const u = new URL(normalized);
         if (u.username || u.password) {
             u.password = '';
             u.username = '';
@@ -401,7 +411,7 @@ export function redactProxyUrl(raw: string): string {
         }
         return raw;
     } catch {
-        return raw;
+        return INVALID_PROXY_URL_REDACTION;
     }
 }
 
@@ -465,14 +475,26 @@ export function sanitizeConfigForLogging<T>(value: T): T {
  * 获取或创建指定代理 URL 的 ProxyAgent
  */
 export function getProxyAgent(proxyUrl: string): ProxyAgent {
-    const normalizedProxyUrl = normalizeProxyEndpoint(proxyUrl) || proxyUrl;
+    const normalizedProxyUrl = normalizeProxyEndpoint(proxyUrl);
+    if (!normalizedProxyUrl) {
+        throw new TypeError('Invalid proxy URL');
+    }
+    const parsedProxyUrl = new URL(normalizedProxyUrl);
+    let token: string | undefined;
+    if (!parsedProxyUrl.username && parsedProxyUrl.password) {
+        try {
+            token = `Basic ${Buffer.from(`:${decodeURIComponent(parsedProxyUrl.password)}`).toString('base64')}`;
+        } catch {
+            throw new TypeError('Invalid proxy URL');
+        }
+    }
     const { useSystemCertificates, signature } = getTlsConfig();
     const cacheKey = buildProxyCacheKey(normalizedProxyUrl, signature);
     clearStaleProxyCacheEntries(normalizedProxyUrl, cacheKey);
 
     let agent = proxyAgents.get(cacheKey);
     if (!agent) {
-        agent = new ProxyAgent(normalizedProxyUrl);
+        agent = token ? new ProxyAgent({ uri: normalizedProxyUrl, token }) : new ProxyAgent(normalizedProxyUrl);
         proxyAgents.set(cacheKey, agent);
         Logger.info(
             `[ProxyAgent] Created ProxyAgent for ${redactProxyUrl(normalizedProxyUrl)} (system CA: ${useSystemCertificates ? 'on' : 'off'})`
@@ -492,6 +514,9 @@ export function createProxiedFetch(proxyUrl?: string): ProxiedFetch {
     }
     const normalizedProxyUrl = normalizeProxyEndpoint(proxyUrl);
     if (!normalizedProxyUrl) {
+        if (proxyUrl?.trim()) {
+            throw new TypeError('Invalid proxy URL');
+        }
         return createSystemProxyFetch() || getDirectFetch();
     }
     const { signature } = getTlsConfig();

@@ -284,7 +284,6 @@ describe('mergeProviderUsageOverride', () => {
         assert.deepStrictEqual(merged, {
             baseUrl: undefined,
             customHeader: undefined,
-            proxy: undefined,
             models: undefined,
             usage: {
                 url: 'https://api.example.com/default',
