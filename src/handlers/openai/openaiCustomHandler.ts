@@ -5,31 +5,31 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger } from '../utils/runtime/logger';
-import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
-import { createOpenCodeHeaders } from '../utils/text/formatUtils';
-import { isCancellationError } from '../utils/text/cancellationError';
+import { Logger } from '../../utils/runtime/logger';
+import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
+import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
+import { isCancellationError } from '../../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toNanoAiu,
     toCostBreakdownLog
-} from '../utils/pricing/costCalculator';
-import { RetryableError } from '../utils/retry/retryManager';
-import { ConfigManager } from '../utils/config/configManager';
-import { ApiKeyManager } from '../utils/config/apiKeyManager';
+} from '../../utils/pricing/costCalculator';
+import { RetryableError } from '../../utils/retry/retryManager';
+import { ConfigManager } from '../../utils/config/configManager';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import {
     applyCustomHeaders,
     canonicalizeUserAgentHeader,
     hasCustomHeaderDeletion,
     mergeCustomHeaders
-} from '../utils/net/httpHeaders';
-import { TokenUsagesManager } from '../usages/usagesManager';
-import { ModelConfig, ModelChatResponseOptions, ModelTokenPricing, ProviderConfig } from '../types/sharedTypes';
-import { StreamReporter } from './streamReporter';
-import * as liveMetrics from './liveMetrics';
-import { t } from '../utils/runtime/l10n';
-import type { GenericModelProvider } from '../providers/genericModelProvider';
+} from '../../utils/net/httpHeaders';
+import { TokenUsagesManager } from '../../usages/usagesManager';
+import { ModelConfig, ModelChatResponseOptions, ModelTokenPricing, ProviderConfig } from '../../types/sharedTypes';
+import { StreamReporter } from '../streamReporter';
+import * as liveMetrics from '../liveMetrics';
+import { t } from '../../utils/runtime/l10n';
+import type { GenericModelProvider } from '../../providers/genericModelProvider';
 
 /**
  * OpenAI Handler 接口（用于类型安全的消息和工具转换）

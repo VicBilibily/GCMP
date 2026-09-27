@@ -2,8 +2,8 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 
-import { AnthropicHandler } from '../../src/handlers/anthropicHandler';
-import { OpenAIHandler } from '../../src/handlers/openaiHandler';
+import { AnthropicHandler } from '../../src/handlers/anthropic/anthropicHandler';
+import { OpenAIHandler } from '../../src/handlers/openai/openaiHandler';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import type { ModelConfig } from '../../src/types/sharedTypes';
 import { ConfigManager } from '../../src/utils/config/configManager';

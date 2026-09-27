@@ -1,4 +1,4 @@
-﻿import type { ExtendedDelta } from '../openaiHandler';
+﻿import type { ExtendedDelta } from './openaiHandler';
 
 interface ChatStreamChoice {
     delta?: ExtendedDelta;

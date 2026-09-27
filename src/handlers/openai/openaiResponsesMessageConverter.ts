@@ -6,7 +6,7 @@ import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
-import type { OpenAIHandler } from '../openaiHandler';
+import type { OpenAIHandler } from './openaiHandler';
 import {
     isEncryptedReasoningOriginMatch,
     isResponsesReasoningId,

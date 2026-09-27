@@ -5,40 +5,40 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger } from '../utils/runtime/logger';
-import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
-import { VersionManager } from '../utils/runtime/versionManager';
-import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
-import { createOpenCodeHeaders, replaceSessionIdInBody } from '../utils/text/formatUtils';
-import { redactHeaders } from '../utils/net/proxyAgent';
+import { Logger } from '../../utils/runtime/logger';
+import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
+import { VersionManager } from '../../utils/runtime/versionManager';
+import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
+import { createOpenCodeHeaders, replaceSessionIdInBody } from '../../utils/text/formatUtils';
+import { redactHeaders } from '../../utils/net/proxyAgent';
 import {
     canonicalizeUserAgentHeader,
     getCustomHeaderDeletionMarkers,
     mergeCustomHeaders,
     preserveRequiredHeaders
-} from '../utils/net/httpHeaders';
-import { isCancellationError } from '../utils/text/cancellationError';
+} from '../../utils/net/httpHeaders';
+import { isCancellationError } from '../../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toNanoAiu,
     toCostBreakdownLog
-} from '../utils/pricing/costCalculator';
-import { ConfigManager } from '../utils/config/configManager';
-import { ApiKeyManager } from '../utils/config/apiKeyManager';
-import { t } from '../utils/runtime/l10n';
-import { TokenUsagesManager } from '../usages/usagesManager';
-import type { CustomHeaders, ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
-import { StreamReporter } from './streamReporter';
-import * as liveMetrics from './liveMetrics';
-import { decodeStatefulMarker } from './statefulMarker';
-import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
-import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from './types';
-import type { GenericModelProvider } from '../providers/genericModelProvider';
-import { isSubRequest, type RequestKind } from './requestClassifier';
-import { preprocessOpenAIChatRequest } from './openai/openaiChatRequestPreprocessor';
-import { applyOpenAIServiceTier } from './openai/serviceTier';
-import { reportChatCompletionText } from './openai/openaiChatStreamText';
+} from '../../utils/pricing/costCalculator';
+import { ConfigManager } from '../../utils/config/configManager';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { t } from '../../utils/runtime/l10n';
+import { TokenUsagesManager } from '../../usages/usagesManager';
+import type { CustomHeaders, ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../../types/sharedTypes';
+import { StreamReporter } from '../streamReporter';
+import * as liveMetrics from '../liveMetrics';
+import { decodeStatefulMarker } from '../statefulMarker';
+import { shouldInjectReasoningPlaceholder } from '../reasoningPlaceholder';
+import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
+import type { GenericModelProvider } from '../../providers/genericModelProvider';
+import { isSubRequest, type RequestKind } from '../requestClassifier';
+import { preprocessOpenAIChatRequest } from './openaiChatRequestPreprocessor';
+import { applyOpenAIServiceTier } from './serviceTier';
+import { reportChatCompletionText } from './openaiChatStreamText';
 
 /**
  * 扩展Delta类型以支持reasoning_content和reasoning字段

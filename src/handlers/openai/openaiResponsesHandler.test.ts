@@ -109,19 +109,19 @@ async function getOpenAIResponsesHandlerModule() {
                 LanguageModelError: class LanguageModelError extends Error {}
             };
         }
-        if (id === './streamReporter') {
+        if (id === '../streamReporter') {
             return { StreamReporter: MockStreamReporter };
         }
-        if (id === './openai/openaiResponsesMessageConverter') {
+        if (id === './openaiResponsesMessageConverter') {
             return { OpenAIResponsesMessageConverter: MockOpenAIResponsesMessageConverter };
         }
-        if (id === './openai/openaiResponsesRequestBuilder') {
+        if (id === './openaiResponsesRequestBuilder') {
             return { OpenAIResponsesRequestBuilder: MockOpenAIResponsesRequestBuilder };
         }
-        if (id === './openai/openaiResponsesStreamProcessor') {
+        if (id === './openaiResponsesStreamProcessor') {
             return { OpenAIResponsesStreamProcessor: MockOpenAIResponsesStreamProcessor };
         }
-        if (id === '../usages/usagesManager') {
+        if (id === '../../usages/usagesManager') {
             return {
                 TokenUsagesManager: {
                     instance: {
@@ -132,7 +132,7 @@ async function getOpenAIResponsesHandlerModule() {
                 }
             };
         }
-        if (id === '../utils/runtime/logger') {
+        if (id === '../../utils/runtime/logger') {
             return {
                 Logger: {
                     info(message: string) {
@@ -144,19 +144,19 @@ async function getOpenAIResponsesHandlerModule() {
                 }
             };
         }
-        if (id === '../utils/text/cancellationError') {
+        if (id === '../../utils/text/cancellationError') {
             return { isCancellationError: () => false };
         }
-        if (id === '../utils/text/formatUtils') {
+        if (id === '../../utils/text/formatUtils') {
             return { createOpenCodeHeaders: () => ({}) };
         }
-        if (id === '../cli/auth/cliAuthFactory') {
+        if (id === '../../cli/auth/cliAuthFactory') {
             return { CliAuthFactory: { getInstance: () => undefined } };
         }
-        if (id === '../cli/auth/codexCliAuth') {
+        if (id === '../../cli/auth/codexCliAuth') {
             return { CodexCliAuth: class CodexCliAuth {} };
         }
-        if (id === './liveMetrics') {
+        if (id === '../liveMetrics') {
             return { emitLiveMetrics() {} };
         }
         if (id === './openaiHandler') {

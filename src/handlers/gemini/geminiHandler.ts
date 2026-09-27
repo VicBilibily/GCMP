@@ -6,28 +6,28 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { ApiKeyManager } from '../utils/config/apiKeyManager';
-import { ConfigManager } from '../utils/config/configManager';
-import { Logger } from '../utils/runtime/logger';
-import { isCancellationError } from '../utils/text/cancellationError';
-import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
-import { applyCustomHeaders, mergeCustomHeaders } from '../utils/net/httpHeaders';
-import { replaceSessionIdInBody } from '../utils/text/formatUtils';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { ConfigManager } from '../../utils/config/configManager';
+import { Logger } from '../../utils/runtime/logger';
+import { isCancellationError } from '../../utils/text/cancellationError';
+import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
+import { applyCustomHeaders, mergeCustomHeaders } from '../../utils/net/httpHeaders';
+import { replaceSessionIdInBody } from '../../utils/text/formatUtils';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toNanoAiu,
     toCostBreakdownLog
-} from '../utils/pricing/costCalculator';
-import { t } from '../utils/runtime/l10n';
-import { TokenUsagesManager } from '../usages/usagesManager';
-import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
-import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
+} from '../../utils/pricing/costCalculator';
+import { t } from '../../utils/runtime/l10n';
+import { TokenUsagesManager } from '../../usages/usagesManager';
+import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../../types/sharedTypes';
+import type { GenericUsageData, RawUsageData } from '../../usages/fileLogger/types';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
-import { StreamReporter } from './streamReporter';
-import * as liveMetrics from './liveMetrics';
-import type { GenericModelProvider } from '../providers/genericModelProvider';
+import { StreamReporter } from '../streamReporter';
+import * as liveMetrics from '../liveMetrics';
+import type { GenericModelProvider } from '../../providers/genericModelProvider';
 import type {
     GeminiGenerateContentResponse,
     GeminiPart,
@@ -36,7 +36,7 @@ import type {
     GeminiUsageMetadata
 } from './geminiType';
 import { buildGeminiAuthHeaders, buildGeminiEndpoint, buildGeminiRequest, GeminiStreamParser } from './geminiRequest';
-import type { RetryableError } from '../utils/retry/retryManager';
+import type { RetryableError } from '../../utils/retry/retryManager';
 
 interface GeminiTerminationIssue {
     kind: 'blocked' | 'failed';

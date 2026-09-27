@@ -5,8 +5,8 @@ import { join } from 'node:path';
 
 import * as vscode from 'vscode';
 
-import { GeminiHandler, hasGeminiPartialUsage } from '../../src/handlers/geminiHandler';
-import type { GeminiGenerateContentResponse } from '../../src/handlers/geminiType';
+import { GeminiHandler, hasGeminiPartialUsage } from '../../src/handlers/gemini/geminiHandler';
+import type { GeminiGenerateContentResponse } from '../../src/handlers/gemini/geminiType';
 import { onLiveMetrics, type LiveStreamMetricEvent } from '../../src/handlers/liveMetrics';
 import { decodeStatefulMarker } from '../../src/handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';

@@ -11,11 +11,11 @@
 
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
-import { Logger } from '../utils/runtime/logger';
-import { decodeStatefulMarker } from './statefulMarker';
-import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
-import { isEncryptedReasoningOriginMatch } from './openai/encryptedReasoning';
+import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
+import { Logger } from '../../utils/runtime/logger';
+import { decodeStatefulMarker } from '../statefulMarker';
+import { shouldInjectReasoningPlaceholder } from '../reasoningPlaceholder';
+import { isEncryptedReasoningOriginMatch } from '../openai/encryptedReasoning';
 import type {
     ContentBlockParam,
     ThinkingBlockParam,
@@ -25,8 +25,8 @@ import type {
     ImageBlockParam,
     ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources';
-import { ModelConfig } from '../types/sharedTypes';
-import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from './types';
+import { ModelConfig } from '../../types/sharedTypes';
+import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 
 /**
  * 思考部分的元数据接口

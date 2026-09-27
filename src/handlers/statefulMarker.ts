@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { CustomDataPartMimeTypes } from './types';
 import { decodeStatefulMarkerPayload, encodeStatefulMarkerPayload } from './statefulMarkerCodec';
-import type { GeminiContent } from './geminiType';
+import type { GeminiContent } from './gemini/geminiType';
 
 // 当前 console.warn 确保该模块在 node:test 环境中也能独立运行
 

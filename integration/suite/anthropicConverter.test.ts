@@ -2,7 +2,7 @@
 
 import * as vscode from 'vscode';
 
-import { apiMessageToAnthropicMessage } from '../../src/handlers/anthropicConverter';
+import { apiMessageToAnthropicMessage } from '../../src/handlers/anthropic/anthropicConverter';
 import { encodeStatefulMarker } from '../../src/handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 

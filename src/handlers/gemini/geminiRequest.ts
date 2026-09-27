@@ -1,4 +1,4 @@
-import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
 import type {
     GeminiGenerateContentRequest,
     GeminiGenerationConfig,

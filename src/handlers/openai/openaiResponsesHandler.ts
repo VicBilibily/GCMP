@@ -6,30 +6,30 @@
 import * as vscode from 'vscode';
 import { ClientOptions } from 'openai';
 import type { ResponseCreateParamsStreaming } from 'openai/resources/responses/responses';
-import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
-import { CodexCliAuth } from '../cli/auth/codexCliAuth';
-import type { GenericUsageData } from '../usages/fileLogger/types';
-import { TokenUsagesManager } from '../usages/usagesManager';
+import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
+import { CodexCliAuth } from '../../cli/auth/codexCliAuth';
+import type { GenericUsageData } from '../../usages/fileLogger/types';
+import { TokenUsagesManager } from '../../usages/usagesManager';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toCostBreakdownLog,
     toNanoAiu
-} from '../utils/pricing/costCalculator';
-import { t } from '../utils/runtime/l10n';
-import { Logger } from '../utils/runtime/logger';
-import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
-import { isCancellationError } from '../utils/text/cancellationError';
-import { createOpenCodeHeaders } from '../utils/text/formatUtils';
-import { getCustomHeaderDeletionMarkers } from '../utils/net/httpHeaders';
-import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
+} from '../../utils/pricing/costCalculator';
+import { t } from '../../utils/runtime/l10n';
+import { Logger } from '../../utils/runtime/logger';
+import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
+import { isCancellationError } from '../../utils/text/cancellationError';
+import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
+import { getCustomHeaderDeletionMarkers } from '../../utils/net/httpHeaders';
+import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
-import { StreamReporter } from './streamReporter';
-import * as liveMetrics from './liveMetrics';
-import type { GenericModelProvider } from '../providers/genericModelProvider';
-import { OpenAIResponsesMessageConverter } from './openai/openaiResponsesMessageConverter';
-import { OpenAIResponsesRequestBuilder } from './openai/openaiResponsesRequestBuilder';
-import { OpenAIResponsesStreamProcessor } from './openai/openaiResponsesStreamProcessor';
+import { StreamReporter } from '../streamReporter';
+import * as liveMetrics from '../liveMetrics';
+import type { GenericModelProvider } from '../../providers/genericModelProvider';
+import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
+import { OpenAIResponsesRequestBuilder } from './openaiResponsesRequestBuilder';
+import { OpenAIResponsesStreamProcessor } from './openaiResponsesStreamProcessor';
 
 interface APIErrorDetail {
     message?: string;

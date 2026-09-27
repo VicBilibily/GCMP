@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 
-import { OpenAICustomHandler } from '../../src/handlers/openaiCustomHandler';
+import { OpenAICustomHandler } from '../../src/handlers/openai/openaiCustomHandler';
 import { StreamReporter } from '../../src/handlers/streamReporter';
 import { TokenUsagesManager } from '../../src/usages/usagesManager';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';

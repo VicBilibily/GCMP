@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
 import { buildGeminiAuthHeaders, buildGeminiEndpoint, buildGeminiRequest, GeminiStreamParser } from './geminiRequest';
 
 const modelConfig = (extraBody?: Record<string, unknown>): ModelConfig =>

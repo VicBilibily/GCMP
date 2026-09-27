@@ -5,15 +5,15 @@
 
 import * as vscode from 'vscode';
 import type { GeminiContent, GeminiPart, GeminiTool } from './geminiType';
-import { CustomDataPartMimeTypes } from './types';
-import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
+import { CustomDataPartMimeTypes } from '../types';
+import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import {
     decodeStatefulMarker,
     type GeminiToolCallMarker,
     type GeminiThoughtSignatureMarker,
     type StatefulMarkerContainer
-} from './statefulMarker';
-import { t } from '../utils/runtime/l10n';
+} from '../statefulMarker';
+import { t } from '../../utils/runtime/l10n';
 
 interface GeminiMarkerIdentity {
     provider: string;

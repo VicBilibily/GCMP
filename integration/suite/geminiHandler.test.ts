@@ -2,7 +2,7 @@
 
 import * as vscode from 'vscode';
 
-import { GeminiHandler, hasGeminiPartialUsage } from '../../src/handlers/geminiHandler';
+import { GeminiHandler, hasGeminiPartialUsage } from '../../src/handlers/gemini/geminiHandler';
 import { decodeStatefulMarker } from '../../src/handlers/statefulMarker';
 import { StreamReporter } from '../../src/handlers/streamReporter';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';

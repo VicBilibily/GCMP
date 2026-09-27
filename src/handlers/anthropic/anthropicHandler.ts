@@ -6,40 +6,44 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { preprocessAnthropicCacheBreakpoints, stripTopLevelCacheControl } from './anthropic/anthropicCacheControl';
+import { preprocessAnthropicCacheBreakpoints, stripTopLevelCacheControl } from './anthropicCacheControl';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
-import { ApiKeyManager } from '../utils/config/apiKeyManager';
-import { Logger } from '../utils/runtime/logger';
-import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
-import { ConfigManager } from '../utils/config/configManager';
-import { redactHeaders } from '../utils/net/proxyAgent';
-import { getCustomHeaderDeletionMarkers, mergeCustomHeaders, preserveRequiredHeaders } from '../utils/net/httpHeaders';
-import { isCancellationError } from '../utils/text/cancellationError';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { Logger } from '../../utils/runtime/logger';
+import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
+import { ConfigManager } from '../../utils/config/configManager';
+import { redactHeaders } from '../../utils/net/proxyAgent';
+import {
+    getCustomHeaderDeletionMarkers,
+    mergeCustomHeaders,
+    preserveRequiredHeaders
+} from '../../utils/net/httpHeaders';
+import { isCancellationError } from '../../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toNanoAiu,
     toCostBreakdownLog
-} from '../utils/pricing/costCalculator';
-import { VersionManager } from '../utils/runtime/versionManager';
-import { createOpenCodeHeaders, replaceSessionIdInBody } from '../utils/text/formatUtils';
-import { TokenUsagesManager } from '../usages/usagesManager';
-import { t } from '../utils/runtime/l10n';
+} from '../../utils/pricing/costCalculator';
+import { VersionManager } from '../../utils/runtime/versionManager';
+import { createOpenCodeHeaders, replaceSessionIdInBody } from '../../utils/text/formatUtils';
+import { TokenUsagesManager } from '../../usages/usagesManager';
+import { t } from '../../utils/runtime/l10n';
 import type {
     CustomHeaders,
     ModelChatResponseOptions,
     ModelConfig,
     NativeToolConfig,
     ProviderConfig
-} from '../types/sharedTypes';
-import { OpenAIHandler } from './openaiHandler';
-import { StreamReporter } from './streamReporter';
-import { mergeNativeToolConfigs } from './nativeToolUtils';
-import * as liveMetrics from './liveMetrics';
-import type { GenericModelProvider } from '../providers/genericModelProvider';
-import { isSubRequest, type RequestKind } from './requestClassifier';
-import { applyAnthropicThinkingConfiguration } from './anthropic/anthropicThinkingConfig';
-import { applyAnthropicServiceTier } from './anthropic/serviceTier';
+} from '../../types/sharedTypes';
+import { OpenAIHandler } from '../openai/openaiHandler';
+import { StreamReporter } from '../streamReporter';
+import { mergeNativeToolConfigs } from '../nativeToolUtils';
+import * as liveMetrics from '../liveMetrics';
+import type { GenericModelProvider } from '../../providers/genericModelProvider';
+import { isSubRequest, type RequestKind } from '../requestClassifier';
+import { applyAnthropicThinkingConfiguration } from './anthropicThinkingConfig';
+import { applyAnthropicServiceTier } from './serviceTier';
 
 /**
  * Anthropic 兼容处理器类
