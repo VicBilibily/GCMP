@@ -8,7 +8,7 @@
 
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { LiveRequestUiState, State } from './types';
-import { getLiveWaitingPresentation, getTodayDateString, t } from './utils';
+import { formatDuration, getLiveWaitingPresentation, getOutputDuration, getTodayDateString, t } from './utils';
 
 /**
  * 单个请求的实时流式指标状态
@@ -19,6 +19,8 @@ import { getLiveWaitingPresentation, getTodayDateString, t } from './utils';
 interface LiveMetricsState extends LiveRequestUiState {
     attemptStartTime: number; // 当前 attempt 开始时间（live TTFT 计算）
     streamStartTime?: number; // 当前 attempt 首流事件时间
+    firstOutputTime?: number;
+    lastOutputTime?: number;
     firstChunkLatencyMs: number; // 当前 attempt 固定的首流延迟
     estimatedOutputTokens: number; // 实时估算的输出 token（带边界误差，仅供展示）
     lastOutputTokenDelta: number; // 最近一次 flush 新增的 token 数（UI 显示为 +xx）
@@ -114,7 +116,7 @@ export class LiveMetricsRenderer {
                 const state = this.getOrCreateState(requestId, event);
                 this.syncAttemptState(state, event);
 
-                // 检测 attempt 切换（firstChunk 丢失时的兜底）：通过 streamStartTime 变化判断
+                // 同一 requestId 会跨 retry attempt 复用，缺失 firstChunk 时以 streamStartTime 变化兜底识别。
                 const isNewAttempt =
                     event.streamStartTime !== undefined && event.streamStartTime !== state.streamStartTime;
 
@@ -130,6 +132,8 @@ export class LiveMetricsRenderer {
                 if (event.estimatedOutputTokens !== undefined) {
                     state.estimatedOutputTokens = event.estimatedOutputTokens;
                 }
+                state.firstOutputTime = event.firstOutputTime ?? state.firstOutputTime;
+                state.lastOutputTime = event.lastOutputTime ?? state.lastOutputTime;
                 state.lastOutputTokenDelta = event.lastOutputTokenDelta ?? state.lastOutputTokenDelta;
                 state.lastFlushSeq = newSeq;
                 state.tokensPerSecond = event.tokensPerSecond ?? state.tokensPerSecond;
@@ -304,6 +308,8 @@ export class LiveMetricsRenderer {
 
     private resetAttemptOutput(state: LiveMetricsState): void {
         state.estimatedOutputTokens = 0;
+        state.firstOutputTime = undefined;
+        state.lastOutputTime = undefined;
         state.lastOutputTokenDelta = 0;
         state.lastFlushSeq = 0;
         state.tokensPerSecond = 0;
@@ -422,56 +428,49 @@ export class LiveMetricsRenderer {
                 }
             }
 
-            // 实时计算首流延迟：首流事件前持续增长，首流事件后固定
+            // 实时计算首输出延迟：实际输出前持续增长，输出后固定
             const hasStreamStarted = metricState.streamStartTime !== undefined;
+            const hasOutputStarted = metricState.firstOutputTime !== undefined;
             const latencyMs =
-                hasStreamStarted ?
-                    metricState.firstChunkLatencyMs
+                hasOutputStarted ?
+                    Math.max(0, metricState.firstOutputTime! - metricState.attemptStartTime)
                 :   Math.max(0, metricTime - metricState.attemptStartTime);
-
-            // 实时计算输出耗时：首流事件后开始计算
-            const durationMs = hasStreamStarted ? Math.max(0, metricTime - metricState.streamStartTime!) : 0;
 
             // 输出速度：使用 tracker 缓存的 tokensPerSecond，暂停期间不会衰减
             const tokensPerSecond = metricState.tokensPerSecond ?? 0;
+            const outputDuration = getOutputDuration({
+                status: 'estimated',
+                firstOutputTime: metricState.firstOutputTime,
+                lastOutputTime: metricState.lastOutputTime
+            });
 
-            // 更新首流延迟 + 输出耗时 + 速度
             const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
             if (outputCell) {
                 // 防御性兜底：兼容旧 DOM 或未来变更，确保 span 结构存在
                 if (!outputCell.querySelector('.output-ttft')) {
                     outputCell.innerHTML =
                         '<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>' +
-                        '<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>';
+                        '<div class="output-detail"><span class="output-duration">-</span><span class="output-speed">-</span></div>';
                 }
                 const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
                 if (ttftSpan) {
                     if (isWaiting) {
-                        ttftSpan.title = t(
-                            'TTFT starts only after the upstream request is sent.',
-                            '真正发起上游请求后才开始计算 TTFT。'
-                        );
+                        ttftSpan.title = waitingPresentation.waitTitle;
                         ttftSpan.textContent = '-';
                     } else {
-                        ttftSpan.title =
-                            '首流延迟：从 provider 开始处理请求到首个流事件的近似耗时，不一定是首个可见文字';
-                        ttftSpan.textContent =
-                            latencyMs >= 1000 ? `${(latencyMs / 1000).toFixed(1)}s` : `${Math.round(latencyMs)}ms`;
+                        ttftSpan.textContent = formatDuration(latencyMs);
+                        ttftSpan.title = `TTFT: ${ttftSpan.textContent}`;
                     }
                 }
-                const tpotSpan = outputCell.querySelector('.output-tpot') as HTMLElement;
-                if (tpotSpan) {
+                const durationSpan = outputCell.querySelector('.output-duration') as HTMLElement;
+                if (durationSpan) {
                     if (isWaiting) {
-                        tpotSpan.textContent = isEnded ? '-' : waitingPresentation.queuePositionText;
-                        tpotSpan.title = isEnded ? '' : waitingPresentation.queuePositionTitle;
+                        durationSpan.textContent = isEnded ? '-' : waitingPresentation.queuePositionText;
+                        durationSpan.title = isEnded ? '' : waitingPresentation.queuePositionTitle;
                     } else {
-                        tpotSpan.textContent =
-                            durationMs > 0 ?
-                                durationMs >= 1000 ?
-                                    `${(durationMs / 1000).toFixed(1)}s`
-                                :   `${Math.round(durationMs)}ms`
-                            :   '-';
-                        tpotSpan.title = '';
+                        const durationText = outputDuration !== undefined ? formatDuration(outputDuration) : '-';
+                        durationSpan.textContent = durationText;
+                        durationSpan.title = `Output duration: ${durationText}`;
                     }
                 }
                 // .output-tokens 在 streaming 阶段显示"最近一次接收的预估增量"（+xx），
@@ -502,19 +501,12 @@ export class LiveMetricsRenderer {
 
                     if (isStale) {
                         speedSpan.textContent = '~';
-                        speedSpan.title = t(
-                            'No new provider output chunk has arrived recently. Some compatible endpoints buffer tool arguments and send them in a later chunk; speed will update when new output arrives.',
-                            '近期未收到新的 provider 输出分片。部分兼容端点会缓冲工具参数并稍后一次性发送；速度将在收到新输出时更新。'
-                        );
-                    } else if (tokensPerSecond > 0 && hasStreamStarted) {
+                    } else if (tokensPerSecond > 0 && hasOutputStarted) {
                         speedSpan.textContent = `${tokensPerSecond.toFixed(1)} t/s`;
-                        speedSpan.title = t(
-                            'Estimated output tokens/s from the first stream event to the latest output of the current attempt; completed requests show usage-based output tokens/s.',
-                            '实时估算的输出 token 速度：按当前尝试从首个流事件到最近一次输出的 token 总量估算；请求完成后显示基于 usage 的输出 token/s。'
-                        );
                     } else {
                         speedSpan.textContent = '-';
                     }
+                    speedSpan.title = `Average speed: ${speedSpan.textContent}`;
                 }
             }
         });

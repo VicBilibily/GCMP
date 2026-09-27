@@ -27,6 +27,10 @@ function createLog(overrides: Partial<TokenRequestLog> = {}): TokenRequestLog {
         telemetryTurn: overrides.telemetryTurn,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
+        firstOutputTime: overrides.firstOutputTime,
+        lastOutputTime: overrides.lastOutputTime,
+        firstContentOutputTime: overrides.firstContentOutputTime,
+        lastContentOutputTime: overrides.lastContentOutputTime,
         outputSpeed: overrides.outputSpeed,
         outputTokens: overrides.outputTokens,
         estimatedCost: overrides.estimatedCost,
@@ -223,6 +227,57 @@ test('aggregateLogs counts cancelled request actual usage when rawUsage exists',
     assert.equal(model.outputSpeeds, 20);
 });
 
+for (const duration of [1, 3, 14, 99]) {
+    test(`aggregateLogs includes a single-token request completed in ${duration}ms`, () => {
+        const stats = StatsCalculator.aggregateLogs([
+            createLog({
+                status: 'completed',
+                rawUsage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
+                streamStartTime: 1200,
+                streamEndTime: 1200 + duration,
+                firstOutputTime: 1200,
+                lastOutputTime: 1200
+            })
+        ]);
+        const speed = (1 / duration) * 1000;
+        assert.equal(stats.providers.provider.models.model.outputSpeeds, speed);
+    });
+}
+
+test('aggregateLogs counts failed request actual usage when rawUsage exists', () => {
+    const stats = StatsCalculator.aggregateLogs([
+        createLog({
+            status: 'failed',
+            estimatedInput: 90,
+            rawUsage: {
+                prompt_tokens: 100,
+                completion_tokens: 20,
+                total_tokens: 120
+            },
+            estimatedCost: 0.1
+        })
+    ]);
+
+    assert.equal(stats.total.requests, 1);
+    assert.equal(stats.total.failedRequests, 1);
+    assert.equal(stats.total.estimatedInput, 90);
+    assert.equal(stats.total.actualInput, 100);
+    assert.equal(stats.total.outputTokens, 20);
+    assert.equal(stats.total.estimatedCost, 0.1);
+
+    const provider = stats.providers.provider;
+    assert.ok(provider);
+    assert.equal(provider.failedRequests, 1);
+    assert.equal(provider.actualInput, 100);
+    assert.equal(provider.outputTokens, 20);
+
+    const model = provider.models.model;
+    assert.ok(model);
+    assert.equal(model.requests, 1);
+    assert.equal(model.actualInput, 100);
+    assert.equal(model.outputTokens, 20);
+});
+
 test('aggregateLogs keeps cancelled request without rawUsage out of actual token totals', () => {
     const stats = StatsCalculator.aggregateLogs([
         createLog({
@@ -327,7 +382,11 @@ test('mergeLogsByRequestId keeps late session title backfill metadata', () => {
             sessionId: 'session-1',
             sessionTitle: '新的会话标题',
             outputSpeed: 12.5,
-            outputTokens: 20
+            outputTokens: 20,
+            firstOutputTime: 1600,
+            lastOutputTime: 1900,
+            firstContentOutputTime: 1700,
+            lastContentOutputTime: 1800
         })
     ]);
 
@@ -340,6 +399,10 @@ test('mergeLogsByRequestId keeps late session title backfill metadata', () => {
     assert.equal(record.telemetryTurn, 3);
     assert.equal(record.outputSpeed, 12.5);
     assert.equal(record.outputTokens, 20);
+    assert.equal(record.firstOutputTime, 1600);
+    assert.equal(record.lastOutputTime, 1900);
+    assert.equal(record.firstContentOutputTime, 1700);
+    assert.equal(record.lastContentOutputTime, 1800);
 });
 
 test('mergeLogsByRequestId keeps late chat-title session reassignment', () => {

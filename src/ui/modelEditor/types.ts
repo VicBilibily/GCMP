@@ -171,5 +171,10 @@ export const SDK_MODE_OPTIONS: { value: SdkMode; labelEn: string; labelZh: strin
         value: 'anthropic',
         labelEn: 'Anthropic SDK (uses the official SDK for streaming responses)',
         labelZh: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)'
+    },
+    {
+        value: 'gemini-sse',
+        labelEn: 'Gemini SSE (uses the GenerateContent streaming API)',
+        labelZh: 'Gemini SSE (使用 GenerateContent 流式 API)'
     }
 ];

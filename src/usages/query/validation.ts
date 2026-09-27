@@ -257,6 +257,10 @@ function normalizePendingRecord(value: unknown): UsagesPendingRecord | undefined
         'requestMetricStartTime',
         'streamStartTime',
         'streamEndTime',
+        'firstOutputTime',
+        'lastOutputTime',
+        'firstContentOutputTime',
+        'lastContentOutputTime',
         'outputSpeed',
         'outputTokens'
     ] as const) {
@@ -422,7 +426,7 @@ function isRequestTotals(value: unknown): boolean {
     }
     return (
         isOptionalNonNegativeFinite(value.avgLatency) &&
-        isOptionalNonNegativeFinite(value.avgDuration) &&
+        isOptionalNonNegativeFinite(value.avgOutputDuration) &&
         isNativeCostSplit(value.nativeCosts) &&
         isNonNegativeInteger(value.costedRequests) &&
         isNonNegativeInteger(value.rmbExactRequests)

@@ -24,12 +24,15 @@ import {
 } from './sessionFilter';
 import {
     buildCostBreakdownTitle,
+    formatDuration,
     formatSessionTimeRange,
     formatTokens,
     getRecordNativeCostSplit,
+    hasRecordedUsage,
     getCurrencyToggleTitle,
     getDisplayCurrency,
     getLiveWaitingPresentation,
+    getOutputDuration,
     getProviderDisplayName,
     getRequestKindDisplayName,
     getSessionDisplayId,
@@ -819,13 +822,6 @@ function getSessionRecoveryDebugHint(
     }
 }
 
-/**
- * 将毫秒时长格式化为毫秒或秒文本
- */
-function formatDuration(milliseconds: number): string {
-    return milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(1)}s` : `${Math.round(milliseconds)}ms`;
-}
-
 function setNumericDataAttribute(element: HTMLElement, key: string, value: number | undefined): void {
     if (value === undefined || !Number.isFinite(value)) {
         delete element.dataset[key];
@@ -943,10 +939,11 @@ function appendTotalsRow(
 
     const outputCell = createElement('td');
     const latencyValueText = totals.avgLatency && totals.avgLatency > 0 ? formatDuration(totals.avgLatency) : '-';
-    const durationValueText = totals.avgDuration && totals.avgDuration > 0 ? formatDuration(totals.avgDuration) : '-';
+    const durationValueText = totals.avgOutputDuration !== undefined ? formatDuration(totals.avgOutputDuration) : '-';
+    const speedValueText = summary.avgSpeed ? `${summary.avgSpeed.toFixed(1)} t/s` : '-';
     outputCell.innerHTML =
         `<div class="output-row"><span class="output-ttft">${latencyValueText}</span><span class="output-tokens">${formatTokens(totals.outputTokens)}</span></div>` +
-        `<div class="output-detail"><span class="output-tpot">${durationValueText}</span><span class="output-speed">${summary.avgSpeed ? `${summary.avgSpeed.toFixed(1)} t/s` : '-'}</span></div>`;
+        `<div class="output-detail"><span class="output-duration">${durationValueText}</span><span class="output-speed">${speedValueText}</span></div>`;
 
     const totalCell = createElement('td', 'records-total-number');
     const totalTokenStr = formatTokens(summary.totalTokens);
@@ -1011,7 +1008,7 @@ export function createRequestRecordsTable(
         t('Time', '时间'),
         t('Provider & Model', '提供商模型'),
         t('<span>Cache</span><span>Input</span>', '<span>缓存命中</span><span>输入总计</span>'),
-        t('<span>Duration</span><span>Output</span>', '<span>输出耗时</span><span>输出速度</span>'),
+        t('<span>Duration</span><span>Output</span>', '<span>输出耗时</span><span>平均速度</span>'),
         t('Tokens', '令牌消耗'),
         t('Status', '状态')
     ];
@@ -1083,10 +1080,7 @@ export function createRequestRecordsTable(
         providerModel.append(providerDiv, modelDiv);
 
         const input = createElement('td', 'records-input-merged');
-        const hasActualUsage =
-            (record.status === 'completed' || record.status === 'cancelled') &&
-            !!record.rawUsage &&
-            record.totalTokens > 0;
+        const hasActualUsage = hasRecordedUsage(record);
         const inputVal = hasActualUsage ? record.actualInput || 0 : record.estimatedInput || 0;
         const cacheVal = hasActualUsage && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
 
@@ -1139,53 +1133,33 @@ export function createRequestRecordsTable(
             }
         }
 
-        // 合并输出列：上行 TTFT | 输出令牌，下行 TPOT | 输出速度
         const output = createElement('td', 'records-output-merged');
         output.setAttribute('data-metric', 'output');
         const liveState = getLiveRequestUiState(record.requestId);
         const waitingPresentation = getLiveWaitingPresentation(liveState);
         const isWaiting = waitingPresentation.isWaiting;
         const outputVal = hasActualUsage && record.outputTokens > 0 ? record.outputTokens : 0;
-        const metricStartTime = record.requestMetricStartTime ?? record.timestamp;
         const ttft =
-            (
-                record.streamStartTime !== undefined &&
-                metricStartTime !== undefined &&
-                Number.isFinite(record.streamStartTime - metricStartTime) &&
-                record.streamStartTime - metricStartTime >= 0
-            ) ?
-                record.streamStartTime - metricStartTime
+            record.status !== 'estimated' || record.firstOutputTime !== undefined ?
+                record.firstTokenLatency
             :   undefined;
         const speedVal = record.outputSpeed && record.outputSpeed > 0 ? record.outputSpeed : undefined;
-        const tpot =
-            record.streamDuration !== undefined && record.streamDuration > 0 ? record.streamDuration : undefined;
+        const duration = getOutputDuration(record);
 
         const ttftText =
             isWaiting ? '-'
-            : ttft !== undefined ?
-                ttft >= 1000 ?
-                    `${(ttft / 1000).toFixed(1)}s`
-                :   `${Math.round(ttft)}ms`
-            :   '-';
-        const tpotText =
+            : ttft !== undefined ? formatDuration(ttft)
+            : '-';
+        const durationText =
             isWaiting ? waitingPresentation.queuePositionText
-            : tpot !== undefined ?
-                tpot >= 1000 ?
-                    `${(tpot / 1000).toFixed(1)}s`
-                :   `${Math.round(tpot)}ms`
-            :   '-';
+            : duration !== undefined ? formatDuration(duration)
+            : '-';
         const speedText = speedVal !== undefined ? `${speedVal.toFixed(1)} t/s` : '-';
         const outputTokensText = outputVal > 0 ? formatTokens(outputVal) : '-';
-        const ttftTitle =
-            isWaiting ?
-                waitingPresentation.waitTitle
-            :   `TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}`;
+        const ttftTitle = isWaiting ? waitingPresentation.waitTitle : `TTFT: ${ttftText}`;
         const outputTokensTitle = `Output tokens: ${outputVal > 0 ? outputVal.toLocaleString('en-US') : '-'}`;
-        const tpotTitle =
-            isWaiting ?
-                waitingPresentation.queuePositionTitle
-            :   `TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}`;
-        const speedTitle = `Speed: ${speedText}`;
+        const durationTitle = isWaiting ? waitingPresentation.queuePositionTitle : `Output duration: ${durationText}`;
+        const speedTitle = `Average speed: ${speedText}`;
         const outputRowHtml =
             '<div class="output-row">' +
             `<span class="output-ttft" title="${ttftTitle}">${ttftText}</span>` +
@@ -1193,7 +1167,7 @@ export function createRequestRecordsTable(
             '</div>';
         const outputDetailHtml =
             '<div class="output-detail">' +
-            `<span class="output-tpot" title="${tpotTitle}">${tpotText}</span>` +
+            `<span class="output-duration" title="${durationTitle}">${durationText}</span>` +
             `<span class="output-speed" title="${speedTitle}">${speedText}</span>` +
             '</div>';
         output.innerHTML = outputRowHtml + outputDetailHtml;

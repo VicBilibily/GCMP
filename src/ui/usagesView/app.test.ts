@@ -1,6 +1,8 @@
 ﻿import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import type { TokenRequestLog } from '../../usages/fileLogger/types';
+import { UsageParser } from '../../usages/fileLogger/usageParser';
 import { buildNativeCostSplitIndex, buildRequestTotals, summarizeSessionRecords } from './aggregation';
 import type {
     HostMessage,
@@ -60,6 +62,10 @@ class TestElement {
         child.parentElement = this;
         this.children.push(child);
         return child;
+    }
+
+    append(...children: TestElement[]): void {
+        children.forEach(child => this.appendChild(child));
     }
 
     insertBefore(child: TestElement, before: TestElement | null): void {
@@ -579,6 +585,174 @@ test('request records redraw preserves viewport scroll and pagination focus', as
     assert.equal(content.scrollTop, 280);
     assert.equal(replacementDetail.scrollLeft, 36);
     assert.equal(globalThis.document.activeElement, replacementPage);
+});
+
+test('request records render output duration and average speed in static and total rows', async context => {
+    const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    context.after(() => {
+        for (const [key, descriptor] of [
+            ['window', originalWindow],
+            ['document', originalDocument]
+        ] as const) {
+            if (descriptor) {
+                Object.defineProperty(globalThis, key, descriptor);
+            } else {
+                Reflect.deleteProperty(globalThis, key);
+            }
+        }
+    });
+    const documentStub = {
+        documentElement: { lang: 'zh-CN' },
+        createElement: (tag: string) => new TestElement(tag)
+    };
+    Reflect.set(globalThis, 'document', documentStub);
+    Reflect.set(globalThis, 'window', {
+        usagesState: { selectedSessionId: null, selectedSessionIds: [], displayCurrency: 'USD' },
+        usagesLiveMetrics: new Map()
+    });
+    const { createRequestRecordsTable } = await import('./components/requestRecords');
+    const render = (overrides: Partial<TokenRequestLog> = {}) => {
+        const record = UsageParser.extendLog({
+            requestId: 'timing',
+            timestamp: 1000,
+            isoTime: new Date(1000).toISOString(),
+            providerKey: 'test',
+            providerName: 'Test',
+            modelId: 'model',
+            modelName: 'Model',
+            estimatedInput: 99,
+            status: 'completed',
+            requestMetricStartTime: 1000,
+            streamStartTime: 1100,
+            streamEndTime: 6000,
+            firstOutputTime: 1500,
+            lastOutputTime: 3500,
+            firstContentOutputTime: 1500,
+            lastContentOutputTime: 3500,
+            rawUsage: { prompt_tokens: 10, completion_tokens: 21, total_tokens: 31 },
+            ...overrides
+        });
+        const table = createRequestRecordsTable(
+            [record],
+            summarizeSessionRecords([record]),
+            buildRequestTotals([record]),
+            new Set()
+        ) as unknown as TestElement;
+        const rows = table.querySelector('tbody')!.children;
+        return {
+            header: table.querySelector('thead')!.children[0].children[3].innerHTML,
+            output: rows[0].children[3].innerHTML,
+            total: rows[1].children[3].innerHTML
+        };
+    };
+
+    for (const lang of ['zh-CN', 'en']) {
+        await context.test(`static and total output labels match their values in ${lang}`, () => {
+            documentStub.documentElement.lang = lang;
+            const { header, output, total } = render();
+            assert.equal(
+                header,
+                lang === 'zh-CN' ?
+                    '<span>输出耗时</span><span>平均速度</span>'
+                :   '<span>Duration</span><span>Output</span>'
+            );
+            for (const html of [output, total]) {
+                assert.match(html, /class="output-duration"[^>]*>2\.0s</);
+                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
+                assert.doesNotMatch(html, /TPOT|ms\/token|≈|legacy|approximation|稳健均值/);
+            }
+            assert.match(output, /title="Output duration: 2\.0s"/);
+            assert.match(output, /title="Average speed: 4\.3 t\/s"/);
+            assert.doesNotMatch(total, /title=/);
+        });
+    }
+
+    await context.test('average speed includes all output tokens without a separate content window', () => {
+        const { output, total } = render({
+            firstContentOutputTime: 2500,
+            rawUsage: { promptTokenCount: 10, candidatesTokenCount: 11, thoughtsTokenCount: 20, totalTokenCount: 41 }
+        });
+        for (const html of [output, total]) {
+            assert.match(html, /class="output-duration"[^>]*>2\.0s</);
+            assert.match(html, /class="output-speed"[^>]*>6\.3 t\/s</);
+        }
+        assert.doesNotMatch(output, /reasoning|thinking|protocol|window|100ms/);
+    });
+
+    await context.test('legacy timings display plain values without approximation symbols or explanations', () => {
+        const { output, total } = render({
+            firstOutputTime: undefined,
+            lastOutputTime: undefined,
+            firstContentOutputTime: undefined,
+            lastContentOutputTime: undefined
+        });
+        for (const html of [output, total]) {
+            assert.match(html, /class="output-duration"[^>]*>4\.9s</);
+            assert.doesNotMatch(html, /≈|legacy|approximation|protocol|稳健均值/);
+        }
+        assert.match(output, /class="output-ttft"[^>]*>100ms</);
+        assert.match(output, /class="output-speed"[^>]*>4\.3 t\/s</);
+        assert.doesNotMatch(total, /title=/);
+    });
+
+    await context.test('zero and short output spans preserve the original stream average speed', () => {
+        for (const duration of [0, 14]) {
+            const { output, total } = render({ lastOutputTime: 1500 + duration });
+            for (const html of [output, total]) {
+                assert.match(html, new RegExp(`class="output-duration"[^>]*>${duration}ms<`));
+                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
+            }
+        }
+    });
+
+    for (const duration of [1, 3, 14]) {
+        await context.test(`static and total rows display single-token speed for a ${duration}ms response`, () => {
+            const { output, total } = render({
+                streamEndTime: 1100 + duration,
+                firstOutputTime: 1100,
+                lastOutputTime: 1100,
+                firstContentOutputTime: 1100,
+                lastContentOutputTime: 1100,
+                rawUsage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }
+            });
+            const speed = `${(1000 / duration).toFixed(1)} t/s`;
+            for (const html of [output, total]) {
+                assert.match(html, /class="output-duration"[^>]*>0ms</);
+                assert.ok(html.includes(`>${speed}<`));
+                assert.doesNotMatch(html, /≈|100ms可靠|reliable window/);
+            }
+        });
+    }
+
+    await context.test('incomplete, reversed or non-finite output timestamps do not fall back to protocol time', () => {
+        for (const timestamps of [
+            { firstOutputTime: undefined },
+            { lastOutputTime: undefined },
+            { lastOutputTime: 1000 },
+            { firstOutputTime: Number.NaN },
+            { lastOutputTime: Number.POSITIVE_INFINITY }
+        ]) {
+            const { output, total } = render(timestamps);
+            for (const html of [output, total]) {
+                assert.match(html, /class="output-duration"[^>]*>-</);
+            }
+        }
+    });
+
+    await context.test('pending protocol events do not present completed output duration or TTFT', () => {
+        const { output } = render({
+            status: 'estimated',
+            rawUsage: null,
+            firstOutputTime: undefined,
+            lastOutputTime: undefined,
+            firstContentOutputTime: undefined,
+            lastContentOutputTime: undefined,
+            streamEndTime: undefined
+        });
+        assert.match(output, /class="output-ttft"[^>]*>-</);
+        assert.match(output, /class="output-duration"[^>]*>-</);
+    });
 });
 
 test('request records prefetches pages sequentially and uses a cached page immediately', async context => {

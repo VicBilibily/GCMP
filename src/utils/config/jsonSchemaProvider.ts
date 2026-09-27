@@ -11,7 +11,11 @@ import { t } from '../runtime/l10n';
 import type { JSONSchema7 } from 'json-schema';
 import { KnownProviders } from './knownProviders';
 import { CompatibleModelManager } from './compatibleModelManager';
-import { ANTHROPIC_COMPATIBLE_SERVICE_TIERS, OPENAI_COMPATIBLE_SERVICE_TIERS } from '../model/compatibleServiceTier';
+import {
+    ANTHROPIC_COMPATIBLE_SERVICE_TIERS,
+    GEMINI_COMPATIBLE_SERVICE_TIERS,
+    OPENAI_COMPATIBLE_SERVICE_TIERS
+} from '../model/compatibleServiceTier';
 
 /**
  * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
@@ -220,26 +224,35 @@ export class JsonSchemaProvider {
         );
     }
 
-    private static getCompatibleServiceTierSchema(protocol: 'all' | 'openai' | 'anthropic'): JSONSchema7 {
+    private static getCompatibleServiceTierSchema(protocol: 'all' | 'openai' | 'anthropic' | 'gemini'): JSONSchema7 {
         // compatible 通道对服务等级采取透传策略：常见值仅作自动补全建议，
         // 三方端点的私有枚举值（如 MiniMax 的 default/priority、网关自定义值）允许自由填写。
         const anthropicSuggestions = [...ANTHROPIC_COMPATIBLE_SERVICE_TIERS, 'default', 'priority'];
         const suggestions =
             protocol === 'openai' ? [...OPENAI_COMPATIBLE_SERVICE_TIERS]
             : protocol === 'anthropic' ? anthropicSuggestions
-            : [...new Set([...OPENAI_COMPATIBLE_SERVICE_TIERS, ...anthropicSuggestions])];
+            : protocol === 'gemini' ? [...GEMINI_COMPATIBLE_SERVICE_TIERS]
+            : [
+                    ...new Set([
+                        ...OPENAI_COMPATIBLE_SERVICE_TIERS,
+                        ...anthropicSuggestions,
+                        ...GEMINI_COMPATIBLE_SERVICE_TIERS
+                    ])
+                ];
         const descriptions: Record<string, string> = {
             default: t(
                 'Default service tier (OpenAI and some third-party Anthropic endpoints such as MiniMax).',
                 '默认服务等级（OpenAI 及 MiniMax 等部分三方 Anthropic 端点）'
             ),
             auto: t('Let the API select the service tier automatically.', '由 API 自动选择服务等级'),
-            flex: t('OpenAI Flex processing tier.', 'OpenAI Flex 处理等级'),
+            flex: t('Flex processing tier (OpenAI or Gemini).', 'Flex 处理等级（OpenAI 或 Gemini）'),
             priority: t(
-                'Priority processing tier (OpenAI and some third-party Anthropic endpoints such as MiniMax).',
-                '优先处理等级（OpenAI 及 MiniMax 等部分三方 Anthropic 端点）'
+                'Priority processing tier (OpenAI, Gemini, and some third-party Anthropic endpoints such as MiniMax).',
+                '优先处理等级（OpenAI、Gemini 及 MiniMax 等部分三方 Anthropic 端点）'
             ),
-            standard_only: t('Use only the Anthropic standard service tier.', '仅使用 Anthropic 标准服务等级')
+            standard_only: t('Use only the Anthropic standard service tier.', '仅使用 Anthropic 标准服务等级'),
+            unspecified: t('Use the Gemini API default service tier.', '使用 Gemini API 默认服务等级'),
+            standard: t('Use the Gemini standard service tier.', '使用 Gemini 标准服务等级')
         };
 
         return {
@@ -564,6 +577,10 @@ export class JsonSchemaProvider {
             t(
                 'Anthropic SDK standard mode, using the official Anthropic SDK for request/response handling',
                 'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理'
+            ),
+            t(
+                'Gemini SSE mode, using the Gemini GenerateContent streaming API',
+                'Gemini SSE 模式，使用 Gemini GenerateContent 流式 API'
             )
         ];
     }
@@ -753,10 +770,10 @@ export class JsonSchemaProvider {
         return {
             type: 'string',
             description: t(
-                'Model family identifier used to determine the editing tool mode.\nIf it is not set, the default is inferred from sdkMode:\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6',
-                '模型的 family 标识，用于确定编辑工具模式。\n如果未设置，将根据 sdkMode 自动推断默认值：\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6'
+                'Model family identifier used to determine the editing tool mode.\nIf it is not set, the default is inferred from sdkMode:\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6\n- gemini-sse → gemini-3-pro',
+                '模型的 family 标识，用于确定编辑工具模式。\n如果未设置，将根据 sdkMode 自动推断默认值：\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6\n- gemini-sse → gemini-3-pro'
             ),
-            enum: ['claude-sonnet-4.6', 'gpt-5.2'],
+            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
             enumDescriptions: [
                 t(
                     'Claude-style editing tool (replace_string_in_file) - efficient, precise single replacements with multi-file support',
@@ -947,7 +964,7 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
                                 enumDescriptions: this.getSdkModeEnumDescriptions(),
                                 description: t('SDK mode defaults to openai.', 'SDK模式默认为 openai。'),
                                 default: 'openai'
@@ -1171,8 +1188,20 @@ export class JsonSchemaProvider {
                                     }
                                 },
                                 else: {
-                                    properties: {
-                                        serviceTier: this.getCompatibleServiceTierSchema('openai')
+                                    if: {
+                                        properties: { sdkMode: { const: 'gemini-sse' } },
+                                        required: ['sdkMode']
+                                    },
+                                    then: {
+                                        required: ['baseUrl'],
+                                        properties: {
+                                            serviceTier: this.getCompatibleServiceTierSchema('gemini')
+                                        }
+                                    },
+                                    else: {
+                                        properties: {
+                                            serviceTier: this.getCompatibleServiceTierSchema('openai')
+                                        }
                                     }
                                 }
                             },
@@ -1419,6 +1448,30 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'gemini-sse' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier. Default for gemini-sse mode: gemini-3-pro',
+                                                '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro'
+                                            ),
+                                            default: 'gemini-3-pro',
+                                            enum: ['gemini-3-pro'],
+                                            enumDescriptions: [
+                                                t('Gemini-style editing tool family', 'Gemini 风格编辑工具系列')
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
                                 // family 条件建议：根据 sdkMode 推荐默认值
                                 // anthropic 模式推荐 claude-sonnet-4.6
                                 if: {
@@ -1648,7 +1701,7 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
                                 enumDescriptions: [
                                     t('OpenAI SDK standard mode', 'OpenAI SDK 标准模式'),
                                     t(
@@ -1656,7 +1709,11 @@ export class JsonSchemaProvider {
                                         'OpenAI SSE 兼容模式（自定义流式处理）'
                                     ),
                                     t('OpenAI Responses API mode', 'OpenAI Responses API 模式'),
-                                    t('Anthropic SDK standard mode', 'Anthropic SDK 标准模式')
+                                    t('Anthropic SDK standard mode', 'Anthropic SDK 标准模式'),
+                                    t(
+                                        'Gemini GenerateContent SSE compatible mode',
+                                        'Gemini GenerateContent SSE 兼容模式'
+                                    )
                                 ],
                                 description: t(
                                     'Override the SDK mode; defaults to openai',
@@ -2041,6 +2098,30 @@ export class JsonSchemaProvider {
                                                     'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
                                                 )
                                             }
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'gemini-sse' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    required: ['baseUrl'],
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier. Default for gemini-sse mode: gemini-3-pro',
+                                                '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro'
+                                            ),
+                                            enum: ['gemini-3-pro'],
+                                            enumDescriptions: [
+                                                t('Gemini-style editing tool family', 'Gemini 风格编辑工具系列')
+                                            ]
                                         }
                                     }
                                 }

@@ -82,7 +82,7 @@ export function createHourlyChart(
     // 1. 输出速度图表
     const speedSection = createElement('div', 'chart-item chart-visible');
     const speedTitle = createElement('h3');
-    speedTitle.textContent = `⚡ ${t('Average Output Speed (tokens/s)', '平均输出速度 (tokens/秒)')}`;
+    speedTitle.textContent = `⚡ ${t('Output Speed (tokens/s)', '输出速度 (tokens/秒)')}`;
     speedSection.appendChild(speedTitle);
     const speedContainer = createElement('div', 'chart-container');
     const speedCanvas = createElement('canvas', 'speed-chart') as HTMLCanvasElement;
@@ -94,7 +94,7 @@ export function createHourlyChart(
     // 2. 延迟图表
     const latencySection = createElement('div', 'chart-item chart-hidden');
     const latencyTitle = createElement('h3');
-    latencyTitle.textContent = `⏱️ ${t('Average First Token Latency (ms)', '首 Token 平均延迟 (毫秒)')}`;
+    latencyTitle.textContent = `⏱️ ${t('First Token Latency (ms)', '首 Token 平均延迟 (毫秒)')}`;
     latencySection.appendChild(latencyTitle);
     const latencyContainer = createElement('div', 'chart-container');
     const latencyCanvas = createElement('canvas', 'latency-chart') as HTMLCanvasElement;

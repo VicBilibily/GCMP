@@ -24,6 +24,10 @@ export interface SnapshotRequestRecord {
     wasThrottled?: boolean;
     streamStartTime?: number;
     streamEndTime?: number;
+    firstOutputTime?: number;
+    lastOutputTime?: number;
+    firstContentOutputTime?: number;
+    lastContentOutputTime?: number;
     actualInput?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -84,6 +88,7 @@ export function stringifySnapshotFile(store: SnapshotFile): string {
         .join('\n');
 }
 
+/** 合并同一 requestId：终态优先、缺失指标回填，并保留最早请求时间。 */
 export function mergeSnapshotRecord(
     baseRecord: SnapshotRequestRecord,
     overlayRecord: SnapshotRequestRecord
@@ -106,6 +111,10 @@ export function mergeSnapshotRecord(
         wasThrottled: preferredRecord.wasThrottled ?? fallbackRecord.wasThrottled,
         streamStartTime: preferredRecord.streamStartTime ?? fallbackRecord.streamStartTime,
         streamEndTime: preferredRecord.streamEndTime ?? fallbackRecord.streamEndTime,
+        firstOutputTime: preferredRecord.firstOutputTime ?? fallbackRecord.firstOutputTime,
+        lastOutputTime: preferredRecord.lastOutputTime ?? fallbackRecord.lastOutputTime,
+        firstContentOutputTime: preferredRecord.firstContentOutputTime ?? fallbackRecord.firstContentOutputTime,
+        lastContentOutputTime: preferredRecord.lastContentOutputTime ?? fallbackRecord.lastContentOutputTime,
         actualInput: preferredRecord.actualInput ?? fallbackRecord.actualInput,
         outputTokens: preferredRecord.outputTokens ?? fallbackRecord.outputTokens,
         totalTokens: preferredRecord.totalTokens ?? fallbackRecord.totalTokens,

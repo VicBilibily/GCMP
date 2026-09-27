@@ -267,6 +267,18 @@ export abstract class StatsCalculator {
                     // 此处用该条流水记录时间作为结束时间兜底，避免历史数据在耗时/速度统计中完全缺失。
                     existing.streamEndTime = log.timestamp;
                 }
+                if (log.firstOutputTime !== undefined) {
+                    existing.firstOutputTime = log.firstOutputTime;
+                }
+                if (log.lastOutputTime !== undefined) {
+                    existing.lastOutputTime = log.lastOutputTime;
+                }
+                if (log.firstContentOutputTime !== undefined) {
+                    existing.firstContentOutputTime = log.firstContentOutputTime;
+                }
+                if (log.lastContentOutputTime !== undefined) {
+                    existing.lastContentOutputTime = log.lastContentOutputTime;
+                }
             }
         }
 
@@ -371,11 +383,8 @@ export abstract class StatsCalculator {
                 providerStats.cancelledRequests++;
             }
 
-            // 只统计具备最终 usage 的 completed/cancelled 请求到 token 用量和速度
-            const hasFinalUsage =
-                (log.status === 'completed' || log.status === 'cancelled') &&
-                !!log.rawUsage &&
-                Object.keys(log.rawUsage).length > 0;
+            const hasFinalStatus = log.status === 'completed' || log.status === 'failed' || log.status === 'cancelled';
+            const hasFinalUsage = hasFinalStatus && log.rawUsage !== null && Object.keys(log.rawUsage).length > 0;
             if (!hasFinalUsage) {
                 // completed 但没有 rawUsage 时，仍回退到预估输入；模型维度同步计入，保持与 provider 合计一致
                 if (log.status === 'completed') {
@@ -396,7 +405,7 @@ export abstract class StatsCalculator {
             // 从 rawUsage 解析 token 统计
             const parsed = UsageParser.parseFromLog(log);
 
-            // 更新总计（completed 与带实际 usage 的 cancelled）
+            // 更新总计
             stats.total.estimatedInput += log.estimatedInput;
             stats.total.actualInput += parsed.actualInput;
             stats.total.cacheTokens += parsed.cacheReadTokens;
@@ -410,7 +419,7 @@ export abstract class StatsCalculator {
             providerStats.outputTokens += parsed.outputTokens;
             addBreakdownCosts(providerStats, log);
 
-            // 按模型聚合（completed 与带实际 usage 的 cancelled）
+            // 按模型聚合
             if (!providerStats.models[log.modelId]) {
                 providerStats.models[log.modelId] = createEmptyModelStats(log.modelName);
             }
@@ -423,17 +432,7 @@ export abstract class StatsCalculator {
             modelStats.requests++;
             addBreakdownCosts(modelStats, log);
 
-            // 速度样本仅收集到“模型”维度。
-            // 排除速度超过 2000 tokens/s 的异常峰值（快速模型正常完成仅需 3-5ms，
-            // 但极端输出量+极短耗时仍会算出荒谬值），避免 MAD 在中位数被整体拉高时失效。
-            const streamDuration = parsed.streamDuration;
-            if (
-                parsed.outputSpeed &&
-                parsed.outputSpeed > 0 &&
-                parsed.outputSpeed <= 2000 &&
-                streamDuration !== undefined &&
-                streamDuration > 0
-            ) {
+            if (parsed.outputSpeed && parsed.outputSpeed > 0 && parsed.outputSpeed <= 2000) {
                 if (!modelSpeedValues[log.providerKey]) {
                     modelSpeedValues[log.providerKey] = {};
                 }
@@ -443,21 +442,16 @@ export abstract class StatsCalculator {
                 modelSpeedValues[log.providerKey][log.modelId].push(parsed.outputSpeed);
             }
 
-            // 首 Token 延迟样本同样仅收集到“模型”维度（不做置信处理）。
-            // 过滤 10ms 以内的异常极值（响应过快的数据通常是缓存命中或系统内部请求，不代表真实首流延迟）。
-            const metricStartTime = log.requestMetricStartTime ?? log.timestamp;
-            if (log.streamStartTime !== undefined && metricStartTime !== undefined) {
-                const firstTokenLatency = log.streamStartTime - metricStartTime;
-                if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 10) {
-                    if (!modelFirstTokenLatencyAcc[log.providerKey]) {
-                        modelFirstTokenLatencyAcc[log.providerKey] = {};
-                    }
-                    if (!modelFirstTokenLatencyAcc[log.providerKey][log.modelId]) {
-                        modelFirstTokenLatencyAcc[log.providerKey][log.modelId] = { sum: 0, count: 0 };
-                    }
-                    modelFirstTokenLatencyAcc[log.providerKey][log.modelId].sum += firstTokenLatency;
-                    modelFirstTokenLatencyAcc[log.providerKey][log.modelId].count += 1;
+            const firstTokenLatency = parsed.firstTokenLatency;
+            if (firstTokenLatency !== undefined && firstTokenLatency >= 10) {
+                if (!modelFirstTokenLatencyAcc[log.providerKey]) {
+                    modelFirstTokenLatencyAcc[log.providerKey] = {};
                 }
+                if (!modelFirstTokenLatencyAcc[log.providerKey][log.modelId]) {
+                    modelFirstTokenLatencyAcc[log.providerKey][log.modelId] = { sum: 0, count: 0 };
+                }
+                modelFirstTokenLatencyAcc[log.providerKey][log.modelId].sum += firstTokenLatency;
+                modelFirstTokenLatencyAcc[log.providerKey][log.modelId].count += 1;
             }
         }
 

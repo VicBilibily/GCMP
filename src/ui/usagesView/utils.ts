@@ -19,7 +19,9 @@ export {
     buildRequestTotals,
     buildSessionGroupSummaries,
     filterRecordsBySession,
+    getOutputDuration,
     getRecordNativeCostSplit,
+    hasRecordedUsage,
     getSessionDisplayId,
     groupRecordsBySession,
     meanWithoutOutliers,
@@ -33,6 +35,10 @@ export {
 export type { RecordsPageSlice, SessionRecoveryDebugSummary } from './aggregation';
 
 export type { NativeCostSplit } from '../../usages/fileLogger/types';
+
+export function formatDuration(milliseconds: number): string {
+    return milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(1)}s` : `${Math.round(milliseconds)}ms`;
+}
 
 export function getStatsNativeCostSplit(stats: BaseStats | undefined, fallback?: NativeCostSplit): NativeCostSplit {
     return fallback ?? stats?.nativeCosts ?? createEmptyNativeCostSplit();
@@ -94,8 +100,8 @@ export function getLiveWaitingPresentation(liveState: LiveRequestUiState | undef
         queuePositionText: isWaiting && hasQueuePosition ? `#${liveState.queuePosition}` : '-',
         queuePositionTitle:
             !isWaiting ? ''
-            : hasQueuePosition ? t('Current FIFO queue position', '当前 FIFO 排队顺位')
-            : pacingTitle
+            : hasQueuePosition ? 'Current FIFO queue position'
+            : 'Concurrency slot granted; waiting for the rate limit pacing window'
     };
 }
 

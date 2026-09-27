@@ -9,7 +9,7 @@
  * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
  * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
  */
-const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-07-16T10:00:00+08:00').getTime();
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-09-27T00:00:00+08:00').getTime();
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
@@ -106,7 +106,7 @@ export class TokenFileLogger {
         // 当前实例的实时指标通过 onLiveMetrics 事件总线直接驱动 liveMetricsRenderer（DOM 覆盖），
         // 无需文件 I/O。
         this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
-            if (event.type === 'firstChunk' || event.type === 'streamingUpdate') {
+            if (event.type === 'requestStarted' || event.type === 'firstChunk' || event.type === 'streamingUpdate') {
                 this.updateStreamingMetrics(event);
             }
         });
@@ -921,9 +921,40 @@ export class TokenFileLogger {
             return; // 请求已结束（updateActualTokens 已清除 pendingLog）
         }
 
+        const currentAttemptStartTime = pendingLog.requestMetricStartTime;
+        if (currentAttemptStartTime !== undefined && event.requestStartTime < currentAttemptStartTime) {
+            return;
+        }
+        if (currentAttemptStartTime === undefined || event.requestStartTime > currentAttemptStartTime) {
+            pendingLog.requestMetricStartTime = event.requestStartTime;
+            pendingLog.streamStartTime = undefined;
+            pendingLog.streamEndTime = undefined;
+            pendingLog.firstOutputTime = undefined;
+            pendingLog.lastOutputTime = undefined;
+            pendingLog.firstContentOutputTime = undefined;
+            pendingLog.lastContentOutputTime = undefined;
+            pendingLog.outputSpeed = undefined;
+            pendingLog.outputTokens = undefined;
+        }
+        if (event.type === 'requestStarted') {
+            return;
+        }
+
         // 仅更新内存中的实时指标字段，供 getRecentRequestDetails（状态栏）合并使用
         if (event.streamStartTime !== undefined) {
             pendingLog.streamStartTime = event.streamStartTime;
+        }
+        if (event.firstOutputTime !== undefined) {
+            pendingLog.firstOutputTime = event.firstOutputTime;
+        }
+        if (event.lastOutputTime !== undefined) {
+            pendingLog.lastOutputTime = event.lastOutputTime;
+        }
+        if (event.firstContentOutputTime !== undefined) {
+            pendingLog.firstContentOutputTime = event.firstContentOutputTime;
+        }
+        if (event.lastContentOutputTime !== undefined) {
+            pendingLog.lastContentOutputTime = event.lastContentOutputTime;
         }
         if (event.tokensPerSecond !== undefined) {
             pendingLog.outputSpeed = event.tokensPerSecond;

@@ -269,6 +269,55 @@ test('reportOutput falls back to precomputed token increments when no tokenizer'
     assert.equal(getEvent(updates, 2).estimatedOutputTokens, 12);
 });
 
+test('reportOutput estimates text tokens when no tokenizer', () => {
+    const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
+    tracker.reportOutput('abcdefgh');
+    tracker.reportOutput('中文');
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    assert.equal(getEvent(updates, 0).estimatedOutputTokens, 2);
+    assert.equal(getEvent(updates, 1).estimatedOutputTokens, 4);
+});
+
+test('reportOutputTokens updates estimates without changing output timestamps', () => {
+    const clock = createClock(2000);
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        now: clock.now
+    });
+    tracker.reportOutputEvent();
+    clock.set(5000);
+    tracker.reportOutputTokens('abcdefgh');
+
+    const update = events.filter(e => e.type === 'streamingUpdate').at(-1);
+    assert.equal(update?.firstOutputTime, 2000);
+    assert.equal(update?.lastOutputTime, 2000);
+    assert.equal(update?.firstContentOutputTime, 2000);
+    assert.equal(update?.lastContentOutputTime, 2000);
+    assert.equal(update?.estimatedOutputTokens, 2);
+});
+
+test('thinking preserves TTFT without setting or extending the content output window', () => {
+    const clock = createClock(1200);
+    const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0, now: clock.now });
+    tracker.reportOutput('reasoning', 'thinking');
+    assert.equal(events.at(-1)?.firstOutputTime, 1200);
+    assert.equal(events.at(-1)?.firstContentOutputTime, undefined);
+    clock.set(11200);
+    tracker.reportOutputEvent();
+    clock.set(12200);
+    tracker.reportOutput('tool arguments');
+    clock.set(14000);
+    tracker.reportOutputEvent('thinking');
+    tracker.finishMetrics();
+    const update = events.at(-1);
+    assert.equal(update?.firstOutputTime, 1200);
+    assert.equal(update?.lastOutputTime, 14000);
+    assert.equal(update?.firstContentOutputTime, 11200);
+    assert.equal(update?.lastContentOutputTime, 12200);
+});
+
 test('reportOutput ignores invalid token increments', () => {
     const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
     tracker.reportOutput(Number.NaN);
@@ -290,7 +339,7 @@ test('reportOutput ignores non-positive or invalid input', () => {
     assert.equal(events.length, 0);
 });
 
-test('reportOutput computes tokensPerSecond from elapsed time since first stream event', () => {
+test('reportOutput computes tokensPerSecond from all output tokens since stream start', () => {
     const clock = createClock(2000);
     const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
     const { tracker, events } = createTracker({
@@ -301,16 +350,66 @@ test('reportOutput computes tokensPerSecond from elapsed time since first stream
         tokenBatchChars: 1 // 低阈值，单次 reportOutput 即触发 encode
     });
 
-    // markStreamStarted 把 firstStreamTime 固定为 2000
     tracker.markStreamStarted(2000);
-    // 模拟 firstStreamTime 之后 100ms，收到 50 字符 → 500 tokens/s
+    clock.set(2100);
+    tracker.reportOutput('a');
+    clock.set(2200);
+    tracker.reportOutput('b'.repeat(10));
+
+    const update = events.filter(e => e.type === 'streamingUpdate').at(-1);
+    assert.ok(update, 'expected at least one streamingUpdate');
+    assert.equal(update!.firstOutputTime, 2100);
+    assert.equal(update!.lastOutputTime, 2200);
+    assert.equal(update!.tokensPerSecond, 55, '11 tokens over 200ms = 55 tokens/s');
+});
+
+test('reportOutput preserves throughput for batched output 14ms apart', () => {
+    const clock = createClock(2000);
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        now: clock.now,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1
+    });
+
+    tracker.markStreamStarted(2000);
     clock.set(2100);
     tracker.reportOutput('a'.repeat(50));
+    clock.set(2114);
+    tracker.reportOutput('b'.repeat(15));
 
-    const update = events.find(e => e.type === 'streamingUpdate');
-    assert.ok(update, 'expected at least one streamingUpdate');
-    assert.equal(update!.tokensPerSecond, 500, '50 tokens over 100ms = 500 tokens/s');
+    const update = events.filter(e => e.type === 'streamingUpdate').at(-1);
+    assert.ok(update);
+    assert.equal(update!.firstOutputTime, 2100);
+    assert.equal(update!.lastOutputTime, 2114);
+    assert.equal(update!.tokensPerSecond, (65 / 114) * 1000);
 });
+
+for (const elapsed of [0, 1, 3, 14, 99]) {
+    test(`reportOutput preserves single-token speed after ${elapsed}ms`, () => {
+        const clock = createClock(2000);
+        const { tracker, events } = createTracker({
+            requestStartTime: 1000,
+            liveUpdateIntervalMs: 0,
+            now: clock.now
+        });
+        tracker.markStreamStarted(2000);
+        clock.set(2000 + elapsed);
+        tracker.reportOutput(1);
+
+        const update = events.filter(event => event.type === 'streamingUpdate').at(-1);
+        assert.ok(update);
+        assert.equal(update.firstOutputTime, 2000 + elapsed);
+        assert.equal(update.lastOutputTime, 2000 + elapsed);
+        assert.equal(update.estimatedOutputTokens, 1);
+        assert.equal(update.tokensPerSecond, (1 / Math.max(1, elapsed)) * 1000);
+
+        tracker.finishMetrics();
+        assert.equal(events.at(-1)?.tokensPerSecond, update.tokensPerSecond);
+    });
+}
 
 test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
     const clock = createClock(2000);
@@ -323,12 +422,13 @@ test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
         tokenBatchChars: 1
     });
     tracker.markStreamStarted(2000);
-    // 2000 + 200ms 后收到 100 字符 → 500 tokens/s
-    clock.set(2200);
-    tracker.reportOutput('a'.repeat(100));
+    clock.set(2100);
+    tracker.reportOutput('a');
+    clock.set(2300);
+    tracker.reportOutput('b'.repeat(100));
 
     const speedAfterFirst = events.at(-1)?.tokensPerSecond;
-    assert.equal(speedAfterFirst, 500);
+    assert.equal(speedAfterFirst, (101 / 300) * 1000);
 
     // 模拟暂停：推进 5 秒，连续 heartbeat 不应改变 tokensPerSecond
     clock.set(7200);
@@ -341,7 +441,7 @@ test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
     const lastUpdate = events.at(-1);
     assert.ok(lastUpdate);
     assert.equal(lastUpdate!.type, 'streamingUpdate');
-    assert.equal(lastUpdate!.tokensPerSecond, 500, 'tokensPerSecond should remain frozen during pause');
+    assert.equal(lastUpdate!.tokensPerSecond, speedAfterFirst, 'tokensPerSecond should remain frozen during pause');
 });
 
 test('heartbeat respects throttle interval and emits at most one streamingUpdate per tick', () => {
@@ -565,6 +665,37 @@ test('reportToolCallOverhead uses anthropic structure for anthropic sdkMode', ()
     const expectedArgsOnly = JSON.stringify({ location: 'Beijing' });
     // anthropic 应用 2/3 校准系数（chat template 比 JSON.stringify 紧凑约 1/3）
     const expectedOverhead = Math.round((expectedFullText.length - expectedArgsOnly.length) * (2 / 3));
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    const lastUpdate = updates.at(-1);
+    assert.ok(lastUpdate);
+    assert.equal(lastUpdate!.estimatedOutputTokens, expectedOverhead);
+});
+
+test('reportToolCallOverhead uses Gemini functionCall object structure', () => {
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000
+    });
+    tracker.markStreamStarted(1500);
+
+    const argsJson = '{ "location": "Beijing" }';
+    const name = 'get_weather';
+    tracker.reportToolCallOverhead('gemini', name, argsJson);
+    tracker.finishMetrics();
+
+    const expectedFullText = JSON.stringify({
+        functionCall: {
+            id: 'call_' + '0'.repeat(24),
+            name,
+            args: { location: 'Beijing' }
+        }
+    });
+    const expectedArgsOnly = JSON.stringify({ location: 'Beijing' });
+    const expectedOverhead = expectedFullText.length - expectedArgsOnly.length;
 
     const updates = events.filter(e => e.type === 'streamingUpdate');
     const lastUpdate = updates.at(-1);

@@ -21,6 +21,12 @@ export interface ParsedUsageTokens {
     totalTokens: number;
     /** 流耗时(毫秒) */
     streamDuration?: number;
+    /** 首个实际输出延迟(毫秒) */
+    firstTokenLatency?: number;
+    /** 平均每个输出 token 的耗时(毫秒/token) */
+    timePerOutputToken?: number;
+    /** output 表示真实输出时间，stream 表示旧记录按协议流时间近似 */
+    timingSource?: 'output' | 'stream';
     /** 输出速度(tokens/s) */
     outputSpeed?: number;
 }
@@ -30,11 +36,66 @@ export interface ParsedUsageTokens {
  */
 export type ExtendedTokenRequestLog = TokenRequestLog & ParsedUsageTokens;
 
+interface UsageTimingInput {
+    timestamp: number;
+    /** 当前 attempt 实际发起上游请求的时间戳，缺失时回退到日志创建时间。 */
+    requestMetricStartTime?: number;
+    streamStartTime?: number;
+    streamEndTime?: number;
+    /** 包含文本、思考和工具参数等实际模型输出。 */
+    firstOutputTime?: number;
+    lastOutputTime?: number;
+    /** 非思考内容的实际输出时间。 */
+    firstContentOutputTime?: number;
+    lastContentOutputTime?: number;
+}
+
 /**
  * Token Usage 解析工具类
  * 统一处理不同提供商的 usage 对象格式
  */
 export class UsageParser {
+    static parseTiming(log: UsageTimingInput, outputTokens: number): Partial<ParsedUsageTokens> {
+        const result: Partial<ParsedUsageTokens> = {
+            streamDuration: undefined,
+            firstTokenLatency: undefined,
+            timePerOutputToken: undefined,
+            timingSource: undefined,
+            outputSpeed: undefined
+        };
+
+        const streamStartTime = log.streamStartTime ?? log.timestamp;
+        if (
+            log.streamEndTime !== undefined &&
+            Number.isFinite(streamStartTime) &&
+            Number.isFinite(log.streamEndTime) &&
+            log.streamEndTime >= streamStartTime
+        ) {
+            result.streamDuration = log.streamEndTime - streamStartTime;
+        }
+
+        const hasOutputStart = log.firstOutputTime !== undefined && Number.isFinite(log.firstOutputTime);
+        const metricStartTime = log.requestMetricStartTime ?? log.timestamp;
+        const latencyStart = hasOutputStart ? log.firstOutputTime : log.streamStartTime;
+        if (
+            latencyStart !== undefined &&
+            Number.isFinite(latencyStart) &&
+            Number.isFinite(metricStartTime) &&
+            latencyStart >= metricStartTime
+        ) {
+            result.firstTokenLatency = latencyStart - metricStartTime;
+            result.timingSource = hasOutputStart ? 'output' : 'stream';
+        }
+
+        const duration = result.streamDuration;
+        if (outputTokens > 0 && duration !== undefined && duration > 0) {
+            result.timePerOutputToken = duration / outputTokens;
+            result.outputSpeed = (outputTokens / duration) * 1000;
+        }
+
+        return result;
+    }
+
     /**
      * 从原始 usage 对象解析 token 统计
      * 支持 OpenAI、Anthropic 和 Responses API 三种格式
@@ -51,6 +112,61 @@ export class UsageParser {
 
         if (!rawUsage) {
             return defaultResult;
+        }
+
+        const hasGeminiUsage = [
+            rawUsage.promptTokenCount,
+            rawUsage.responseTokenCount,
+            rawUsage.candidatesTokenCount,
+            rawUsage.thoughtsTokenCount,
+            rawUsage.totalTokenCount,
+            rawUsage.cachedContentTokenCount,
+            rawUsage.toolUsePromptTokenCount
+        ].some(value => value !== undefined);
+        if (hasGeminiUsage) {
+            const promptTokens =
+                typeof rawUsage.promptTokenCount === 'number' && Number.isFinite(rawUsage.promptTokenCount) ?
+                    Math.max(0, rawUsage.promptTokenCount)
+                :   0;
+            const responseTokens =
+                typeof rawUsage.responseTokenCount === 'number' && Number.isFinite(rawUsage.responseTokenCount) ?
+                    Math.max(0, rawUsage.responseTokenCount)
+                :   undefined;
+            const candidateTokens =
+                typeof rawUsage.candidatesTokenCount === 'number' && Number.isFinite(rawUsage.candidatesTokenCount) ?
+                    Math.max(0, rawUsage.candidatesTokenCount)
+                :   0;
+            const toolUsePromptTokens =
+                (
+                    typeof rawUsage.toolUsePromptTokenCount === 'number' &&
+                    Number.isFinite(rawUsage.toolUsePromptTokenCount)
+                ) ?
+                    Math.max(0, rawUsage.toolUsePromptTokenCount)
+                :   0;
+            const actualInput = promptTokens + toolUsePromptTokens;
+            const thoughtsTokens =
+                typeof rawUsage.thoughtsTokenCount === 'number' && Number.isFinite(rawUsage.thoughtsTokenCount) ?
+                    Math.max(0, rawUsage.thoughtsTokenCount)
+                :   0;
+            const outputTokens = responseTokens ?? candidateTokens + thoughtsTokens;
+            const cacheReadTokens =
+                (
+                    typeof rawUsage.cachedContentTokenCount === 'number' &&
+                    Number.isFinite(rawUsage.cachedContentTokenCount)
+                ) ?
+                    Math.min(actualInput, Math.max(0, rawUsage.cachedContentTokenCount))
+                :   0;
+            const reportedTotal =
+                typeof rawUsage.totalTokenCount === 'number' && Number.isFinite(rawUsage.totalTokenCount) ?
+                    Math.max(0, rawUsage.totalTokenCount)
+                :   0;
+            return {
+                actualInput,
+                cacheReadTokens,
+                cacheCreationTokens: Math.max(0, actualInput - cacheReadTokens),
+                outputTokens,
+                totalTokens: reportedTotal || actualInput + outputTokens
+            };
         }
 
         // 尝试解析 Anthropic/Claude 格式 / Responses API 格式
@@ -148,24 +264,13 @@ export class UsageParser {
             };
         }
 
-        // 计算流耗时
-        let duration: number | undefined;
-        if (log.streamStartTime && log.streamEndTime) {
-            duration = log.streamEndTime - log.streamStartTime;
-        } else if (log.streamEndTime) {
-            // 如果只有流结束时间，使用流结束时间和请求时间的差值作为耗时
-            duration = log.streamEndTime - log.timestamp;
+        const timing = this.parseTiming(log, result.outputTokens);
+        // 在途尚无实际 usage，不能用零输出 token 覆盖 tracker 的估算。
+        if (log.status === 'estimated' && !log.rawUsage && log.outputSpeed !== undefined) {
+            timing.outputSpeed = log.outputSpeed;
+            timing.timePerOutputToken = log.outputSpeed > 0 ? 1000 / log.outputSpeed : undefined;
         }
-
-        // 计算输出速度
-        if (duration && duration > 0) {
-            result.streamDuration = duration;
-            if (result.outputTokens > 0) {
-                result.outputSpeed = (result.outputTokens / duration) * 1000;
-            }
-        }
-
-        return result;
+        return { ...result, ...timing };
     }
 
     /**

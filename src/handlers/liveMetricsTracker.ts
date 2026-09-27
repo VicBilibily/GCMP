@@ -23,6 +23,16 @@ function safeEncodeTokens(tokenizer: TikTokenizer | undefined, text: string): nu
     }
 }
 
+function estimateFallbackTokens(text: string): number {
+    let nonAsciiChars = 0;
+    for (let index = 0; index < text.length; index++) {
+        if (text.charCodeAt(index) > 0x7f) {
+            nonAsciiChars++;
+        }
+    }
+    return Math.max(1, Math.ceil((text.length - nonAsciiChars) / 4) + nonAsciiChars);
+}
+
 /**
  * 占位 ID 长度模拟 provider 实际 ID（约 24-36 字符，含前缀）。
  */
@@ -38,11 +48,13 @@ const PLACEHOLDER_RESPONSES_ID = 'fc_' + '0'.repeat(24);
  * - openai/openai-responses: 计费结构与 JSON.stringify 高度一致，系数 1.0
  * - anthropic: 内部 chat template 把 schema 字段名（type/id/name/input）作为标签而非字符串，
  *   比 JSON.stringify 紧凑约 30%（实测反馈：JSON.stringify 系统性高估 tool_use 结构开销）
+ * 仅校准实时预估，不参与供应商最终 usage、费用或账单计算。
  */
-const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'anthropic', number> = {
+const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'anthropic' | 'gemini', number> = {
     openai: 1.0,
     'openai-responses': 1.0,
-    anthropic: 2 / 3
+    anthropic: 2 / 3,
+    gemini: 1
 };
 
 /**
@@ -50,7 +62,7 @@ const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'an
  * 用于估算 provider 真实 output_tokens（包含 id/type/包装层等开销）。
  */
 function buildProviderToolCallText(
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic',
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
     name: string,
     argsJson: string
 ): string {
@@ -81,6 +93,14 @@ function buildProviderToolCallText(
                 name,
                 arguments: argsJson
             });
+        case 'gemini':
+            return JSON.stringify({
+                functionCall: {
+                    id: PLACEHOLDER_CALL_ID,
+                    name,
+                    args: argsObject
+                }
+            });
         case 'openai':
         default:
             // OpenAI Chat Completions: {"id":"call_xxx","type":"function","function":{"name":...,"arguments":"<argsJson>"}}
@@ -98,10 +118,13 @@ function buildProviderToolCallText(
 /**
  * 构造 args 在 provider 计费结构中的"单独表示"。
  * - openai/openai-responses: args 是 stringified JSON（带转义），即 argsJson 原文
- * - anthropic: args 是对象，需要 parse + stringify（去除 argsJson 多余空白）
+ * - anthropic/gemini: args 是对象，需要 parse + stringify（去除 argsJson 多余空白）
  */
-function buildProviderArgsOnlyText(sdkMode: 'openai' | 'openai-responses' | 'anthropic', argsJson: string): string {
-    if (sdkMode === 'anthropic') {
+function buildProviderArgsOnlyText(
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
+    argsJson: string
+): string {
+    if (sdkMode === 'anthropic' || sdkMode === 'gemini') {
         try {
             return JSON.stringify(JSON.parse(argsJson));
         } catch {
@@ -117,7 +140,7 @@ function buildProviderArgsOnlyText(sdkMode: 'openai' | 'openai-responses' | 'ant
 export interface LiveMetricsTrackerOptions {
     /** 请求 ID（可选，缺省时 tracker 不发射任何事件） */
     requestId?: string;
-    /** 请求开始时间戳（可选，缺省时 tracker 不发射任何事件） */
+    /** 当前重试 attempt 实际发起上游请求的时间戳（可选，缺省时 tracker 不发射任何事件） */
     requestStartTime?: number;
     /** 提供商名称 */
     providerName: string;
@@ -137,18 +160,9 @@ export interface LiveMetricsTrackerOptions {
      * 避免大并发下每个 chunk 都触发 encode。未注入时退化为接受调用方预计算的 token 增量。
      */
     tokenizer?: TikTokenizer;
-    /**
-     * 触发批量 encode 的字符阈值（默认 512）。仅当 tokenizer 已注入时生效。
-     * 缓冲文本累计到该阈值后才调用 encode 累加到 estimatedOutputTokens。
-     * 设为远大于单 chunk 字符数的值（高速模型每 chunk 可达 100+ chars），
-     * 确保累积多个 chunk 后才触发一次 encode，避免每个 chunk 都计算。
-     */
+    /** 实时估算的批量 encode 字符阈值（默认 512），不影响最终 usage 或计费。 */
     tokenBatchChars?: number;
-    /**
-     * 触发批量 encode 的时间阈值（默认 500ms）。仅当 tokenizer 已注入时生效。
-     * 即使缓冲文本未达字符阈值，距上次 encode 超过该时长也会强制 flush，
-     * 兼顾高速模型（避免单次 encode 字符数过大）与慢速模型（避免 UI 长期滞后）。
-     */
+    /** 实时估算的批量 encode 时间阈值（默认 500ms），不影响最终 usage 或计费。 */
     tokenBatchMs?: number;
 }
 
@@ -202,6 +216,10 @@ export class LiveMetricsTracker {
     private flushSeq = 0;
     private lastLiveUpdateAt = 0;
     private firstStreamTime = 0;
+    private firstOutputTime = 0;
+    private lastOutputTime = 0;
+    private firstContentOutputTime = 0;
+    private lastContentOutputTime = 0;
     private fixedFirstChunkLatencyMs = 0;
 
     constructor(options: LiveMetricsTrackerOptions) {
@@ -288,13 +306,14 @@ export class LiveMetricsTracker {
      * @param textOrTokens 增量原始文本（推荐，配合 tokenizer 批量 encode）
      *                     或调用方预计算的 token 增量（无 tokenizer 时的 fallback）
      */
-    reportOutput(textOrTokens?: string | number): void {
+    reportOutput(textOrTokens?: string | number, kind: 'content' | 'thinking' = 'content'): void {
         // 无效输入直接跳过（不触发首流兜底、不发射 streamingUpdate）
         if (!this.hasOutputStreaming(textOrTokens)) {
             return;
         }
 
         const now = this.now();
+        this.recordOutputTime(now, kind);
 
         // 兼容 Responses / 第三方网关缺少 response.created / 首流事件的情况：
         // 只有真实输出文本到达时才兜底固定首流时间；不在 heartbeat 中固定
@@ -302,8 +321,25 @@ export class LiveMetricsTracker {
             this.markStreamStarted(now);
         }
 
-        // Token 估算：优先使用 tokenizer + 文本缓冲（批量 encode），
-        // 否则退化为调用方预计算的 token 增量
+        this.accumulateOutputTokens(textOrTokens, now);
+
+        this.updateTokensPerSecond(now);
+
+        this.emitStreamingUpdate(false);
+    }
+
+    /** 只累计 token，不更新实际输出时间，适用于结束阶段补齐完整工具参数。 */
+    reportOutputTokens(textOrTokens: string | number): void {
+        if (!this.hasOutputStreaming(textOrTokens)) {
+            return;
+        }
+        const now = this.now();
+        this.accumulateOutputTokens(textOrTokens, now);
+        this.updateTokensPerSecond(now);
+        this.emitStreamingUpdate(false);
+    }
+
+    private accumulateOutputTokens(textOrTokens: string | number, now: number): void {
         if (this.tokenizer) {
             if (typeof textOrTokens === 'string' && textOrTokens.length > 0) {
                 this.pendingOutputText += textOrTokens;
@@ -318,22 +354,29 @@ export class LiveMetricsTracker {
                     this.flushPendingText(now);
                 }
             }
-        } else if (typeof textOrTokens === 'number' && Number.isFinite(textOrTokens) && textOrTokens > 0) {
-            this.estimatedOutputTokens += textOrTokens;
+            return;
         }
+        const addedTokens = typeof textOrTokens === 'number' ? textOrTokens : estimateFallbackTokens(textOrTokens);
+        this.estimatedOutputTokens += addedTokens;
+        this.lastFlushTokenDelta = addedTokens;
+        this.flushSeq++;
+    }
 
-        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, now - this.firstStreamTime) : 0;
-        // tokens/s：基于累计的 estimatedOutputTokens 计算（暂停期间保持冻结）
-        this.lastTokensPerSecond =
-            elapsedMs > 0 && this.estimatedOutputTokens > 0 ? (this.estimatedOutputTokens / elapsedMs) * 1000 : 0;
-
+    /** 记录没有可编码文本的实际输出事件，例如完整 functionCall。 */
+    reportOutputEvent(kind: 'content' | 'thinking' = 'content'): void {
+        const now = this.now();
+        this.recordOutputTime(now, kind);
+        if (!this.firstChunkEmitted && this.canEmitMetrics()) {
+            this.markStreamStarted(now);
+        }
+        this.updateTokensPerSecond(now);
         this.emitStreamingUpdate(false);
     }
 
     /**
      * 判断 textOrTokens 是否代表 provider 实际输出（用于首流时间兜底）。
      */
-    private hasOutputStreaming(textOrTokens: string | number | undefined): boolean {
+    private hasOutputStreaming(textOrTokens: string | number | undefined): textOrTokens is string | number {
         if (typeof textOrTokens === 'string') {
             return textOrTokens.length > 0;
         }
@@ -363,7 +406,11 @@ export class LiveMetricsTracker {
      * @param name 函数名
      * @param argsJson 已累积的 args JSON 字符串（用于计算扣除部分）
      */
-    reportToolCallOverhead(sdkMode: 'openai' | 'openai-responses' | 'anthropic', name: string, argsJson: string): void {
+    reportToolCallOverhead(
+        sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
+        name: string,
+        argsJson: string
+    ): void {
         if (!this.tokenizer || !name) {
             return;
         }
@@ -399,11 +446,27 @@ export class LiveMetricsTracker {
             this.flushPendingToolCallOverhead(calibration, now);
         }
 
-        // 同步更新 tokens/s（即使未 flush，estimatedOutputTokens 也不会减少）
+        this.updateTokensPerSecond(now);
+        this.emitStreamingUpdate(false);
+    }
+
+    private recordOutputTime(now: number, kind: 'content' | 'thinking'): void {
+        if (this.firstOutputTime === 0) {
+            this.firstOutputTime = now;
+        }
+        this.lastOutputTime = now;
+        if (kind === 'content') {
+            if (this.firstContentOutputTime === 0) {
+                this.firstContentOutputTime = now;
+            }
+            this.lastContentOutputTime = now;
+        }
+    }
+
+    private updateTokensPerSecond(now: number = this.now()): void {
         const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, now - this.firstStreamTime) : 0;
         this.lastTokensPerSecond =
             elapsedMs > 0 && this.estimatedOutputTokens > 0 ? (this.estimatedOutputTokens / elapsedMs) * 1000 : 0;
-        this.emitStreamingUpdate(false);
     }
 
     /**
@@ -483,10 +546,7 @@ export class LiveMetricsTracker {
         // flush 残留的 tool_call overhead 缓冲，确保并行调用场景下不丢失尾部开销
         this.flushPendingToolCallOverhead(this.lastToolCallCalibration, this.now());
 
-        // flush 后 estimatedOutputTokens 可能增加，重新计算 tokensPerSecond
-        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, this.now() - this.firstStreamTime) : 0;
-        this.lastTokensPerSecond =
-            elapsedMs > 0 && this.estimatedOutputTokens > 0 ? (this.estimatedOutputTokens / elapsedMs) * 1000 : 0;
+        this.updateTokensPerSecond();
 
         // 只有已收到首个有效流事件时，才发送最后一帧 streamingUpdate
         if (this.firstChunkEmitted) {
@@ -519,6 +579,10 @@ export class LiveMetricsTracker {
             providerName: this.providerName,
             modelName: this.modelName,
             firstChunkLatencyMs,
+            firstOutputTime: this.firstOutputTime > 0 ? this.firstOutputTime : undefined,
+            lastOutputTime: this.lastOutputTime > 0 ? this.lastOutputTime : undefined,
+            firstContentOutputTime: this.firstContentOutputTime > 0 ? this.firstContentOutputTime : undefined,
+            lastContentOutputTime: this.lastContentOutputTime > 0 ? this.lastContentOutputTime : undefined,
             estimatedOutputTokens: this.estimatedOutputTokens,
             // 最近一次 flush（text/tool_call overhead）新增的 token 数。
             // UI 用 `+xx` 展示"最近一次接收的预估增量"，比累计值更直观

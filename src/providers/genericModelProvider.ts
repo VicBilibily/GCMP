@@ -22,6 +22,7 @@ import { isDashscopeProviderSlot, resolveDashscopeBaseUrl } from '../utils/net/d
 import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
 import { hasFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { ModelInfoCache } from '../utils/model/modelInfoCache';
 import { PromptAnalyzer } from '../utils/model/promptAnalyzer';
@@ -33,6 +34,7 @@ import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
+import { GeminiHandler, hasGeminiPartialUsage } from '../handlers/geminiHandler';
 import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../handlers/anthropic/anthropicRetry';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -121,6 +123,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiCustomHandler: OpenAICustomHandler;
     protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
     protected readonly anthropicHandler: AnthropicHandler;
+    protected readonly geminiHandler: GeminiHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -173,6 +176,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiResponsesHandler = new OpenAIResponsesHandler(this, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
+        this.geminiHandler = new GeminiHandler(this);
 
         // 延迟触发模型信息变更事件，确保所有提供商都已注册完成后重新报告一次模型列表
         setTimeout(() => {
@@ -439,6 +443,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 根据 sdkMode 自动推断默认值
         const sdkMode = model.sdkMode || 'openai';
         switch (sdkMode) {
+            case 'gemini-sse':
+                return 'gemini-3-pro';
             // 默认全部归为 claude-sonnet-4.6 系列，用户可以通过 family 字段覆盖
             case 'anthropic':
             default:
@@ -639,6 +645,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (sdkMode === 'openai-responses') {
             return 'OpenAI Responses API';
         }
+        if (sdkMode === 'gemini-sse') {
+            return 'Gemini SSE';
+        }
         return 'OpenAI SDK';
     }
 
@@ -674,9 +683,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         onAttemptStarted?: (requestMetricStartTime: number) => void,
         onThrottled?: () => void
     ): Promise<void> {
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        if (sdkMode === 'gemini-sse' && !modelConfig.baseUrl?.trim()) {
+            throw new Error(
+                t('Gemini mode requires baseUrl in modelInfo', 'Gemini 模式需要在 modelInfo 中配置 baseUrl')
+            );
+        }
         // 站点/接入点切换统一在 provider 层解析，经浅拷贝下发避免污染共享配置
         modelConfig = { ...modelConfig, baseUrl: this.resolveRequestBaseUrl(modelConfig) };
-        const sdkMode = modelConfig.sdkMode || 'openai';
 
         // requestStarted 不再在外层发射，而是移入 retry callback 内部，
         // 每次 attempt 使用 liveAttemptStartTime 作为 live metrics 时间基准。
@@ -765,7 +779,21 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     );
 
                     try {
-                        if (sdkMode === 'anthropic') {
+                        if (sdkMode === 'gemini-sse') {
+                            await this.geminiHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                requestStartTime,
+                                handleAttemptStarted,
+                                wasThrottled
+                            );
+                        } else if (sdkMode === 'anthropic') {
                             await this.anthropicHandler.handleRequest(
                                 model,
                                 modelConfig,
@@ -835,7 +863,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     }
                 },
                 error => {
-                    if (hasReportedProgress) {
+                    if (hasReportedProgress || hasGeminiPartialUsage(error)) {
                         return false;
                     }
                     const fallback = this.shouldRetryRequest(error);

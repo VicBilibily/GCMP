@@ -16,6 +16,7 @@ import { HarRecorder } from '../utils/net/harRecorder';
 import { t } from '../utils/runtime/l10n';
 import { convertUsdToRmb } from '../utils/pricing/pricingCurrency';
 import { formatCost } from '../ui/utils';
+import { hasRecordedUsage } from '../ui/usagesView/aggregation';
 
 /**
  * Token 用量状态栏
@@ -449,11 +450,9 @@ export class TokenUsageStatusBar {
         if (recentRequests.length > 0) {
             md.appendMarkdown('\n\n ---- \n\n\n\n');
             md.appendMarkdown(
-                `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | ${t('Delay', 'TTFT')} | ${t('Duration', 'TPOT')} | ${t('Speed', '输出速度')} |\n`
+                `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | TTFT | ${t('Speed', '平均速度')} |\n`
             );
-            md.appendMarkdown(
-                '| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: | -----: |\n'
-            );
+            md.appendMarkdown('| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: |\n');
 
             const reversedRequests = [...recentRequests].reverse();
             for (const req of reversedRequests) {
@@ -468,37 +467,24 @@ export class TokenUsageStatusBar {
                 }
                 const timeStr = startTime.toLocaleTimeString('zh-CN');
                 const outputTokens = req.outputTokens;
-                const totalTokens = req.totalTokens;
-                const speedStr = req.outputSpeed !== undefined ? `${req.outputSpeed.toFixed(1)} t/s` : '-';
-
-                let latencyStr = '-';
-                let durationStr = '-';
-                const metricStartTime = req.requestMetricStartTime ?? req.timestamp;
-                if (req.streamStartTime !== undefined && metricStartTime !== undefined) {
-                    const latency = req.streamStartTime - metricStartTime;
-                    if (Number.isFinite(latency) && latency >= 0) {
-                        latencyStr = latency > 100 ? `${(latency / 1000).toFixed(1)} s` : `${Math.round(latency)} ms`;
-                    }
-                }
-                if (req.streamEndTime !== undefined && req.streamStartTime !== undefined) {
-                    const duration = req.streamEndTime - req.streamStartTime;
-                    if (Number.isFinite(duration) && duration >= 0) {
-                        durationStr =
-                            duration > 100 ? `${(duration / 1000).toFixed(1)} s` : `${Math.round(duration)} ms`;
-                    }
-                }
-
+                const speedStr =
+                    req.outputSpeed !== undefined && req.outputSpeed > 0 ? `${req.outputSpeed.toFixed(1)} t/s` : '-';
+                const latencyStr =
+                    (
+                        req.firstTokenLatency !== undefined &&
+                        (req.status !== 'estimated' || req.firstOutputTime !== undefined)
+                    ) ?
+                        this.formatDuration(req.firstTokenLatency)
+                    :   '-';
                 const inputStr = this.formatRecentInputTokens(req);
                 let outputStr = '-';
-                const hasActualUsage =
-                    (req.status === 'completed' || req.status === 'cancelled') && !!req.rawUsage && totalTokens > 0;
-                if (hasActualUsage && outputTokens > 0) {
+                if (hasRecordedUsage(req) && outputTokens > 0) {
                     outputStr = this.formatTokens(outputTokens);
                 }
 
                 const costStr = this.getRecordDisplayCost(req);
                 md.appendMarkdown(
-                    `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${durationStr} | ${speedStr} |\n`
+                    `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${speedStr} |\n`
                 );
             }
         }
@@ -573,6 +559,13 @@ export class TokenUsageStatusBar {
         return `${Math.round(avgLatency)} ms`;
     }
 
+    private formatDuration(milliseconds: number): string {
+        if (milliseconds > 100) {
+            return `${(milliseconds / 1000).toFixed(1)} s`;
+        }
+        return `${Math.round(milliseconds)} ms`;
+    }
+
     /**
      * 格式化 token 数量
      */
@@ -610,12 +603,7 @@ export class TokenUsageStatusBar {
      * 请求完成后：显示实际的 cacheReadTokens + (actualInput - cacheReadTokens) = actualInput
      */
     private formatRecentInputTokens(record: ExtendedTokenRequestLog): string {
-        const hasActualUsage =
-            (record.status === 'completed' || record.status === 'cancelled') &&
-            !!record.rawUsage &&
-            record.totalTokens > 0;
-
-        if (hasActualUsage) {
+        if (hasRecordedUsage(record)) {
             const totalInput = record.actualInput || 0;
             const readTokens = record.cacheReadTokens || 0;
             const writeTokens = Math.max(0, totalInput - readTokens);

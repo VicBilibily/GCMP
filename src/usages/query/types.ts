@@ -31,7 +31,7 @@ export interface RequestTotals {
     cacheTokens: number;
     outputTokens: number;
     avgLatency?: number;
-    avgDuration?: number;
+    avgOutputDuration?: number;
     totalCost: number;
     totalCostRmb: number;
     nativeCosts: NativeCostSplit;

@@ -530,7 +530,9 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 ### `sdkMode`
 
-`gcmp.compatibleModels[*].sdkMode` 指定请求/流式解析方式，可选值：`openai`（默认）、`openai-sse`、`openai-responses`、`anthropic`。
+`gcmp.compatibleModels[*].sdkMode` 指定请求/流式解析方式，可选值：`openai`（默认）、`openai-sse`、`openai-responses`、`anthropic`、`gemini-sse`（Gemini GenerateContent SSE）。
+
+`gemini-sse` 对 Google 官方端点使用 `x-goog-api-key`，对第三方网关默认使用 `Authorization: Bearer`，并请求 `/v1beta/models/{model}:streamGenerateContent?alt=sse`；可通过 `customHeader` 覆盖或删除默认鉴权头。`extraBody.generationConfig` 会合并到 `generationConfig`，其余字段按 Gemini GenerateContent 顶层字段透传（`contents`、`tools`、`systemInstruction` 等核心字段除外）。`serviceTier` 支持 `unspecified`、`standard`、`flex`、`priority`。
 
 ### Anthropic 提示缓存 TTL：`cacheTtl`
 

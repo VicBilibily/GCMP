@@ -76,6 +76,65 @@ test('buildCopilotUsageData converts Responses API usage into completion usage s
     });
 });
 
+test('buildCopilotUsageData converts Gemini usageMetadata and thought tokens', () => {
+    const usage = buildCopilotUsageData({
+        promptTokenCount: 100,
+        candidatesTokenCount: 20,
+        thoughtsTokenCount: 30,
+        toolUsePromptTokenCount: 10,
+        totalTokenCount: 160,
+        cachedContentTokenCount: 40,
+        promptTokensDetails: [{ modality: 'TEXT', tokenCount: 100 }],
+        candidatesTokensDetails: [{ modality: 'TEXT', tokenCount: 20 }],
+        toolUsePromptTokensDetails: [{ modality: 'TEXT', tokenCount: 10 }]
+    });
+
+    assert.deepEqual(usage, {
+        prompt_tokens: 110,
+        completion_tokens: 50,
+        total_tokens: 160,
+        prompt_tokens_details: {
+            text_tokens: 100,
+            tool_use_text_tokens: 10,
+            cached_tokens: 40,
+            cache_creation_tokens: 70
+        },
+        completion_tokens_details: {
+            text_tokens: 20,
+            reasoning_tokens: 30
+        }
+    });
+});
+
+test('buildCopilotUsageData preserves output-only Gemini partial usage', () => {
+    const usage = buildCopilotUsageData({ candidatesTokenCount: 6, thoughtsTokenCount: 2 });
+
+    assert.deepEqual(usage, {
+        prompt_tokens: 0,
+        completion_tokens: 8,
+        total_tokens: 8,
+        prompt_tokens_details: {
+            cached_tokens: 0
+        },
+        completion_tokens_details: {
+            reasoning_tokens: 2
+        }
+    });
+});
+
+test('buildCopilotUsageData preserves total-only Gemini partial usage', () => {
+    const usage = buildCopilotUsageData({ totalTokenCount: 12 });
+
+    assert.deepEqual(usage, {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 12,
+        prompt_tokens_details: {
+            cached_tokens: 0
+        }
+    });
+});
+
 test('buildCopilotUsageData keeps nested cache_creation details from anthropic-style usage', () => {
     const usage = buildCopilotUsageData({
         input_tokens: 6,

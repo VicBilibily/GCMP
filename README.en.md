@@ -525,7 +525,9 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 
 ### `sdkMode`
 
-`gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`.
+`gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`, and `gemini-sse` (Gemini GenerateContent SSE).
+
+`gemini-sse` uses `x-goog-api-key` for official Google endpoints and `Authorization: Bearer` for third-party gateways, then calls `/v1beta/models/{model}:streamGenerateContent?alt=sse`; `customHeader` can override or remove the default authentication header. `extraBody.generationConfig` is merged into `generationConfig`, while other fields are forwarded at the Gemini GenerateContent request top level (except protected core fields such as `contents`, `tools`, and `systemInstruction`). Supported `serviceTier` values are `unspecified`, `standard`, `flex`, and `priority`.
 
 ### Anthropic prompt cache TTL: `cacheTtl`
 

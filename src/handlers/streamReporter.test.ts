@@ -1,6 +1,8 @@
 ﻿import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import type { LiveStreamMetricEvent } from './liveMetrics';
+import { UsageParser } from '../usages/fileLogger/usageParser';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -110,6 +112,97 @@ test('reportEncryptedThinking：仅思考内容也应被视为有内容', async 
     assert.equal(reporter.hasContent, true);
     assert.equal(reporter.flushAll(null), true);
 });
+
+test('Gemini thought signature 元数据不计入实际输出时间', async () => {
+    const { StreamReporter } = await getStreamReporterModule();
+    const events: Array<{ type: string; firstOutputTime?: number; lastOutputTime?: number }> = [];
+    const reporter = new StreamReporter({
+        modelName: 'gemini-test',
+        modelId: 'gemini-test',
+        provider: 'test-provider',
+        sdkMode: 'gemini',
+        progress: {
+            report() {}
+        } as never,
+        sessionId: 'session-1',
+        requestId: 'request-1',
+        requestStartTime: 1000,
+        onLiveMetrics: event => events.push(event)
+    });
+
+    reporter.markStreamStarted(1200);
+    reporter.setThoughtSignature('signature-only');
+    reporter.flushAll(null);
+
+    const finalUpdate = events.filter(event => event.type === 'streamingUpdate').at(-1);
+    assert.equal(finalUpdate?.firstOutputTime, undefined);
+    assert.equal(finalUpdate?.lastOutputTime, undefined);
+});
+
+for (const thinking of ['none', 'text', 'encrypted', 'redacted'] as const) {
+    test(`正文时间独立记录，平均速度沿用全部输出和流耗时：${thinking}`, async () => {
+        const { StreamReporter } = await getStreamReporterModule();
+        const events: LiveStreamMetricEvent[] = [];
+        const originalNow = Date.now;
+        let now = 1200;
+        Date.now = () => now;
+        try {
+            const reporter = new StreamReporter({
+                modelName: 'test',
+                modelId: 'test',
+                provider: 'test',
+                sdkMode: 'gemini',
+                requestId: 'timing-test',
+                requestStartTime: 1000,
+                progress: { report() {} },
+                onLiveMetrics: event => events.push(event)
+            });
+            const reportThinking = () => {
+                if (thinking === 'text') {
+                    reporter.bufferThinking('reasoning');
+                }
+                if (thinking === 'encrypted') {
+                    reporter.reportEncryptedThinking('cipher');
+                }
+                if (thinking === 'redacted') {
+                    reporter.reportRedactedThinking('cipher');
+                }
+            };
+            reportThinking();
+            now = 11200;
+            reporter.reportText('first');
+            now = 12200;
+            reporter.reportText('last');
+            now = 14000;
+            reportThinking();
+            reporter.finishMetrics();
+            const update = events.filter(event => event.type === 'streamingUpdate').at(-1);
+            assert.ok(update);
+            assert.equal(update.firstOutputTime, thinking === 'none' ? 11200 : 1200);
+            assert.equal(update.lastOutputTime, thinking === 'none' ? 12200 : 14000);
+            assert.equal(update.firstContentOutputTime, 11200);
+            assert.equal(update.lastContentOutputTime, 12200);
+            const parsed = UsageParser.parseFromLog({
+                ...update,
+                streamEndTime: now,
+                timestamp: 1000,
+                isoTime: new Date(1000).toISOString(),
+                requestMetricStartTime: 1000,
+                providerKey: 'test',
+                modelId: 'test',
+                estimatedInput: 1,
+                status: 'completed',
+                rawUsage: { promptTokenCount: 1, candidatesTokenCount: 11, thoughtsTokenCount: 100 }
+            });
+            const duration = thinking === 'none' ? 2800 : 12800;
+            assert.equal(parsed.timePerOutputToken, duration / 111);
+            assert.equal(parsed.outputSpeed, (111 / duration) * 1000);
+            assert.equal(parsed.firstTokenLatency, thinking === 'none' ? 10200 : 200);
+        } finally {
+            Date.now = originalNow;
+        }
+    });
+}
 
 test('flushToolCalls：choice 完成不清理其他 choice 的同 index 分片', async () => {
     const { StreamReporter } = await getStreamReporterModule();

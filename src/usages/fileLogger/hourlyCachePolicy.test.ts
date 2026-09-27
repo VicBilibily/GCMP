@@ -101,6 +101,137 @@ test('hourly stats cache is not reused when cache mtime is older or missing', ()
     );
 });
 
+test('restored output speed formula invalidates statistics written with the previous cache version', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-output-speed-cache-version-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+        const internals = logger as unknown as {
+            indexManager: import('./logIndexManager').LogIndexManager;
+            logStatsManager: import('./logStatsManager').LogStatsManager;
+            snapshotManager: import('./snapshotManager').SnapshotManager;
+            initCacheVersionTimestamp(): Promise<void>;
+        };
+        const previousVersion = new Date('2026-09-25T00:00:00+08:00').getTime();
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const startedAt = new Date(`${date}T12:00:00`).getTime();
+        const record: TokenRequestLog = {
+            ...createRequestLog('restored-speed-formula'),
+            timestamp: startedAt,
+            isoTime: new Date(startedAt).toISOString(),
+            rawUsage: { prompt_tokens: 10, completion_tokens: 21, total_tokens: 31 },
+            streamStartTime: startedAt + 100,
+            streamEndTime: startedAt + 1100
+        };
+        await internals.snapshotManager.buildSnapshotFromLogs(date, [record]);
+        internals.logStatsManager.updateCodeVersionTimestamp(previousVersion);
+        const staleStats = await logger.getDateStats(date, true);
+        staleStats.total.outputSpeeds = 20;
+        staleStats.versionTimestamp = previousVersion;
+        await writeFile(join(dir, 'usages', date, 'stats.json'), JSON.stringify(staleStats));
+        await internals.indexManager.setVersionTimestamp(previousVersion);
+
+        await internals.initCacheVersionTimestamp();
+        const refreshed = await logger.getDateStats(date);
+
+        assert.equal(refreshed.total.outputSpeeds, 21);
+        assert.ok((refreshed.versionTimestamp ?? 0) > previousVersion);
+    } finally {
+        await logger?.dispose();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('pending metrics reset on a newer attempt and ignore late events from the previous attempt', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-pending-attempt-reset-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+        const pending = createRequestLog('pending-attempt-reset');
+        pending.status = 'estimated';
+        pending.rawUsage = null;
+        const internals = logger as unknown as {
+            pendingLogs: Map<string, TokenRequestLog>;
+            updateStreamingMetrics(event: import('../../handlers/liveMetrics').LiveStreamMetricEvent): void;
+        };
+        internals.pendingLogs.set(pending.requestId, pending);
+        const baseEvent = {
+            requestId: pending.requestId,
+            providerName: pending.providerName,
+            modelName: pending.modelName
+        };
+
+        internals.updateStreamingMetrics({
+            ...baseEvent,
+            type: 'streamingUpdate',
+            requestStartTime: 1000,
+            streamStartTime: 1100,
+            firstOutputTime: 1200,
+            lastOutputTime: 1300,
+            firstContentOutputTime: 1250,
+            lastContentOutputTime: 1300,
+            tokensPerSecond: 10,
+            estimatedOutputTokens: 2
+        });
+        internals.updateStreamingMetrics({
+            ...baseEvent,
+            type: 'requestStarted',
+            requestStartTime: 3000
+        });
+
+        assert.equal(pending.requestMetricStartTime, 3000);
+        assert.equal(pending.streamStartTime, undefined);
+        assert.equal(pending.firstOutputTime, undefined);
+        assert.equal(pending.lastOutputTime, undefined);
+        assert.equal(pending.firstContentOutputTime, undefined);
+        assert.equal(pending.lastContentOutputTime, undefined);
+        assert.equal(pending.outputSpeed, undefined);
+        assert.equal(pending.outputTokens, undefined);
+
+        internals.updateStreamingMetrics({
+            ...baseEvent,
+            type: 'streamingUpdate',
+            requestStartTime: 1000,
+            streamStartTime: 1400,
+            firstOutputTime: 1500,
+            lastOutputTime: 1600,
+            tokensPerSecond: 20,
+            estimatedOutputTokens: 4
+        });
+        assert.equal(pending.streamStartTime, undefined);
+        assert.equal(pending.firstOutputTime, undefined);
+
+        internals.updateStreamingMetrics({
+            ...baseEvent,
+            type: 'streamingUpdate',
+            requestStartTime: 3000,
+            streamStartTime: 3100,
+            firstOutputTime: 3200,
+            lastOutputTime: 3300,
+            tokensPerSecond: 30,
+            estimatedOutputTokens: 6
+        });
+        internals.updateStreamingMetrics({
+            ...baseEvent,
+            type: 'requestStarted',
+            requestStartTime: 3000
+        });
+        assert.equal(pending.firstOutputTime, 3200);
+        assert.equal(pending.lastOutputTime, 3300);
+        assert.equal(pending.outputSpeed, 30);
+        assert.equal(pending.outputTokens, 6);
+    } finally {
+        await logger?.dispose();
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
 test('hourly details cache requires exact mtime match', () => {
     assert.equal(canReuseHourlyDetailsCache(123, 123), true);
     assert.equal(canReuseHourlyDetailsCache(124, 123), false);

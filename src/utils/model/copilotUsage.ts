@@ -86,6 +86,28 @@ function getFirstDetails(rawUsage: Record<string, unknown>, keys: readonly strin
     return undefined;
 }
 
+function getNumericField(source: Record<string, unknown>, key: string): number | undefined {
+    const value = source[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function toGeminiModalityDetails(value: unknown, prefix = ''): NumericDetails | undefined {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+    const details: NumericDetails = {};
+    for (const item of value) {
+        if (!isRecord(item) || typeof item.tokenCount !== 'number' || !Number.isFinite(item.tokenCount)) {
+            continue;
+        }
+        const modality =
+            typeof item.modality === 'string' && item.modality.trim() ? normalizeDetailKey(item.modality) : 'unknown';
+        const key = `${prefix}${modality}_tokens`;
+        details[key] = (details[key] ?? 0) + item.tokenCount;
+    }
+    return Object.keys(details).length > 0 ? details : undefined;
+}
+
 export function buildCopilotUsageData(
     rawUsage: unknown,
     /** 客户端估算的成本（nano-AIU），由 handler 通过 pricing 计算后传入 */
@@ -98,6 +120,7 @@ export function buildCopilotUsageData(
     const parsed = UsageParser.parseRawUsage(rawUsage as GenericUsageData);
     const isOpenAIUsage = typeof rawUsage.prompt_tokens === 'number';
     const promptTokens = parsed.actualInput;
+    const geminiThoughtsTokens = getNumericField(rawUsage, 'thoughtsTokenCount') ?? 0;
     const completionTokens = parsed.outputTokens;
     const totalTokens = parsed.totalTokens || promptTokens + completionTokens;
 
@@ -108,6 +131,9 @@ export function buildCopilotUsageData(
     const promptDetails = mergeNumericDetails(
         getFirstDetails(rawUsage, ['prompt_tokens_details', 'input_tokens_details']),
         toNestedNumericDetails(rawUsage.cache_creation, 'cache_creation_'),
+        toGeminiModalityDetails(rawUsage.promptTokensDetails),
+        toGeminiModalityDetails(rawUsage.toolUsePromptTokensDetails, 'tool_use_'),
+        toGeminiModalityDetails(rawUsage.cacheTokensDetails, 'cached_'),
         {
             cached_tokens: parsed.cacheReadTokens,
             ...(!isOpenAIUsage && parsed.cacheCreationTokens > 0 ?
@@ -117,7 +143,9 @@ export function buildCopilotUsageData(
     ) ?? { cached_tokens: parsed.cacheReadTokens };
 
     const completionDetails = mergeNumericDetails(
-        getFirstDetails(rawUsage, ['completion_tokens_details', 'output_tokens_details'])
+        getFirstDetails(rawUsage, ['completion_tokens_details', 'output_tokens_details']),
+        toGeminiModalityDetails(rawUsage.candidatesTokensDetails),
+        geminiThoughtsTokens > 0 ? { reasoning_tokens: geminiThoughtsTokens } : undefined
     );
 
     const usageData: CopilotUsageData = {

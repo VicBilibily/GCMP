@@ -429,7 +429,7 @@
                 },
                 "sdkMode": {
                     "type": "string",
-                    "enum": ["anthropic", "openai", "openai-sse", "openai-responses"],
+                    "enum": ["anthropic", "openai", "openai-sse", "openai-responses", "gemini-sse"],
                     "default": "openai",
                     "description": "SDK模式选择：使用 OpenAI SDK 或 Anthropic SDK 处理请求。"
                 },
@@ -526,16 +526,18 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["auto", "default", "flex", "priority"],
+                        "enum": ["auto", "default", "flex", "priority", "unspecified", "standard"],
                         "enumDescriptions": [
                             "自动选择服务等级",
                             "标准处理速度",
                             "灵活处理，倍率更高",
-                            "优先处理，倍率最高"
+                            "优先处理，倍率最高",
+                            "使用 Gemini API 默认服务等级",
+                            "使用 Gemini 标准服务等级"
                         ]
                     },
                     "uniqueItems": true,
-                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。第一个值作为默认值。仅 openai-responses 和 anthropic 模式生效，default/auto 不传递 service_tier 到请求体。"
+                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。第一个值作为默认值。支持 openai-responses、anthropic 和 gemini-sse 模式。"
                 },
                 "customHeader": {
                     "type": "object",
@@ -770,42 +772,54 @@
                 },
                 {
                     "if": {
-                        "anyOf": [
-                            {
-                                "properties": {
-                                    "sdkMode": {
-                                        "const": "openai-responses"
-                                    }
-                                },
-                                "required": ["sdkMode"]
-                            },
-                            {
-                                "properties": {
-                                    "sdkMode": {
-                                        "const": "anthropic"
-                                    }
-                                },
-                                "required": ["sdkMode"]
-                            }
-                        ]
+                        "properties": { "sdkMode": { "const": "gemini-sse" } },
+                        "required": ["sdkMode"]
                     },
                     "then": {
+                        "required": ["baseUrl"],
                         "properties": {
                             "serviceTier": {
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "enum": ["auto", "default", "flex", "priority"]
+                                    "enum": ["unspecified", "standard", "flex", "priority"]
                                 },
                                 "uniqueItems": true,
-                                "description": "服务等级选项列表，用于调节响应速度与配额倍率。default/auto 不传递 service_tier 到请求体。"
+                                "description": "Gemini 服务等级选项列表，按官方值原样写入 GenerateContent 请求的 serviceTier。"
                             }
                         }
                     },
                     "else": {
-                        "properties": {
-                            "serviceTier": {
-                                "deprecationMessage": "serviceTier 仅对 openai-responses 和 anthropic 模式生效"
+                        "if": {
+                            "anyOf": [
+                                {
+                                    "properties": { "sdkMode": { "const": "openai-responses" } },
+                                    "required": ["sdkMode"]
+                                },
+                                {
+                                    "properties": { "sdkMode": { "const": "anthropic" } },
+                                    "required": ["sdkMode"]
+                                }
+                            ]
+                        },
+                        "then": {
+                            "properties": {
+                                "serviceTier": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string",
+                                        "enum": ["auto", "default", "flex", "priority"]
+                                    },
+                                    "uniqueItems": true,
+                                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。"
+                                }
+                            }
+                        },
+                        "else": {
+                            "properties": {
+                                "serviceTier": {
+                                    "deprecationMessage": "serviceTier 仅对 openai-responses、anthropic 和 gemini-sse 模式生效"
+                                }
                             }
                         }
                     }

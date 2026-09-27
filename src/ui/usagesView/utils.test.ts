@@ -10,6 +10,7 @@ import {
     getCurrencyToggleTitle,
     getLiveWaitingPresentation,
     getNextDisplayCurrency,
+    hasRecordedUsage,
     groupRecordsBySession,
     getStatsNativeCostSplit,
     meanWithoutOutliers,
@@ -490,7 +491,7 @@ function createExtendedRecord(overrides: Partial<ExtendedTokenRequestLog> = {}):
     };
 }
 
-test('summarizeSessionRecords aggregates tokens and speed from completed records only', () => {
+test('summarizeSessionRecords includes actual usage from cancelled and failed records', () => {
     const records = [
         createExtendedRecord({ requestId: 'done', timestamp: 1000, totalTokens: 1000, outputSpeed: 50 }),
         createExtendedRecord({
@@ -503,7 +504,16 @@ test('summarizeSessionRecords aggregates tokens and speed from completed records
             totalTokens: 5000,
             outputSpeed: 100
         }),
-        createExtendedRecord({ requestId: 'failed', timestamp: 3000, status: 'failed', estimatedInput: 300 }),
+        createExtendedRecord({
+            requestId: 'failed',
+            timestamp: 3000,
+            status: 'failed',
+            rawUsage: { prompt_tokens: 200, completion_tokens: 100, total_tokens: 300 },
+            actualInput: 200,
+            outputTokens: 100,
+            totalTokens: 300,
+            outputSpeed: 75
+        }),
         createExtendedRecord({ requestId: 'pending', timestamp: 4000, status: 'estimated', estimatedInput: 200 })
     ];
 
@@ -516,9 +526,15 @@ test('summarizeSessionRecords aggregates tokens and speed from completed records
     assert.equal(summary.failedCount, 1);
     assert.equal(summary.startTime, 1000);
     assert.equal(summary.endTime, 4000);
-    // token/速度仅聚合 completed（cancelled 的 5000、estimated/failed 的预估回退值均不计入）
-    assert.equal(summary.totalTokens, 1000);
-    assert.equal(summary.avgSpeed, 50);
+    assert.equal(summary.totalTokens, 6300);
+    assert.equal(summary.avgSpeed, 75);
+});
+
+test('hasRecordedUsage accepts non-empty final usage regardless of terminal status', () => {
+    assert.equal(hasRecordedUsage(createExtendedRecord({ status: 'failed', rawUsage: { total_tokens: 1 } })), true);
+    assert.equal(hasRecordedUsage(createExtendedRecord({ status: 'cancelled', rawUsage: { total_tokens: 1 } })), true);
+    assert.equal(hasRecordedUsage(createExtendedRecord({ status: 'estimated', rawUsage: { total_tokens: 1 } })), false);
+    assert.equal(hasRecordedUsage(createExtendedRecord({ status: 'completed', rawUsage: {} })), false);
 });
 
 test('normalizeSessionId leaves chat-title ungrouped without trace context', () => {
@@ -592,7 +608,7 @@ test('groupRecordsBySession keeps chat-title in the unknown session without trac
     ]);
 });
 
-test('buildRequestTotals aggregates tokens, cost, latency and duration from completed records only', () => {
+test('buildRequestTotals includes actual usage from cancelled records', () => {
     const records = [
         createExtendedRecord({
             requestId: 'done-actual',
@@ -603,16 +619,20 @@ test('buildRequestTotals aggregates tokens, cost, latency and duration from comp
             outputTokens: 200,
             totalTokens: 1000,
             estimatedCost: 0.01,
-            streamStartTime: 1100,
-            streamDuration: 2000
+            firstTokenLatency: 100,
+            timePerOutputToken: 10,
+            firstOutputTime: 1100,
+            lastOutputTime: 3100
         }),
         createExtendedRecord({
             requestId: 'done-estimated',
             timestamp: 5000,
             estimatedInput: 400,
             outputTokens: 50,
-            requestMetricStartTime: 4800,
-            streamStartTime: 5200
+            firstTokenLatency: 400,
+            timePerOutputToken: 20,
+            firstOutputTime: 5400,
+            lastOutputTime: 8400
         }),
         createExtendedRecord({
             requestId: 'cancelled',
@@ -624,24 +644,25 @@ test('buildRequestTotals aggregates tokens, cost, latency and duration from comp
             outputTokens: 1000,
             totalTokens: 6000,
             estimatedCost: 0.5,
-            streamStartTime: 9500,
-            streamDuration: 5000
+            firstTokenLatency: 500,
+            timePerOutputToken: 30,
+            firstOutputTime: 9500,
+            lastOutputTime: 13_500
         })
     ];
 
     const totals = buildRequestTotals(records);
 
     // completed 有 rawUsage 时按 actualInput，无 rawUsage 时回退 estimatedInput
-    assert.equal(totals.inputTokens, 800 + 400);
-    assert.equal(totals.cacheTokens, 100);
-    assert.equal(totals.outputTokens, 200 + 50);
-    // cancelled 的成本/延迟/耗时不计入
-    assert.equal(totals.costedRequests, 1);
-    assert.ok(Math.abs(totals.totalCost - 0.01) < 1e-9);
+    assert.equal(totals.inputTokens, 800 + 400 + 5000);
+    assert.equal(totals.cacheTokens, 100 + 500);
+    assert.equal(totals.outputTokens, 200 + 50 + 1000);
+    assert.equal(totals.costedRequests, 2);
+    assert.ok(Math.abs(totals.totalCost - 0.51) < 1e-9);
     assert.ok(totals.totalCostRmb > 0);
     assert.equal(totals.rmbExactRequests, 0);
-    assert.equal(totals.avgLatency, 250);
-    assert.equal(totals.avgDuration, 2000);
+    assert.equal(totals.avgLatency, meanWithoutOutliers([100, 400, 500]));
+    assert.equal(totals.avgOutputDuration, meanWithoutOutliers([2000, 3000, 4000]));
 });
 
 test('getLiveWaitingPresentation 在 waitScope 缺失时使用通用等待文案', () => {
@@ -668,3 +689,26 @@ test('getLiveWaitingPresentation 在 waitScope 缺失时使用通用等待文案
         assert.equal(presentation.queuePositionText, '#2');
     });
 });
+
+for (const lang of ['zh-CN', 'en']) {
+    test(`输出耗时位置的等待提示固定使用英文：${lang}`, () => {
+        withLocaleAndState({ lang }, () => {
+            const queued = getLiveWaitingPresentation({ isRateLimitWaiting: true, queuePosition: 2 });
+            assert.equal(queued.queuePositionText, '#2');
+            assert.equal(queued.queuePositionTitle, 'Current FIFO queue position');
+
+            const pacing = getLiveWaitingPresentation({ isRateLimitWaiting: true });
+            assert.equal(pacing.queuePositionText, '-');
+            assert.equal(
+                pacing.queuePositionTitle,
+                'Concurrency slot granted; waiting for the rate limit pacing window'
+            );
+            assert.equal(
+                pacing.waitTitle,
+                lang === 'zh-CN' ? '已获得并发槽位，等待限流令牌到点' : (
+                    'Concurrency slot granted; waiting for the rate limit pacing window'
+                )
+            );
+        });
+    });
+}

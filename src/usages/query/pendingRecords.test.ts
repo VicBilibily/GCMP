@@ -174,7 +174,11 @@ test('remote usages queries preserve caller pending state without retaining full
                         providerName: 'Test',
                         modelName: 'Test',
                         streamStartTime: timestamp + 250,
-                        estimatedOutputTokens: 25,
+                        firstOutputTime: timestamp + 500,
+                        lastOutputTime: timestamp + 900,
+                        firstContentOutputTime: timestamp + 600,
+                        lastContentOutputTime: timestamp + 900,
+                        estimatedOutputTokens: 6,
                         tokensPerSecond: 12.5
                     });
                 }
@@ -201,6 +205,9 @@ test('remote usages queries preserve caller pending state without retaining full
                         );
                         assert.equal(records[1].streamStartTime, first.timestamp + 250);
                         assert.equal(records[1].outputSpeed, 12.5);
+                        assert.equal(records[1].firstTokenLatency, 500);
+                        assert.equal(records[1].timePerOutputToken, 80);
+                        assert.equal(records[1].timingSource, 'output');
                         assert.equal(records[1].sessionId, sessionA);
                         assert.equal(records[1].sessionTitle, '本窗正式标题');
                         break;
@@ -225,6 +232,9 @@ test('remote usages queries preserve caller pending state without retaining full
                         );
                         assert.equal(overview.initialRecordsPage?.records[1]?.streamStartTime, first.timestamp + 250);
                         assert.equal(overview.initialRecordsPage?.records[1]?.outputSpeed, 12.5);
+                        assert.equal(overview.initialRecordsPage?.records[1]?.firstTokenLatency, 500);
+                        assert.equal(overview.initialRecordsPage?.records[1]?.timePerOutputToken, 80);
+                        assert.equal(overview.initialRecordsPage?.records[1]?.timingSource, 'output');
                         assert.equal(overview.initialRecordsPage?.records[1]?.sessionTitle, '本窗正式标题');
                         break;
                     }
@@ -240,6 +250,10 @@ test('remote usages queries preserve caller pending state without retaining full
                         assert.equal(page.summary.requestCount, 1);
                         assert.equal(page.records[0]?.requestId, first.requestId);
                         assert.equal(page.records[0]?.sessionTitle, '本窗正式标题');
+                        assert.equal(page.records[0]?.outputSpeed, 12.5);
+                        assert.equal(page.records[0]?.firstTokenLatency, 500);
+                        assert.equal(page.records[0]?.timePerOutputToken, 80);
+                        assert.equal(page.records[0]?.timingSource, 'output');
                         const next = await follower.getRecordsPage({ date: today, mode: 'all', page: 2, pageSize: 1 });
                         assert.equal(next.totalItems, 2);
                         assert.equal(next.records[0]?.requestId, first.requestId);
@@ -257,10 +271,18 @@ test('remote usages queries preserve caller pending state without retaining full
                         );
                         assert.equal(result.groups[0].records[0]?.sessionTitle, '本窗正式标题');
                         assert.equal(result.groups[0].records[0]?.outputSpeed, 12.5);
+                        assert.equal(result.groups[0].records[0]?.firstTokenLatency, 500);
+                        assert.equal(result.groups[0].records[0]?.timePerOutputToken, 80);
+                        assert.equal(result.groups[0].records[0]?.timingSource, 'output');
                         break;
                     }
                 }
                 assert.ok(remoteExecutions > 0);
+                const sentPending = requests[0].payload.pendingRecords?.find(log => log.requestId === first.requestId);
+                assert.equal(sentPending?.firstOutputTime, first.timestamp + 500);
+                assert.equal(sentPending?.lastOutputTime, first.timestamp + 900);
+                assert.equal(sentPending?.firstContentOutputTime, first.timestamp + 600);
+                assert.equal(sentPending?.lastContentOutputTime, first.timestamp + 900);
                 assert.equal(
                     responses.every(response => response.payload.error === undefined),
                     true
@@ -370,7 +392,7 @@ test('remote usages queries preserve caller pending state without retaining full
                 assert.equal(page.records[0].status, status);
                 assert.equal(page.records[0].sessionTitle, '终态标题');
                 assert.equal(page.records[0].totalTokens, 28);
-                assert.equal(page.totals.totalCost, status === 'completed' ? 0.25 : 0);
+                assert.equal(page.totals.totalCost, 0.25);
                 assert.equal(page.summary.completedCount, status === 'completed' ? 1 : 0);
             });
         }
@@ -521,6 +543,44 @@ test('remote usages queries preserve caller pending state without retaining full
             assert.equal(page.records[0]?.sessionTitle, '查询中更新的标题');
             assert.equal(remoteExecutions, 1);
         });
+
+        for (const field of [
+            'firstOutputTime',
+            'lastOutputTime',
+            'firstContentOutputTime',
+            'lastContentOutputTime'
+        ] as const) {
+            await t.test(`pending ${field} changed during a remote query invalidates the response`, async context => {
+                const { follower, logger, addPending } = await fixture(context);
+                const { requestId, timestamp } = await addPending(sessionA);
+                const originalTime = logger.getPendingLogs()[0][field]!;
+                const updatedTime = originalTime + (field.startsWith('first') ? -50 : 50);
+                beforeRemoteQuery = async () => {
+                    beforeRemoteQuery = undefined;
+                    for (const listener of liveListeners) {
+                        listener({
+                            type: 'streamingUpdate',
+                            requestId,
+                            requestStartTime: timestamp,
+                            providerName: 'Test',
+                            modelName: 'Test',
+                            [field]: updatedTime
+                        });
+                    }
+                };
+
+                const records = await follower.getRecentRecords(1);
+                assert.equal(records[0]?.[field], updatedTime);
+                assert.equal(records[0]?.outputSpeed, 12.5);
+                assert.equal(records[0]?.timePerOutputToken, 80);
+                assert.equal(remoteExecutions, 1);
+                const result = responses[0]?.payload.result;
+                assert.equal(result?.kind, 'recentRecords');
+                if (result?.kind === 'recentRecords') {
+                    assert.equal(result.value[0]?.[field], originalTime);
+                }
+            });
+        }
 
         await t.test(
             'stable date queries reuse prepared records and refresh after another host writes',
@@ -726,7 +786,11 @@ test('remote usages queries preserve caller pending state without retaining full
                             assert.equal(summary.cancelledCount, status === 'cancelled' ? 1 : 0);
                             assert.equal(summary.failedCount, status === 'failed' ? 1 : 0);
                         }
-                        assert.equal(overview.allTotals.totalCost, status === 'completed' ? 0.25 : 0);
+                        for (const totals of [overview.allTotals, page.totals, sessionPage.totals]) {
+                            assert.equal(totals.totalCost, 0.25);
+                            assert.equal(totals.inputTokens, 20);
+                            assert.equal(totals.outputTokens, 8);
+                        }
                         assert.equal(overview.sessionGroups[0]?.title, '未落盘终态标题');
                     }
 

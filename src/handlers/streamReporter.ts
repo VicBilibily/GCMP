@@ -7,7 +7,12 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { buildCopilotUsageData } from '../utils/model/copilotUsage';
 import { Logger } from '../utils/runtime/logger';
-import { encodeStatefulMarker, MarkerUsage, StatefulMarkerContainer } from './statefulMarker';
+import {
+    encodeStatefulMarker,
+    GeminiThoughtSignatureMarker,
+    MarkerUsage,
+    StatefulMarkerContainer
+} from './statefulMarker';
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 import { ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
@@ -88,6 +93,7 @@ export class StreamReporter {
     private readonly modelId: string;
     private readonly provider: string;
     private readonly sdkMode: StatefulMarkerContainer['sdkMode'];
+    private thoughtSignature: string | null = null;
     private readonly progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
     private readonly tracker: LiveMetricsTracker;
 
@@ -102,10 +108,15 @@ export class StreamReporter {
     private hasToolCalls = false;
     private hasReceivedContent = false;
     private hasThinkingContent = false;
+    private geminiTextPartIndex = 0;
+    private geminiThoughtPartIndex = 0;
+    private geminiStandalonePartIndex = 0;
     /** 累积当前轮次的加密推理项（openai-responses encrypted_content），供 StatefulMarker 持久化 */
     private readonly encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = [];
     /** 累积当前轮次的 anthropic redacted_thinking 加密 data 列表，供 StatefulMarker 持久化 */
     private readonly encryptedThinkingData: string[] = [];
+    /** Gemini thoughtSignature 必须与原始响应 Part 保持绑定 */
+    private readonly geminiThoughtSignatures: GeminiThoughtSignatureMarker[] = [];
 
     /**
      * 安全获取共享 tokenizer 实例。未初始化或加载失败时返回 undefined，
@@ -182,6 +193,9 @@ export class StreamReporter {
         // 输出 content 前，先结束当前思维链
         this.endThinkingChain();
 
+        const partIndex = this.geminiTextPartIndex++;
+        this.consumeThoughtSignature({ partKind: 'text', partIndex });
+
         this.hasReceivedContent = true;
 
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode（避免每个 chunk 都触发计算）
@@ -189,26 +203,27 @@ export class StreamReporter {
         this.progress.report(new vscode.LanguageModelTextPart(content));
     }
 
-    /**
-     * 直接报告完整的工具调用（用于返回完整 tool call 的场景）
-     * @param options.countArgs 是否统计 args 字符到 live chars/s（默认 true）
-     *   Anthropic handler 因已通过 reportToolArgDelta 统计，应传 false 避免双计数
-     */
+    /** 完整工具调用；countArgs=false 避免参数双计数，recordOutputTime=false 不更新时间窗。 */
     reportToolCall(
         callId: string,
         name: string,
         args: Record<string, unknown> | object,
-        options: { countArgs?: boolean } = {}
+        options: { countArgs?: boolean; recordOutputTime?: boolean } = {}
     ): void {
         this.endThinkingChain();
 
         const uniqueCallId = this.dedupeToolCallId(callId);
+        this.consumeThoughtSignature({ callId: uniqueCallId, name });
 
         // 完整 tool arguments 也是 provider 实际回传的一部分；
         // 用于不提供 argument delta、只提供完整 tool call 的 provider/SDK 路径。
         const argsJson = stringifyToolArgs(args);
         if ((options.countArgs ?? true) && argsJson) {
-            this.tracker.reportOutput(argsJson);
+            if (options.recordOutputTime === false) {
+                this.tracker.reportOutputTokens(argsJson);
+            } else {
+                this.tracker.reportOutput(argsJson);
+            }
         }
         // 补回 name + id + type + JSON 结构开销，让预估 token 接近 provider 实际计费值
         // （countArgs=false 时 args 已通过 reportToolArgDelta 累计，这里只补非 args 部分）
@@ -256,6 +271,29 @@ export class StreamReporter {
         this.tracker.reportOutput(deltaText);
     }
 
+    /** 记录无文本载荷的实际模型输出事件，例如 Gemini 完整 functionCall。 */
+    reportOutputEvent(): void {
+        this.tracker.reportOutputEvent();
+    }
+
+    setThoughtSignature(signature: string): void {
+        this.thoughtSignature = signature;
+    }
+
+    private consumeThoughtSignature(target: Omit<GeminiThoughtSignatureMarker, 'signature'>): void {
+        const signature = this.thoughtSignature;
+        if (!signature) {
+            return;
+        }
+
+        this.progress.report(new vscode.LanguageModelThinkingPart('', undefined, { signature }));
+        this.thoughtSignature = null;
+
+        if (this.sdkMode === 'gemini') {
+            this.geminiThoughtSignatures.push({ ...target, signature });
+        }
+    }
+
     /**
      * 上报 Copilot 可识别的 usage DataPart，用于更新上下文窗口 token 统计。
      * 若提供 nanoAiu，一并写入 copilot_usage.total_nano_aiu 供 Copilot 计费体系读取。
@@ -278,12 +316,22 @@ export class StreamReporter {
      * 缓冲思考内容（收到后立即输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {
+        const partIndex = this.geminiThoughtPartIndex++;
+        this.consumeThoughtSignature({ partKind: 'thought', partIndex });
+
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode
-        this.tracker.reportOutput(content);
+        this.tracker.reportOutput(content, 'thinking');
 
         this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
 
+        const part = this.thinkingBuffer.flush();
+        if (part) {
+            this.progress.report(part);
+        }
+    }
+
+    flushThinking(_context: string): void {
         const part = this.thinkingBuffer.flush();
         if (part) {
             this.progress.report(part);
@@ -373,6 +421,7 @@ export class StreamReporter {
         if (!encryptedContent) {
             return;
         }
+        this.tracker.reportOutputEvent('thinking');
         // 确保先结束之前的思维链
         this.endThinkingChain();
         // 累积到 marker，供历史 ThinkingPart 被剥离时按 openai-responses 格式恢复加密 reasoning
@@ -404,6 +453,7 @@ export class StreamReporter {
         if (!redactedData) {
             return;
         }
+        this.tracker.reportOutputEvent('thinking');
         this.endThinkingChain();
         this.encryptedThinkingData.push(redactedData);
         this.progress.report(
@@ -426,6 +476,13 @@ export class StreamReporter {
     flushAll(finishReason: string | null, customStatefulData?: StatefulMarkerPartial, finalUsage?: unknown): boolean {
         if (finishReason) {
             Logger.debug(`[${this.modelName}] Stream finished, reason: ${finishReason}`);
+        }
+
+        if (this.thoughtSignature) {
+            this.consumeThoughtSignature({
+                partKind: 'standalone',
+                partIndex: this.geminiStandalonePartIndex++
+            });
         }
 
         // 1. 输出剩余签名（Anthropic 特殊，紧跟在思维链结束之前）
@@ -512,6 +569,8 @@ export class StreamReporter {
             completeSignature,
             encryptedReasoning: this.encryptedReasonings.length > 0 ? [...this.encryptedReasonings] : undefined,
             encryptedThinkingData: this.encryptedThinkingData.length > 0 ? [...this.encryptedThinkingData] : undefined,
+            geminiThoughtSignatures:
+                this.geminiThoughtSignatures.length > 0 ? [...this.geminiThoughtSignatures] : undefined,
             hasToolCalls: this.hasToolCalls,
             usage: innerUsage,
             provider: this.provider,

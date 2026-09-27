@@ -46,6 +46,33 @@ function getRecordTotalTokens(record: ExtendedTokenRequestLog): number {
     return Math.max(record.estimatedInput || 0, 0);
 }
 
+export function hasRecordedUsage(record: Pick<ExtendedTokenRequestLog, 'status' | 'rawUsage'>): boolean {
+    return record.status !== 'estimated' && record.rawUsage !== null && Object.keys(record.rawUsage).length > 0;
+}
+
+export function getOutputDuration(
+    record: Pick<ExtendedTokenRequestLog, 'status' | 'firstOutputTime' | 'lastOutputTime' | 'streamDuration'>
+): number | undefined {
+    if (record.firstOutputTime !== undefined || record.lastOutputTime !== undefined) {
+        if (record.firstOutputTime !== undefined && record.lastOutputTime !== undefined) {
+            const milliseconds = record.lastOutputTime - record.firstOutputTime;
+            if (Number.isFinite(milliseconds) && milliseconds >= 0) {
+                return milliseconds;
+            }
+        }
+        return undefined;
+    }
+    if (
+        record.status !== 'estimated' &&
+        record.streamDuration !== undefined &&
+        Number.isFinite(record.streamDuration) &&
+        record.streamDuration >= 0
+    ) {
+        return record.streamDuration;
+    }
+    return undefined;
+}
+
 /**
  * 基于中位数偏离度的加权均值（鲁棒统计量）。
  *
@@ -103,8 +130,7 @@ export function meanWithoutOutliers(values: number[]): number | undefined {
 /**
  * 汇总一组会话记录，生成展示所需的统计信息
  *
- * 注意：token 与速度等"统计字段"仅基于 status === 'completed' 的记录聚合；
- * 未完成（estimated）、取消（cancelled）、失败（failed）的请求不参与统计。
+ * completed 请求以及具备实际 usage 的 cancelled/failed 请求参与统计。
  * requestCount、各状态计数、时间范围等元信息字段仍覆盖全部记录。
  *
  * 单次遍历完成全部聚合，避免每次刷新时对记录做多次 filter/reduce 扫描。
@@ -113,7 +139,6 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
     let completedCount = 0;
     let failedCount = 0;
     let cancelledCount = 0;
-    // 底部统计口径：仅 completed 请求参与 token/速度聚合
     let totalTokens = 0;
     let startTime: number | undefined;
     let endTime: number | undefined;
@@ -127,14 +152,17 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
 
         if (record.status === 'completed') {
             completedCount += 1;
-            totalTokens += getRecordTotalTokens(record);
-            if ((record.outputSpeed || 0) > 0) {
-                speeds.push(record.outputSpeed!);
-            }
         } else if (record.status === 'failed') {
             failedCount += 1;
         } else if (record.status === 'cancelled') {
             cancelledCount += 1;
+        }
+
+        if (record.status === 'completed' || hasRecordedUsage(record)) {
+            totalTokens += getRecordTotalTokens(record);
+            if ((record.outputSpeed || 0) > 0) {
+                speeds.push(record.outputSpeed!);
+            }
         }
     }
 
@@ -175,8 +203,7 @@ export function summarizeSessionRecoveryDebugInfo(
 }
 
 /**
- * 底部统计口径：仅 status === 'completed' 的请求参与 token/成本/延迟/耗时聚合；
- * 未完成（estimated）、取消（cancelled）、失败（failed）的请求不参与统计。
+ * completed 请求以及具备实际 usage 的 cancelled/failed 请求参与汇总。
  */
 export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestTotals {
     let inputTokens = 0;
@@ -188,12 +215,12 @@ export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestT
     let costedRequests = 0;
     let rmbExactRequests = 0;
     const latencies: number[] = [];
-    const durations: number[] = [];
+    const outputDurations: number[] = [];
 
     records
-        .filter(record => record.status === 'completed')
+        .filter(record => record.status === 'completed' || hasRecordedUsage(record))
         .forEach(record => {
-            const hasActualUsage = !!record.rawUsage && record.totalTokens > 0;
+            const hasActualUsage = hasRecordedUsage(record);
             inputTokens +=
                 hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
             cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
@@ -215,16 +242,13 @@ export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestT
                 }
             }
 
-            if (record.streamDuration !== undefined && record.streamDuration > 0) {
-                durations.push(record.streamDuration);
+            const outputDuration = getOutputDuration(record);
+            if (outputDuration !== undefined) {
+                outputDurations.push(outputDuration);
             }
 
-            const metricStartTime = record.requestMetricStartTime ?? record.timestamp;
-            if (record.streamStartTime !== undefined && metricStartTime !== undefined) {
-                const latency = record.streamStartTime - metricStartTime;
-                if (Number.isFinite(latency) && latency >= 0) {
-                    latencies.push(latency);
-                }
+            if (record.firstTokenLatency !== undefined && record.firstTokenLatency >= 0) {
+                latencies.push(record.firstTokenLatency);
             }
         });
 
@@ -233,7 +257,7 @@ export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestT
         cacheTokens,
         outputTokens,
         avgLatency: meanWithoutOutliers(latencies),
-        avgDuration: meanWithoutOutliers(durations),
+        avgOutputDuration: meanWithoutOutliers(outputDurations),
         totalCost,
         totalCostRmb,
         nativeCosts,

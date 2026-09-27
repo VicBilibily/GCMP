@@ -27,6 +27,47 @@ function expectedTotalCost(...parts: number[]): number {
     return sumCosts(parts.map(part => truncateCost(part) ?? part));
 }
 
+test('calculateCostWithBreakdown: Gemini charges tool-use input and thought output tokens', () => {
+    const breakdown = calculateCostWithBreakdown(
+        {
+            promptTokenCount: 100,
+            toolUsePromptTokenCount: 40,
+            candidatesTokenCount: 20,
+            thoughtsTokenCount: 30,
+            cachedContentTokenCount: 25,
+            totalTokenCount: 190
+        },
+        {
+            inputPrice: 1,
+            outputPrice: 2,
+            cacheReadPrice: 0.25
+        }
+    );
+
+    assert.ok(breakdown);
+    assert.equal(breakdown.inputTokens, 115);
+    assert.equal(breakdown.outputTokens, 50);
+    assert.equal(breakdown.cacheReadTokens, 25);
+    assertClose(breakdown.inputCost, 115 / 1_000_000);
+    assertClose(breakdown.outputCost, 100 / 1_000_000);
+    assertClose(breakdown.cacheReadCost, 6.25 / 1_000_000);
+});
+
+test('calculateCostWithBreakdown: Gemini output-only partial usage still incurs output cost', () => {
+    const breakdown = calculateCostWithBreakdown(
+        { candidatesTokenCount: 12 },
+        {
+            inputPrice: 1,
+            outputPrice: 2
+        }
+    );
+
+    assert.ok(breakdown);
+    assert.equal(breakdown.inputTokens, 0);
+    assert.equal(breakdown.outputTokens, 12);
+    assertClose(breakdown.outputCost, 24 / 1_000_000);
+});
+
 test('calculateCostWithBreakdown: OpenAI-compatible usage charges uncached input + cached read + output', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,

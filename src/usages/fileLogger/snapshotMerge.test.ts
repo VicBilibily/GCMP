@@ -83,6 +83,10 @@ function createRecord(overrides: Partial<SnapshotRequestRecord> = {}): SnapshotR
         requestMetricStartTime: overrides.requestMetricStartTime,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
+        firstOutputTime: overrides.firstOutputTime,
+        lastOutputTime: overrides.lastOutputTime,
+        firstContentOutputTime: overrides.firstContentOutputTime,
+        lastContentOutputTime: overrides.lastContentOutputTime,
         actualInput: overrides.actualInput,
         outputTokens: overrides.outputTokens,
         totalTokens: overrides.totalTokens,
@@ -199,6 +203,10 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
         totalTokens: 100,
         streamStartTime: 1100,
         streamEndTime: 1400,
+        firstOutputTime: 1150,
+        lastOutputTime: 1350,
+        firstContentOutputTime: 1250,
+        lastContentOutputTime: 1350,
         outputSpeed: 66
     });
     const overlayCompleted = createRecord({
@@ -227,6 +235,10 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
     assert.equal(merged.requestMetricStartTime, 1350);
     assert.equal(merged.streamStartTime, 1100, 'overlay 缺失时保留 base 的首流时间');
     assert.equal(merged.streamEndTime, 1600);
+    assert.equal(merged.firstOutputTime, 1150);
+    assert.equal(merged.lastOutputTime, 1350);
+    assert.equal(merged.firstContentOutputTime, 1250);
+    assert.equal(merged.lastContentOutputTime, 1350);
     assert.equal(merged.outputSpeed, 83);
 });
 
@@ -484,6 +496,41 @@ test('missing and empty snapshots remain readable and allow the first record to 
             (await snapshot.read(date))?.map(record => record.requestId),
             ['first']
         );
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('legacy snapshot timing falls back to stored duration and recalculates output speed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-legacy-snapshot-timing-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(
+            paths.getSnapshotFilePath(date),
+            stringifySnapshotFile({
+                legacy: createRecord({
+                    requestId: 'legacy',
+                    status: 'completed',
+                    rawUsage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+                    outputTokens: 20,
+                    streamDuration: 1000,
+                    outputSpeed: 19
+                })
+            })
+        );
+
+        const restored = (await snapshot.read(date))?.[0];
+
+        assert.equal(restored?.streamDuration, 1000);
+        assert.equal(restored?.timePerOutputToken, 50);
+        assert.equal(restored?.outputSpeed, 20);
     } finally {
         restoreHost();
         await rm(dir, { recursive: true, force: true });

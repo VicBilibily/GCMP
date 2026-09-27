@@ -47,6 +47,8 @@ export interface RawTokenUsage {
     candidatesTokenCount?: number;
     totalTokenCount?: number;
     cachedContentTokenCount?: number;
+    toolUsePromptTokenCount?: number;
+    thoughtsTokenCount?: number;
 }
 
 const TOKENS_PER_MILLION = 1_000_000;

@@ -23,6 +23,7 @@ interface TestHandler {
 
 interface TestProvider {
     anthropicHandler: TestHandler;
+    geminiHandler: TestHandler;
     baseProviderConfig: ProviderConfig;
     cachedProviderConfig: ProviderConfig;
     executeModelRequest: (
@@ -98,6 +99,7 @@ function createTestProvider(handler: TestHandler): TestProvider {
             )
     };
     provider.anthropicHandler = handler;
+    provider.geminiHandler = handler;
     provider.getRequestRetryConfig = () => ({ enabled: true, maxAttempts: 1, initialDelayMs: 0, maxDelayMs: 0 });
     provider.shouldRetryRequest = () => true;
 
@@ -133,6 +135,76 @@ function createProgress(outputs: string[]): vscode.Progress<vscode.LanguageModel
 }
 
 suite('genericModelProvider retry gating', () => {
+    for (const baseUrl of [undefined, '', '   ']) {
+        test(`Gemini 缺少模型级地址时不派发：${JSON.stringify(baseUrl)}`, async () => {
+            let attempts = 0;
+            const provider = createTestProvider({
+                async handleRequest() {
+                    attempts++;
+                }
+            });
+            provider.cachedProviderConfig.baseUrl = 'https://provider.test/v1';
+            const source = new vscode.CancellationTokenSource();
+            try {
+                await assert.rejects(
+                    provider.executeModelRequest(
+                        model,
+                        { ...modelConfig, sdkMode: 'gemini-sse', baseUrl },
+                        [],
+                        {
+                            modelOptions: { requestKind: 'main-agent' }
+                        } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                        createProgress([]),
+                        '',
+                        'session-base-url',
+                        source.token
+                    ),
+                    /baseUrl/
+                );
+                assert.equal(attempts, 0);
+            } finally {
+                source.dispose();
+            }
+        });
+    }
+
+    for (const sdkMode of ['gemini-sse', 'openai'] as const) {
+        test(`${sdkMode} 保留原有有效地址解析且不修改模型配置`, async () => {
+            let dispatchedBaseUrl: string | undefined;
+            const provider = createTestProvider({
+                async handleRequest(_model, config) {
+                    dispatchedBaseUrl = config.baseUrl;
+                }
+            });
+            provider.cachedProviderConfig.baseUrl = 'https://provider.test/v1';
+            const config = {
+                ...modelConfig,
+                sdkMode,
+                baseUrl: sdkMode === 'gemini-sse' ? 'https://gemini.test/v1beta' : undefined
+            };
+            const originalConfig = { ...config };
+            const source = new vscode.CancellationTokenSource();
+            try {
+                await provider.executeModelRequest(
+                    model,
+                    config,
+                    [],
+                    {
+                        modelOptions: { requestKind: 'main-agent' }
+                    } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                    createProgress([]),
+                    '',
+                    'session-base-url-valid',
+                    source.token
+                );
+                assert.equal(dispatchedBaseUrl, config.baseUrl ?? provider.cachedProviderConfig.baseUrl);
+                assert.deepEqual(config, originalConfig);
+            } finally {
+                source.dispose();
+            }
+        });
+    }
+
     test('does not retry after a streamed response part was emitted', async () => {
         let attempts = 0;
         const provider = createTestProvider({

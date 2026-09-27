@@ -360,7 +360,7 @@ export class TokenCounter {
 
         const sdkMode = modelConfig?.sdkMode || 'openai';
 
-        if (sdkMode === 'anthropic') {
+        if (sdkMode === 'anthropic' || sdkMode === 'gemini-sse') {
             // 为 Anthropic SDK 模式添加系统消息和工具的 token 成本
             // 计算系统消息的 token 成本
             const systemMessageTokens = this.countSystemMessageTokens(messages);

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
     ANTHROPIC_COMPATIBLE_SERVICE_TIERS,
+    GEMINI_COMPATIBLE_SERVICE_TIERS,
     getCompatibleServiceTierOptions,
     normalizeCompatibleServiceTiers,
     OPENAI_COMPATIBLE_SERVICE_TIERS
@@ -12,6 +13,7 @@ test('按 SDK 模式返回服务等级建议值', () => {
     assert.deepEqual(getCompatibleServiceTierOptions('openai'), OPENAI_COMPATIBLE_SERVICE_TIERS);
     assert.deepEqual(getCompatibleServiceTierOptions('openai-sse'), OPENAI_COMPATIBLE_SERVICE_TIERS);
     assert.deepEqual(getCompatibleServiceTierOptions('openai-responses'), OPENAI_COMPATIBLE_SERVICE_TIERS);
+    assert.deepEqual(getCompatibleServiceTierOptions('gemini-sse'), GEMINI_COMPATIBLE_SERVICE_TIERS);
     // anthropic 建议值除官方 standard_only/auto 外，包含 MiniMax 等三方端点的 default/priority
     assert.deepEqual(getCompatibleServiceTierOptions('anthropic'), [
         ...ANTHROPIC_COMPATIBLE_SERVICE_TIERS,

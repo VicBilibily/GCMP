@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { CustomDataPartMimeTypes } from './types';
 import { decodeStatefulMarkerPayload, encodeStatefulMarkerPayload } from './statefulMarkerCodec';
+import type { GeminiContent } from './geminiType';
 
 // 当前 console.warn 确保该模块在 node:test 环境中也能独立运行
 
@@ -14,13 +15,29 @@ export interface IStatefulMarkerContainer {
     value: StatefulMarkerWithModel;
 }
 
+export type GeminiSignedPartKind = 'text' | 'thought' | 'standalone';
+
+export interface GeminiThoughtSignatureMarker {
+    signature: string;
+    callId?: string;
+    name?: string;
+    partKind?: GeminiSignedPartKind;
+    partIndex?: number;
+}
+
+export interface GeminiToolCallMarker {
+    localCallId: string;
+    upstreamCallId?: string;
+    name: string;
+}
+
 const StatefulMarkerExtension = 'vicanent.gcmp';
 type StatefulMarkerExtension = 'vicanent.gcmp';
 export interface StatefulMarkerContainer {
     extension: StatefulMarkerExtension;
     provider: string;
     modelId: string;
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic';
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini';
     /** 会话ID，标识会话上下文 */
     sessionId: string;
     /** 响应ID，模型返回响应标识 */
@@ -37,6 +54,14 @@ export interface StatefulMarkerContainer {
     encryptedReasoning?: Array<{ encryptedContent: string; reasoningId?: string }>;
     /** anthropic redacted_thinking 的加密 data 列表（按原顺序） */
     encryptedThinkingData?: string[];
+    /** Gemini thoughtSignature，工具调用按 callId、其他 Part 按类型与序号持久化 */
+    geminiThoughtSignatures?: GeminiThoughtSignatureMarker[];
+    /** Gemini 原始模型响应，保留多轮请求要求的 Part 顺序与签名位置 */
+    geminiContents?: GeminiContent[];
+    /** Gemini 实际请求端点与 wire model 的不可逆身份摘要 */
+    geminiRequestIdentity?: string;
+    /** VS Code 本地 callId 与 Gemini 上游 callId 的对应关系 */
+    geminiToolCalls?: GeminiToolCallMarker[];
     /** 当前 assistant 轮次是否发生过工具调用 */
     hasToolCalls?: boolean;
     /** 跨轮次持久化的 API 实际 usage（归一化格式），供下轮增量 token 预估 */

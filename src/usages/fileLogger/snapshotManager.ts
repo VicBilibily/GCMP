@@ -685,6 +685,8 @@ export class SnapshotManager {
 
     private toSnapshotRecord(log: TokenRequestLog): SnapshotRequestRecord {
         const parsed = log.rawUsage ? UsageParser.parseRawUsage(log.rawUsage) : undefined;
+        const outputTokens = parsed?.outputTokens ?? log.outputTokens ?? 0;
+        const timing = UsageParser.parseTiming(log, outputTokens);
         return {
             requestId: log.requestId,
             timestamp: log.timestamp,
@@ -712,14 +714,17 @@ export class SnapshotManager {
             wasThrottled: log.wasThrottled,
             streamStartTime: log.streamStartTime,
             streamEndTime: log.streamEndTime,
+            firstOutputTime: log.firstOutputTime,
+            lastOutputTime: log.lastOutputTime,
+            firstContentOutputTime: log.firstContentOutputTime,
+            lastContentOutputTime: log.lastContentOutputTime,
             actualInput: parsed?.actualInput,
-            outputTokens: parsed?.outputTokens ?? log.outputTokens,
+            outputTokens,
             totalTokens: parsed?.totalTokens,
             cacheRead: parsed?.cacheReadTokens,
             cacheCreation: parsed?.cacheCreationTokens,
-            streamDuration:
-                log.streamEndTime && log.streamStartTime ? log.streamEndTime - log.streamStartTime : undefined,
-            outputSpeed: log.outputSpeed,
+            streamDuration: timing.streamDuration,
+            outputSpeed: timing.outputSpeed,
             estimatedCost: log.estimatedCost,
             costBreakdown: log.costBreakdown
         };
@@ -734,19 +739,22 @@ export class SnapshotManager {
         const cacheRead = parsed?.cacheReadTokens ?? c.cacheRead ?? 0;
         const cacheCreation = parsed?.cacheCreationTokens ?? c.cacheCreation ?? 0;
 
-        let streamDuration: number | undefined;
-        if (c.streamDuration !== undefined) {
-            streamDuration = c.streamDuration;
-        } else if (c.streamEndTime && c.streamStartTime) {
-            streamDuration = c.streamEndTime - c.streamStartTime;
-        }
-
-        let outputSpeed: number | undefined;
-        if (c.outputSpeed !== undefined) {
-            outputSpeed = c.outputSpeed;
-        } else if (streamDuration && streamDuration > 0 && outputTokens > 0) {
-            outputSpeed = (outputTokens / streamDuration) * 1000;
-        }
+        const timing = UsageParser.parseTiming(c, outputTokens);
+        const legacyStreamDuration =
+            c.streamDuration !== undefined && Number.isFinite(c.streamDuration) && c.streamDuration >= 0 ?
+                c.streamDuration
+            :   undefined;
+        const streamDuration = timing.streamDuration ?? legacyStreamDuration;
+        const timePerOutputToken =
+            timing.timePerOutputToken ??
+            (outputTokens > 0 && streamDuration !== undefined && streamDuration > 0 ?
+                streamDuration / outputTokens
+            :   undefined);
+        const outputSpeed =
+            timing.outputSpeed ??
+            (outputTokens > 0 && streamDuration !== undefined && streamDuration > 0 ?
+                (outputTokens / streamDuration) * 1000
+            :   undefined);
 
         return {
             requestId: c.requestId,
@@ -772,12 +780,19 @@ export class SnapshotManager {
             wasThrottled: c.wasThrottled,
             streamStartTime: c.streamStartTime,
             streamEndTime: c.streamEndTime,
+            firstOutputTime: c.firstOutputTime,
+            lastOutputTime: c.lastOutputTime,
+            firstContentOutputTime: c.firstContentOutputTime,
+            lastContentOutputTime: c.lastContentOutputTime,
             actualInput,
             cacheReadTokens: cacheRead,
             cacheCreationTokens: cacheCreation,
             outputTokens,
             totalTokens,
             streamDuration,
+            firstTokenLatency: timing.firstTokenLatency,
+            timePerOutputToken,
+            timingSource: timing.timingSource,
             outputSpeed,
             estimatedCost: c.estimatedCost,
             costBreakdown: c.costBreakdown

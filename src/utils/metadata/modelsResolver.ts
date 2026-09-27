@@ -157,7 +157,7 @@ export function isRemoteManifestFresh(manifestVersion: string, extensionVersion:
     return compared !== undefined && compared >= 0;
 }
 
-const SDK_MODES = new Set(['anthropic', 'openai', 'openai-sse', 'openai-responses']);
+const SDK_MODES = new Set(['anthropic', 'openai', 'openai-sse', 'openai-responses', 'gemini-sse']);
 const THINKING_VALUES = new Set(['disabled', 'enabled', 'auto', 'adaptive']);
 const THINKING_FORMATS = new Set(['boolean', 'boolean-none', 'object', 'object-none', 'effort-none', 'effort-only']);
 const REASONING_FORMATS = new Set(['flat', 'nested']);

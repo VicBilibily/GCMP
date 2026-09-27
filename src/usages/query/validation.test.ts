@@ -106,6 +106,10 @@ function pendingRecord(requestId = 'pending-1'): UsagesPendingRecord {
         requestMetricStartTime: timestamp,
         wasThrottled: true,
         streamStartTime: timestamp + 250,
+        firstOutputTime: timestamp + 500,
+        lastOutputTime: timestamp + 900,
+        firstContentOutputTime: timestamp + 600,
+        lastContentOutputTime: timestamp + 900,
         outputTokens: 25,
         outputSpeed: 12.5
     };
@@ -115,6 +119,7 @@ test('pending normalization keeps only supported fields and copies mutable metad
     const record = pendingRecord();
     const normalized = normalizeUsagesPendingRecords([{ ...record, extra: { ignored: true } }]);
     assert.deepEqual(normalized, [record]);
+    assert.deepEqual(normalizeUsagesPendingRecords(normalized), normalized);
     assert.notEqual(normalized?.[0], record);
     assert.notEqual(normalized?.[0].otelTraceContext, record.otelTraceContext);
     assert.deepEqual(normalizeUsagesPendingRecords(undefined), []);
@@ -143,6 +148,10 @@ for (const [field, invalidValue] of [
     ['otelTraceContext', { traceId: 'trace' }],
     ['outputSpeed', -1],
     ['streamStartTime', '100'],
+    ['firstOutputTime', -1],
+    ['lastOutputTime', Number.POSITIVE_INFINITY],
+    ['firstContentOutputTime', '100'],
+    ['lastContentOutputTime', Number.NaN],
     ['wasThrottled', 'true']
 ] as const) {
     test(`pending normalization rejects invalid ${field}: ${String(invalidValue).slice(0, 40)}`, () => {
@@ -171,6 +180,49 @@ test('pending limits reject duplicates, count overflow and UTF-8 byte overflow w
         ),
         undefined
     );
+});
+
+test('query totals validate average output duration', () => {
+    const query: UsagesQuery = { kind: 'recordsPage', date: '2026-09-26', mode: 'all', page: 1, pageSize: 20 };
+    const result = {
+        kind: 'recordsPage',
+        value: {
+            mode: 'all',
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            records: [],
+            summary: { requestCount: 0, totalTokens: 0, completedCount: 0, failedCount: 0, cancelledCount: 0 },
+            totals: {
+                inputTokens: 0,
+                cacheTokens: 0,
+                outputTokens: 0,
+                avgOutputDuration: 2000,
+                totalCost: 0,
+                totalCostRmb: 0,
+                nativeCosts: createEmptyNativeCostSplit(),
+                costedRequests: 0,
+                rmbExactRequests: 0
+            }
+        }
+    };
+    assert.equal(isUsagesQueryResult(result, query), true);
+    assert.equal(isUsagesQueryResult(JSON.parse(JSON.stringify(result)), query), true);
+    for (const [field, value] of [
+        ['avgOutputDuration', -1],
+        ['avgOutputDuration', Number.NaN],
+        ['avgOutputDuration', Number.POSITIVE_INFINITY],
+        ['avgOutputDuration', '2000']
+    ] as const) {
+        assert.equal(
+            isUsagesQueryResult(
+                { ...result, value: { ...result.value, totals: { ...result.value.totals, [field]: value } } },
+                query
+            ),
+            false,
+            `${field}: ${String(value)}`
+        );
+    }
 });
 
 test('accepts bounded results that match their original queries', () => {
