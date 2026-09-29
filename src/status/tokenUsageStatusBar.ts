@@ -472,7 +472,7 @@ export class TokenUsageStatusBar {
                 const latencyStr =
                     (
                         req.firstTokenLatency !== undefined &&
-                        (req.status !== 'estimated' || req.firstOutputTime !== undefined)
+                        (req.status !== 'estimated' || req.streamStartTime !== undefined)
                     ) ?
                         this.formatDuration(req.firstTokenLatency)
                     :   '-';

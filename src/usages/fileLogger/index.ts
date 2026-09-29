@@ -9,7 +9,7 @@
  * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
  * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
  */
-const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-09-27T00:00:00+08:00').getTime();
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-09-29T00:00:00+08:00').getTime();
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
@@ -929,10 +929,6 @@ export class TokenFileLogger {
             pendingLog.requestMetricStartTime = event.requestStartTime;
             pendingLog.streamStartTime = undefined;
             pendingLog.streamEndTime = undefined;
-            pendingLog.firstOutputTime = undefined;
-            pendingLog.lastOutputTime = undefined;
-            pendingLog.firstContentOutputTime = undefined;
-            pendingLog.lastContentOutputTime = undefined;
             pendingLog.outputSpeed = undefined;
             pendingLog.outputTokens = undefined;
         }
@@ -944,17 +940,8 @@ export class TokenFileLogger {
         if (event.streamStartTime !== undefined) {
             pendingLog.streamStartTime = event.streamStartTime;
         }
-        if (event.firstOutputTime !== undefined) {
-            pendingLog.firstOutputTime = event.firstOutputTime;
-        }
-        if (event.lastOutputTime !== undefined) {
-            pendingLog.lastOutputTime = event.lastOutputTime;
-        }
-        if (event.firstContentOutputTime !== undefined) {
-            pendingLog.firstContentOutputTime = event.firstContentOutputTime;
-        }
-        if (event.lastContentOutputTime !== undefined) {
-            pendingLog.lastContentOutputTime = event.lastContentOutputTime;
+        if (event.streamEndTime !== undefined) {
+            pendingLog.streamEndTime = event.streamEndTime;
         }
         if (event.tokensPerSecond !== undefined) {
             pendingLog.outputSpeed = event.tokensPerSecond;

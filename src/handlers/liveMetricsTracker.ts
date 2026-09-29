@@ -216,10 +216,6 @@ export class LiveMetricsTracker {
     private flushSeq = 0;
     private lastLiveUpdateAt = 0;
     private firstStreamTime = 0;
-    private firstOutputTime = 0;
-    private lastOutputTime = 0;
-    private firstContentOutputTime = 0;
-    private lastContentOutputTime = 0;
     private fixedFirstChunkLatencyMs = 0;
 
     constructor(options: LiveMetricsTrackerOptions) {
@@ -306,15 +302,13 @@ export class LiveMetricsTracker {
      * @param textOrTokens 增量原始文本（推荐，配合 tokenizer 批量 encode）
      *                     或调用方预计算的 token 增量（无 tokenizer 时的 fallback）
      */
-    reportOutput(textOrTokens?: string | number, kind: 'content' | 'thinking' = 'content'): void {
+    reportOutput(textOrTokens?: string | number): void {
         // 无效输入直接跳过（不触发首流兜底、不发射 streamingUpdate）
         if (!this.hasOutputStreaming(textOrTokens)) {
             return;
         }
 
         const now = this.now();
-        this.recordOutputTime(now, kind);
-
         // 兼容 Responses / 第三方网关缺少 response.created / 首流事件的情况：
         // 只有真实输出文本到达时才兜底固定首流时间；不在 heartbeat 中固定
         if (!this.firstChunkEmitted && this.canEmitMetrics()) {
@@ -323,7 +317,7 @@ export class LiveMetricsTracker {
 
         this.accumulateOutputTokens(textOrTokens, now);
 
-        this.updateTokensPerSecond();
+        this.updateTokensPerSecond(now);
 
         this.emitStreamingUpdate(false);
     }
@@ -335,7 +329,7 @@ export class LiveMetricsTracker {
         }
         const now = this.now();
         this.accumulateOutputTokens(textOrTokens, now);
-        this.updateTokensPerSecond();
+        this.updateTokensPerSecond(now);
         this.emitStreamingUpdate(false);
     }
 
@@ -363,13 +357,12 @@ export class LiveMetricsTracker {
     }
 
     /** 记录没有可编码文本的实际输出事件，例如完整 functionCall。 */
-    reportOutputEvent(kind: 'content' | 'thinking' = 'content'): void {
+    reportOutputEvent(): void {
         const now = this.now();
-        this.recordOutputTime(now, kind);
         if (!this.firstChunkEmitted && this.canEmitMetrics()) {
             this.markStreamStarted(now);
         }
-        this.updateTokensPerSecond();
+        this.updateTokensPerSecond(now);
         this.emitStreamingUpdate(false);
     }
 
@@ -446,32 +439,14 @@ export class LiveMetricsTracker {
             this.flushPendingToolCallOverhead(calibration, now);
         }
 
-        this.updateTokensPerSecond();
+        this.updateTokensPerSecond(now);
         this.emitStreamingUpdate(false);
     }
 
-    private recordOutputTime(now: number, kind: 'content' | 'thinking'): void {
-        if (this.firstOutputTime === 0) {
-            this.firstOutputTime = now;
-        }
-        this.lastOutputTime = now;
-        if (kind === 'content') {
-            if (this.firstContentOutputTime === 0) {
-                this.firstContentOutputTime = now;
-            }
-            this.lastContentOutputTime = now;
-        }
-    }
-
-    private updateTokensPerSecond(): void {
-        const outputDuration =
-            this.firstOutputTime > 0 && this.lastOutputTime >= this.firstOutputTime ?
-                this.lastOutputTime - this.firstOutputTime
-            :   0;
+    private updateTokensPerSecond(now: number): void {
         const elapsedMs =
-            outputDuration > 0 ? outputDuration
-            : this.firstStreamTime > 0 && this.firstOutputTime >= this.firstStreamTime ?
-                Math.max(1, this.firstOutputTime - this.firstStreamTime)
+            this.firstStreamTime > 0 && Number.isFinite(now) && now >= this.firstStreamTime ?
+                Math.max(1, now - this.firstStreamTime)
             :   0;
         this.lastTokensPerSecond =
             elapsedMs > 0 && this.estimatedOutputTokens > 0 ? (this.estimatedOutputTokens / elapsedMs) * 1000 : 0;
@@ -550,22 +525,23 @@ export class LiveMetricsTracker {
         }
 
         // 流结束前 flush 残留文本缓冲，确保尾部 token 不丢失
-        this.flushPendingText();
+        const now = this.now();
+        this.flushPendingText(now);
         // flush 残留的 tool_call overhead 缓冲，确保并行调用场景下不丢失尾部开销
-        this.flushPendingToolCallOverhead(this.lastToolCallCalibration, this.now());
+        this.flushPendingToolCallOverhead(this.lastToolCallCalibration, now);
 
-        this.updateTokensPerSecond();
+        this.updateTokensPerSecond(now);
 
         // 只有已收到首个有效流事件时，才发送最后一帧 streamingUpdate
         if (this.firstChunkEmitted) {
-            this.emitStreamingUpdate(true);
+            this.emitStreamingUpdate(true, now);
         }
     }
 
     /**
      * 发送流式速度更新（受节流，结束时由 finishMetrics 强制最后一帧）
      */
-    private emitStreamingUpdate(force: boolean): void {
+    private emitStreamingUpdate(force: boolean, streamEndTime?: number): void {
         if (!this.canEmitMetrics()) {
             return;
         }
@@ -584,13 +560,10 @@ export class LiveMetricsTracker {
             requestId: this.requestId!,
             requestStartTime: this.requestStartTime!,
             streamStartTime: this.firstStreamTime > 0 ? this.firstStreamTime : undefined,
+            streamEndTime,
             providerName: this.providerName,
             modelName: this.modelName,
             firstChunkLatencyMs,
-            firstOutputTime: this.firstOutputTime > 0 ? this.firstOutputTime : undefined,
-            lastOutputTime: this.lastOutputTime > 0 ? this.lastOutputTime : undefined,
-            firstContentOutputTime: this.firstContentOutputTime > 0 ? this.firstContentOutputTime : undefined,
-            lastContentOutputTime: this.lastContentOutputTime > 0 ? this.lastContentOutputTime : undefined,
             estimatedOutputTokens: this.estimatedOutputTokens,
             // 最近一次 flush（text/tool_call overhead）新增的 token 数。
             // UI 用 `+xx` 展示"最近一次接收的预估增量"，比累计值更直观

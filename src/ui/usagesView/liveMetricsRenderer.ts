@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  实时流式指标渲染器
  *  从 app.ts 抽离：维护实时指标状态机、占位行 DOM、共享渲染时钟，
  *  并把 streamingUpdate / firstChunk / requestStarted / streamEnd 事件映射到表格行的实时更新。
@@ -8,7 +8,7 @@
 
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { LiveRequestUiState, State } from './types';
-import { formatDuration, getLiveWaitingPresentation, getOutputDuration, getTodayDateString, t } from './utils';
+import { formatDuration, getLiveWaitingPresentation, getTodayDateString, t } from './utils';
 
 /**
  * 单个请求的实时流式指标状态
@@ -19,8 +19,7 @@ import { formatDuration, getLiveWaitingPresentation, getOutputDuration, getToday
 interface LiveMetricsState extends LiveRequestUiState {
     attemptStartTime: number; // 当前 attempt 开始时间（live TTFT 计算）
     streamStartTime?: number; // 当前 attempt 首流事件时间
-    firstOutputTime?: number;
-    lastOutputTime?: number;
+    streamEndTime?: number; // 来源端结束流式指标采集的时间
     firstChunkLatencyMs: number; // 当前 attempt 固定的首流延迟
     estimatedOutputTokens: number; // 实时估算的输出 token（带边界误差，仅供展示）
     lastOutputTokenDelta: number; // 最近一次 flush 新增的 token 数（UI 显示为 +xx）
@@ -132,8 +131,9 @@ export class LiveMetricsRenderer {
                 if (event.estimatedOutputTokens !== undefined) {
                     state.estimatedOutputTokens = event.estimatedOutputTokens;
                 }
-                state.firstOutputTime = event.firstOutputTime ?? state.firstOutputTime;
-                state.lastOutputTime = event.lastOutputTime ?? state.lastOutputTime;
+                if (event.streamEndTime !== undefined && Number.isFinite(event.streamEndTime)) {
+                    state.streamEndTime = event.streamEndTime;
+                }
                 state.lastOutputTokenDelta = event.lastOutputTokenDelta ?? state.lastOutputTokenDelta;
                 state.lastFlushSeq = newSeq;
                 state.tokensPerSecond = event.tokensPerSecond ?? state.tokensPerSecond;
@@ -143,6 +143,9 @@ export class LiveMetricsRenderer {
 
             case 'streamEnd': {
                 if (current) {
+                    if (event.streamEndTime !== undefined && Number.isFinite(event.streamEndTime)) {
+                        current.streamEndTime ??= event.streamEndTime;
+                    }
                     current.endedAt ??= Date.now();
                 }
                 this.syncWindowLiveMetricState(requestId);
@@ -308,8 +311,7 @@ export class LiveMetricsRenderer {
 
     private resetAttemptOutput(state: LiveMetricsState): void {
         state.estimatedOutputTokens = 0;
-        state.firstOutputTime = undefined;
-        state.lastOutputTime = undefined;
+        state.streamEndTime = undefined;
         state.lastOutputTokenDelta = 0;
         state.lastFlushSeq = 0;
         state.tokensPerSecond = 0;
@@ -397,7 +399,7 @@ export class LiveMetricsRenderer {
             }
 
             const isEnded = metricState.endedAt !== undefined;
-            const metricTime = metricState.endedAt ?? now;
+            const metricTime = metricState.streamEndTime ?? metricState.endedAt ?? now;
             const waitingPresentation = getLiveWaitingPresentation(metricState);
             const isWaiting = waitingPresentation.isWaiting;
 
@@ -428,39 +430,19 @@ export class LiveMetricsRenderer {
                 }
             }
 
-            // 实时计算首输出延迟：实际输出前持续增长，输出后固定
+            // 实时计算首流延迟：首流前持续增长，首流后固定
             const hasStreamStarted = metricState.streamStartTime !== undefined;
-            const hasOutputStarted = metricState.firstOutputTime !== undefined;
             const latencyMs =
-                hasOutputStarted ?
-                    Math.max(0, metricState.firstOutputTime! - metricState.attemptStartTime)
+                hasStreamStarted ?
+                    Math.max(0, metricState.streamStartTime! - metricState.attemptStartTime)
                 :   Math.max(0, metricTime - metricState.attemptStartTime);
 
-            const outputDuration = getOutputDuration({
-                status: 'estimated',
-                firstOutputTime: metricState.firstOutputTime,
-                lastOutputTime: metricState.lastOutputTime
-            });
-            const endedStreamDuration =
-                (
-                    isEnded &&
-                    (outputDuration === undefined || outputDuration === 0) &&
-                    metricState.streamStartTime !== undefined
-                ) ?
+            const liveOutputDuration =
+                metricState.streamStartTime !== undefined ?
                     Math.max(0, metricTime - metricState.streamStartTime)
                 :   undefined;
-            const liveOutputDuration =
-                !isEnded && metricState.firstOutputTime !== undefined && metricState.lastOutputTime !== undefined ?
-                    Math.max(0, metricTime - metricState.firstOutputTime)
-                :   (endedStreamDuration ?? outputDuration);
-            const usesLiveDurationForSpeed = !isEnded || endedStreamDuration !== undefined;
             const liveTokensPerSecond =
-                (
-                    usesLiveDurationForSpeed &&
-                    metricState.estimatedOutputTokens > 0 &&
-                    liveOutputDuration !== undefined &&
-                    liveOutputDuration > 0
-                ) ?
+                metricState.estimatedOutputTokens > 0 && liveOutputDuration !== undefined && liveOutputDuration > 0 ?
                     (metricState.estimatedOutputTokens / liveOutputDuration) * 1000
                 :   metricState.tokensPerSecond;
 
@@ -522,7 +504,7 @@ export class LiveMetricsRenderer {
 
                     if (isStale) {
                         speedSpan.textContent = '~';
-                    } else if (liveTokensPerSecond > 0 && hasOutputStarted) {
+                    } else if (liveTokensPerSecond > 0 && hasStreamStarted) {
                         speedSpan.textContent = `${liveTokensPerSecond.toFixed(1)} t/s`;
                     } else {
                         speedSpan.textContent = '-';

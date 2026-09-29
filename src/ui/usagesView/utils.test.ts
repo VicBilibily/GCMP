@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { BaseStats, NativeCostSplit } from '../../usages/fileLogger/types';
@@ -621,8 +621,7 @@ test('buildRequestTotals includes actual usage from cancelled records', () => {
             estimatedCost: 0.01,
             firstTokenLatency: 100,
             timePerOutputToken: 10,
-            firstOutputTime: 1100,
-            lastOutputTime: 3100
+            streamDuration: 2000
         }),
         createExtendedRecord({
             requestId: 'done-estimated',
@@ -631,8 +630,7 @@ test('buildRequestTotals includes actual usage from cancelled records', () => {
             outputTokens: 50,
             firstTokenLatency: 400,
             timePerOutputToken: 20,
-            firstOutputTime: 5400,
-            lastOutputTime: 8400
+            streamDuration: 3000
         }),
         createExtendedRecord({
             requestId: 'cancelled',
@@ -646,8 +644,7 @@ test('buildRequestTotals includes actual usage from cancelled records', () => {
             estimatedCost: 0.5,
             firstTokenLatency: 500,
             timePerOutputToken: 30,
-            firstOutputTime: 9500,
-            lastOutputTime: 13_500
+            streamDuration: 4000
         })
     ];
 

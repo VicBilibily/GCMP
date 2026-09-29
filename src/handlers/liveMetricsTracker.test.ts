@@ -279,7 +279,7 @@ test('reportOutput estimates text tokens when no tokenizer', () => {
     assert.equal(getEvent(updates, 1).estimatedOutputTokens, 4);
 });
 
-test('reportOutputTokens updates estimates without changing output timestamps', () => {
+test('reportOutputTokens updates estimates without changing stream start time', () => {
     const clock = createClock(2000);
     const { tracker, events } = createTracker({
         requestStartTime: 1000,
@@ -291,31 +291,24 @@ test('reportOutputTokens updates estimates without changing output timestamps', 
     tracker.reportOutputTokens('abcdefgh');
 
     const update = events.filter(e => e.type === 'streamingUpdate').at(-1);
-    assert.equal(update?.firstOutputTime, 2000);
-    assert.equal(update?.lastOutputTime, 2000);
-    assert.equal(update?.firstContentOutputTime, 2000);
-    assert.equal(update?.lastContentOutputTime, 2000);
+    assert.equal(update?.streamStartTime, 2000);
     assert.equal(update?.estimatedOutputTokens, 2);
 });
 
-test('thinking preserves TTFT without setting or extending the content output window', () => {
+test('thinking and content share the stream time window', () => {
     const clock = createClock(1200);
     const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0, now: clock.now });
-    tracker.reportOutput('reasoning', 'thinking');
-    assert.equal(events.at(-1)?.firstOutputTime, 1200);
-    assert.equal(events.at(-1)?.firstContentOutputTime, undefined);
+    tracker.reportOutput('reasoning');
+    assert.equal(events.at(-1)?.streamStartTime, 1200);
     clock.set(11200);
     tracker.reportOutputEvent();
     clock.set(12200);
     tracker.reportOutput('tool arguments');
     clock.set(14000);
-    tracker.reportOutputEvent('thinking');
+    tracker.reportOutputEvent();
     tracker.finishMetrics();
     const update = events.at(-1);
-    assert.equal(update?.firstOutputTime, 1200);
-    assert.equal(update?.lastOutputTime, 14000);
-    assert.equal(update?.firstContentOutputTime, 11200);
-    assert.equal(update?.lastContentOutputTime, 12200);
+    assert.equal(update?.streamStartTime, 1200);
 });
 
 test('reportOutput ignores invalid token increments', () => {
@@ -358,9 +351,8 @@ test('reportOutput computes tokensPerSecond from all output tokens since stream 
 
     const update = events.filter(e => e.type === 'streamingUpdate').at(-1);
     assert.ok(update, 'expected at least one streamingUpdate');
-    assert.equal(update!.firstOutputTime, 2100);
-    assert.equal(update!.lastOutputTime, 2200);
-    assert.equal(update!.tokensPerSecond, 110, '11 tokens over 100ms = 110 tokens/s');
+    assert.equal(update!.streamStartTime, 2000);
+    assert.equal(update!.tokensPerSecond, 55, '11 tokens over 200ms = 55 tokens/s');
 });
 
 test('reportOutput preserves throughput for batched output 14ms apart', () => {
@@ -382,9 +374,8 @@ test('reportOutput preserves throughput for batched output 14ms apart', () => {
 
     const update = events.filter(e => e.type === 'streamingUpdate').at(-1);
     assert.ok(update);
-    assert.equal(update!.firstOutputTime, 2100);
-    assert.equal(update!.lastOutputTime, 2114);
-    assert.equal(update!.tokensPerSecond, (65 / 14) * 1000);
+    assert.equal(update!.streamStartTime, 2000);
+    assert.equal(update!.tokensPerSecond, (65 / 114) * 1000);
 });
 
 for (const elapsed of [0, 1, 3, 14, 99]) {
@@ -401,8 +392,7 @@ for (const elapsed of [0, 1, 3, 14, 99]) {
 
         const update = events.filter(event => event.type === 'streamingUpdate').at(-1);
         assert.ok(update);
-        assert.equal(update.firstOutputTime, 2000 + elapsed);
-        assert.equal(update.lastOutputTime, 2000 + elapsed);
+        assert.equal(update.streamStartTime, 2000);
         assert.equal(update.estimatedOutputTokens, 1);
         assert.equal(update.tokensPerSecond, (1 / Math.max(1, elapsed)) * 1000);
 
@@ -411,7 +401,7 @@ for (const elapsed of [0, 1, 3, 14, 99]) {
     });
 }
 
-test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
+test('heartbeat keeps tokensPerSecond stable across a pause without new output', () => {
     const clock = createClock(2000);
     const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
     const { tracker, events } = createTracker({
@@ -428,9 +418,9 @@ test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
     tracker.reportOutput('b'.repeat(100));
 
     const speedAfterFirst = events.at(-1)?.tokensPerSecond;
-    assert.equal(speedAfterFirst, (101 / 200) * 1000);
+    assert.equal(speedAfterFirst, (101 / 300) * 1000);
 
-    // 模拟暂停：推进 5 秒，连续 heartbeat 不应改变 tokensPerSecond
+    // 模拟暂停：推进 5 秒，连续 heartbeat 不应改变没有新输出时的速度
     clock.set(7200);
     tracker.heartbeat();
     clock.set(9721);
@@ -441,7 +431,7 @@ test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
     const lastUpdate = events.at(-1);
     assert.ok(lastUpdate);
     assert.equal(lastUpdate!.type, 'streamingUpdate');
-    assert.equal(lastUpdate!.tokensPerSecond, speedAfterFirst, 'tokensPerSecond should remain frozen during pause');
+    assert.equal(lastUpdate!.tokensPerSecond, speedAfterFirst);
 });
 
 test('heartbeat respects throttle interval and emits at most one streamingUpdate per tick', () => {
@@ -511,6 +501,20 @@ test('finishMetrics is idempotent across multiple calls', () => {
     const last = events.at(-1);
     assert.ok(last);
     assert.equal(last!.type, 'streamingUpdate');
+});
+
+test('finishMetrics includes the source stream end time in the final update', () => {
+    const clock = createClock(1500);
+    const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0, now: clock.now });
+    tracker.markStreamStarted(1500);
+    tracker.reportOutput(10);
+    clock.set(2500);
+
+    tracker.finishMetrics();
+
+    const last = events.at(-1);
+    assert.equal(last?.type, 'streamingUpdate');
+    assert.equal(last?.streamEndTime, 2500);
 });
 
 test('finishMetrics after finishMetrics does nothing (even with prior state)', () => {

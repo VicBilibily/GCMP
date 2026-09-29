@@ -113,9 +113,9 @@ test('reportEncryptedThinking：仅思考内容也应被视为有内容', async 
     assert.equal(reporter.flushAll(null), true);
 });
 
-test('Gemini thought signature 元数据不计入实际输出时间', async () => {
+test('Gemini thought signature 元数据不改变流开始时间', async () => {
     const { StreamReporter } = await getStreamReporterModule();
-    const events: Array<{ type: string; firstOutputTime?: number; lastOutputTime?: number }> = [];
+    const events: Array<{ type: string; streamStartTime?: number }> = [];
     const reporter = new StreamReporter({
         modelName: 'gemini-test',
         modelId: 'gemini-test',
@@ -135,12 +135,11 @@ test('Gemini thought signature 元数据不计入实际输出时间', async () =
     reporter.flushAll(null);
 
     const finalUpdate = events.filter(event => event.type === 'streamingUpdate').at(-1);
-    assert.equal(finalUpdate?.firstOutputTime, undefined);
-    assert.equal(finalUpdate?.lastOutputTime, undefined);
+    assert.equal(finalUpdate?.streamStartTime, 1200);
 });
 
 for (const thinking of ['none', 'text', 'encrypted', 'redacted'] as const) {
-    test(`正文时间独立记录，平均速度沿用全部输出和流耗时：${thinking}`, async () => {
+    test(`思考与正文使用统一流时间计算速度：${thinking}`, async () => {
         const { StreamReporter } = await getStreamReporterModule();
         const events: LiveStreamMetricEvent[] = [];
         const originalNow = Date.now;
@@ -178,10 +177,7 @@ for (const thinking of ['none', 'text', 'encrypted', 'redacted'] as const) {
             reporter.finishMetrics();
             const update = events.filter(event => event.type === 'streamingUpdate').at(-1);
             assert.ok(update);
-            assert.equal(update.firstOutputTime, thinking === 'none' ? 11200 : 1200);
-            assert.equal(update.lastOutputTime, thinking === 'none' ? 12200 : 14000);
-            assert.equal(update.firstContentOutputTime, 11200);
-            assert.equal(update.lastContentOutputTime, 12200);
+            assert.equal(update.streamStartTime, thinking === 'none' ? 11200 : 1200);
             const parsed = UsageParser.parseFromLog({
                 ...update,
                 streamEndTime: now,
@@ -194,7 +190,7 @@ for (const thinking of ['none', 'text', 'encrypted', 'redacted'] as const) {
                 status: 'completed',
                 rawUsage: { promptTokenCount: 1, candidatesTokenCount: 11, thoughtsTokenCount: 100 }
             });
-            const duration = thinking === 'none' ? 1000 : 12800;
+            const duration = thinking === 'none' ? 2800 : 12800;
             assert.equal(parsed.timePerOutputToken, duration / 111);
             assert.equal(parsed.outputSpeed, (111 / duration) * 1000);
             assert.equal(parsed.firstTokenLatency, thinking === 'none' ? 10200 : 200);

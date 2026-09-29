@@ -84,10 +84,6 @@ function createRecord(overrides: Partial<SnapshotRequestRecord> = {}): SnapshotR
         requestMetricStartTime: overrides.requestMetricStartTime,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
-        firstOutputTime: overrides.firstOutputTime,
-        lastOutputTime: overrides.lastOutputTime,
-        firstContentOutputTime: overrides.firstContentOutputTime,
-        lastContentOutputTime: overrides.lastContentOutputTime,
         actualInput: overrides.actualInput,
         outputTokens: overrides.outputTokens,
         totalTokens: overrides.totalTokens,
@@ -204,10 +200,6 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
         totalTokens: 100,
         streamStartTime: 1100,
         streamEndTime: 1400,
-        firstOutputTime: 1150,
-        lastOutputTime: 1350,
-        firstContentOutputTime: 1250,
-        lastContentOutputTime: 1350,
         outputSpeed: 66
     });
     const overlayCompleted = createRecord({
@@ -236,10 +228,6 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
     assert.equal(merged.requestMetricStartTime, 1350);
     assert.equal(merged.streamStartTime, 1100, 'overlay 缺失时保留 base 的首流时间');
     assert.equal(merged.streamEndTime, 1600);
-    assert.equal(merged.firstOutputTime, 1150);
-    assert.equal(merged.lastOutputTime, 1350);
-    assert.equal(merged.firstContentOutputTime, 1250);
-    assert.equal(merged.lastContentOutputTime, 1350);
     assert.equal(merged.outputSpeed, 83);
 });
 
@@ -530,10 +518,14 @@ test('legacy snapshot timing falls back to stored duration and recalculates outp
         );
 
         const restored = (await snapshot.read(date))?.[0];
+        const extended = restored ? UsageParser.extendLog(restored) : undefined;
 
         assert.equal(restored?.streamDuration, 1000);
         assert.equal(restored?.timePerOutputToken, 50);
         assert.equal(restored?.outputSpeed, 20);
+        assert.equal(extended?.streamDuration, 1000);
+        assert.equal(extended?.timePerOutputToken, 50);
+        assert.equal(extended?.outputSpeed, 20);
     } finally {
         restoreHost();
         await rm(dir, { recursive: true, force: true });

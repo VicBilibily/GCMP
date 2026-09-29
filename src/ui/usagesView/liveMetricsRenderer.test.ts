@@ -332,8 +332,6 @@ function createClockFixture(context: TestContext) {
         providerName: 'Test',
         modelName: 'Test',
         streamStartTime: 2000,
-        firstOutputTime: 3000,
-        lastOutputTime: 9000,
         estimatedOutputTokens: 100,
         lastOutputTokenDelta: 25,
         lastFlushSeq: 4,
@@ -362,8 +360,8 @@ test('live clocks advance without provider output and resume after a date switch
     assert.equal(dom.outputCell.duration.textContent, '-');
     renderer.handleEvent(event);
     advance(15_000);
-    assert.equal(dom.outputCell.ttft.textContent, '2.0s');
-    assert.equal(dom.outputCell.duration.textContent, '12.0s');
+    assert.equal(dom.outputCell.ttft.textContent, '1.0s');
+    assert.equal(dom.outputCell.duration.textContent, '13.0s');
     assert.equal(dom.outputCell.tokens.textContent, '+25 tks');
     assert.equal(dom.outputCell.speed.textContent, '~');
 
@@ -373,11 +371,11 @@ test('live clocks advance without provider output and resume after a date switch
     renderer.onDateChanged(false, true);
     assert.equal(frameCount(), 0);
     advance(20_000);
-    assert.equal(dom.outputCell.duration.textContent, '12.0s');
+    assert.equal(dom.outputCell.duration.textContent, '13.0s');
     details.date = '2026-08-14';
     details.isToday = true;
     renderer.onDateChanged(true, true);
-    assert.equal(dom.outputCell.duration.textContent, '17.0s');
+    assert.equal(dom.outputCell.duration.textContent, '18.0s');
     assert.equal(frameCount(), 1);
 });
 
@@ -397,12 +395,12 @@ for (const replay of replayCases) {
         const { renderer, dom, event, advance } = createClockFixture(context);
         renderer.handleEvent(event);
         renderer.handleEvent({ ...event, ...replay.event });
-        assert.equal(dom.outputCell.ttft.textContent, '2.0s');
-        assert.equal(dom.outputCell.duration.textContent, '7.0s');
-        assert.equal(dom.outputCell.tokens.textContent, '+25 tks');
-        assert.equal(dom.outputCell.speed.textContent, '14.3 t/s');
-        advance(11_000);
+        assert.equal(dom.outputCell.ttft.textContent, '1.0s');
         assert.equal(dom.outputCell.duration.textContent, '8.0s');
+        assert.equal(dom.outputCell.tokens.textContent, '+25 tks');
+        assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');
+        advance(11_000);
+        assert.equal(dom.outputCell.duration.textContent, '9.0s');
     });
 }
 
@@ -414,8 +412,6 @@ test('a new attempt resets metrics even when only its heartbeat arrives', contex
         ...event,
         requestStartTime: 15_000,
         streamStartTime: undefined,
-        firstOutputTime: undefined,
-        lastOutputTime: undefined,
         estimatedOutputTokens: 0,
         lastOutputTokenDelta: 0,
         lastFlushSeq: 0,
@@ -428,8 +424,6 @@ test('a new attempt resets metrics even when only its heartbeat arrives', contex
         ...event,
         requestStartTime: 15_000,
         streamStartTime: 15_500,
-        firstOutputTime: 15_500,
-        lastOutputTime: 16_000,
         lastFlushSeq: 1
     });
     assert.equal(dom.outputCell.ttft.textContent, '500ms');
@@ -449,8 +443,6 @@ test('a genuine retry start clears prior output but duplicate starts remain idem
         ...event,
         requestStartTime: 15_000,
         streamStartTime: 15_500,
-        firstOutputTime: 15_500,
-        lastOutputTime: 16_000,
         lastFlushSeq: 1
     });
     renderer.handleEvent(retry);
@@ -475,14 +467,14 @@ test('rebuilding a real row restores live values immediately without another eve
     dom.row.isConnected = false;
     const replacement = createRendererDom(event.requestId);
     renderer.render();
-    assert.equal(replacement.outputCell.ttft.textContent, '2.0s');
-    assert.equal(replacement.outputCell.duration.textContent, '7.0s');
+    assert.equal(replacement.outputCell.ttft.textContent, '1.0s');
+    assert.equal(replacement.outputCell.duration.textContent, '8.0s');
     assert.equal(replacement.outputCell.tokens.textContent, '+25 tks');
 });
 
 test('stream end freezes metrics until final records replace an estimated row', context => {
     const { renderer, dom, event, advance, frameCount } = createClockFixture(context);
-    renderer.handleEvent({ ...event, requestStartTime: 1500, firstOutputTime: 2000 });
+    renderer.handleEvent({ ...event, requestStartTime: 1500, streamStartTime: 2000 });
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     assert.equal(frameCount(), 0);
     dom.row.isConnected = false;
@@ -490,7 +482,7 @@ test('stream end freezes metrics until final records replace an estimated row', 
     advance(15_000);
     renderer.render();
     assert.equal(replacement.outputCell.ttft.textContent, '500ms');
-    assert.equal(replacement.outputCell.duration.textContent, '7.0s');
+    assert.equal(replacement.outputCell.duration.textContent, '8.0s');
     assert.equal(replacement.outputCell.tokens.textContent, '+25 tks');
     assert.equal(replacement.statusLabel.textContent, 'SYNC');
 
@@ -504,6 +496,17 @@ test('stream end freezes metrics until final records replace an estimated row', 
     assert.equal(obsoleteRow.outputCell.duration.textContent, '-');
 });
 
+test('delayed stream end uses the source stream end time', context => {
+    const { renderer, dom, event, frameCount } = createClockFixture(context);
+    renderer.handleEvent({ ...event, streamEndTime: 3000 });
+    renderer.handleEvent({ ...event, type: 'streamEnd' });
+
+    assert.equal(frameCount(), 0);
+    assert.equal(dom.outputCell.duration.textContent, '1.0s');
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+    assert.equal(dom.statusLabel.textContent, 'SYNC');
+});
+
 test('ended metrics expire and a fresh live event can resume a disconnected request', context => {
     const { renderer, dom, event, advance, frameCount } = createClockFixture(context);
     renderer.handleEvent(event);
@@ -512,7 +515,7 @@ test('ended metrics expire and a fresh live event can resume a disconnected requ
     renderer.handleEvent({ ...event, lastFlushSeq: 5 });
     assert.equal(frameCount(), 1);
     assert.equal(dom.statusLabel.textContent, 'ACTIVE');
-    assert.equal(dom.outputCell.duration.textContent, '12.0s');
+    assert.equal(dom.outputCell.duration.textContent, '13.0s');
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     advance(45_001);
     dom.row.isConnected = false;
@@ -548,22 +551,20 @@ test('LiveMetricsRenderer renders output duration independently of average speed
         requestId: 'req-output-timing',
         requestStartTime: 1000,
         streamStartTime: 1200,
-        firstOutputTime: 1500,
-        lastOutputTime: 1700,
         estimatedOutputTokens: 21,
         tokensPerSecond: 100,
         providerName: 'GCMP',
         modelName: 'test-model'
     });
 
-    assert.equal(outputCell.ttft.textContent, '500ms');
-    assert.equal(outputCell.duration.textContent, '200ms');
-    assert.equal(outputCell.speed.textContent, '105.0 t/s');
+    assert.equal(outputCell.ttft.textContent, '200ms');
+    assert.equal(outputCell.duration.textContent, '500ms');
+    assert.equal(outputCell.speed.textContent, '42.0 t/s');
     for (const lang of ['zh-CN', 'en']) {
         Reflect.set(document, 'documentElement', { lang });
         renderer.render();
-        assert.equal(outputCell.duration.title, 'Output duration: 200ms');
-        assert.equal(outputCell.speed.title, 'Average speed: 105.0 t/s');
+        assert.equal(outputCell.duration.title, 'Output duration: 500ms');
+        assert.equal(outputCell.speed.title, 'Average speed: 42.0 t/s');
     }
 });
 
@@ -571,22 +572,22 @@ test('live output duration advances while streaming and freezes at stream end', 
     const { renderer, dom, event, advance } = createClockFixture(context);
     renderer.handleEvent(event);
     advance(20_000);
-    assert.equal(dom.outputCell.duration.textContent, '17.0s');
-    renderer.handleEvent({ ...event, lastOutputTime: 12_000, lastFlushSeq: 5, tokensPerSecond: 20 });
-    assert.equal(dom.outputCell.duration.textContent, '17.0s');
-    assert.equal(dom.outputCell.speed.textContent, '5.9 t/s');
+    assert.equal(dom.outputCell.duration.textContent, '18.0s');
+    renderer.handleEvent({ ...event, lastFlushSeq: 5, tokensPerSecond: 20 });
+    assert.equal(dom.outputCell.duration.textContent, '18.0s');
+    assert.equal(dom.outputCell.speed.textContent, '5.6 t/s');
     advance(25_000);
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     advance(30_000);
     renderer.render();
-    assert.equal(dom.outputCell.duration.textContent, '9.0s');
+    assert.equal(dom.outputCell.duration.textContent, '23.0s');
 });
 
-test('a single batched output falls back to the protocol stream window after stream end', context => {
+test('a single batched output uses the protocol stream window after stream end', context => {
     const { renderer, dom, event } = createClockFixture(context);
-    renderer.handleEvent({ ...event, lastOutputTime: event.firstOutputTime, tokensPerSecond: 0 });
-    assert.equal(dom.outputCell.duration.textContent, '7.0s');
-    assert.equal(dom.outputCell.speed.textContent, '14.3 t/s');
+    renderer.handleEvent({ ...event, tokensPerSecond: 0 });
+    assert.equal(dom.outputCell.duration.textContent, '8.0s');
+    assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     assert.equal(dom.outputCell.duration.textContent, '8.0s');
     assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');

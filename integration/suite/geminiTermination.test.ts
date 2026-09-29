@@ -381,14 +381,10 @@ suite('Gemini response termination', () => {
                     const logPath = pathManager.getLogPathFromDate(new Date(now));
                     const saved = JSON.parse((await readFile(logPath.fullPath, 'utf8')).trim()) as TokenRequestLog;
                     assert.equal(saved.status, ending === 'aborted' ? 'cancelled' : ending);
-                    assert.equal(saved.firstOutputTime, visibleThinking ? 1200 : 11200);
-                    assert.equal(saved.lastOutputTime, 12200);
-                    assert.equal(saved.firstContentOutputTime, 11200);
-                    assert.equal(saved.lastContentOutputTime, 12200);
                     assert.deepEqual(saved.rawUsage, usage);
                     assert.equal(saved.streamStartTime, visibleThinking ? 1200 : 11200);
                     assert.equal(saved.streamEndTime, now);
-                    const duration = 12200 - (visibleThinking ? 1200 : 11200);
+                    const duration = saved.streamEndTime! - saved.streamStartTime!;
                     const expectedSpeed = (111 / duration) * 1000;
                     assert.equal(UsageParser.parseFromLog(saved).timePerOutputToken, duration / 111);
                     assert.equal(UsageParser.parseFromLog(saved).outputSpeed, expectedSpeed);
@@ -397,8 +393,6 @@ suite('Gemini response termination', () => {
                     assert.equal(UsageParser.parseFromLog(merged).outputSpeed, expectedSpeed);
                     await snapshots.upsertRecord(logPath.date, merged);
                     const restored = (await snapshots.read(logPath.date))?.[0];
-                    assert.equal(restored?.firstContentOutputTime, 11200);
-                    assert.equal(restored?.lastContentOutputTime, 12200);
                     assert.equal(restored?.firstTokenLatency, visibleThinking ? 200 : 10200);
                     assert.equal(restored?.timePerOutputToken, duration / 111);
                     assert.equal(restored?.outputSpeed, expectedSpeed);

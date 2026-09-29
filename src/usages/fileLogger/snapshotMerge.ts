@@ -24,10 +24,6 @@ export interface SnapshotRequestRecord {
     wasThrottled?: boolean;
     streamStartTime?: number;
     streamEndTime?: number;
-    firstOutputTime?: number;
-    lastOutputTime?: number;
-    firstContentOutputTime?: number;
-    lastContentOutputTime?: number;
     actualInput?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -113,10 +109,6 @@ export function mergeSnapshotRecord(
         wasThrottled: preferredRecord.wasThrottled ?? fallbackRecord.wasThrottled,
         streamStartTime: preferredRecord.streamStartTime ?? fallbackRecord.streamStartTime,
         streamEndTime: preferredRecord.streamEndTime ?? fallbackRecord.streamEndTime,
-        firstOutputTime: preferredRecord.firstOutputTime ?? fallbackRecord.firstOutputTime,
-        lastOutputTime: preferredRecord.lastOutputTime ?? fallbackRecord.lastOutputTime,
-        firstContentOutputTime: preferredRecord.firstContentOutputTime ?? fallbackRecord.firstContentOutputTime,
-        lastContentOutputTime: preferredRecord.lastContentOutputTime ?? fallbackRecord.lastContentOutputTime,
         actualInput: preferredRecord.actualInput ?? fallbackRecord.actualInput,
         outputTokens: preferredRecord.outputTokens ?? fallbackRecord.outputTokens,
         totalTokens: preferredRecord.totalTokens ?? fallbackRecord.totalTokens,

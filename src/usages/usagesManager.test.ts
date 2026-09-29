@@ -701,10 +701,6 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
             requestMetricStartTime: 1000,
             streamStartTime: 1100,
             streamEndTime: 6000,
-            firstOutputTime: 1500,
-            lastOutputTime: 3500,
-            firstContentOutputTime: 1500,
-            lastContentOutputTime: 3500,
             rawUsage: {
                 prompt_tokens: 10,
                 completion_tokens: 21,
@@ -741,32 +737,27 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
             await t.test(`status bar uses actual usage and output timing for ${status}`, () => {
                 const row = renderRecent({ ...timingLog, status });
                 assert.match(row, /\| 4\+6=10 \| 21 \|/);
-                assert.match(row, /\| 0\.5 s \| 10\.5 t\/s \|/);
+                assert.match(row, /\| 100 ms \| 4\.3 t\/s \|/);
                 assert.doesNotMatch(row, /≈/);
             });
         }
 
         await t.test('status bar displays legacy speed without approximation symbols', () => {
             const row = renderRecent({
-                ...timingLog,
-                firstOutputTime: undefined,
-                lastOutputTime: undefined,
-                firstContentOutputTime: undefined,
-                lastContentOutputTime: undefined
+                ...timingLog
             });
             assert.match(row, /\| 100 ms \| 4\.3 t\/s \|/);
             assert.doesNotMatch(row, /≈/);
         });
 
         await t.test('status bar keeps the original stream throughput', () => {
-            const row = renderRecent({ ...timingLog, lastOutputTime: 1500, outputSpeed: 100000 });
-            assert.match(row, /\| 0\.5 s \| 4\.3 t\/s \|/);
+            const row = renderRecent({ ...timingLog, streamEndTime: 1500, outputSpeed: 100000 });
+            assert.match(row, /\| 100 ms \| 52\.5 t\/s \|/);
         });
 
         await t.test('status bar includes all output tokens in average speed', () => {
             const row = renderRecent({
                 ...timingLog,
-                firstContentOutputTime: 2500,
                 rawUsage: {
                     promptTokenCount: 10,
                     candidatesTokenCount: 11,
@@ -775,14 +766,12 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                 }
             });
             assert.match(row, /\| 31 \|/);
-            assert.match(row, /\| 0\.5 s \| 15\.5 t\/s \|/);
+            assert.match(row, /\| 100 ms \| 6\.3 t\/s \|/);
         });
 
         await t.test('status bar shows average speed for thinking-only output', () => {
             const row = renderRecent({
                 ...timingLog,
-                firstContentOutputTime: undefined,
-                lastContentOutputTime: undefined,
                 rawUsage: {
                     promptTokenCount: 10,
                     candidatesTokenCount: 0,
@@ -790,7 +779,7 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                     totalTokenCount: 30
                 }
             });
-            assert.match(row, /\| 0\.5 s \| 10\.0 t\/s \|/);
+            assert.match(row, /\| 100 ms \| 4\.1 t\/s \|/);
         });
 
         for (const duration of [1, 3, 14]) {
@@ -798,10 +787,6 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                 const row = renderRecent({
                     ...timingLog,
                     streamEndTime: 1100 + duration,
-                    firstOutputTime: 1100,
-                    lastOutputTime: 1100,
-                    firstContentOutputTime: 1100,
-                    lastContentOutputTime: 1100,
                     rawUsage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }
                 });
                 assert.equal(row.split('|')[8].trim(), `${(1000 / duration).toFixed(1)} t/s`);
@@ -813,13 +798,13 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                 ...timingLog,
                 rawUsage: { prompt_tokens: 10, completion_tokens: 4001, total_tokens: 4011 }
             });
-            assert.match(row, /\| 0\.5 s \| 2000\.5 t\/s \|/);
+            assert.match(row, /\| 100 ms \| 816\.5 t\/s \|/);
         });
 
         await t.test('status bar preserves pending tracker throughput without inventing actual usage', () => {
             const row = renderRecent({ ...timingLog, status: 'estimated', rawUsage: null, outputSpeed: 12.5 });
             assert.match(row, /\| ~99 \| - \|/);
-            assert.match(row, /\| 0\.5 s \| 12\.5 t\/s \|/);
+            assert.match(row, /\| 100 ms \| 12\.5 t\/s \|/);
         });
 
         await t.test('status bar does not treat a pending protocol event as actual output', () => {
@@ -827,11 +812,8 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                 ...timingLog,
                 status: 'estimated',
                 rawUsage: null,
+                streamStartTime: undefined,
                 streamEndTime: undefined,
-                firstOutputTime: undefined,
-                lastOutputTime: undefined,
-                firstContentOutputTime: undefined,
-                lastContentOutputTime: undefined,
                 outputSpeed: 0
             });
             assert.match(row, /\| - \| - \|$/);

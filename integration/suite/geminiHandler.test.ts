@@ -782,9 +782,9 @@ suite('Gemini handler stream lifecycle', () => {
         assert.equal(calls[0].callId, 'call-1');
     });
 
-    test('仅工具调用响应按到达时间记录首末输出而不是 EOF', async () => {
+    test('仅工具调用响应按到达时间记录流开始而不是 EOF', async () => {
         const originalDateNow = Date.now;
-        const events: Array<{ type: string; firstOutputTime?: number; lastOutputTime?: number }> = [];
+        const events: Array<{ type: string; streamStartTime?: number }> = [];
         const parts: vscode.LanguageModelResponsePart2[] = [];
         const reporter = new StreamReporter({
             modelName: 'Gemini Test',
@@ -826,8 +826,7 @@ suite('Gemini handler stream lifecycle', () => {
                 new vscode.CancellationTokenSource().token
             );
             const update = events.filter(event => event.type === 'streamingUpdate').at(-1);
-            assert.equal(update?.firstOutputTime, 1200);
-            assert.equal(update?.lastOutputTime, 1200);
+            assert.equal(update?.streamStartTime, 1200);
             assert.equal(result.streamEndTime, 5000);
             assert.equal(parts.filter(part => part instanceof vscode.LanguageModelToolCallPart).length, 1);
         } finally {

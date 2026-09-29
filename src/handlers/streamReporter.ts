@@ -320,7 +320,7 @@ export class StreamReporter {
         this.consumeThoughtSignature({ partKind: 'thought', partIndex });
 
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode
-        this.tracker.reportOutput(content, 'thinking');
+        this.tracker.reportOutput(content);
 
         this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
@@ -421,7 +421,7 @@ export class StreamReporter {
         if (!encryptedContent) {
             return;
         }
-        this.tracker.reportOutputEvent('thinking');
+        this.tracker.reportOutputEvent();
         // 确保先结束之前的思维链
         this.endThinkingChain();
         // 累积到 marker，供历史 ThinkingPart 被剥离时按 openai-responses 格式恢复加密 reasoning
@@ -453,7 +453,7 @@ export class StreamReporter {
         if (!redactedData) {
             return;
         }
-        this.tracker.reportOutputEvent('thinking');
+        this.tracker.reportOutputEvent();
         this.endThinkingChain();
         this.encryptedThinkingData.push(redactedData);
         this.progress.report(

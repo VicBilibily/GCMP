@@ -257,10 +257,6 @@ function normalizePendingRecord(value: unknown): UsagesPendingRecord | undefined
         'requestMetricStartTime',
         'streamStartTime',
         'streamEndTime',
-        'firstOutputTime',
-        'lastOutputTime',
-        'firstContentOutputTime',
-        'lastContentOutputTime',
         'outputSpeed',
         'outputTokens'
     ] as const) {

@@ -17,14 +17,8 @@ export interface LiveStreamMetricEvent {
     waitScope?: RateLimitWaitScope;
     queuePosition?: number;
     streamStartTime?: number;
-    /** 首次收到文本、思考或工具参数等实际模型输出的时间戳。 */
-    firstOutputTime?: number;
-    /** 最近一次收到文本、思考或工具参数等实际模型输出的时间戳。 */
-    lastOutputTime?: number;
-    /** 首次收到可见内容输出的时间戳，用于排除思考 token 的速度计算。 */
-    firstContentOutputTime?: number;
-    /** 最近一次收到可见内容输出的时间戳，用于排除思考 token 的速度计算。 */
-    lastContentOutputTime?: number;
+    /** 来源端结束流式指标采集的时间戳。 */
+    streamEndTime?: number;
     firstChunkLatencyMs?: number;
     /**
      * 实时估算的输出 token 数（基于增量 encode 累加，存在 token 边界误差）。
@@ -42,7 +36,7 @@ export interface LiveStreamMetricEvent {
      */
     lastFlushSeq?: number;
     /**
-     * 实时估算的输出 token 速度（tokens/s）。基于首末实际输出时间计算。
+     * 实时估算的输出 token 速度（tokens/s）。基于流开始到最近一次输出更新计算。
      * 暂停期间保持冻结。
      */
     tokensPerSecond?: number;

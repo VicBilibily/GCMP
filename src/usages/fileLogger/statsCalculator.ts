@@ -267,18 +267,6 @@ export abstract class StatsCalculator {
                     // 此处用该条流水记录时间作为结束时间兜底，避免历史数据在耗时/速度统计中完全缺失。
                     existing.streamEndTime = log.timestamp;
                 }
-                if (log.firstOutputTime !== undefined) {
-                    existing.firstOutputTime = log.firstOutputTime;
-                }
-                if (log.lastOutputTime !== undefined) {
-                    existing.lastOutputTime = log.lastOutputTime;
-                }
-                if (log.firstContentOutputTime !== undefined) {
-                    existing.firstContentOutputTime = log.firstContentOutputTime;
-                }
-                if (log.lastContentOutputTime !== undefined) {
-                    existing.lastContentOutputTime = log.lastContentOutputTime;
-                }
             }
         }
 

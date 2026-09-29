@@ -27,10 +27,6 @@ function createLog(overrides: Partial<TokenRequestLog> = {}): TokenRequestLog {
         telemetryTurn: overrides.telemetryTurn,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
-        firstOutputTime: overrides.firstOutputTime,
-        lastOutputTime: overrides.lastOutputTime,
-        firstContentOutputTime: overrides.firstContentOutputTime,
-        lastContentOutputTime: overrides.lastContentOutputTime,
         outputSpeed: overrides.outputSpeed,
         outputTokens: overrides.outputTokens,
         estimatedCost: overrides.estimatedCost,
@@ -234,9 +230,7 @@ for (const duration of [1, 3, 14, 99]) {
                 status: 'completed',
                 rawUsage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
                 streamStartTime: 1200,
-                streamEndTime: 1200 + duration,
-                firstOutputTime: 1200,
-                lastOutputTime: 1200
+                streamEndTime: 1200 + duration
             })
         ]);
         const speed = (1 / duration) * 1000;
@@ -383,10 +377,8 @@ test('mergeLogsByRequestId keeps late session title backfill metadata', () => {
             sessionTitle: '新的会话标题',
             outputSpeed: 12.5,
             outputTokens: 20,
-            firstOutputTime: 1600,
-            lastOutputTime: 1900,
-            firstContentOutputTime: 1700,
-            lastContentOutputTime: 1800
+            streamStartTime: 1600,
+            streamEndTime: 1900
         })
     ]);
 
@@ -399,10 +391,8 @@ test('mergeLogsByRequestId keeps late session title backfill metadata', () => {
     assert.equal(record.telemetryTurn, 3);
     assert.equal(record.outputSpeed, 12.5);
     assert.equal(record.outputTokens, 20);
-    assert.equal(record.firstOutputTime, 1600);
-    assert.equal(record.lastOutputTime, 1900);
-    assert.equal(record.firstContentOutputTime, 1700);
-    assert.equal(record.lastContentOutputTime, 1800);
+    assert.equal(record.streamStartTime, 1600);
+    assert.equal(record.streamEndTime, 1900);
 });
 
 test('mergeLogsByRequestId keeps late chat-title session reassignment', () => {

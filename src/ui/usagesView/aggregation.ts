@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  UsagesView 纯聚合模块（扩展侧与 WebView 共享）
  *  只允许依赖 node 内置 + 纯逻辑模块；禁止 vscode / window / document / locale 依赖。
  *  聚合函数由扩展侧执行，摘要结果经 postMessage 推送 WebView。
@@ -51,20 +51,8 @@ export function hasRecordedUsage(record: Pick<ExtendedTokenRequestLog, 'status' 
 }
 
 export function getOutputDuration(
-    record: Pick<ExtendedTokenRequestLog, 'status' | 'firstOutputTime' | 'lastOutputTime' | 'streamDuration'>
+    record: Pick<ExtendedTokenRequestLog, 'status' | 'streamDuration'>
 ): number | undefined {
-    let outputDuration: number | undefined;
-    if (record.firstOutputTime !== undefined || record.lastOutputTime !== undefined) {
-        if (record.firstOutputTime !== undefined && record.lastOutputTime !== undefined) {
-            const milliseconds = record.lastOutputTime - record.firstOutputTime;
-            if (Number.isFinite(milliseconds) && milliseconds >= 0) {
-                outputDuration = milliseconds;
-                if (milliseconds > 0) {
-                    return milliseconds;
-                }
-            }
-        }
-    }
     if (
         record.status !== 'estimated' &&
         record.streamDuration !== undefined &&
@@ -73,7 +61,7 @@ export function getOutputDuration(
     ) {
         return record.streamDuration;
     }
-    return outputDuration;
+    return undefined;
 }
 
 /**

@@ -187,14 +187,6 @@ export interface TokenRequestLog {
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */
     streamEndTime?: number;
-    /** 首次收到文本、思考或工具参数等实际模型输出的时间戳 */
-    firstOutputTime?: number;
-    /** 最近一次收到文本、思考或工具参数等实际模型输出的时间戳 */
-    lastOutputTime?: number;
-    /** 首次收到可见内容输出的时间戳，用于排除思考 token 的速度计算 */
-    firstContentOutputTime?: number;
-    /** 最近一次收到可见内容输出的时间戳，用于排除思考 token 的速度计算 */
-    lastContentOutputTime?: number;
     /** 实时输出速度 (tokens/s)，由 live metrics streaming 期间注入，最终值以 usage 回写为准 */
     outputSpeed?: number;
     /** 输出 token 数（streaming 期间为预估值，最终值以 usage 回写为准） */

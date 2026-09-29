@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import type { TokenRequestLog } from '../../usages/fileLogger/types';
@@ -626,10 +626,6 @@ test('request records render output duration and average speed in static and tot
             requestMetricStartTime: 1000,
             streamStartTime: 1100,
             streamEndTime: 6000,
-            firstOutputTime: 1500,
-            lastOutputTime: 3500,
-            firstContentOutputTime: 1500,
-            lastContentOutputTime: 3500,
             rawUsage: { prompt_tokens: 10, completion_tokens: 21, total_tokens: 31 },
             ...overrides
         });
@@ -658,35 +654,29 @@ test('request records render output duration and average speed in static and tot
                 :   '<span>Duration</span><span>Output</span>'
             );
             for (const html of [output, total]) {
-                assert.match(html, /class="output-duration"[^>]*>2\.0s</);
-                assert.match(html, /class="output-speed"[^>]*>10\.5 t\/s</);
+                assert.match(html, /class="output-duration"[^>]*>4\.9s</);
+                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
                 assert.doesNotMatch(html, /TPOT|ms\/token|≈|legacy|approximation|稳健均值/);
             }
-            assert.match(output, /title="Output duration: 2\.0s"/);
-            assert.match(output, /title="Average speed: 10\.5 t\/s"/);
+            assert.match(output, /title="Output duration: 4\.9s"/);
+            assert.match(output, /title="Average speed: 4\.3 t\/s"/);
             assert.doesNotMatch(total, /title=/);
         });
     }
 
-    await context.test('average speed includes all output tokens without a separate content window', () => {
+    await context.test('average speed includes all output tokens in the stream window', () => {
         const { output, total } = render({
-            firstContentOutputTime: 2500,
             rawUsage: { promptTokenCount: 10, candidatesTokenCount: 11, thoughtsTokenCount: 20, totalTokenCount: 41 }
         });
         for (const html of [output, total]) {
-            assert.match(html, /class="output-duration"[^>]*>2\.0s</);
-            assert.match(html, /class="output-speed"[^>]*>15\.5 t\/s</);
+            assert.match(html, /class="output-duration"[^>]*>4\.9s</);
+            assert.match(html, /class="output-speed"[^>]*>6\.3 t\/s</);
         }
-        assert.doesNotMatch(output, /reasoning|thinking|protocol|window|100ms/);
+        assert.doesNotMatch(output, /reasoning|thinking|protocol|window/);
     });
 
     await context.test('legacy timings display plain values without approximation symbols or explanations', () => {
-        const { output, total } = render({
-            firstOutputTime: undefined,
-            lastOutputTime: undefined,
-            firstContentOutputTime: undefined,
-            lastContentOutputTime: undefined
-        });
+        const { output, total } = render();
         for (const html of [output, total]) {
             assert.match(html, /class="output-duration"[^>]*>4\.9s</);
             assert.doesNotMatch(html, /≈|legacy|approximation|protocol|稳健均值/);
@@ -696,14 +686,19 @@ test('request records render output duration and average speed in static and tot
         assert.doesNotMatch(total, /title=/);
     });
 
-    await context.test('zero and short output spans fall back to the stream average speed', () => {
+    await context.test('zero and short stream spans use stream timing', () => {
         for (const duration of [0, 14]) {
-            const { output, total } = render({ lastOutputTime: 1500 + duration });
-            const expectedSpeed = duration === 0 ? '4.3' : '1500.0';
-            const expectedDuration = duration === 0 ? '4.9s' : '14ms';
+            const { output, total } = render({ streamEndTime: 1100 + duration });
+            const expectedSpeed = duration === 0 ? '-' : '1500.0';
+            const expectedDuration = duration === 0 ? '0ms' : '14ms';
             for (const html of [output, total]) {
                 assert.match(html, new RegExp(`class="output-duration"[^>]*>${expectedDuration}<`));
-                assert.match(html, new RegExp(`class="output-speed"[^>]*>${expectedSpeed} t/s<`));
+                assert.match(
+                    html,
+                    duration === 0 ? /class="output-speed"[^>]*>-</ : (
+                        new RegExp(`class="output-speed"[^>]*>${expectedSpeed} t/s<`)
+                    )
+                );
             }
         }
     });
@@ -712,10 +707,6 @@ test('request records render output duration and average speed in static and tot
         await context.test(`static and total rows display single-token speed for a ${duration}ms response`, () => {
             const { output, total } = render({
                 streamEndTime: 1100 + duration,
-                firstOutputTime: 1100,
-                lastOutputTime: 1100,
-                firstContentOutputTime: 1100,
-                lastContentOutputTime: 1100,
                 rawUsage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }
             });
             const speed = `${(1000 / duration).toFixed(1)} t/s`;
@@ -727,18 +718,17 @@ test('request records render output duration and average speed in static and tot
         });
     }
 
-    await context.test('incomplete, reversed or non-finite output timestamps fall back to protocol time', () => {
+    await context.test('incomplete, reversed or non-finite stream timestamps do not produce timing', () => {
         for (const timestamps of [
-            { firstOutputTime: undefined },
-            { lastOutputTime: undefined },
-            { lastOutputTime: 1000 },
-            { firstOutputTime: Number.NaN },
-            { lastOutputTime: Number.POSITIVE_INFINITY }
+            { streamStartTime: undefined, streamEndTime: undefined },
+            { streamStartTime: 2000, streamEndTime: 1000 },
+            { streamStartTime: Number.NaN, streamEndTime: 6000 },
+            { streamStartTime: 1100, streamEndTime: Number.POSITIVE_INFINITY }
         ]) {
             const { output, total } = render(timestamps);
             for (const html of [output, total]) {
-                assert.match(html, /class="output-duration"[^>]*>4\.9s</);
-                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
+                assert.match(html, /class="output-duration"[^>]*>-</);
+                assert.match(html, /class="output-speed"[^>]*>-</);
             }
         }
     });
@@ -747,10 +737,7 @@ test('request records render output duration and average speed in static and tot
         const { output } = render({
             status: 'estimated',
             rawUsage: null,
-            firstOutputTime: undefined,
-            lastOutputTime: undefined,
-            firstContentOutputTime: undefined,
-            lastContentOutputTime: undefined,
+            streamStartTime: undefined,
             streamEndTime: undefined
         });
         assert.match(output, /class="output-ttft"[^>]*>-</);

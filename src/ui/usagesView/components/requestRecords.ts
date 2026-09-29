@@ -1140,7 +1140,7 @@ export function createRequestRecordsTable(
         const isWaiting = waitingPresentation.isWaiting;
         const outputVal = hasActualUsage && record.outputTokens > 0 ? record.outputTokens : 0;
         const ttft =
-            record.status !== 'estimated' || record.firstOutputTime !== undefined ?
+            record.status !== 'estimated' || record.streamStartTime !== undefined ?
                 record.firstTokenLatency
             :   undefined;
         const speedVal = record.outputSpeed && record.outputSpeed > 0 ? record.outputSpeed : undefined;

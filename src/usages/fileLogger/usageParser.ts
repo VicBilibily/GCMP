@@ -25,8 +25,8 @@ export interface ParsedUsageTokens {
     firstTokenLatency?: number;
     /** 平均每个输出 token 的耗时(毫秒/token) */
     timePerOutputToken?: number;
-    /** output 表示真实输出时间，stream 表示旧记录按协议流时间近似 */
-    timingSource?: 'output' | 'stream';
+    /** 基于协议流开始和结束时间计算 */
+    timingSource?: 'stream';
     /** 输出速度(tokens/s) */
     outputSpeed?: number;
 }
@@ -42,12 +42,6 @@ interface UsageTimingInput {
     requestMetricStartTime?: number;
     streamStartTime?: number;
     streamEndTime?: number;
-    /** 包含文本、思考和工具参数等实际模型输出。 */
-    firstOutputTime?: number;
-    lastOutputTime?: number;
-    /** 非思考内容的实际输出时间。 */
-    firstContentOutputTime?: number;
-    lastContentOutputTime?: number;
 }
 
 /**
@@ -74,9 +68,8 @@ export class UsageParser {
             result.streamDuration = log.streamEndTime - streamStartTime;
         }
 
-        const hasOutputStart = log.firstOutputTime !== undefined && Number.isFinite(log.firstOutputTime);
         const metricStartTime = log.requestMetricStartTime ?? log.timestamp;
-        const latencyStart = hasOutputStart ? log.firstOutputTime : log.streamStartTime;
+        const latencyStart = log.streamStartTime;
         if (
             latencyStart !== undefined &&
             Number.isFinite(latencyStart) &&
@@ -84,24 +77,14 @@ export class UsageParser {
             latencyStart >= metricStartTime
         ) {
             result.firstTokenLatency = latencyStart - metricStartTime;
-            result.timingSource = hasOutputStart ? 'output' : 'stream';
+            result.timingSource = 'stream';
         }
 
-        const outputDuration =
-            (
-                hasOutputStart &&
-                log.lastOutputTime !== undefined &&
-                Number.isFinite(log.lastOutputTime) &&
-                log.lastOutputTime >= log.firstOutputTime!
-            ) ?
-                log.lastOutputTime - log.firstOutputTime!
-            :   undefined;
-        const usesOutputDuration = outputDuration !== undefined && outputDuration > 0;
-        const duration = usesOutputDuration ? outputDuration : result.streamDuration;
+        const duration = result.streamDuration;
         if (outputTokens > 0 && duration !== undefined && duration > 0) {
             result.timePerOutputToken = duration / outputTokens;
             result.outputSpeed = (outputTokens / duration) * 1000;
-            result.timingSource = usesOutputDuration ? 'output' : 'stream';
+            result.timingSource = 'stream';
         }
 
         return result;
@@ -276,6 +259,20 @@ export class UsageParser {
         }
 
         const timing = this.parseTiming(log, result.outputTokens);
+        const storedStreamDuration = (log as TokenRequestLog & Partial<ParsedUsageTokens>).streamDuration;
+        if (
+            timing.streamDuration === undefined &&
+            storedStreamDuration !== undefined &&
+            Number.isFinite(storedStreamDuration) &&
+            storedStreamDuration >= 0
+        ) {
+            timing.streamDuration = storedStreamDuration;
+            if (result.outputTokens > 0 && storedStreamDuration > 0) {
+                timing.timePerOutputToken = storedStreamDuration / result.outputTokens;
+                timing.outputSpeed = (result.outputTokens / storedStreamDuration) * 1000;
+                timing.timingSource = 'stream';
+            }
+        }
         // 在途尚无实际 usage，不能用零输出 token 覆盖 tracker 的估算。
         if (log.status === 'estimated' && !log.rawUsage && log.outputSpeed !== undefined) {
             timing.outputSpeed = log.outputSpeed;

@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { UsageParser } from './usageParser';
@@ -283,38 +283,34 @@ test('空 rawUsage 返回默认值', () => {
 });
 
 for (const status of ['estimated', 'completed', 'cancelled', 'failed'] as const) {
-    for (const hasOutputTimes of [false, true]) {
-        test(`extendLog preserves tracker throughput only while estimated: ${status}, outputTimes=${hasOutputTimes}`, () => {
-            const result = UsageParser.extendLog({
-                requestId: 'pending-throughput',
-                timestamp: 1000,
-                isoTime: new Date(1000).toISOString(),
-                providerKey: 'test',
-                providerName: 'Test',
-                modelId: 'test',
-                modelName: 'Test',
-                estimatedInput: 10,
-                rawUsage: null,
-                status,
-                requestMetricStartTime: 1000,
-                streamStartTime: 1250,
-                firstOutputTime: hasOutputTimes ? 1500 : undefined,
-                lastOutputTime: hasOutputTimes ? 3500 : undefined,
-                outputTokens: 26,
-                outputSpeed: 12.5
-            });
-
-            assert.equal(result.outputSpeed, status === 'estimated' ? 12.5 : undefined);
-            assert.equal(result.timePerOutputToken, status === 'estimated' ? 80 : undefined);
-            assert.equal(result.firstTokenLatency, hasOutputTimes ? 500 : 250);
-            assert.equal(result.timingSource, hasOutputTimes ? 'output' : 'stream');
-            assert.equal(result.outputTokens, 0);
-            assert.equal(result.totalTokens, 10);
+    test(`extendLog preserves tracker throughput only while estimated: ${status}`, () => {
+        const result = UsageParser.extendLog({
+            requestId: 'pending-throughput',
+            timestamp: 1000,
+            isoTime: new Date(1000).toISOString(),
+            providerKey: 'test',
+            providerName: 'Test',
+            modelId: 'test',
+            modelName: 'Test',
+            estimatedInput: 10,
+            rawUsage: null,
+            status,
+            requestMetricStartTime: 1000,
+            streamStartTime: 1250,
+            outputTokens: 26,
+            outputSpeed: 12.5
         });
-    }
+
+        assert.equal(result.outputSpeed, status === 'estimated' ? 12.5 : undefined);
+        assert.equal(result.timePerOutputToken, status === 'estimated' ? 80 : undefined);
+        assert.equal(result.firstTokenLatency, 250);
+        assert.equal(result.timingSource, 'stream');
+        assert.equal(result.outputTokens, 0);
+        assert.equal(result.totalTokens, 10);
+    });
 }
 
-test('parseFromLog preserves actual TTFT and computes speed from all output tokens over stream duration', () => {
+test('parseFromLog computes TTFT and speed from the stream duration', () => {
     const result = UsageParser.parseFromLog({
         requestId: 'timing-exact',
         timestamp: 1000,
@@ -328,16 +324,14 @@ test('parseFromLog preserves actual TTFT and computes speed from all output toke
         status: 'completed',
         requestMetricStartTime: 1100,
         streamStartTime: 1200,
-        streamEndTime: 2500,
-        firstOutputTime: 1400,
-        lastOutputTime: 2400
+        streamEndTime: 2500
     });
 
-    assert.equal(result.firstTokenLatency, 300);
+    assert.equal(result.firstTokenLatency, 100);
     assert.equal(result.streamDuration, 1300);
-    assert.equal(result.timePerOutputToken, 1000 / 101);
-    assert.equal(result.outputSpeed, (101 / 1000) * 1000);
-    assert.equal(result.timingSource, 'output');
+    assert.equal(result.timePerOutputToken, 1300 / 101);
+    assert.equal(result.outputSpeed, (101 / 1300) * 1000);
+    assert.equal(result.timingSource, 'stream');
 });
 
 test('parseFromLog includes Gemini thought tokens in the original average speed formula', () => {
@@ -359,17 +353,13 @@ test('parseFromLog includes Gemini thought tokens in the original average speed 
         status: 'completed',
         requestMetricStartTime: 1100,
         streamStartTime: 1200,
-        streamEndTime: 2500,
-        firstOutputTime: 1400,
-        lastOutputTime: 2400,
-        firstContentOutputTime: 1400,
-        lastContentOutputTime: 2400
+        streamEndTime: 2500
     });
 
     assert.equal(result.outputTokens, 101);
-    assert.equal(result.timePerOutputToken, 1000 / 101);
-    assert.equal(result.outputSpeed, (101 / 1000) * 1000);
-    assert.equal(result.timingSource, 'output');
+    assert.equal(result.timePerOutputToken, 1300 / 101);
+    assert.equal(result.outputSpeed, (101 / 1300) * 1000);
+    assert.equal(result.timingSource, 'stream');
 });
 
 for (const { rawUsage, outputTokens } of [
@@ -384,7 +374,7 @@ for (const { rawUsage, outputTokens } of [
     },
     { rawUsage: { promptTokenCount: 1, candidatesTokenCount: 11, thoughtsTokenCount: 0 }, outputTokens: 11 }
 ]) {
-    test(`parseFromLog average speed does not depend on the content-only window: ${JSON.stringify(rawUsage)}`, () => {
+    test(`parseFromLog average speed includes all output tokens: ${JSON.stringify(rawUsage)}`, () => {
         const log = {
             requestId: 'timing-thinking',
             timestamp: 1000,
@@ -398,32 +388,17 @@ for (const { rawUsage, outputTokens } of [
             rawUsage,
             requestMetricStartTime: 1000,
             streamStartTime: 1200,
-            streamEndTime: 14000,
-            firstOutputTime: 1200,
-            lastOutputTime: 14000,
-            firstContentOutputTime: 11200,
-            lastContentOutputTime: 12200
+            streamEndTime: 14000
         };
         const result = UsageParser.parseFromLog(log);
         assert.equal(result.firstTokenLatency, 200);
         assert.equal(result.outputTokens, outputTokens);
         assert.equal(result.timePerOutputToken, 12800 / outputTokens);
         assert.equal(result.outputSpeed, (outputTokens / 12800) * 1000);
-        for (const window of [
-            { firstContentOutputTime: undefined, lastContentOutputTime: undefined },
-            { firstContentOutputTime: 11200, lastContentOutputTime: 11200 },
-            { firstContentOutputTime: 11200, lastContentOutputTime: 11214 },
-            { firstContentOutputTime: 11200, lastContentOutputTime: 10000 }
-        ]) {
-            const withContentWindow = UsageParser.parseFromLog({ ...log, ...window });
-            assert.equal(withContentWindow.firstTokenLatency, 200);
-            assert.equal(withContentWindow.timePerOutputToken, 12800 / outputTokens);
-            assert.equal(withContentWindow.outputSpeed, (outputTokens / 12800) * 1000);
-        }
     });
 }
 
-test('parseFromLog uses the actual output window when stream duration is missing', () => {
+test('parseFromLog uses the stream window when output usage is available', () => {
     const log = {
         requestId: 'timing-anthropic',
         timestamp: 1000,
@@ -435,10 +410,8 @@ test('parseFromLog uses the actual output window when stream duration is missing
         estimatedInput: 1,
         status: 'completed' as const,
         rawUsage: { input_tokens: 1, output_tokens: 111 },
-        firstOutputTime: 1200,
-        lastOutputTime: 12200,
-        firstContentOutputTime: 11200,
-        lastContentOutputTime: 12200
+        streamStartTime: 1200,
+        streamEndTime: 12200
     };
     const result = UsageParser.parseFromLog(log);
     assert.equal(result.firstTokenLatency, 200);
@@ -461,12 +434,10 @@ test('parseFromLog computes average speed for a batched single output event', ()
         requestMetricStartTime: 1100,
         streamStartTime: 1200,
         streamEndTime: 1214,
-        firstOutputTime: 1210,
-        lastOutputTime: 1210,
         outputSpeed: 100000
     });
 
-    assert.equal(result.firstTokenLatency, 110);
+    assert.equal(result.firstTokenLatency, 100);
     assert.equal(result.timePerOutputToken, 14 / 100);
     assert.equal(result.outputSpeed, (100 / 14) * 1000);
     assert.equal(result.timingSource, 'stream');

@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -174,10 +174,6 @@ test('remote usages queries preserve caller pending state without retaining full
                         providerName: 'Test',
                         modelName: 'Test',
                         streamStartTime: timestamp + 250,
-                        firstOutputTime: timestamp + 500,
-                        lastOutputTime: timestamp + 900,
-                        firstContentOutputTime: timestamp + 600,
-                        lastContentOutputTime: timestamp + 900,
                         estimatedOutputTokens: 6,
                         tokensPerSecond: 12.5
                     });
@@ -205,9 +201,9 @@ test('remote usages queries preserve caller pending state without retaining full
                         );
                         assert.equal(records[1].streamStartTime, first.timestamp + 250);
                         assert.equal(records[1].outputSpeed, 12.5);
-                        assert.equal(records[1].firstTokenLatency, 500);
+                        assert.equal(records[1].firstTokenLatency, 250);
                         assert.equal(records[1].timePerOutputToken, 80);
-                        assert.equal(records[1].timingSource, 'output');
+                        assert.equal(records[1].timingSource, 'stream');
                         assert.equal(records[1].sessionId, sessionA);
                         assert.equal(records[1].sessionTitle, '本窗正式标题');
                         break;
@@ -232,9 +228,9 @@ test('remote usages queries preserve caller pending state without retaining full
                         );
                         assert.equal(overview.initialRecordsPage?.records[1]?.streamStartTime, first.timestamp + 250);
                         assert.equal(overview.initialRecordsPage?.records[1]?.outputSpeed, 12.5);
-                        assert.equal(overview.initialRecordsPage?.records[1]?.firstTokenLatency, 500);
+                        assert.equal(overview.initialRecordsPage?.records[1]?.firstTokenLatency, 250);
                         assert.equal(overview.initialRecordsPage?.records[1]?.timePerOutputToken, 80);
-                        assert.equal(overview.initialRecordsPage?.records[1]?.timingSource, 'output');
+                        assert.equal(overview.initialRecordsPage?.records[1]?.timingSource, 'stream');
                         assert.equal(overview.initialRecordsPage?.records[1]?.sessionTitle, '本窗正式标题');
                         break;
                     }
@@ -251,9 +247,9 @@ test('remote usages queries preserve caller pending state without retaining full
                         assert.equal(page.records[0]?.requestId, first.requestId);
                         assert.equal(page.records[0]?.sessionTitle, '本窗正式标题');
                         assert.equal(page.records[0]?.outputSpeed, 12.5);
-                        assert.equal(page.records[0]?.firstTokenLatency, 500);
+                        assert.equal(page.records[0]?.firstTokenLatency, 250);
                         assert.equal(page.records[0]?.timePerOutputToken, 80);
-                        assert.equal(page.records[0]?.timingSource, 'output');
+                        assert.equal(page.records[0]?.timingSource, 'stream');
                         const next = await follower.getRecordsPage({ date: today, mode: 'all', page: 2, pageSize: 1 });
                         assert.equal(next.totalItems, 2);
                         assert.equal(next.records[0]?.requestId, first.requestId);
@@ -271,18 +267,15 @@ test('remote usages queries preserve caller pending state without retaining full
                         );
                         assert.equal(result.groups[0].records[0]?.sessionTitle, '本窗正式标题');
                         assert.equal(result.groups[0].records[0]?.outputSpeed, 12.5);
-                        assert.equal(result.groups[0].records[0]?.firstTokenLatency, 500);
+                        assert.equal(result.groups[0].records[0]?.firstTokenLatency, 250);
                         assert.equal(result.groups[0].records[0]?.timePerOutputToken, 80);
-                        assert.equal(result.groups[0].records[0]?.timingSource, 'output');
+                        assert.equal(result.groups[0].records[0]?.timingSource, 'stream');
                         break;
                     }
                 }
                 assert.ok(remoteExecutions > 0);
                 const sentPending = requests[0].payload.pendingRecords?.find(log => log.requestId === first.requestId);
-                assert.equal(sentPending?.firstOutputTime, first.timestamp + 500);
-                assert.equal(sentPending?.lastOutputTime, first.timestamp + 900);
-                assert.equal(sentPending?.firstContentOutputTime, first.timestamp + 600);
-                assert.equal(sentPending?.lastContentOutputTime, first.timestamp + 900);
+                assert.equal(sentPending?.streamStartTime, first.timestamp + 250);
                 assert.equal(
                     responses.every(response => response.payload.error === undefined),
                     true
@@ -544,12 +537,7 @@ test('remote usages queries preserve caller pending state without retaining full
             assert.equal(remoteExecutions, 1);
         });
 
-        for (const field of [
-            'firstOutputTime',
-            'lastOutputTime',
-            'firstContentOutputTime',
-            'lastContentOutputTime'
-        ] as const) {
+        for (const field of ['streamStartTime'] as const) {
             await t.test(`pending ${field} changed during a remote query invalidates the response`, async context => {
                 const { follower, logger, addPending } = await fixture(context);
                 const { requestId, timestamp } = await addPending(sessionA);

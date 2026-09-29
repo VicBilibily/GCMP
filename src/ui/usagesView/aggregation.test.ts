@@ -1,4 +1,4 @@
-﻿/**
+/**
  * UsagesView 聚合模块测试（扩展侧与 WebView 共享的纯逻辑）
  */
 
@@ -37,26 +37,24 @@ function createRecord(overrides: Partial<ExtendedTokenRequestLog> = {}): Extende
 const TRACE_CONTEXT = { traceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', spanId: 'span-1' };
 const SESSION_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
-test('output duration totals fall back to protocol time for zero or incomplete windows', () => {
+test('output duration totals use stream duration', () => {
     const totals = buildRequestTotals([
-        createRecord({ firstOutputTime: 1500, lastOutputTime: 1500, timePerOutputToken: 100 }),
-        createRecord({ firstOutputTime: 1500, lastOutputTime: 3500, timePerOutputToken: 10 }),
-        createRecord({ status: 'estimated', firstOutputTime: 1500, lastOutputTime: 9500 }),
-        createRecord({ firstOutputTime: 1500, streamDuration: 5000 }),
-        createRecord({ lastOutputTime: 3500, streamDuration: 5000 }),
-        createRecord({ firstOutputTime: 3500, lastOutputTime: 1500, streamDuration: 5000 })
+        createRecord({ streamDuration: 5000 }),
+        createRecord({ streamDuration: 5000 }),
+        createRecord({ status: 'estimated', streamDuration: 9500 }),
+        createRecord({ streamDuration: 5000 })
     ]);
     assert.equal(totals.avgOutputDuration, 5000);
 });
 
-test('legacy output duration contributes to totals without replacing actual output windows', () => {
+test('invalid and estimated stream durations do not contribute to totals', () => {
     const totals = buildRequestTotals([
-        createRecord({ firstOutputTime: 1500, lastOutputTime: 3500, streamDuration: 9000 }),
         createRecord({ streamDuration: 4000 }),
+        createRecord({ status: 'estimated', streamDuration: 9000 }),
         createRecord({ streamDuration: Number.POSITIVE_INFINITY }),
         createRecord({ streamDuration: -1 })
     ]);
-    assert.equal(totals.avgOutputDuration, 3000);
+    assert.equal(totals.avgOutputDuration, 4000);
 });
 
 test('failed and cancelled records with actual usage contribute their output durations', () => {
@@ -64,8 +62,7 @@ test('failed and cancelled records with actual usage contribute their output dur
         createRecord({
             status,
             rawUsage: { completion_tokens: 10 },
-            firstOutputTime: 1500,
-            lastOutputTime: 3500 + index * 2000
+            streamDuration: 2000 + index * 2000
         })
     );
     assert.equal(buildRequestTotals(records).avgOutputDuration, 3000);
