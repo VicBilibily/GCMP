@@ -29,8 +29,6 @@ import { StatusBarManager } from '../status';
 export class MiniMaxProvider extends GenericModelProvider implements LanguageModelChatProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
-        // Key 迁移：自动将旧 Coding Plan key 迁移到新 Token Plan key（fire-and-forget，错误已内部处理）
-        void MiniMaxProvider.migrateCodingPlanKey(providerConfig.displayName);
     }
 
     /**
@@ -46,6 +44,13 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         const provider = new MiniMaxProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
+
+        // Provider 注册后再迁移旧 Key；迁移成功时刷新模型列表，避免 Copilot 的 BYOK 激活门禁持续等待。
+        void MiniMaxProvider.migrateCodingPlanKey(providerConfig.displayName).then(migrated => {
+            if (migrated) {
+                provider.invalidateAndNotify('minimax-token');
+            }
+        });
 
         // 注册设置普通 API 密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
@@ -85,6 +90,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 providerConfig.apiKeyTemplate,
                 providerConfig.codingKeyTemplate
             );
+            provider.invalidateAndNotify();
         });
 
         const disposables = [
@@ -109,14 +115,14 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
      * 迁移旧 Coding Plan Key 到新 Token Plan Key
      * 检测旧的 'minimax-coding' 密钥，若存在且新 'minimax-token' 不存在，则自动迁移
      */
-    private static async migrateCodingPlanKey(displayName: string): Promise<void> {
+    private static async migrateCodingPlanKey(displayName: string): Promise<boolean> {
         const OLD_KEY = 'minimax-coding';
         const NEW_KEY = 'minimax-token';
 
         try {
             const hasOldKey = await ApiKeyManager.hasValidApiKey(OLD_KEY);
             if (!hasOldKey) {
-                return;
+                return false;
             }
 
             const hasNewKey = await ApiKeyManager.hasValidApiKey(NEW_KEY);
@@ -124,7 +130,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 // 新旧 key 都存在，只清理旧 key
                 await ApiKeyManager.deleteApiKey(OLD_KEY);
                 Logger.info(`${displayName}: cleaned up old Coding Plan key (new Token Plan key already exists)`);
-                return;
+                return false;
             }
 
             // 迁移旧 key 到新 key
@@ -135,11 +141,14 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 Logger.info(
                     `${displayName}: migrated old Coding Plan key to new Token Plan key (minimax-coding → minimax-token)`
                 );
+                return true;
             }
+            return false;
         } catch (error) {
             Logger.warn(
                 `${displayName}: key migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
+            return false;
         }
     }
 

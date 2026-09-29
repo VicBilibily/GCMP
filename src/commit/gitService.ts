@@ -114,6 +114,11 @@ export function checkGitAvailability(): vscode.Disposable {
     };
 }
 
+export function registerGitAvailability(context: vscode.ExtensionContext): void {
+    vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
+    context.subscriptions.push(checkGitAvailability());
+}
+
 /**
  * Git 服务类
  * 负责执行 Git 命令和管理 repository

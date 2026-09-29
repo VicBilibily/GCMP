@@ -87,10 +87,21 @@ export class UsageParser {
             result.timingSource = hasOutputStart ? 'output' : 'stream';
         }
 
-        const duration = result.streamDuration;
+        const outputDuration =
+            (
+                hasOutputStart &&
+                log.lastOutputTime !== undefined &&
+                Number.isFinite(log.lastOutputTime) &&
+                log.lastOutputTime >= log.firstOutputTime!
+            ) ?
+                log.lastOutputTime - log.firstOutputTime!
+            :   undefined;
+        const usesOutputDuration = outputDuration !== undefined && outputDuration > 0;
+        const duration = usesOutputDuration ? outputDuration : result.streamDuration;
         if (outputTokens > 0 && duration !== undefined && duration > 0) {
             result.timePerOutputToken = duration / outputTokens;
             result.outputSpeed = (outputTokens / duration) * 1000;
+            result.timingSource = usesOutputDuration ? 'output' : 'stream';
         }
 
         return result;

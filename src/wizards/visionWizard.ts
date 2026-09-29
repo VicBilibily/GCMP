@@ -185,3 +185,7 @@ export async function selectVisionModel(): Promise<boolean> {
         throw err;
     }
 }
+
+export function registerVisionModelCommand(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(vscode.commands.registerCommand('gcmp.vision.selectModel', () => selectVisionModel()));
+}

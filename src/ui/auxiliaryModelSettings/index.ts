@@ -392,6 +392,14 @@ export class AuxiliaryModelSettingsPanel {
     }
 }
 
+export function registerAuxiliaryModelSettingsCommands(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gcmp.modelSettings.wizard', () =>
+            AuxiliaryModelSettingsPanel.createAndShow(context)
+        )
+    );
+}
+
 function buildQualifiedDisplayName(ref: AuxiliaryModelRef): string {
     return `${ref.model.name} (gcmp.${ref.providerKey})`;
 }

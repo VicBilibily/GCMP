@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as vscode from 'vscode';
 import { StatusLogger } from '../runtime/statusLogger';
 import {
     buildHarFileName,
@@ -1140,4 +1141,21 @@ export class HarRecorder {
         const parsed = Number.parseInt(value, 10);
         return Number.isNaN(parsed) ? undefined : parsed;
     }
+}
+
+export function registerHarRecorderCommand(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gcmp.har.revealCurrent', () => {
+            const target = HarRecorder.getInstance().getRevealTarget();
+            if (!target) {
+                return;
+            }
+            const uri = vscode.Uri.file(target.path);
+            if (target.kind === 'file') {
+                void vscode.commands.executeCommand('revealFileInOS', uri);
+            } else {
+                void vscode.env.openExternal(uri);
+            }
+        })
+    );
 }

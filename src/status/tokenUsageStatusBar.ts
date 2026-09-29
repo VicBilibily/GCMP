@@ -450,7 +450,7 @@ export class TokenUsageStatusBar {
         if (recentRequests.length > 0) {
             md.appendMarkdown('\n\n ---- \n\n\n\n');
             md.appendMarkdown(
-                `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | TTFT | ${t('Speed', '平均速度')} |\n`
+                `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | TTFT | ${t('Speed', '输出速度')} |\n`
             );
             md.appendMarkdown('| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: |\n');
 

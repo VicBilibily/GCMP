@@ -727,7 +727,7 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
             const header = tooltip.split('\n').find(line => line.startsWith('| 提供商 | 请求时间 |'));
             assert.equal(
                 header,
-                '| 提供商 | 请求时间 | 状态 | 读取+写入=输入量 | 输出量 | 预估成本 | TTFT | 平均速度 |'
+                '| 提供商 | 请求时间 | 状态 | 读取+写入=输入量 | 输出量 | 预估成本 | TTFT | 输出速度 |'
             );
             assert.doesNotMatch(tooltip, /输出耗时|\| TPOT \|/);
             assert.match(tooltip, /GCMP: 今日 Token 消耗统计/);
@@ -741,7 +741,7 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
             await t.test(`status bar uses actual usage and output timing for ${status}`, () => {
                 const row = renderRecent({ ...timingLog, status });
                 assert.match(row, /\| 4\+6=10 \| 21 \|/);
-                assert.match(row, /\| 0\.5 s \| 4\.3 t\/s \|/);
+                assert.match(row, /\| 0\.5 s \| 10\.5 t\/s \|/);
                 assert.doesNotMatch(row, /≈/);
             });
         }
@@ -775,7 +775,7 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                 }
             });
             assert.match(row, /\| 31 \|/);
-            assert.match(row, /\| 0\.5 s \| 6\.3 t\/s \|/);
+            assert.match(row, /\| 0\.5 s \| 15\.5 t\/s \|/);
         });
 
         await t.test('status bar shows average speed for thinking-only output', () => {
@@ -790,7 +790,7 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                     totalTokenCount: 30
                 }
             });
-            assert.match(row, /\| 0\.5 s \| 4\.1 t\/s \|/);
+            assert.match(row, /\| 0\.5 s \| 10\.0 t\/s \|/);
         });
 
         for (const duration of [1, 3, 14]) {
@@ -813,7 +813,7 @@ test('token usage status bar coalesces refreshes and reuses cached data for pres
                 ...timingLog,
                 rawUsage: { prompt_tokens: 10, completion_tokens: 4001, total_tokens: 4011 }
             });
-            assert.match(row, /\| 0\.5 s \| 816\.5 t\/s \|/);
+            assert.match(row, /\| 0\.5 s \| 2000\.5 t\/s \|/);
         });
 
         await t.test('status bar preserves pending tracker throughput without inventing actual usage', () => {

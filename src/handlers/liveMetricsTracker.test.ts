@@ -360,7 +360,7 @@ test('reportOutput computes tokensPerSecond from all output tokens since stream 
     assert.ok(update, 'expected at least one streamingUpdate');
     assert.equal(update!.firstOutputTime, 2100);
     assert.equal(update!.lastOutputTime, 2200);
-    assert.equal(update!.tokensPerSecond, 55, '11 tokens over 200ms = 55 tokens/s');
+    assert.equal(update!.tokensPerSecond, 110, '11 tokens over 100ms = 110 tokens/s');
 });
 
 test('reportOutput preserves throughput for batched output 14ms apart', () => {
@@ -384,7 +384,7 @@ test('reportOutput preserves throughput for batched output 14ms apart', () => {
     assert.ok(update);
     assert.equal(update!.firstOutputTime, 2100);
     assert.equal(update!.lastOutputTime, 2114);
-    assert.equal(update!.tokensPerSecond, (65 / 114) * 1000);
+    assert.equal(update!.tokensPerSecond, (65 / 14) * 1000);
 });
 
 for (const elapsed of [0, 1, 3, 14, 99]) {
@@ -428,7 +428,7 @@ test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
     tracker.reportOutput('b'.repeat(100));
 
     const speedAfterFirst = events.at(-1)?.tokensPerSecond;
-    assert.equal(speedAfterFirst, (101 / 300) * 1000);
+    assert.equal(speedAfterFirst, (101 / 200) * 1000);
 
     // 模拟暂停：推进 5 秒，连续 heartbeat 不应改变 tokensPerSecond
     clock.set(7200);

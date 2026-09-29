@@ -1008,7 +1008,7 @@ export function createRequestRecordsTable(
         t('Time', '时间'),
         t('Provider & Model', '提供商模型'),
         t('<span>Cache</span><span>Input</span>', '<span>缓存命中</span><span>输入总计</span>'),
-        t('<span>Duration</span><span>Output</span>', '<span>输出耗时</span><span>平均速度</span>'),
+        t('<span>Duration</span><span>Output</span>', '<span>输出耗时</span><span>输出速度</span>'),
         t('Tokens', '令牌消耗'),
         t('Status', '状态')
     ];

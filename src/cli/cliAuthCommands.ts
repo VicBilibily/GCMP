@@ -4,6 +4,7 @@
 
 import * as vscode from 'vscode';
 import { CliAuthFactory } from './auth/cliAuthFactory';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { t } from '../utils/runtime/l10n';
 
 /**
@@ -24,7 +25,8 @@ export function registerCliAuthCommands(context: vscode.ExtensionContext): void 
         );
         if (selected) {
             const credentials = await CliAuthFactory.ensureAuthenticated(selected.cliType);
-            if (credentials) {
+            if (credentials?.access_token) {
+                await ApiKeyManager.setApiKey(selected.cliType, credentials.access_token);
                 vscode.window.showInformationMessage(
                     t('{0} authenticated successfully.', '{0} 认证成功。', selected.label)
                 );

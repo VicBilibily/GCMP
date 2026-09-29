@@ -53,14 +53,17 @@ export function hasRecordedUsage(record: Pick<ExtendedTokenRequestLog, 'status' 
 export function getOutputDuration(
     record: Pick<ExtendedTokenRequestLog, 'status' | 'firstOutputTime' | 'lastOutputTime' | 'streamDuration'>
 ): number | undefined {
+    let outputDuration: number | undefined;
     if (record.firstOutputTime !== undefined || record.lastOutputTime !== undefined) {
         if (record.firstOutputTime !== undefined && record.lastOutputTime !== undefined) {
             const milliseconds = record.lastOutputTime - record.firstOutputTime;
             if (Number.isFinite(milliseconds) && milliseconds >= 0) {
-                return milliseconds;
+                outputDuration = milliseconds;
+                if (milliseconds > 0) {
+                    return milliseconds;
+                }
             }
         }
-        return undefined;
     }
     if (
         record.status !== 'estimated' &&
@@ -70,7 +73,7 @@ export function getOutputDuration(
     ) {
         return record.streamDuration;
     }
-    return undefined;
+    return outputDuration;
 }
 
 /**

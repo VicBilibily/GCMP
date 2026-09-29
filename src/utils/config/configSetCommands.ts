@@ -13,6 +13,7 @@ import { ApiKeyManager } from './apiKeyManager';
 import { CompatibleModelManager } from './compatibleModelManager';
 import { ConfigSetItem, ConfigSetStore } from './configSetStore';
 import { StatusBarManager } from '../../status/statusBarManager';
+import { InterInstanceBus, type ApiKeyChangedEvent } from '../../interInstance';
 import { t } from '../runtime/l10n';
 import { Logger } from '../runtime/logger';
 import { KNOWN_KEY_LABELS } from '../../sync/gistSyncService';
@@ -32,6 +33,17 @@ export interface ProviderPick {
 }
 
 let configSetMutationQueue: Promise<unknown> = Promise.resolve();
+
+export function registerConfigSetProviderChangeHandlers(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        ApiKeyManager.onDidChangeApiKey(({ provider }) => {
+            notifySlotProviderChanged(provider);
+        }),
+        InterInstanceBus.subscribe('apiKeyChanged', event => {
+            notifySlotProviderChanged((event as ApiKeyChangedEvent).payload.provider);
+        })
+    );
+}
 
 export function enqueueConfigSetMutation<T>(task: () => Promise<T>): Promise<T> {
     const run = configSetMutationQueue.then(task, task);

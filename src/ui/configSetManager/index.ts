@@ -267,3 +267,12 @@ export class ConfigSetManagerPanel implements PanelContext {
         void this.refreshCliProviders();
     }
 }
+
+export function registerConfigSetCommands(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gcmp.configSet.manage', () => ConfigSetManagerPanel.createAndShow(context)),
+        vscode.commands.registerCommand('gcmp.configSet.switchKey', (slot?: string) =>
+            ConfigSetManagerPanel.createAndShow(context, slot)
+        )
+    );
+}

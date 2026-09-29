@@ -15,6 +15,7 @@ import * as path from 'path';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import {
     mergeSnapshotFiles,
+    ORDERED_SNAPSHOT_FORMAT_MARKER,
     parseSnapshotRecordLine,
     parseSnapshotFileContent,
     stringifySnapshotFile,
@@ -127,7 +128,10 @@ export class SnapshotManager {
             }
             handle = await fs.open(snapshotPath, 'r');
             const snapshotStats = await handle.stat();
-            let records: SnapshotRequestRecord[] = [];
+            if (!(await this.hasOrderedSnapshotMarker(handle, snapshotStats.size))) {
+                return null;
+            }
+            const records: SnapshotRequestRecord[] = [];
             const requestIds = new Set<string>();
             let position = snapshotStats.size;
             let carry = Buffer.alloc(0);
@@ -168,15 +172,7 @@ export class SnapshotManager {
                 return null;
             }
             if (!this.areRecordsNewestFirst(records)) {
-                const recordsFromStart = await this.readRecentFromStart(handle, snapshotStats.size, limit);
-                if (
-                    !recordsFromStart ||
-                    recordsFromStart.length === 0 ||
-                    !this.areRecordsNewestFirst(recordsFromStart)
-                ) {
-                    return null;
-                }
-                records = recordsFromStart;
+                return null;
             }
             const latestSnapshotStats = await fs.stat(snapshotPath);
             if (
@@ -211,48 +207,24 @@ export class SnapshotManager {
         }
     }
 
-    private async readRecentFromStart(
+    private async hasOrderedSnapshotMarker(
         handle: Awaited<ReturnType<typeof fs.open>>,
-        fileSize: number,
-        limit: number
-    ): Promise<SnapshotRequestRecord[] | null> {
-        const records: SnapshotRequestRecord[] = [];
-        const requestIds = new Set<string>();
-        let position = 0;
-        let carry = Buffer.alloc(0);
-
-        while (position < fileSize && records.length < limit) {
-            const length = Math.min(SnapshotManager.REVERSE_READ_CHUNK_SIZE, fileSize - position);
-            const chunk = Buffer.allocUnsafe(length);
-            let bytesRead = 0;
-            while (bytesRead < length) {
-                const result = await handle.read(chunk, bytesRead, length - bytesRead, position + bytesRead);
-                if (result.bytesRead === 0) {
-                    break;
-                }
-                bytesRead += result.bytesRead;
-            }
-            if (bytesRead !== length) {
-                return null;
-            }
-
-            const data = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
-            let lineStart = 0;
-            for (let index = 0; index < data.length && records.length < limit; index++) {
-                if (data[index] !== 0x0a) {
-                    continue;
-                }
-                this.appendRecentRecord(data.subarray(lineStart, index), records, requestIds);
-                lineStart = index + 1;
-            }
-            carry = data.subarray(lineStart);
-            position += bytesRead;
+        fileSize: number
+    ): Promise<boolean> {
+        const expected = Buffer.from(`${ORDERED_SNAPSHOT_FORMAT_MARKER}\n`);
+        if (fileSize < expected.length) {
+            return false;
         }
-
-        if (position >= fileSize && records.length < limit) {
-            this.appendRecentRecord(carry, records, requestIds);
+        const prefix = Buffer.allocUnsafe(expected.length);
+        let bytesRead = 0;
+        while (bytesRead < expected.length) {
+            const result = await handle.read(prefix, bytesRead, expected.length - bytesRead, bytesRead);
+            if (result.bytesRead === 0) {
+                return false;
+            }
+            bytesRead += result.bytesRead;
         }
-        return records;
+        return prefix.equals(expected);
     }
 
     private areRecordsNewestFirst(records: readonly SnapshotRequestRecord[]): boolean {

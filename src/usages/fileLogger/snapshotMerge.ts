@@ -41,6 +41,8 @@ export interface SnapshotRequestRecord {
 
 export type SnapshotFile = Record<string, SnapshotRequestRecord>;
 
+export const ORDERED_SNAPSHOT_FORMAT_MARKER = '{"gcmpSnapshotFormat":2}';
+
 function getStatusRank(status: SnapshotRequestRecord['status']): number {
     switch (status) {
         case 'completed':
@@ -82,10 +84,10 @@ export function parseSnapshotFileContent(content: string): SnapshotFile {
 }
 
 export function stringifySnapshotFile(store: SnapshotFile): string {
-    return Object.values(store)
+    const records = Object.values(store)
         .sort((a, b) => a.timestamp - b.timestamp || a.requestId.localeCompare(b.requestId))
-        .map(record => JSON.stringify(record))
-        .join('\n');
+        .map(record => JSON.stringify(record));
+    return [ORDERED_SNAPSHOT_FORMAT_MARKER, ...records].join('\n');
 }
 
 /** 合并同一 requestId：终态优先、缺失指标回填，并保留最早请求时间。 */

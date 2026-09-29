@@ -20,7 +20,7 @@ function isCommitEnabled(config: vscode.WorkspaceConfiguration): boolean {
 /**
  * 注册所有 Commit 相关命令
  */
-export function registerCommitCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
+export function registerCommitCommands(context: vscode.ExtensionContext): void {
     const disposables: vscode.Disposable[] = [];
 
     // 监听配置变更，动态更新 SCM 按钮可见性
@@ -158,6 +158,4 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
     context.subscriptions.push(...disposables);
 
     Logger.trace('[CommitCommands] Commit commands registered');
-
-    return disposables;
 }

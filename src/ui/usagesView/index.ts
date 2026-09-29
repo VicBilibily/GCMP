@@ -812,3 +812,21 @@ export class TokenUsagesView {
         this.detailSeq = 0;
     }
 }
+
+export function registerTokenUsageCommands(context: vscode.ExtensionContext): void {
+    let tokenUsagesView: TokenUsagesView | undefined;
+    const viewStatsCommand = vscode.commands.registerCommand('gcmp.tokenUsage.showDetails', () => {
+        if (!tokenUsagesView) {
+            tokenUsagesView = new TokenUsagesView(context);
+        }
+        tokenUsagesView.show();
+    });
+
+    context.subscriptions.push(
+        viewStatsCommand,
+        new vscode.Disposable(() => {
+            tokenUsagesView?.dispose();
+            tokenUsagesView = undefined;
+        })
+    );
+}

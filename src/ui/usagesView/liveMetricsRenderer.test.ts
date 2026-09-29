@@ -363,7 +363,7 @@ test('live clocks advance without provider output and resume after a date switch
     renderer.handleEvent(event);
     advance(15_000);
     assert.equal(dom.outputCell.ttft.textContent, '2.0s');
-    assert.equal(dom.outputCell.duration.textContent, '6.0s');
+    assert.equal(dom.outputCell.duration.textContent, '12.0s');
     assert.equal(dom.outputCell.tokens.textContent, '+25 tks');
     assert.equal(dom.outputCell.speed.textContent, '~');
 
@@ -373,11 +373,11 @@ test('live clocks advance without provider output and resume after a date switch
     renderer.onDateChanged(false, true);
     assert.equal(frameCount(), 0);
     advance(20_000);
-    assert.equal(dom.outputCell.duration.textContent, '6.0s');
+    assert.equal(dom.outputCell.duration.textContent, '12.0s');
     details.date = '2026-08-14';
     details.isToday = true;
     renderer.onDateChanged(true, true);
-    assert.equal(dom.outputCell.duration.textContent, '6.0s');
+    assert.equal(dom.outputCell.duration.textContent, '17.0s');
     assert.equal(frameCount(), 1);
 });
 
@@ -398,11 +398,11 @@ for (const replay of replayCases) {
         renderer.handleEvent(event);
         renderer.handleEvent({ ...event, ...replay.event });
         assert.equal(dom.outputCell.ttft.textContent, '2.0s');
-        assert.equal(dom.outputCell.duration.textContent, '6.0s');
+        assert.equal(dom.outputCell.duration.textContent, '7.0s');
         assert.equal(dom.outputCell.tokens.textContent, '+25 tks');
-        assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');
+        assert.equal(dom.outputCell.speed.textContent, '14.3 t/s');
         advance(11_000);
-        assert.equal(dom.outputCell.duration.textContent, '6.0s');
+        assert.equal(dom.outputCell.duration.textContent, '8.0s');
     });
 }
 
@@ -476,7 +476,7 @@ test('rebuilding a real row restores live values immediately without another eve
     const replacement = createRendererDom(event.requestId);
     renderer.render();
     assert.equal(replacement.outputCell.ttft.textContent, '2.0s');
-    assert.equal(replacement.outputCell.duration.textContent, '6.0s');
+    assert.equal(replacement.outputCell.duration.textContent, '7.0s');
     assert.equal(replacement.outputCell.tokens.textContent, '+25 tks');
 });
 
@@ -512,7 +512,7 @@ test('ended metrics expire and a fresh live event can resume a disconnected requ
     renderer.handleEvent({ ...event, lastFlushSeq: 5 });
     assert.equal(frameCount(), 1);
     assert.equal(dom.statusLabel.textContent, 'ACTIVE');
-    assert.equal(dom.outputCell.duration.textContent, '6.0s');
+    assert.equal(dom.outputCell.duration.textContent, '12.0s');
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     advance(45_001);
     dom.row.isConnected = false;
@@ -522,7 +522,8 @@ test('ended metrics expire and a fresh live event can resume a disconnected requ
     assert.equal(frameCount(), 0);
 });
 
-test('LiveMetricsRenderer renders output duration independently of average speed', () => {
+test('LiveMetricsRenderer renders output duration independently of average speed', context => {
+    context.mock.method(Date, 'now', () => 1700);
     const { outputCell } = createRendererDom('req-output-timing');
     const renderer = new LiveMetricsRenderer(createRendererDeps());
 
@@ -557,23 +558,23 @@ test('LiveMetricsRenderer renders output duration independently of average speed
 
     assert.equal(outputCell.ttft.textContent, '500ms');
     assert.equal(outputCell.duration.textContent, '200ms');
-    assert.equal(outputCell.speed.textContent, '100.0 t/s');
+    assert.equal(outputCell.speed.textContent, '105.0 t/s');
     for (const lang of ['zh-CN', 'en']) {
         Reflect.set(document, 'documentElement', { lang });
         renderer.render();
         assert.equal(outputCell.duration.title, 'Output duration: 200ms');
-        assert.equal(outputCell.speed.title, 'Average speed: 100.0 t/s');
+        assert.equal(outputCell.speed.title, 'Average speed: 105.0 t/s');
     }
 });
 
-test('live output duration advances only with actual output and not protocol tail waiting', context => {
+test('live output duration advances while streaming and freezes at stream end', context => {
     const { renderer, dom, event, advance } = createClockFixture(context);
     renderer.handleEvent(event);
     advance(20_000);
-    assert.equal(dom.outputCell.duration.textContent, '6.0s');
+    assert.equal(dom.outputCell.duration.textContent, '17.0s');
     renderer.handleEvent({ ...event, lastOutputTime: 12_000, lastFlushSeq: 5, tokensPerSecond: 20 });
-    assert.equal(dom.outputCell.duration.textContent, '9.0s');
-    assert.equal(dom.outputCell.speed.textContent, '20.0 t/s');
+    assert.equal(dom.outputCell.duration.textContent, '17.0s');
+    assert.equal(dom.outputCell.speed.textContent, '5.9 t/s');
     advance(25_000);
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     advance(30_000);
@@ -581,10 +582,13 @@ test('live output duration advances only with actual output and not protocol tai
     assert.equal(dom.outputCell.duration.textContent, '9.0s');
 });
 
-test('a single batched output has zero duration and no measurable average speed', context => {
+test('a single batched output falls back to the protocol stream window after stream end', context => {
     const { renderer, dom, event } = createClockFixture(context);
     renderer.handleEvent({ ...event, lastOutputTime: event.firstOutputTime, tokensPerSecond: 0 });
-    assert.equal(dom.outputCell.duration.textContent, '0ms');
-    assert.equal(dom.outputCell.speed.textContent, '-');
+    assert.equal(dom.outputCell.duration.textContent, '7.0s');
+    assert.equal(dom.outputCell.speed.textContent, '14.3 t/s');
+    renderer.handleEvent({ ...event, type: 'streamEnd' });
+    assert.equal(dom.outputCell.duration.textContent, '8.0s');
+    assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');
     assert.doesNotMatch(dom.outputCell.duration.title, /TPOT/);
 });

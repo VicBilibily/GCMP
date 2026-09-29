@@ -69,6 +69,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 providerConfig.apiKeyTemplate,
                 providerConfig.codingKeyTemplate
             );
+            provider.invalidateAndNotify();
         });
 
         const disposables = [providerDisposable, setApiKeyCommand, setKimiApiKeyCommand, configWizardCommand];

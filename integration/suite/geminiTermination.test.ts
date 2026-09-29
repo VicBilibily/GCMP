@@ -388,7 +388,7 @@ suite('Gemini response termination', () => {
                     assert.deepEqual(saved.rawUsage, usage);
                     assert.equal(saved.streamStartTime, visibleThinking ? 1200 : 11200);
                     assert.equal(saved.streamEndTime, now);
-                    const duration = now - (visibleThinking ? 1200 : 11200);
+                    const duration = 12200 - (visibleThinking ? 1200 : 11200);
                     const expectedSpeed = (111 / duration) * 1000;
                     assert.equal(UsageParser.parseFromLog(saved).timePerOutputToken, duration / 111);
                     assert.equal(UsageParser.parseFromLog(saved).outputSpeed, expectedSpeed);

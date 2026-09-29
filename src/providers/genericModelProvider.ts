@@ -177,11 +177,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
         this.geminiHandler = new GeminiHandler(this);
-
-        // 延迟触发模型信息变更事件，确保所有提供商都已注册完成后重新报告一次模型列表
-        setTimeout(() => {
-            this._onDidChangeLanguageModelChatInformation.fire();
-        }, 2000);
     }
 
     /**
@@ -207,6 +202,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.modelInfoCache
             ?.invalidateCache(targetSlot)
             .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache for ${targetSlot}:`, err));
+        this.notifyModelInformationChanged();
+    }
+
+    notifyModelInformationChanged(): void {
         this._onDidChangeLanguageModelChatInformation.fire();
     }
 

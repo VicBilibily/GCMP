@@ -1,222 +1,45 @@
 import * as vscode from 'vscode';
-import { GenericModelProvider } from './providers/genericModelProvider';
-import { ZhipuProvider } from './providers/zhipuProvider';
-import { MoonshotProvider } from './providers/moonshotProvider';
-import { CliBaseProvider } from './cli/cliBaseProvider';
-import { CodexProvider } from './cli/codexProvider';
-import { MiniMaxProvider } from './providers/minimaxProvider';
-import { DashscopeProvider } from './providers/dashscopeProvider';
-import { TencentProvider } from './providers/tencentProvider';
-import { XiaomimimoProvider } from './providers/xiaomimimoProvider';
-import { BaiduProvider } from './providers/baiduProvider';
-import { VolcengineProvider } from './providers/volcengineProvider';
-import { StepFunProvider } from './providers/stepfunProvider';
-import { XfyunProvider } from './providers/xfyunProvider';
-import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger } from './utils/runtime/logger';
 import { StatusLogger } from './utils/runtime/statusLogger';
 import { CompletionLogger } from './utils/runtime/completionLogger';
-import { TokenCounter } from './utils/model/tokenCounter';
 import { ApiKeyManager } from './utils/config/apiKeyManager';
 import { ConfigManager } from './utils/config/configManager';
 import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
 import { closeProxyAgents } from './utils/net/proxyAgent';
-import { HarRecorder } from './utils/net/harRecorder';
+import { registerHarRecorderCommand } from './utils/net/harRecorder';
 import { RemoteMetadataService } from './utils/metadata/remoteMetadataService';
 import { RemoteModelsService } from './utils/metadata/remoteModelsService';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
-import { ConfigSetManagerPanel } from './ui/configSetManager';
+import { CliAuthFactory } from './cli/auth/cliAuthFactory';
+import { registerConfigSetCommands } from './ui/configSetManager';
 import { ConfigSetStore } from './utils/config/configSetStore';
 import { GistSyncService } from './sync/gistSyncService';
 import { TokenUsagesManager } from './usages/usagesManager';
-import { DateUtils } from './usages/fileLogger/dateUtils';
-import { TokenUsagesView } from './ui/usagesView';
+import { registerUsageRefreshHandlers } from './usages/usageActivation';
+import { registerTokenUsageCommands } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/config/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { InterInstanceBus } from './interInstance';
-import type {
-    LeaderResigningEvent,
-    LiveMetricsSnapshotSyncEvent,
-    RateLimitAcquireCancelledEvent,
-    RateLimitAcquireRequestedEvent,
-    RateLimitLeaseRenewedEvent,
-    RateLimitReleasedEvent
-} from './interInstance';
+import { registerInterInstanceHandlers } from './interInstance/activation';
+import { registerConfigSetProviderChangeHandlers } from './utils/config/configSetCommands';
 import { RateLimiter } from './rateLimit/rateLimiter';
-import {
-    clearRemoteLiveMetrics,
-    getCrossInstanceLiveMetricsSnapshot,
-    receiveRemoteLiveMetrics,
-    setCrossInstanceBroadcaster,
-    syncRemoteLiveMetricsSnapshot
-} from './handlers/liveMetrics';
 import { registerAllTools } from './tools';
-import { CliAuthFactory } from './cli/auth/cliAuthFactory';
-import { registerCommitCommands, checkGitAvailability } from './commit';
-import { clearRegisteredProviders, registerProvider, registeredProviders } from './utils/config/providerRegistry';
+import { registerCommitCommands, registerGitAvailability } from './commit';
+import { activateCompatibleProvider, activateProviders } from './providers';
+import {
+    clearRegisteredProviders,
+    notifyRegisteredProvidersChanged,
+    registeredProviders
+} from './utils/config/providerRegistry';
 import { t } from './utils/runtime/l10n';
+import { activateCopilotChatInBackground } from './utils/runtime/copilotChatActivation';
 import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityModelWizard';
-import { selectVisionModel } from './wizards/visionWizard';
-import { AuxiliaryModelSettingsPanel } from './ui/auxiliaryModelSettings';
+import { registerVisionModelCommand } from './wizards/visionWizard';
+import { registerAuxiliaryModelSettingsCommands } from './ui/auxiliaryModelSettings';
 
 // 内联补全提供商实例（使用轻量级 Shim，延迟加载真正的补全引擎）
 let inlineCompletionProvider: InlineCompletionShim | undefined;
-
-/**
- * 激活提供商 - 基于配置文件动态注册（并行优化版本）
- */
-async function activateProviders(context: vscode.ExtensionContext): Promise<void> {
-    const startTime = Date.now();
-    const configProvider = ConfigManager.getConfigProvider();
-
-    if (!configProvider) {
-        Logger.warn('Provider configuration not found. Skipping provider registration.');
-        return;
-    }
-
-    // 设置扩展路径（用于 tokenizer 初始化）
-    TokenCounter.setExtensionPath(context.extensionPath);
-
-    Logger.debug(`Starting parallel registration for ${Object.keys(configProvider).length} providers...`);
-
-    // CLI 认证提供商列表（从 CliAuthFactory 获取）
-    const supportedCliTypes = CliAuthFactory.getSupportedCliTypes();
-    const cliAuthProviders = supportedCliTypes.map(cli => cli.id);
-
-    // 并行注册所有提供商以提升性能
-    const registrationPromises = Object.entries(configProvider).map(async ([providerKey, providerConfig]) => {
-        try {
-            Logger.trace(`Registering provider: ${providerConfig.displayName} (${providerKey})`);
-            const providerStartTime = Date.now();
-
-            let provider:
-                | GenericModelProvider
-                | ZhipuProvider
-                | MoonshotProvider
-                | CliBaseProvider
-                | CodexProvider
-                | MiniMaxProvider
-                | DashscopeProvider
-                | TencentProvider
-                | XiaomimimoProvider
-                | BaiduProvider
-                | VolcengineProvider
-                | XfyunProvider;
-            let disposables: vscode.Disposable[];
-
-            if (providerKey === 'zhipu') {
-                // 对 zhipu 使用专门的 provider（配置向导功能）
-                const result = ZhipuProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'moonshot') {
-                // 对 moonshot 使用专门的 provider（多密钥管理和配置向导）
-                const result = MoonshotProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'minimax') {
-                // 对 minimax 使用专门的 provider（多密钥管理和配置向导）
-                const result = MiniMaxProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'dashscope') {
-                // 对 dashscope 使用专门的 provider（多密钥管理和配置向导）
-                const result = DashscopeProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'tencent') {
-                // 对 tencent 使用专门的 provider（四类密钥和协议切换）
-                const result = TencentProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'xiaomimimo') {
-                // 对 xiaomimimo 使用专门的 provider（多密钥管理和配置向导）
-                const result = XiaomimimoProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'baidu') {
-                // 对百度千帆使用专门的 provider（多密钥管理和配置向导）
-                const result = BaiduProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'volcengine') {
-                // 对火山方舟使用专门的 provider（Coding Plan / Agent Plan 多密钥管理和配置向导）
-                const result = VolcengineProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'stepfun') {
-                // 对阶跃星辰 StepFun 使用专门的 provider（配置向导功能）
-                const result = StepFunProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'xfyun') {
-                // 对讯飞星辰 iFLYTEK 使用专门的 provider（按量计费 / Coding Plan / Token Plan 三密钥管理）
-                const result = XfyunProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'codex') {
-                const result = CodexProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (cliAuthProviders.includes(providerKey)) {
-                // 对 CLI 认证提供商使用通用的 CLI provider
-                const result = CliBaseProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else {
-                // 其他提供商使用通用 provider（支持基于 sdkMode 的自动选择）
-                const result = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            }
-
-            const providerTime = Date.now() - providerStartTime;
-            Logger.debug(`Provider registered successfully: ${providerConfig.displayName} (${providerTime}ms)`);
-            return { providerKey, provider, disposables };
-        } catch (error) {
-            Logger.error(`Failed to register provider ${providerKey}:`, error);
-            return null;
-        }
-    });
-
-    // 等待所有提供商注册完成
-    const results = await Promise.all(registrationPromises);
-
-    // 收集成功注册的提供商
-    for (const result of results) {
-        if (result) {
-            registerProvider(result.providerKey, result.provider);
-        }
-    }
-
-    const totalTime = Date.now() - startTime;
-    const successCount = results.filter(r => r !== null).length;
-    Logger.debug(
-        `Provider registration completed: ${successCount}/${Object.keys(configProvider).length} succeeded (${totalTime}ms)`
-    );
-}
-
-/**
- * 激活兼容提供商
- */
-async function activateCompatibleProvider(context: vscode.ExtensionContext): Promise<void> {
-    try {
-        Logger.trace('Registering compatible provider...');
-        const providerStartTime = Date.now();
-
-        // 创建并激活兼容提供商
-        const { provider } = CompatibleProvider.createAndActivate(context);
-
-        // 存储注册的提供商和 disposables
-        registerProvider('compatible', provider);
-
-        const providerTime = Date.now() - providerStartTime;
-        Logger.debug(`Compatible provider registered successfully (${providerTime}ms)`);
-    } catch (error) {
-        Logger.error('Failed to register compatible provider:', error);
-    }
-}
 
 /**
  * 激活内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
@@ -277,94 +100,12 @@ export async function activate(context: vscode.ExtensionContext) {
         // 订阅 Leader 卸任通知：主实例关闭前会广播此事件，Follower 收到后立即开始竞选
         LeaderElectionService.subscribeToLeaderResigning();
 
-        // 注册实时流式指标跨实例广播器：高频事件走 IPC-only，不启用文件降级
-        setCrossInstanceBroadcaster(event => {
-            InterInstanceBus.publishIpcOnly({ type: 'liveMetricsUpdated', payload: { event } });
-        });
-        const requestLiveMetricsSnapshot = (authorityTerm?: string) => {
-            if (authorityTerm && !LeaderElectionService.isLeader()) {
-                InterInstanceBus.publishIpcOnly({ type: 'liveMetricsSnapshotRequested', payload: {} });
-            }
-        };
-        context.subscriptions.push(
-            InterInstanceBus.onAuthorityChanged(authorityTerm => {
-                requestLiveMetricsSnapshot(authorityTerm);
-            }),
-            // authority 空窗期不代表远端请求已结束，等待实例断连事件再清理
-            InterInstanceBus.subscribe('liveMetricsUpdated', event => {
-                receiveRemoteLiveMetrics(
-                    (event.payload as { event: import('./handlers/liveMetrics').LiveStreamMetricEvent }).event,
-                    event.senderInstanceId
-                );
-            }),
-            InterInstanceBus.subscribe('liveMetricsSnapshotRequested', event => {
-                if (!LeaderElectionService.isLeader()) {
-                    return;
-                }
-                const connectedFollowerIds = new Set(InterInstanceBus.getConnectedFollowerIds());
-                InterInstanceBus.publishIpcOnly({
-                    type: 'liveMetricsSnapshotSync',
-                    payload: {
-                        targetInstanceId: event.senderInstanceId,
-                        authorityTerm: LeaderElectionService.getAuthorityTerm(),
-                        entries: getCrossInstanceLiveMetricsSnapshot(connectedFollowerIds)
-                    }
-                });
-            }),
-            InterInstanceBus.subscribe('liveMetricsSnapshotSync', event => {
-                const payload = event.payload as LiveMetricsSnapshotSyncEvent['payload'];
-                if (payload.targetInstanceId !== LeaderElectionService.getInstanceId()) {
-                    return;
-                }
-                if (payload.authorityTerm && payload.authorityTerm !== InterInstanceBus.getAuthorityTerm()) {
-                    return;
-                }
-                syncRemoteLiveMetricsSnapshot(payload.entries, event.senderInstanceId);
-            }),
-            InterInstanceBus.subscribe('leaderResigning', event => {
-                const payload = event.payload as LeaderResigningEvent['payload'];
-                clearRemoteLiveMetrics(payload.leaderId);
-            }),
-            InterInstanceBus.subscribe('remoteInstanceHello', event => {
-                RateLimiter.handleInstanceReconnected(event.senderInstanceId);
-            }),
-            InterInstanceBus.subscribe('remoteInstanceDisconnected', event => {
-                const instanceId = (event.payload as { instanceId: string }).instanceId;
-                clearRemoteLiveMetrics(instanceId);
-                RateLimiter.handleInstanceDisconnected(instanceId);
-            })
-        );
-        requestLiveMetricsSnapshot(InterInstanceBus.getAuthorityTerm());
-
-        // 订阅远程配置变更，强制刷新本地配置缓存
-        InterInstanceBus.subscribe('configChanged', () => {
-            ConfigManager.handleExternalConfigChange();
-            Logger.trace('[InterInstanceBus] Config cache and HAR recorder refreshed due to remote change');
-        });
+        registerInterInstanceHandlers(context);
 
         // 初始化跨实例限流器（Leader 权威桶 + Follower IPC 回执 + 本地降级）
         stepStartTime = Date.now();
         RateLimiter.initialize(context);
         Logger.trace(`Rate limiter initialized (${Date.now() - stepStartTime}ms)`);
-
-        // 订阅限流请求/取消/释放：仅 Leader 响应（内部已判断）
-        context.subscriptions.push(
-            InterInstanceBus.subscribe('rateLimitAcquireRequested', event => {
-                RateLimiter.handleAcquireRequest(
-                    event.payload as RateLimitAcquireRequestedEvent['payload'],
-                    event.senderInstanceId
-                );
-            }),
-            InterInstanceBus.subscribe('rateLimitReleased', event => {
-                RateLimiter.handleRemoteRelease(event.payload as RateLimitReleasedEvent['payload']);
-            }),
-            InterInstanceBus.subscribe('rateLimitAcquireCancelled', event => {
-                RateLimiter.handleRemoteAcquireCancelled(event.payload as RateLimitAcquireCancelledEvent['payload']);
-            }),
-            InterInstanceBus.subscribe('rateLimitLeaseRenewed', event => {
-                RateLimiter.handleRemoteLeaseRenewal(event.payload as RateLimitLeaseRenewedEvent['payload']);
-            })
-        );
 
         // 步骤0.2: 初始化 CLI 认证跨实例刷新协调
         stepStartTime = Date.now();
@@ -402,109 +143,7 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await TokenUsagesManager.instance.initialize(context);
         Logger.trace(`Token usage manager initialized (${Date.now() - stepStartTime}ms)`);
-        // 订阅 statsRefreshRequested：非主实例通过跨实例总线委托主实例刷新 stats.json。
-        // 只有主实例会响应此请求并执行写盘，非主实例收到时忽略（避免循环）。
-        // 直连 IPC 不可用时可退化到 fallback 通道；若 leader 尚未选出，主实例周期任务仍会兜底刷新今日 stats。
-        context.subscriptions.push(
-            InterInstanceBus.subscribe('statsRefreshRequested', event => {
-                if (!LeaderElectionService.isLeader()) {
-                    return; // 非主实例不响应
-                }
-                const payload = event.payload as {
-                    requestId: string;
-                    date?: string;
-                    regenerateAll: boolean;
-                    requestedBy: string;
-                };
-                Logger.trace(
-                    `[InterInstanceBus] Received statsRefreshRequested from ${payload.requestedBy}` +
-                        (payload.regenerateAll ? ' (regenerateAll)' : ` (date=${payload.date ?? 'today'})`)
-                );
-                const fileLogger = TokenUsagesManager.instance.getFileLogger();
-                void (async () => {
-                    try {
-                        // 先等待本实例写队列落盘，避免基于不完整日志重算并覆盖最新 stats。
-                        await fileLogger.flush();
-
-                        if (payload.regenerateAll) {
-                            // 等待重建完成，再广播完成回执 + tokenUsageUpdated，让等待中的 Follower 和所有 UI 都更新。
-                            // 即使失败也要发送空回执，避免 Follower 一直等到超时。
-                            const results = await fileLogger.regenerateOutdatedStats();
-                            InterInstanceBus.publish(
-                                {
-                                    type: 'statsRefreshCompleted',
-                                    payload: {
-                                        requestId: payload.requestId,
-                                        regeneratedDates: Object.keys(results)
-                                    }
-                                },
-                                { alsoFallback: true }
-                            );
-                            TokenUsagesManager.instance.notifyStatsUpdate();
-                            return;
-                        }
-
-                        // 刷新指定日期（默认今日）：先 flush，再按需重算，避免无变化时强制全量重算。
-                        const dateStr = payload.date ?? DateUtils.getTodayDateString();
-                        await fileLogger.getDateStats(dateStr);
-                        InterInstanceBus.publish(
-                            {
-                                type: 'statsRefreshCompleted',
-                                payload: {
-                                    requestId: payload.requestId,
-                                    regeneratedDates: [dateStr]
-                                }
-                            },
-                            { alsoFallback: true }
-                        );
-                        // 刷新完成后通过 notifyUpdate 广播 tokenUsageUpdated，非主实例 UI 自然更新
-                        TokenUsagesManager.instance.notifyStatsUpdate();
-                    } catch (error) {
-                        if (payload.regenerateAll) {
-                            Logger.warn(`[InterInstanceBus] Failed to regenerate outdated stats: ${error}`);
-                            InterInstanceBus.publish(
-                                {
-                                    type: 'statsRefreshCompleted',
-                                    payload: {
-                                        requestId: payload.requestId,
-                                        regeneratedDates: []
-                                    }
-                                },
-                                { alsoFallback: true }
-                            );
-                            return;
-                        }
-
-                        const dateStr = payload.date ?? DateUtils.getTodayDateString();
-                        Logger.warn(`[InterInstanceBus] Failed to refresh stats for ${dateStr}: ${error}`);
-                        InterInstanceBus.publish(
-                            {
-                                type: 'statsRefreshCompleted',
-                                payload: {
-                                    requestId: payload.requestId,
-                                    regeneratedDates: []
-                                }
-                            },
-                            { alsoFallback: true }
-                        );
-                    }
-                })();
-            })
-        );
-
-        // 注册主实例周期任务：每分钟刷新今日 stats，作为非主实例 IPC 请求丢失时的兜底。
-        // registerPeriodicTask 内部已保证仅 Leader 执行（见 LeaderElectionService.executePeriodicTasks）。
-        LeaderElectionService.registerPeriodicTask(async () => {
-            try {
-                const fileLogger = TokenUsagesManager.instance.getFileLogger();
-                const today = DateUtils.getTodayDateString();
-                await fileLogger.flush();
-                await fileLogger.getDateStats(today);
-                TokenUsagesManager.instance.notifyStatsUpdate();
-            } catch (error) {
-                Logger.trace(`[LeaderTask] Failed to refresh today stats: ${error}`);
-            }
-        });
+        registerUsageRefreshHandlers(context);
 
         // 步骤3: 激活提供商（并行优化）
         stepStartTime = Date.now();
@@ -515,6 +154,14 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);
         Logger.trace(`Compatible provider registered (${Date.now() - stepStartTime}ms)`);
+
+        registerConfigSetProviderChangeHandlers(context);
+
+        notifyRegisteredProvidersChanged();
+        context.subscriptions.push(activateCopilotChatInBackground(notifyRegisteredProvidersChanged));
+
+        // 配置集存储需早于状态栏初始化，避免 tooltip 首次渲染时访问未初始化上下文
+        ConfigSetStore.initialize(context);
 
         // 步骤3.2: 初始化所有状态栏（包含创建和注册）
         stepStartTime = Date.now();
@@ -533,22 +180,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤6: 注册Token用量统计命令
         stepStartTime = Date.now();
-        // 查看今日用量统计详情命令（单例模式，同一窗口只允许打开一个统计页面）
-        let tokenUsagesView: TokenUsagesView | undefined;
-        const viewStatsCommand = vscode.commands.registerCommand('gcmp.tokenUsage.showDetails', () => {
-            if (!tokenUsagesView) {
-                tokenUsagesView = new TokenUsagesView(context);
-            }
-            tokenUsagesView.show();
-        });
-        context.subscriptions.push(
-            viewStatsCommand,
-            // 确保在扩展停用时清理视图实例
-            new vscode.Disposable(() => {
-                tokenUsagesView?.dispose();
-                tokenUsagesView = undefined;
-            })
-        );
+        registerTokenUsageCommands(context);
         Logger.trace(`Token usage details command registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤7: 注册 CLI 认证命令
@@ -556,19 +188,7 @@ export async function activate(context: vscode.ExtensionContext) {
         registerCliAuthCommands(context);
         Logger.trace(`CLI authentication commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 配置集存储需早于状态栏初始化，避免 tooltip 首次渲染时访问未初始化上下文
-        ConfigSetStore.initialize(context);
-
-        // 步骤7.5: 注册提供商配置集管理面板（WebviewPanel，替代旧 QuickPick 命令）
-        context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.configSet.manage', () => ConfigSetManagerPanel.createAndShow(context))
-        );
-        // 状态栏"切换 API Key"入口：带 slot 参数打开面板并默认定位到对应 Provider
-        context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.configSet.switchKey', (slot?: string) =>
-                ConfigSetManagerPanel.createAndShow(context, slot)
-            )
-        );
+        registerConfigSetCommands(context);
         Logger.trace('Config set manager registered');
 
         // 步骤8: 初始化 GitHub Gist 同步服务（供配置集同步共用认证/加密基础设施）
@@ -578,44 +198,23 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤8.1: 注册 HAR 记录文件定位命令（仅供 tooltip 内部快捷入口调用，不作为命令面板入口）
         // 在系统文件管理器中显示最新 HAR 文件；当当前 HAR 文件尚未落盘时，回退到目录中最近的 .har 文件；都没有则打开 HAR 目录
-        context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.har.revealCurrent', () => {
-                const target = HarRecorder.getInstance().getRevealTarget();
-                if (!target) {
-                    return;
-                }
-                const uri = vscode.Uri.file(target.path);
-                if (target.kind === 'file') {
-                    void vscode.commands.executeCommand('revealFileInOS', uri);
-                } else {
-                    void vscode.env.openExternal(uri);
-                }
-            })
-        );
+        registerHarRecorderCommand(context);
 
         // 步骤9: 注册模型设置向导命令
         stepStartTime = Date.now();
-        context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.modelSettings.wizard', () =>
-                AuxiliaryModelSettingsPanel.createAndShow(context)
-            )
-        );
-        context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.vision.selectModel', () => selectVisionModel())
-        );
+        registerAuxiliaryModelSettingsCommands(context);
+        registerVisionModelCommand(context);
         Logger.trace(`Model settings wizard registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤10: 注册 Commit 消息生成命令
         stepStartTime = Date.now();
-        const commitDisposables = registerCommitCommands(context);
-        commitDisposables.forEach(disposable => context.subscriptions.push(disposable));
+        registerCommitCommands(context);
         Logger.trace(`Commit message commands registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤11: 检查 Git 可用性（不阻塞扩展激活）
-        // 默认设置为不可用，检查完成后更新
-        vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
-        const gitDisposable = checkGitAvailability();
-        context.subscriptions.push(gitDisposable);
+        stepStartTime = Date.now();
+        registerGitAvailability(context);
+        Logger.trace(`Git availability check scheduled (${Date.now() - stepStartTime}ms)`);
 
         // 步骤12: 启动后提示 utility 模型配置（VS Code 1.128+）
         stepStartTime = Date.now();

@@ -436,13 +436,33 @@ export class LiveMetricsRenderer {
                     Math.max(0, metricState.firstOutputTime! - metricState.attemptStartTime)
                 :   Math.max(0, metricTime - metricState.attemptStartTime);
 
-            // 输出速度：使用 tracker 缓存的 tokensPerSecond，暂停期间不会衰减
-            const tokensPerSecond = metricState.tokensPerSecond ?? 0;
             const outputDuration = getOutputDuration({
                 status: 'estimated',
                 firstOutputTime: metricState.firstOutputTime,
                 lastOutputTime: metricState.lastOutputTime
             });
+            const endedStreamDuration =
+                (
+                    isEnded &&
+                    (outputDuration === undefined || outputDuration === 0) &&
+                    metricState.streamStartTime !== undefined
+                ) ?
+                    Math.max(0, metricTime - metricState.streamStartTime)
+                :   undefined;
+            const liveOutputDuration =
+                !isEnded && metricState.firstOutputTime !== undefined && metricState.lastOutputTime !== undefined ?
+                    Math.max(0, metricTime - metricState.firstOutputTime)
+                :   (endedStreamDuration ?? outputDuration);
+            const usesLiveDurationForSpeed = !isEnded || endedStreamDuration !== undefined;
+            const liveTokensPerSecond =
+                (
+                    usesLiveDurationForSpeed &&
+                    metricState.estimatedOutputTokens > 0 &&
+                    liveOutputDuration !== undefined &&
+                    liveOutputDuration > 0
+                ) ?
+                    (metricState.estimatedOutputTokens / liveOutputDuration) * 1000
+                :   metricState.tokensPerSecond;
 
             const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
             if (outputCell) {
@@ -468,7 +488,8 @@ export class LiveMetricsRenderer {
                         durationSpan.textContent = isEnded ? '-' : waitingPresentation.queuePositionText;
                         durationSpan.title = isEnded ? '' : waitingPresentation.queuePositionTitle;
                     } else {
-                        const durationText = outputDuration !== undefined ? formatDuration(outputDuration) : '-';
+                        const durationText =
+                            liveOutputDuration !== undefined ? formatDuration(liveOutputDuration) : '-';
                         durationSpan.textContent = durationText;
                         durationSpan.title = `Output duration: ${durationText}`;
                     }
@@ -501,8 +522,8 @@ export class LiveMetricsRenderer {
 
                     if (isStale) {
                         speedSpan.textContent = '~';
-                    } else if (tokensPerSecond > 0 && hasOutputStarted) {
-                        speedSpan.textContent = `${tokensPerSecond.toFixed(1)} t/s`;
+                    } else if (liveTokensPerSecond > 0 && hasOutputStarted) {
+                        speedSpan.textContent = `${liveTokensPerSecond.toFixed(1)} t/s`;
                     } else {
                         speedSpan.textContent = '-';
                     }

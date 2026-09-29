@@ -37,7 +37,7 @@ function createRecord(overrides: Partial<ExtendedTokenRequestLog> = {}): Extende
 const TRACE_CONTEXT = { traceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', spanId: 'span-1' };
 const SESSION_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
-test('output duration totals include zero spans and exclude pending or incomplete windows', () => {
+test('output duration totals fall back to protocol time for zero or incomplete windows', () => {
     const totals = buildRequestTotals([
         createRecord({ firstOutputTime: 1500, lastOutputTime: 1500, timePerOutputToken: 100 }),
         createRecord({ firstOutputTime: 1500, lastOutputTime: 3500, timePerOutputToken: 10 }),
@@ -46,7 +46,7 @@ test('output duration totals include zero spans and exclude pending or incomplet
         createRecord({ lastOutputTime: 3500, streamDuration: 5000 }),
         createRecord({ firstOutputTime: 3500, lastOutputTime: 1500, streamDuration: 5000 })
     ]);
-    assert.equal(totals.avgOutputDuration, 1000);
+    assert.equal(totals.avgOutputDuration, 5000);
 });
 
 test('legacy output duration contributes to totals without replacing actual output windows', () => {

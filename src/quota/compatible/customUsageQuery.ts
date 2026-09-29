@@ -10,7 +10,8 @@ import { ConfigManager } from '../../utils/config/configManager';
 import { getValueByPath } from '../../utils/text/pathExtractor';
 import { resolveBuiltinProviderConfig } from '../../utils/config/knownProviders';
 import { Logger } from '../../utils/runtime/logger';
-import type { ProviderUsageConfig } from '../../types/sharedTypes';
+import { applyCustomHeaders, mergeCustomHeaders } from '../../utils/net/httpHeaders';
+import type { CustomHeaderValue, CustomHeaders, ProviderUsageConfig } from '../../types/sharedTypes';
 import { resolveUsageFieldValue } from './usageComputedField';
 import {
     mergeProviderUsageOverride,
@@ -48,14 +49,17 @@ export class CustomUsageQuery implements IBalanceQuery {
 
         const requestUrl = this.buildRequestUrl(usageConfig, apiKey);
 
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            ...this.buildMergedCustomHeader(usageTarget.baseProviderId, apiKey, usageConfig.authType),
-            ...(usageConfig.headers || {})
-        };
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        applyCustomHeaders(
+            headers,
+            mergeCustomHeaders(
+                this.buildMergedCustomHeader(usageTarget.baseProviderId, apiKey, usageConfig.authType),
+                usageConfig.headers
+            )
+        );
 
         if (apiKey && usageConfig.authType !== 'url_key' && usageConfig.authType !== 'none') {
-            headers['Authorization'] = `Bearer ${apiKey}`;
+            applyCustomHeaders(headers, { Authorization: `Bearer ${apiKey}` });
         }
 
         const requestInit: RequestInit = {
@@ -154,14 +158,14 @@ export class CustomUsageQuery implements IBalanceQuery {
         providerId: string,
         apiKey: string | undefined,
         authType: ProviderUsageConfig['authType']
-    ): Record<string, string> {
+    ): CustomHeaders {
         const allOverrides = ConfigManager.getProviderOverrides();
         const mergedCustomHeader = this.filterProviderCustomHeaders(
-            {
-                ...(allOverrides['compatible']?.customHeader || {}),
-                ...(resolveBuiltinProviderConfig(providerId)?.customHeader || {}),
-                ...(allOverrides[providerId]?.customHeader || {})
-            } as Record<string, string>,
+            mergeCustomHeaders(
+                allOverrides['compatible']?.customHeader,
+                resolveBuiltinProviderConfig(providerId)?.customHeader,
+                allOverrides[providerId]?.customHeader
+            ),
             authType
         );
 
@@ -169,16 +173,16 @@ export class CustomUsageQuery implements IBalanceQuery {
             return mergedCustomHeader;
         }
 
-        return ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey) as Record<string, string>;
+        return ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
     }
 
     /**
      * 在显式鉴权模式下过滤 provider 级鉴权头，保留普通请求头。
      */
     private filterProviderCustomHeaders(
-        headers: Record<string, string>,
+        headers: CustomHeaders,
         authType: ProviderUsageConfig['authType']
-    ): Record<string, string> {
+    ): CustomHeaders {
         if (authType !== 'url_key' && authType !== 'none') {
             return headers;
         }
@@ -193,11 +197,11 @@ export class CustomUsageQuery implements IBalanceQuery {
     /**
      * 判断 provider 级请求头是否应在显式鉴权模式下剔除。
      */
-    private shouldStripProviderHeader(headerName: string, headerValue: string): boolean {
+    private shouldStripProviderHeader(headerName: string, headerValue: CustomHeaderValue): boolean {
         return (
             /^(authorization|proxy-authorization|cookie|set-cookie)$/i.test(headerName) ||
             /(^|[-_])(api[-_]?key|auth[-_]?token|access[-_]?token)([-_]|$)/i.test(headerName) ||
-            /\$\{\s*APIKEY\s*\}/i.test(headerValue)
+            (typeof headerValue === 'string' && /\$\{\s*APIKEY\s*\}/i.test(headerValue))
         );
     }
 

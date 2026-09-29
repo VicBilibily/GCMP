@@ -7,7 +7,7 @@
 export * from './types';
 
 // 服务导出
-export { GitService, checkGitAvailability } from './gitService';
+export { GitService, checkGitAvailability, registerGitAvailability } from './gitService';
 export { PromptService } from './promptService';
 export { GeneratorService } from './generatorService';
 

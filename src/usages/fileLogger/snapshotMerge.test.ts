@@ -10,6 +10,7 @@ import { UsageParser } from './usageParser';
 import {
     mergeSnapshotFiles,
     mergeSnapshotRecord,
+    ORDERED_SNAPSHOT_FORMAT_MARKER,
     parseSnapshotFileContent,
     stringifySnapshotFile,
     type SnapshotFile,
@@ -426,7 +427,7 @@ test('snapshot JSONL parse skips corrupt lines and keeps valid request records',
     assert.equal(parsed['req-2']?.status, 'failed');
 });
 
-test('snapshot JSONL stringify writes one final request record per line', () => {
+test('snapshot JSONL stringify marks ordered files and writes one final request record per line', () => {
     const store: SnapshotFile = {
         'req-2': createRecord({ requestId: 'req-2', timestamp: 2000 }),
         'req-1': createRecord({ requestId: 'req-1' })
@@ -435,11 +436,13 @@ test('snapshot JSONL stringify writes one final request record per line', () => 
     const content = stringifySnapshotFile(store);
     const lines = content.split('\n');
 
-    assert.equal(lines.length, 2);
+    assert.equal(lines.length, 3);
+    assert.equal(lines[0], ORDERED_SNAPSHOT_FORMAT_MARKER);
     assert.deepEqual(
-        lines.map(line => JSON.parse(line).requestId),
+        lines.slice(1).map(line => JSON.parse(line).requestId),
         ['req-1', 'req-2']
     );
+    assert.deepEqual(Object.keys(parseSnapshotFileContent(content)), ['req-1', 'req-2']);
 });
 
 test('UsageParser reparses historical snapshot rawUsage with unified OpenAI-compatible semantics', () => {
@@ -629,7 +632,7 @@ test('reverse snapshot read preserves a record larger than one read chunk', asyn
     }
 });
 
-test('bounded snapshot read supports legacy files written newest first', async () => {
+test('bounded snapshot read rejects legacy files without an ordered format marker', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-legacy-descending-snapshot-'));
     const restoreHost = mockLoggerHost();
     try {
@@ -647,11 +650,50 @@ test('bounded snapshot read supports legacy files written newest first', async (
         await mkdir(paths.getDateFolderPath(date), { recursive: true });
         await writeFile(paths.getSnapshotFilePath(date), records.map(record => JSON.stringify(record)).join('\n'));
 
+        assert.equal(await snapshot.readRecent(date, 20), null);
         assert.deepEqual(
-            (await snapshot.readRecent(date, 20))?.map(record => record.requestId),
+            (await snapshot.read(date))?.slice(0, 20).map(record => record.requestId),
             Array.from({ length: 20 }, (_, index) => `legacy-desc-${49 - index}`)
         );
     } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('recent historical records fall back to a full read for an unsorted legacy snapshot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-legacy-recent-fallback-'));
+    const restoreHost = mockLoggerHost();
+    let logger: import('./index').TokenFileLogger | undefined;
+    try {
+        const { TokenFileLogger } = await import('./index');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const baseTimestamp = new Date(`${date}T12:00:00`).getTime();
+        const newestRecords = Array.from({ length: 12 }, (_, index) => ({
+            ...createRequestLog(`new-${index}`),
+            timestamp: baseTimestamp + index * 1000,
+            isoTime: new Date(baseTimestamp + index * 1000).toISOString()
+        }));
+        const appendedOlderRecords = Array.from({ length: 6 }, (_, index) => ({
+            ...createRequestLog(`old-${index}`),
+            timestamp: baseTimestamp - (6 - index) * 1000,
+            isoTime: new Date(baseTimestamp - (6 - index) * 1000).toISOString()
+        }));
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(
+            paths.getSnapshotFilePath(date),
+            [...newestRecords, ...appendedOlderRecords].map(record => JSON.stringify(record)).join('\n')
+        );
+        logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+
+        assert.deepEqual(
+            (await logger.getRecentRequestDetails(date, 6, true)).map(record => record.requestId),
+            Array.from({ length: 6 }, (_, index) => `new-${11 - index}`)
+        );
+    } finally {
+        await logger?.dispose();
         restoreHost();
         await rm(dir, { recursive: true, force: true });
     }

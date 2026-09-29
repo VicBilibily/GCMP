@@ -56,6 +56,7 @@ export class StepFunProvider extends GenericModelProvider implements LanguageMod
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`Starting ${providerConfig.displayName} setup wizard`);
             await StepFunWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
+            provider.invalidateAndNotify();
         });
 
         const disposables = [providerDisposable, setApiKeyCommand, configWizardCommand];

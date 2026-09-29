@@ -654,16 +654,16 @@ test('request records render output duration and average speed in static and tot
             assert.equal(
                 header,
                 lang === 'zh-CN' ?
-                    '<span>输出耗时</span><span>平均速度</span>'
+                    '<span>输出耗时</span><span>输出速度</span>'
                 :   '<span>Duration</span><span>Output</span>'
             );
             for (const html of [output, total]) {
                 assert.match(html, /class="output-duration"[^>]*>2\.0s</);
-                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
+                assert.match(html, /class="output-speed"[^>]*>10\.5 t\/s</);
                 assert.doesNotMatch(html, /TPOT|ms\/token|≈|legacy|approximation|稳健均值/);
             }
             assert.match(output, /title="Output duration: 2\.0s"/);
-            assert.match(output, /title="Average speed: 4\.3 t\/s"/);
+            assert.match(output, /title="Average speed: 10\.5 t\/s"/);
             assert.doesNotMatch(total, /title=/);
         });
     }
@@ -675,7 +675,7 @@ test('request records render output duration and average speed in static and tot
         });
         for (const html of [output, total]) {
             assert.match(html, /class="output-duration"[^>]*>2\.0s</);
-            assert.match(html, /class="output-speed"[^>]*>6\.3 t\/s</);
+            assert.match(html, /class="output-speed"[^>]*>15\.5 t\/s</);
         }
         assert.doesNotMatch(output, /reasoning|thinking|protocol|window|100ms/);
     });
@@ -696,12 +696,14 @@ test('request records render output duration and average speed in static and tot
         assert.doesNotMatch(total, /title=/);
     });
 
-    await context.test('zero and short output spans preserve the original stream average speed', () => {
+    await context.test('zero and short output spans fall back to the stream average speed', () => {
         for (const duration of [0, 14]) {
             const { output, total } = render({ lastOutputTime: 1500 + duration });
+            const expectedSpeed = duration === 0 ? '4.3' : '1500.0';
+            const expectedDuration = duration === 0 ? '4.9s' : '14ms';
             for (const html of [output, total]) {
-                assert.match(html, new RegExp(`class="output-duration"[^>]*>${duration}ms<`));
-                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
+                assert.match(html, new RegExp(`class="output-duration"[^>]*>${expectedDuration}<`));
+                assert.match(html, new RegExp(`class="output-speed"[^>]*>${expectedSpeed} t/s<`));
             }
         }
     });
@@ -718,14 +720,14 @@ test('request records render output duration and average speed in static and tot
             });
             const speed = `${(1000 / duration).toFixed(1)} t/s`;
             for (const html of [output, total]) {
-                assert.match(html, /class="output-duration"[^>]*>0ms</);
+                assert.match(html, new RegExp(`class="output-duration"[^>]*>${duration}ms<`));
                 assert.ok(html.includes(`>${speed}<`));
                 assert.doesNotMatch(html, /≈|100ms可靠|reliable window/);
             }
         });
     }
 
-    await context.test('incomplete, reversed or non-finite output timestamps do not fall back to protocol time', () => {
+    await context.test('incomplete, reversed or non-finite output timestamps fall back to protocol time', () => {
         for (const timestamps of [
             { firstOutputTime: undefined },
             { lastOutputTime: undefined },
@@ -735,7 +737,8 @@ test('request records render output duration and average speed in static and tot
         ]) {
             const { output, total } = render(timestamps);
             for (const html of [output, total]) {
-                assert.match(html, /class="output-duration"[^>]*>-</);
+                assert.match(html, /class="output-duration"[^>]*>4\.9s</);
+                assert.match(html, /class="output-speed"[^>]*>4\.3 t\/s</);
             }
         }
     });

@@ -335,8 +335,8 @@ test('parseFromLog preserves actual TTFT and computes speed from all output toke
 
     assert.equal(result.firstTokenLatency, 300);
     assert.equal(result.streamDuration, 1300);
-    assert.equal(result.timePerOutputToken, 1300 / 101);
-    assert.equal(result.outputSpeed, (101 / 1300) * 1000);
+    assert.equal(result.timePerOutputToken, 1000 / 101);
+    assert.equal(result.outputSpeed, (101 / 1000) * 1000);
     assert.equal(result.timingSource, 'output');
 });
 
@@ -367,8 +367,8 @@ test('parseFromLog includes Gemini thought tokens in the original average speed 
     });
 
     assert.equal(result.outputTokens, 101);
-    assert.equal(result.timePerOutputToken, 1300 / 101);
-    assert.equal(result.outputSpeed, (101 / 1300) * 1000);
+    assert.equal(result.timePerOutputToken, 1000 / 101);
+    assert.equal(result.outputSpeed, (101 / 1000) * 1000);
     assert.equal(result.timingSource, 'output');
 });
 
@@ -423,7 +423,7 @@ for (const { rawUsage, outputTokens } of [
     });
 }
 
-test('parseFromLog does not replace missing stream duration with the actual output window', () => {
+test('parseFromLog uses the actual output window when stream duration is missing', () => {
     const log = {
         requestId: 'timing-anthropic',
         timestamp: 1000,
@@ -442,8 +442,8 @@ test('parseFromLog does not replace missing stream duration with the actual outp
     };
     const result = UsageParser.parseFromLog(log);
     assert.equal(result.firstTokenLatency, 200);
-    assert.equal(result.timePerOutputToken, undefined);
-    assert.equal(result.outputSpeed, undefined);
+    assert.equal(result.timePerOutputToken, 11000 / 111);
+    assert.equal(result.outputSpeed, (111 / 11000) * 1000);
 });
 
 test('parseFromLog computes average speed for a batched single output event', () => {
@@ -469,7 +469,7 @@ test('parseFromLog computes average speed for a batched single output event', ()
     assert.equal(result.firstTokenLatency, 110);
     assert.equal(result.timePerOutputToken, 14 / 100);
     assert.equal(result.outputSpeed, (100 / 14) * 1000);
-    assert.equal(result.timingSource, 'output');
+    assert.equal(result.timingSource, 'stream');
 });
 
 test('parseFromLog preserves average speed for a 14ms legacy stream', () => {

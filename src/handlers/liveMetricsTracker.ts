@@ -323,7 +323,7 @@ export class LiveMetricsTracker {
 
         this.accumulateOutputTokens(textOrTokens, now);
 
-        this.updateTokensPerSecond(now);
+        this.updateTokensPerSecond();
 
         this.emitStreamingUpdate(false);
     }
@@ -335,7 +335,7 @@ export class LiveMetricsTracker {
         }
         const now = this.now();
         this.accumulateOutputTokens(textOrTokens, now);
-        this.updateTokensPerSecond(now);
+        this.updateTokensPerSecond();
         this.emitStreamingUpdate(false);
     }
 
@@ -369,7 +369,7 @@ export class LiveMetricsTracker {
         if (!this.firstChunkEmitted && this.canEmitMetrics()) {
             this.markStreamStarted(now);
         }
-        this.updateTokensPerSecond(now);
+        this.updateTokensPerSecond();
         this.emitStreamingUpdate(false);
     }
 
@@ -446,7 +446,7 @@ export class LiveMetricsTracker {
             this.flushPendingToolCallOverhead(calibration, now);
         }
 
-        this.updateTokensPerSecond(now);
+        this.updateTokensPerSecond();
         this.emitStreamingUpdate(false);
     }
 
@@ -463,8 +463,16 @@ export class LiveMetricsTracker {
         }
     }
 
-    private updateTokensPerSecond(now: number = this.now()): void {
-        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, now - this.firstStreamTime) : 0;
+    private updateTokensPerSecond(): void {
+        const outputDuration =
+            this.firstOutputTime > 0 && this.lastOutputTime >= this.firstOutputTime ?
+                this.lastOutputTime - this.firstOutputTime
+            :   0;
+        const elapsedMs =
+            outputDuration > 0 ? outputDuration
+            : this.firstStreamTime > 0 && this.firstOutputTime >= this.firstStreamTime ?
+                Math.max(1, this.firstOutputTime - this.firstStreamTime)
+            :   0;
         this.lastTokensPerSecond =
             elapsedMs > 0 && this.estimatedOutputTokens > 0 ? (this.estimatedOutputTokens / elapsedMs) * 1000 : 0;
     }

@@ -194,7 +194,7 @@ for (const thinking of ['none', 'text', 'encrypted', 'redacted'] as const) {
                 status: 'completed',
                 rawUsage: { promptTokenCount: 1, candidatesTokenCount: 11, thoughtsTokenCount: 100 }
             });
-            const duration = thinking === 'none' ? 2800 : 12800;
+            const duration = thinking === 'none' ? 1000 : 12800;
             assert.equal(parsed.timePerOutputToken, duration / 111);
             assert.equal(parsed.outputSpeed, (111 / duration) * 1000);
             assert.equal(parsed.firstTokenLatency, thinking === 'none' ? 10200 : 200);
