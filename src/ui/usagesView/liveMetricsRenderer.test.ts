@@ -5,6 +5,7 @@ import { LiveMetricsRenderer } from './liveMetricsRenderer';
 import type { NativeCostSplit } from '../../usages/fileLogger/types';
 import type { State } from './types';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
+import { LiveMetricsTracker } from '../../handlers/liveMetricsTracker';
 
 interface TestTextNode {
     textContent: string;
@@ -379,6 +380,80 @@ test('live clocks advance without provider output and resume after a date switch
     assert.equal(frameCount(), 1);
 });
 
+test('live output speed stays frozen across animation frames and tracker heartbeats', context => {
+    const { renderer, dom, advance, frameCount } = createClockFixture(context);
+    const tracker = new LiveMetricsTracker({
+        requestId: 'req-clock',
+        requestStartTime: 8000,
+        providerName: 'Test',
+        modelName: 'Test',
+        liveUpdateIntervalMs: 0,
+        now: () => Date.now(),
+        onLiveMetrics: event => renderer.handleEvent(event)
+    });
+    tracker.markStreamStarted(9000);
+    tracker.reportOutput(100);
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+
+    advance(11_000);
+    assert.equal(dom.outputCell.duration.textContent, '2.0s');
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+    tracker.heartbeat();
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+    advance(12_000);
+    tracker.heartbeat();
+    assert.equal(dom.outputCell.duration.textContent, '3.0s');
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+
+    advance(13_100);
+    tracker.heartbeat();
+    assert.equal(dom.outputCell.speed.textContent, '~');
+    tracker.reportOutput(105);
+    assert.equal(dom.outputCell.tokens.textContent, '+105 tks');
+    assert.equal(dom.outputCell.speed.textContent, '50.0 t/s');
+    advance(14_100);
+    assert.equal(dom.outputCell.speed.textContent, '50.0 t/s');
+    tracker.finishMetrics();
+    assert.equal(dom.outputCell.speed.textContent, '40.2 t/s');
+    advance(19_100);
+    renderer.handleEvent({
+        type: 'streamEnd',
+        requestId: 'req-clock',
+        requestStartTime: 8000,
+        providerName: 'Test',
+        modelName: 'Test'
+    });
+    assert.equal(dom.outputCell.duration.textContent, '5.1s');
+    assert.equal(dom.outputCell.speed.textContent, '40.2 t/s');
+    assert.equal(dom.statusLabel.textContent, 'SYNC');
+    assert.equal(frameCount(), 0);
+});
+
+test('delayed or replayed live metrics and rebuilt rows preserve the tracker speed', context => {
+    const { renderer, dom, event, advance } = createClockFixture(context);
+    const delayedEvent = { ...event, tokensPerSecond: 100 };
+    renderer.handleEvent(delayedEvent);
+    assert.equal(dom.outputCell.duration.textContent, '8.0s');
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+    advance(11_000);
+    renderer.handleEvent(delayedEvent);
+    assert.equal(dom.outputCell.speed.textContent, '100.0 t/s');
+    dom.row.isConnected = false;
+    const replacement = createRendererDom(event.requestId);
+    renderer.render();
+    assert.equal(replacement.outputCell.duration.textContent, '9.0s');
+    assert.equal(replacement.outputCell.speed.textContent, '100.0 t/s');
+    advance(13_100);
+    assert.equal(replacement.outputCell.speed.textContent, '~');
+
+    renderer.handleEvent({ ...delayedEvent, streamEndTime: 4000 });
+    assert.equal(replacement.outputCell.duration.textContent, '2.0s');
+    assert.equal(replacement.outputCell.speed.textContent, '50.0 t/s');
+    renderer.handleEvent({ ...event, type: 'streamEnd' });
+    assert.equal(replacement.statusLabel.textContent, 'SYNC');
+    assert.equal(replacement.outputCell.speed.textContent, '50.0 t/s');
+});
+
 const replayCases: Array<{ name: string; event: Partial<LiveStreamMetricEvent> }> = [
     { name: 'duplicate requestStarted', event: { type: 'requestStarted' } },
     { name: 'duplicate firstChunk', event: { type: 'firstChunk' } },
@@ -559,12 +634,12 @@ test('LiveMetricsRenderer renders output duration independently of average speed
 
     assert.equal(outputCell.ttft.textContent, '200ms');
     assert.equal(outputCell.duration.textContent, '500ms');
-    assert.equal(outputCell.speed.textContent, '42.0 t/s');
+    assert.equal(outputCell.speed.textContent, '100.0 t/s');
     for (const lang of ['zh-CN', 'en']) {
         Reflect.set(document, 'documentElement', { lang });
         renderer.render();
         assert.equal(outputCell.duration.title, 'Output duration: 500ms');
-        assert.equal(outputCell.speed.title, 'Average speed: 42.0 t/s');
+        assert.equal(outputCell.speed.title, 'Average speed: 100.0 t/s');
     }
 });
 
@@ -575,7 +650,7 @@ test('live output duration advances while streaming and freezes at stream end', 
     assert.equal(dom.outputCell.duration.textContent, '18.0s');
     renderer.handleEvent({ ...event, lastFlushSeq: 5, tokensPerSecond: 20 });
     assert.equal(dom.outputCell.duration.textContent, '18.0s');
-    assert.equal(dom.outputCell.speed.textContent, '5.6 t/s');
+    assert.equal(dom.outputCell.speed.textContent, '20.0 t/s');
     advance(25_000);
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     advance(30_000);
@@ -587,7 +662,7 @@ test('a single batched output uses the protocol stream window after stream end',
     const { renderer, dom, event } = createClockFixture(context);
     renderer.handleEvent({ ...event, tokensPerSecond: 0 });
     assert.equal(dom.outputCell.duration.textContent, '8.0s');
-    assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');
+    assert.equal(dom.outputCell.speed.textContent, '-');
     renderer.handleEvent({ ...event, type: 'streamEnd' });
     assert.equal(dom.outputCell.duration.textContent, '8.0s');
     assert.equal(dom.outputCell.speed.textContent, '12.5 t/s');

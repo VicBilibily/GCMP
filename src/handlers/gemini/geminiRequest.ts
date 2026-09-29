@@ -185,7 +185,7 @@ export function buildGeminiEndpoint(baseUrl: string, model: string): string {
         if (/:(streamGenerateContent|generateContent)$/i.test(path)) {
             url.pathname = path.replace(/:(streamGenerateContent|generateContent)$/i, ':streamGenerateContent');
         } else {
-            if (!/\/v1beta$/i.test(path) && !/\/v1beta\//i.test(`${path}/`)) {
+            if (!/\/v1(?:beta)?(?:\/|$)/i.test(path)) {
                 path = `${path}/v1beta`;
             }
             url.pathname = `${path}/${modelPath}:streamGenerateContent`.replace(/\/{2,}/g, '/');
@@ -194,7 +194,7 @@ export function buildGeminiEndpoint(baseUrl: string, model: string): string {
         return url.toString();
     } catch {
         const versionedBase =
-            /\/v1beta(?:\/|$)/i.test(normalizedBaseUrl) ? normalizedBaseUrl : `${normalizedBaseUrl}/v1beta`;
+            /\/v1(?:beta)?(?:\/|$)/i.test(normalizedBaseUrl) ? normalizedBaseUrl : `${normalizedBaseUrl}/v1beta`;
         return `${versionedBase}/${modelPath}:streamGenerateContent?alt=sse`;
     }
 }

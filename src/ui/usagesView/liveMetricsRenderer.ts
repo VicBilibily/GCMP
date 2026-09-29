@@ -442,7 +442,12 @@ export class LiveMetricsRenderer {
                     Math.max(0, metricTime - metricState.streamStartTime)
                 :   undefined;
             const liveTokensPerSecond =
-                metricState.estimatedOutputTokens > 0 && liveOutputDuration !== undefined && liveOutputDuration > 0 ?
+                (
+                    (isEnded || metricState.streamEndTime !== undefined) &&
+                    metricState.estimatedOutputTokens > 0 &&
+                    liveOutputDuration !== undefined &&
+                    liveOutputDuration > 0
+                ) ?
                     (metricState.estimatedOutputTokens / liveOutputDuration) * 1000
                 :   metricState.tokensPerSecond;
 

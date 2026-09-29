@@ -15,6 +15,10 @@ const modelConfig = (extraBody?: Record<string, unknown>): ModelConfig =>
 
 test('buildGeminiEndpoint builds the official streaming endpoint', () => {
     assert.equal(
+        buildGeminiEndpoint('https://generativelanguage.googleapis.com/v1', 'gemini-3-pro'),
+        'https://generativelanguage.googleapis.com/v1/models/gemini-3-pro:streamGenerateContent?alt=sse'
+    );
+    assert.equal(
         buildGeminiEndpoint('https://generativelanguage.googleapis.com/v1beta', 'gemini-3-pro'),
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro:streamGenerateContent?alt=sse'
     );
@@ -31,6 +35,43 @@ test('buildGeminiEndpoint builds the official streaming endpoint', () => {
         'https://gateway.test/tunedModels/custom-model:streamGenerateContent?alt=sse'
     );
     assert.equal(buildGeminiEndpoint('https://gateway.test/v1beta', 'gemini/unsafe'), '');
+});
+
+for (const version of ['v1', 'v1beta']) {
+    for (const suffix of ['', '/', '?region=us&alt=json']) {
+        test(`buildGeminiEndpoint preserves ${version} with gateway prefix and suffix ${suffix || '(none)'}`, () => {
+            const endpoint = new URL(
+                buildGeminiEndpoint(`https://gateway.test/gemini/${version}${suffix}`, 'gemini-3-pro')
+            );
+            assert.equal(endpoint.origin, 'https://gateway.test');
+            assert.equal(endpoint.pathname, `/gemini/${version}/models/gemini-3-pro:streamGenerateContent`);
+            assert.equal(endpoint.searchParams.get('alt'), 'sse');
+            assert.equal(endpoint.searchParams.get('region'), suffix.startsWith('?') ? 'us' : null);
+        });
+    }
+}
+
+test('buildGeminiEndpoint defaults to v1beta only without an explicit version segment', () => {
+    for (const prefix of ['', '/gemini', '/v1proxy', '/v1beta-proxy']) {
+        assert.equal(
+            buildGeminiEndpoint(`https://gateway.test${prefix}`, 'gemini-3-pro'),
+            `https://gateway.test${prefix}/v1beta/models/gemini-3-pro:streamGenerateContent?alt=sse`
+        );
+    }
+});
+
+test('buildGeminiEndpoint preserves complete method endpoints for both API versions', () => {
+    for (const version of ['v1', 'v1beta']) {
+        for (const method of ['generateContent', 'streamGenerateContent']) {
+            assert.equal(
+                buildGeminiEndpoint(
+                    `https://gateway.test/${version}/models/shared:${method}?region=us&alt=json`,
+                    'gemini-3-pro'
+                ),
+                `https://gateway.test/${version}/models/shared:streamGenerateContent?region=us&alt=sse`
+            );
+        }
+    }
 });
 
 test('buildGeminiAuthHeaders uses Google API keys only for official endpoints', () => {

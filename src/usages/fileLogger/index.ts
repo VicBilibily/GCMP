@@ -916,6 +916,10 @@ export class TokenFileLogger {
      * streaming 期间的中间指标只用于当前实例的实时展示，不参与持久化同步。
      */
     private updateStreamingMetrics(event: LiveStreamMetricEvent): void {
+        if (this.finalizingRequestIds.has(event.requestId)) {
+            return;
+        }
+
         const pendingLog = this.pendingLogs.get(event.requestId);
         if (!pendingLog) {
             return; // 请求已结束（updateActualTokens 已清除 pendingLog）
