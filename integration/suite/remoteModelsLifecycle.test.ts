@@ -7,6 +7,7 @@ import { CodexProvider } from '../../src/cli/codexProvider';
 import { configProviders } from '../../src/providers/config';
 import { RateLimiter } from '../../src/rateLimit/rateLimiter';
 import { LeaderElectionService } from '../../src/status/leaderElectionService';
+import { UserActivityService } from '../../src/status/userActivityService';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import {
     getRemoteModelsOverlay,
@@ -57,6 +58,7 @@ interface MetadataState {
     cacheLoadGeneration: number;
     refreshPromise?: Promise<void>;
     handleLeaderChanged(isLeader: boolean): void;
+    refreshIfActive(): void;
     refreshCore(): Promise<void>;
 }
 
@@ -73,6 +75,15 @@ interface CodexState {
     currentAbortController?: AbortController;
     getDynamicModels(): Promise<ModelConfig[]>;
     waitForDynamicModels(token: vscode.CancellationToken): Promise<ModelConfig[]>;
+}
+
+interface CodexCacheState {
+    context: {
+        extensionMode: vscode.ExtensionMode;
+        globalState: { get<T>(key: string): T | undefined };
+    };
+    extensionVersion: string;
+    getCachedModelConfigs(apiKeyHash: string): ModelConfig[] | undefined;
 }
 
 suite('Remote models lifecycle regression', () => {
@@ -198,6 +209,13 @@ suite('Remote models lifecycle regression', () => {
         const payload = (version: string, generatedAt?: string): string =>
             JSON.stringify({ schemaVersion: 1, generatedAt, cli: { codexTui: { version } } });
         const latest = payload('0.200.0', '2026-09-07T00:00:00Z');
+        const readCache = async (): Promise<{ version?: string; generatedAt?: string }> => {
+            const written = JSON.parse(await fs.readFile(state.cacheFilePath, 'utf8')) as {
+                generatedAt?: string;
+                cli: { codexTui: { version?: string } };
+            };
+            return { version: written.cli.codexTui.version, generatedAt: written.generatedAt };
+        };
         let response = latest;
         try {
             state.cacheFilePath = path.join(directory, 'metadata.json');
@@ -207,13 +225,69 @@ suite('Remote models lifecycle regression', () => {
             LeaderElectionService.isLeader = () => true;
             await fs.writeFile(state.cacheFilePath, payload('0.200.0', '2026-09-01T00:00:00Z'));
             await state.refreshCore();
-            assert.equal(await fs.readFile(state.cacheFilePath, 'utf8'), latest);
+            assert.deepEqual(await readCache(), { version: '0.200.0', generatedAt: '2026-09-07T00:00:00.000Z' });
             for (const timestamp of ['2026-09-04T00:00:00Z', undefined, 'invalid']) {
                 response = payload('0.199.0', timestamp);
                 await state.refreshCore();
-                assert.equal(await fs.readFile(state.cacheFilePath, 'utf8'), latest);
+                assert.deepEqual(await readCache(), { version: '0.200.0', generatedAt: '2026-09-07T00:00:00.000Z' });
                 assert.equal(state.currentContentHash, hashCliMetadata({ codexTuiVersion: '0.200.0' }));
             }
+        } finally {
+            Object.assign(state, original);
+            LeaderElectionService.isLeader = originalIsLeader;
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('CLI 刷新合并 npm latest：npm 较新时采用 npm 版本并原子写盘', async () => {
+        const state = RemoteMetadataService as unknown as MetadataState;
+        const original = {
+            cacheFilePath: state.cacheFilePath,
+            currentContentHash: state.currentContentHash,
+            fetchText: state.fetchText,
+            isDevelopment: state.isDevelopment
+        };
+        const originalIsLeader = LeaderElectionService.isLeader;
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-metadata-npm-'));
+        const mergedHash = hashCliMetadata({
+            claudeCodeVersion: '2.1.301',
+            codexTuiVersion: '0.201.0',
+            codexTuiOriginator: 'codex-tui'
+        });
+        const site = JSON.stringify({
+            schemaVersion: 1,
+            generatedAt: '2026-09-07T00:00:00Z',
+            cli: {
+                claudeCode: { version: '2.1.300' },
+                codexTui: { version: '0.200.0', originator: 'codex-tui' }
+            }
+        });
+        try {
+            state.cacheFilePath = path.join(directory, 'metadata.json');
+            // 预设合并后哈希：写盘后即命中"无变化"早退，避免触碰全局快照与实例间通知
+            state.currentContentHash = mergedHash;
+            state.isDevelopment = false;
+            state.fetchText = async (url: string) => {
+                if (url.includes('registry.npmjs.org')) {
+                    return JSON.stringify({ version: url.includes('claude-code') ? '2.1.301' : '0.201.0' });
+                }
+                return site;
+            };
+            LeaderElectionService.isLeader = () => true;
+            await state.refreshCore();
+            const written = JSON.parse(await fs.readFile(state.cacheFilePath, 'utf8')) as {
+                contentHash: string;
+                generatedAt?: string;
+                cli: {
+                    claudeCode: { version?: string };
+                    codexTui: { version?: string; originator?: string };
+                };
+            };
+            assert.equal(written.cli.claudeCode.version, '2.1.301');
+            assert.equal(written.cli.codexTui.version, '0.201.0');
+            assert.equal(written.cli.codexTui.originator, 'codex-tui');
+            assert.equal(written.generatedAt, '2026-09-07T00:00:00.000Z');
+            assert.equal(written.contentHash, mergedHash);
         } finally {
             Object.assign(state, original);
             LeaderElectionService.isLeader = originalIsLeader;
@@ -430,12 +504,14 @@ suite('Remote models lifecycle regression', () => {
         const originalRefreshPromise = state.refreshPromise;
         const originalRefreshCore = state.refreshCore;
         const originalIsLeader = leader.isLeader;
+        const originalIsUserActive = UserActivityService.isUserActive;
         let releasePending!: () => void;
         const pending = new Promise<void>(resolve => {
             releasePending = resolve;
         });
         const coreLeadership: boolean[] = [];
         try {
+            UserActivityService.isUserActive = () => true;
             leader.isLeader = () => false;
             state.refreshPromise = undefined;
             state.refreshCore = async () => {
@@ -460,6 +536,7 @@ suite('Remote models lifecycle regression', () => {
             state.refreshPromise = originalRefreshPromise;
             state.refreshCore = originalRefreshCore;
             leader.isLeader = originalIsLeader;
+            UserActivityService.isUserActive = originalIsUserActive;
         }
     });
 
@@ -566,6 +643,166 @@ suite('Remote models lifecycle regression', () => {
             leader.isLeader = originalIsLeader;
             config.fetchWithProxy = originalFetch;
         }
+    });
+
+    test('CLI 元数据单个 npm 请求异常时仍提交站点和另一个 npm 版本', async () => {
+        const state = RemoteMetadataService as unknown as MetadataState;
+        const leader = LeaderElectionService as unknown as LeaderState;
+        const original = {
+            cacheFilePath: state.cacheFilePath,
+            currentContentHash: state.currentContentHash,
+            fetchText: state.fetchText,
+            isDevelopment: state.isDevelopment
+        };
+        const originalIsLeader = leader.isLeader;
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-metadata-npm-failure-'));
+        const site = JSON.stringify({
+            schemaVersion: 1,
+            generatedAt: '2026-09-08T00:00:00Z',
+            cli: {
+                claudeCode: { version: '2.1.300' },
+                codexTui: { version: '0.200.0', originator: 'codex-tui' }
+            }
+        });
+        try {
+            state.cacheFilePath = path.join(directory, 'metadata.json');
+            state.currentContentHash = undefined;
+            state.isDevelopment = false;
+            state.fetchText = async (url: string) => {
+                if (url.includes('registry.npmjs.org')) {
+                    if (url.includes('%40openai%2Fcodex')) {
+                        throw new Error('registry unavailable');
+                    }
+                    return JSON.stringify({ version: '2.1.301' });
+                }
+                return site;
+            };
+            leader.isLeader = () => true;
+            await state.refreshCore();
+            const written = JSON.parse(await fs.readFile(state.cacheFilePath, 'utf8')) as {
+                cli: {
+                    claudeCode: { version?: string };
+                    codexTui: { version?: string; originator?: string };
+                };
+            };
+            assert.equal(written.cli.claudeCode.version, '2.1.301');
+            assert.equal(written.cli.codexTui.version, '0.200.0');
+            assert.equal(written.cli.codexTui.originator, 'codex-tui');
+        } finally {
+            Object.assign(state, original);
+            leader.isLeader = originalIsLeader;
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('CLI 元数据旧站点响应不阻断 npm 新版本同步', async () => {
+        const state = RemoteMetadataService as unknown as MetadataState;
+        const leader = LeaderElectionService as unknown as LeaderState;
+        const original = {
+            cacheFilePath: state.cacheFilePath,
+            currentContentHash: state.currentContentHash,
+            fetchText: state.fetchText,
+            isDevelopment: state.isDevelopment
+        };
+        const originalIsLeader = leader.isLeader;
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-metadata-npm-stale-'));
+        const cached = JSON.stringify({
+            schemaVersion: 1,
+            generatedAt: '2026-09-08T00:00:00Z',
+            cli: { codexTui: { version: '0.200.0', originator: 'codex-tui' } }
+        });
+        const staleSite = JSON.stringify({
+            schemaVersion: 1,
+            generatedAt: '2026-09-07T00:00:00Z',
+            cli: { codexTui: { version: '0.199.0', originator: 'codex-tui' } }
+        });
+        try {
+            state.cacheFilePath = path.join(directory, 'metadata.json');
+            state.currentContentHash = hashCliMetadata({ codexTuiVersion: '0.200.0', codexTuiOriginator: 'codex-tui' });
+            state.isDevelopment = false;
+            await fs.writeFile(state.cacheFilePath, cached, 'utf8');
+            state.fetchText = async (url: string) => {
+                if (url.includes('%40openai%2Fcodex')) {
+                    return JSON.stringify({ version: '0.201.0' });
+                }
+                return staleSite;
+            };
+            leader.isLeader = () => true;
+            await state.refreshCore();
+            const written = JSON.parse(await fs.readFile(state.cacheFilePath, 'utf8')) as {
+                generatedAt?: string;
+                cli: { codexTui: { version?: string } };
+            };
+            assert.equal(written.cli.codexTui.version, '0.201.0');
+            assert.equal(written.generatedAt, '2026-09-08T00:00:00.000Z');
+        } finally {
+            Object.assign(state, original);
+            leader.isLeader = originalIsLeader;
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('CLI 元数据自动刷新在用户不活跃时跳过主实例网络刷新', async () => {
+        const state = RemoteMetadataService as unknown as MetadataState;
+        const leader = LeaderElectionService as unknown as LeaderState;
+        const originalDevelopment = state.isDevelopment;
+        const originalRefresh = RemoteMetadataService.refresh;
+        const originalIsLeader = leader.isLeader;
+        const originalIsUserActive = UserActivityService.isUserActive;
+        let refreshes = 0;
+        try {
+            state.isDevelopment = false;
+            RemoteMetadataService.refresh = async () => {
+                refreshes++;
+            };
+            leader.isLeader = () => true;
+            UserActivityService.isUserActive = () => false;
+            state.refreshIfActive();
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(refreshes, 0);
+            UserActivityService.isUserActive = () => true;
+            state.refreshIfActive();
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(refreshes, 1);
+        } finally {
+            state.isDevelopment = originalDevelopment;
+            RemoteMetadataService.refresh = originalRefresh;
+            leader.isLeader = originalIsLeader;
+            UserActivityService.isUserActive = originalIsUserActive;
+        }
+    });
+
+    test('Codex globalState 模型缓存 10 分钟后失效', () => {
+        const state = Object.create(CodexProvider.prototype) as CodexCacheState;
+        const models: ModelConfig[] = [
+            {
+                id: 'cached-model',
+                name: 'Cached model',
+                tooltip: 'Cached model',
+                maxInputTokens: 1024,
+                maxOutputTokens: 128,
+                capabilities: { toolCalling: false, imageInput: false }
+            }
+        ];
+        let cached: {
+            extensionVersion: string;
+            apiKeyHash: string;
+            timestamp: number;
+            models: ModelConfig[];
+        } = {
+            extensionVersion: 'test-extension',
+            apiKeyHash: 'test-key',
+            timestamp: Date.now() - 10 * 60 * 1000 + 1,
+            models
+        };
+        state.context = {
+            extensionMode: vscode.ExtensionMode.Production,
+            globalState: { get: <T>(_key: string): T | undefined => cached as unknown as T }
+        };
+        Object.defineProperty(state, 'extensionVersion', { value: 'test-extension' });
+        assert.deepEqual(state.getCachedModelConfigs('test-key'), models);
+        cached = { ...cached, timestamp: Date.now() - 10 * 60 * 1000 - 1 };
+        assert.equal(state.getCachedModelConfigs('test-key'), undefined);
     });
 
     test('最后等待者取消后，多个后来者共享下一次刷新', async () => {

@@ -21,8 +21,8 @@ import { parseCodexModelsResponse } from '../utils/model/codexModels';
 const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models';
 /** 全局存储中缓存远端模型列表的键名 */
 const CACHE_KEY = 'gcmp_codex_models_v1';
-/** 缓存有效期（24 小时） */
-const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
+/** 缓存有效期（10 分钟）：新模型发布后无需等待扩展发版即可在列表中出现 */
+const CACHE_EXPIRY_MS = 10 * 60 * 1000;
 /** 内存缓存有效期（3 分钟）：同一账号短时间内复用上次成功拉取结果，避免高频重复请求 */
 const MEMORY_CACHE_TTL_MS = 3 * 60 * 1000;
 const CODEX_MODELS_TIMEOUT_MS = 10_000;
@@ -286,7 +286,7 @@ export class CodexProvider extends CliBaseProvider {
      * 三层节流：
      * 1. 内存缓存（3 分钟）：最近成功拉取过且 token 哈希一致则直接复用，不发 HTTP
      * 2. refreshPromise：并发去重，同一时刻只有一个拉取请求
-     * 3. globalState 持久缓存（24 小时）：跨会话复用
+     * 3. globalState 持久缓存（10 分钟）：跨会话复用
      *
      * 内存缓存绑定 apiKeyHash：token/账户变化（OAuth refresh、重新登录）时立即失效，
      * 与 globalState 缓存的校验逻辑保持一致。
@@ -426,7 +426,7 @@ export class CodexProvider extends CliBaseProvider {
 
     /**
      * 从 globalState 中读取缓存（开发模式下跳过缓存）
-     * 缓存失效条件：未命中、版本变更、API Key 变更、超过 24 小时、数据异常
+     * 缓存失效条件：未命中、版本变更、API Key 变更、超过 10 分钟、数据异常
      */
     private getCachedModelConfigs(apiKeyHash: string): ModelConfig[] | undefined {
         if (this.context.extensionMode === vscode.ExtensionMode.Development) {

@@ -1,6 +1,7 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  远程元数据服务（宿主层）
- *  生产环境：激活读磁盘缓存；仅主实例每 15 分钟拉取 GitHub Pages 元数据并原子写盘，
+ *  生产环境：激活读磁盘缓存；仅主实例在用户活跃时每 3 分钟拉取 GitHub Pages 元数据并原子写盘，
+ *  同时查询 npm registry latest 版本，npm 较新时自动覆盖 CLI 仿真版本（免等待发版），
  *  非主实例在定时/手动刷新或收到主实例通知时重读共享缓存
  *  开发环境：直接读取共享源文件 src/utils/metadata/gcmp-metadata.json，跳过远程与磁盘缓存
  *  任何失败仅 warn 并保留当前生效值（内置兜底见 metadataResolver）
@@ -10,15 +11,29 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { InterInstanceBus, type RemoteMetadataUpdatedEvent } from '../../interInstance';
 import { LeaderElectionService } from '../../status/leaderElectionService';
+import { UserActivityService } from '../../status/userActivityService';
 import { Logger } from '../runtime/logger';
 import { readMetadataSnapshot, writeMetadataSnapshot } from './metadataCache';
-import { hashCliMetadata, isOlderGcmpMetadata, parseGcmpMetadata, setRemoteCliMetadata } from './metadataResolver';
+import {
+    hashCliMetadata,
+    isOlderGcmpMetadata,
+    mergeNpmCliVersions,
+    parseGcmpMetadata,
+    parseNpmLatestVersion,
+    setRemoteCliMetadata,
+    type GcmpCliMetadata,
+    type NpmCliLatestVersions
+} from './metadataResolver';
 import { fetchRemoteText } from './remoteFetch';
 import { RemoteModelsService } from './remoteModelsService';
 
 const REMOTE_METADATA_URL = 'https://gcmp.dev/gcmp-metadata.json';
-const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+const NPM_REGISTRY_BASE_URL = 'https://registry.npmjs.org';
+const NPM_CLAUDE_CODE_PACKAGE = '@anthropic-ai/claude-code';
+const NPM_CODEX_PACKAGE = '@openai/codex';
+const REFRESH_INTERVAL_MS = 3 * 60 * 1000;
 const METADATA_MAX_BYTES = 256 * 1024;
+const NPM_LATEST_MAX_BYTES = 64 * 1024;
 
 export class RemoteMetadataService {
     private static timer?: NodeJS.Timeout;
@@ -55,10 +70,16 @@ export class RemoteMetadataService {
             { dispose: () => this.dispose() }
         );
 
-        void this.refresh();
-        this.timer = setInterval(() => void this.refresh(), REFRESH_INTERVAL_MS);
+        this.refreshIfActive();
+        this.timer = setInterval(() => this.refreshIfActive(), REFRESH_INTERVAL_MS);
         this.timer.unref();
         Logger.trace(`[Metadata] Service initialized (dev=${this.isDevelopment})`);
+    }
+
+    private static refreshIfActive(): void {
+        if (this.isDevelopment || !LeaderElectionService.isLeader() || UserActivityService.isUserActive()) {
+            void this.refresh();
+        }
     }
 
     private static dispose(): void {
@@ -75,12 +96,12 @@ export class RemoteMetadataService {
         }
         const pendingRefresh = this.refreshPromise;
         if (!pendingRefresh) {
-            void this.refresh();
+            this.refreshIfActive();
             return;
         }
         const refreshAfterPending = (): void => {
             if (LeaderElectionService.isLeader()) {
-                void this.refresh();
+                this.refreshIfActive();
             }
         };
         void pendingRefresh.then(refreshAfterPending, refreshAfterPending);
@@ -142,7 +163,7 @@ export class RemoteMetadataService {
         const stillLeader = () =>
             LeaderElectionService.isLeader() && LeaderElectionService.getAuthorityTerm() === authorityTerm;
         try {
-            const text = await this.fetchText(REMOTE_METADATA_URL);
+            const text = await this.fetchText(REMOTE_METADATA_URL, METADATA_MAX_BYTES);
             if (text === undefined) {
                 return;
             }
@@ -151,24 +172,24 @@ export class RemoteMetadataService {
                 Logger.warn('[Metadata] Remote metadata content invalid, keeping current values');
                 return;
             }
-            const contentHash = hashCliMetadata(parsed.cli);
             if (!stillLeader()) {
                 await this.loadFromCache();
                 return;
             }
             const existing = await readMetadataSnapshot(this.cacheFilePath);
-            if (
-                existing &&
+            const npmVersions = await this.fetchNpmCliVersions();
+            const siteIsOlder =
+                existing !== undefined &&
                 isOlderGcmpMetadata(parsed, {
                     schemaVersion: 1,
                     cli: existing.cli,
                     generatedAt: existing.generatedAt
-                })
-            ) {
-                Logger.trace('[Metadata] Remote metadata older than cache, skipped');
-                return;
-            }
-            const cacheUnchanged = existing?.contentHash === contentHash && existing.generatedAt === parsed.generatedAt;
+                });
+            const baseCli = siteIsOlder ? existing.cli : parsed.cli;
+            const cli = mergeNpmCliVersions(baseCli, npmVersions);
+            const generatedAt = siteIsOlder ? existing.generatedAt : parsed.generatedAt;
+            const contentHash = hashCliMetadata(cli);
+            const cacheUnchanged = existing?.contentHash === contentHash && existing.generatedAt === generatedAt;
             if (cacheUnchanged && contentHash === this.currentContentHash) {
                 Logger.trace(`[Metadata] Remote metadata unchanged (hash=${contentHash})`);
                 return;
@@ -179,7 +200,10 @@ export class RemoteMetadataService {
                     return;
                 }
                 if (!cacheUnchanged) {
-                    await writeMetadataSnapshot(this.cacheFilePath, text);
+                    await writeMetadataSnapshot(
+                        this.cacheFilePath,
+                        this.serializeSnapshot(parsed.schemaVersion, generatedAt, cli, contentHash)
+                    );
                 }
                 if (!stillLeader()) {
                     await this.loadFromCache();
@@ -188,7 +212,7 @@ export class RemoteMetadataService {
                 if (contentHash === this.currentContentHash) {
                     return;
                 }
-                setRemoteCliMetadata(parsed.cli);
+                setRemoteCliMetadata(cli);
                 // 写盘成功才推进哈希并通知其他实例：失败时保留旧哈希，下一次 tick 重试落盘
                 this.currentContentHash = contentHash;
                 InterInstanceBus.publish(
@@ -204,7 +228,58 @@ export class RemoteMetadataService {
         }
     }
 
-    private static fetchText(url: string): Promise<string | undefined> {
-        return fetchRemoteText(url, METADATA_MAX_BYTES, '[Metadata]');
+    /** 拉取两个 CLI 包的 npm latest 版本（best-effort：任一失败仅不合并该字段） */
+    private static async fetchNpmCliVersions(): Promise<NpmCliLatestVersions> {
+        const [claudeCodeVersion, codexTuiVersion] = await Promise.all([
+            this.fetchNpmLatestVersion(NPM_CLAUDE_CODE_PACKAGE),
+            this.fetchNpmLatestVersion(NPM_CODEX_PACKAGE)
+        ]);
+        return { claudeCodeVersion, codexTuiVersion };
+    }
+
+    private static async fetchNpmLatestVersion(packageName: string): Promise<string | undefined> {
+        try {
+            const text = await this.fetchText(
+                `${NPM_REGISTRY_BASE_URL}/${encodeURIComponent(packageName)}/latest`,
+                NPM_LATEST_MAX_BYTES
+            );
+            if (text === undefined) {
+                Logger.debug(`[Metadata] npm latest fetch failed (${packageName}), skipped`);
+                return undefined;
+            }
+            const version = parseNpmLatestVersion(text);
+            if (!version) {
+                Logger.warn(`[Metadata] npm latest response invalid (${packageName}), skipped`);
+            }
+            return version;
+        } catch (error) {
+            Logger.warn(
+                `[Metadata] npm latest request failed (${packageName}), skipped:`,
+                error instanceof Error ? error.message : String(error)
+            );
+            return undefined;
+        }
+    }
+
+    /** 将合并后的 cli 元数据序列化为缓存文件文本（generatedAt 保持站点时间戳语义） */
+    private static serializeSnapshot(
+        schemaVersion: number,
+        generatedAt: number | undefined,
+        cli: GcmpCliMetadata,
+        contentHash: string
+    ): string {
+        return JSON.stringify({
+            schemaVersion,
+            contentHash,
+            ...(generatedAt !== undefined ? { generatedAt: new Date(generatedAt).toISOString() } : {}),
+            cli: {
+                claudeCode: { version: cli.claudeCodeVersion },
+                codexTui: { version: cli.codexTuiVersion, originator: cli.codexTuiOriginator }
+            }
+        });
+    }
+
+    private static fetchText(url: string, maxBytes: number): Promise<string | undefined> {
+        return fetchRemoteText(url, maxBytes, '[Metadata]');
     }
 }

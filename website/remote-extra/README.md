@@ -6,7 +6,7 @@
 
 - 每个 `<provider>.json` 对应一个**已内置**的 provider(`src/providers/config/` 中必须存在同名文件)
 - `website/scripts/generate-config-index.mjs` 构建时把这里的 models **追加**到 `public/configs/<provider>.json` 末尾,再计算 contentHash
-- 客户端按远端清单合并:仅远端模型随清单刷新(15min 周期 / 激活时 / `gcmp.metadata.refresh` 命令)出现在模型列表中
+- 客户端按远端清单合并:仅远端模型随清单刷新(5min 周期 / 激活时 / `gcmp.metadata.refresh` 命令)出现在模型列表中
 - **下线 = 从本目录删除该模型(或整个文件)**,重新构建部署后,客户端下轮刷新自动移除
 
 ## 文件格式

@@ -6,6 +6,7 @@
 
 import type { ProviderConfig } from '../../types/sharedTypes';
 import { mergeCustomHeaders } from '../net/httpHeaders';
+import { compareGcmpVersions } from './modelsResolver';
 // 内置兜底与远程发布共用同一源文件：扩展打包时内联此 JSON，website 构建时同步到 public/ 供 Pages 分发
 import builtinMetadata from './gcmp-metadata.json';
 import { hashCliMetadata } from './cliMetadataHash';
@@ -99,6 +100,50 @@ export function isOlderGcmpMetadata(incoming: GcmpMetadata, existing: GcmpMetada
         existing.generatedAt !== undefined &&
         (incoming.generatedAt === undefined || incoming.generatedAt < existing.generatedAt)
     );
+}
+
+/** npm registry `/{package}/latest` 解析出的 CLI 版本（字段均可选，缺失表示拉取失败） */
+export interface NpmCliLatestVersions {
+    claudeCodeVersion?: string;
+    codexTuiVersion?: string;
+}
+
+/** 解析 npm latest 响应文本；version 字段缺失或非法（会拼进 UA）时返回 undefined */
+export function parseNpmLatestVersion(text: string): string | undefined {
+    let raw: unknown;
+    try {
+        raw = JSON.parse(text);
+    } catch {
+        return undefined;
+    }
+    return asCliVersion(asRecord(raw).version);
+}
+
+function pickFresherVersion(current: string | undefined, incoming: string | undefined): string | undefined {
+    if (!incoming) {
+        return current;
+    }
+    if (!current) {
+        return incoming;
+    }
+    const comparison = compareGcmpVersions(incoming, current);
+    // 无法解析的版本比较不盲目替换，避免异常版本串覆盖已知有效值
+    if (comparison === undefined) {
+        return current;
+    }
+    return comparison > 0 ? incoming : current;
+}
+
+/**
+ * 合并 npm latest 版本与远程/内置元数据：仅当 npm 版本更新或当前值缺失时采纳，
+ * originator 不由 npm 提供，保持原值；npm 拉取失败时原样返回
+ */
+export function mergeNpmCliVersions(cli: GcmpCliMetadata, npm: NpmCliLatestVersions): GcmpCliMetadata {
+    return {
+        ...cli,
+        claudeCodeVersion: pickFresherVersion(cli.claudeCodeVersion, npm.claudeCodeVersion),
+        codexTuiVersion: pickFresherVersion(cli.codexTuiVersion, npm.codexTuiVersion)
+    };
 }
 
 /** 当前生效的远程/本地 cli 元数据快照（由宿主层写入；undefined 表示无远程值） */

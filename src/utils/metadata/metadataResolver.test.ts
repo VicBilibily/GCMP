@@ -8,7 +8,9 @@ import {
     getCodexTuiCliHeader,
     hashCliMetadata,
     isOlderGcmpMetadata,
+    mergeNpmCliVersions,
     parseGcmpMetadata,
+    parseNpmLatestVersion,
     setRemoteCliMetadata,
     withCodexCliMetadata
 } from './metadataResolver';
@@ -260,4 +262,35 @@ test('withCodexCliMetadata prefers remote snapshot over builtin metadata', () =>
     assert.equal(merged.customHeader?.version, '0.200.0');
     assert.equal(merged.customHeader?.originator, builtinMetadata.cli.codexTui.originator);
     resetSnapshot();
+});
+
+test('parseNpmLatestVersion reads version and rejects malformed payloads', () => {
+    assert.equal(parseNpmLatestVersion(JSON.stringify({ version: '1.0.62' })), '1.0.62');
+    assert.equal(parseNpmLatestVersion(JSON.stringify({ version: '0.57.0-alpha.1' })), '0.57.0-alpha.1');
+    assert.equal(parseNpmLatestVersion('not-json'), undefined);
+    assert.equal(parseNpmLatestVersion(JSON.stringify({})), undefined);
+    assert.equal(parseNpmLatestVersion(JSON.stringify({ version: 42 })), undefined);
+    assert.equal(parseNpmLatestVersion(JSON.stringify({ version: '1.0.62\nX-Evil: 1' })), undefined);
+});
+
+test('mergeNpmCliVersions adopts npm only when newer or current missing', () => {
+    const base = { claudeCodeVersion: '2.1.300', codexTuiVersion: '0.200.0', codexTuiOriginator: 'codex-tui' };
+    assert.deepEqual(mergeNpmCliVersions(base, { claudeCodeVersion: '2.1.301', codexTuiVersion: '0.201.0' }), {
+        claudeCodeVersion: '2.1.301',
+        codexTuiVersion: '0.201.0',
+        codexTuiOriginator: 'codex-tui'
+    });
+    // 相等或更旧时保留当前值
+    assert.deepEqual(mergeNpmCliVersions(base, { claudeCodeVersion: '2.1.300', codexTuiVersion: '0.199.0' }), base);
+    // npm 拉取失败（undefined）时原样保留
+    assert.deepEqual(mergeNpmCliVersions(base, {}), base);
+    // 当前缺失时直接采纳 npm 值，originator 不受影响
+    assert.deepEqual(mergeNpmCliVersions({ codexTuiOriginator: 'codex-tui' }, { claudeCodeVersion: '2.1.301' }), {
+        codexTuiOriginator: 'codex-tui',
+        claudeCodeVersion: '2.1.301',
+        codexTuiVersion: undefined
+    });
+    // 无法解析的比较不盲目替换
+    const fourSegment = mergeNpmCliVersions(base, { claudeCodeVersion: '2.1.300.1' });
+    assert.equal(fourSegment.claudeCodeVersion, '2.1.300');
 });
