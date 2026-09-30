@@ -6,7 +6,7 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
-import { InterInstanceEvent, parseEventsFromBuffer, serializeEvent } from './eventProtocol';
+import { InterInstanceEvent, isAuthorityEventType, parseEventsFromBuffer, serializeEvent } from './eventProtocol';
 import { isNamedPipePath } from './pathResolver';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 
@@ -234,10 +234,18 @@ export class IpcServer {
                 StatusLogger.warn('[IpcServer] Rejecting socket sender identity change');
                 return false;
             }
+            if (events.some(event => isAuthorityEventType(event.type))) {
+                StatusLogger.warn('[IpcServer] Rejecting authority-only event from a follower socket');
+                return false;
+            }
             return true;
         }
 
-        if (firstEvent.type !== 'remoteInstanceHello' || this.hasConnectedInstance(senderInstanceId)) {
+        if (
+            firstEvent.type !== 'remoteInstanceHello' ||
+            events.slice(1).some(event => isAuthorityEventType(event.type)) ||
+            this.hasConnectedInstance(senderInstanceId)
+        ) {
             StatusLogger.warn('[IpcServer] Rejecting socket without a unique instance handshake');
             return false;
         }

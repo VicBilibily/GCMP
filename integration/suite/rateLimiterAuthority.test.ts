@@ -21,12 +21,8 @@ interface RateLimiterInternals {
     ) => Promise<RateLimitHandle | undefined>;
     acquireViaIpc: (...args: unknown[]) => Promise<RateLimitHandle | undefined>;
     acquireViaLocalStore: (...args: unknown[]) => Promise<RateLimitHandle | undefined>;
-    handleRemoteRelease: (payload: {
-        authorityTerm: string;
-        grantId: string;
-        refund?: { requests?: number; tokens?: number };
-    }) => void;
-    handleRemoteAcquireCancelled: (payload: { authorityTerm: string; requestId: string; bucketKey: string }) => void;
+    handleRemoteRelease: typeof RateLimiter.handleRemoteRelease;
+    handleRemoteAcquireCancelled: typeof RateLimiter.handleRemoteAcquireCancelled;
     leaderStore: RateLimitStore;
     clientCore:
         | {
@@ -68,7 +64,7 @@ interface RateLimiterInternals {
     };
     handleInstanceDisconnected: (instanceId: string) => void;
     handleInstanceReconnected: (instanceId: string) => void;
-    handleRemoteLeaseRenewal: (payload: { authorityTerm: string; grantId: string }) => void;
+    handleRemoteLeaseRenewal: typeof RateLimiter.handleRemoteLeaseRenewal;
     handleLeaderResigning: (event: {
         type: 'leaderResigning';
         timestamp: number;
@@ -523,10 +519,7 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
-            rateLimiter.handleRemoteRelease({
-                authorityTerm: 'leader-a:1',
-                grantId: granted.grantId
-            });
+            rateLimiter.handleRemoteRelease({ authorityTerm: 'leader-a:1', grantId: granted.grantId }, 'follower-a');
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
         } finally {
@@ -579,10 +572,13 @@ suite('RateLimiter authority change', () => {
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
 
-            rateLimiter.handleRemoteRelease({
-                authorityTerm: 'leader-a:1',
-                grantId: localGranted.grantId
-            });
+            assert.equal(rateLimiter.leaderStore.getGrantOwnerInstanceId(localGranted.grantId), 'leader-a');
+            rateLimiter.handleRemoteRelease(
+                { authorityTerm: 'leader-a:1', grantId: localGranted.grantId },
+                'follower-other'
+            );
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
+            rateLimiter.handleRemoteRelease({ authorityTerm: 'leader-a:1', grantId: localGranted.grantId }, 'leader-a');
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
         } finally {
@@ -640,7 +636,7 @@ suite('RateLimiter authority change', () => {
         }
     });
 
-    test('graceful leader handoff renews ownerless grant after previous-term heartbeat', () => {
+    test('graceful leader handoff binds local grant renewal to the previous leader', () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const source = new RateLimitStore('leader-a');
@@ -679,10 +675,17 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
-            rateLimiter.handleRemoteLeaseRenewal({
-                authorityTerm: 'leader-a:1',
-                grantId: localGranted.grantId
-            });
+            assert.equal(rateLimiter.leaderStore.getGrantOwnerInstanceId(localGranted.grantId), 'leader-a');
+            const before = rateLimiter.leaderStore.exportSnapshot(now);
+            rateLimiter.handleRemoteLeaseRenewal(
+                { authorityTerm: 'leader-a:1', grantId: localGranted.grantId },
+                'follower-other'
+            );
+            assert.deepEqual(rateLimiter.leaderStore.exportSnapshot(now), before);
+            rateLimiter.handleRemoteLeaseRenewal(
+                { authorityTerm: 'leader-a:1', grantId: localGranted.grantId },
+                'leader-a'
+            );
 
             rateLimiter.leaderStore.sweep(now + 6_000);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight, 1);

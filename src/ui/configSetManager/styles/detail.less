@@ -79,6 +79,53 @@
     min-width: 0;
 }
 
+.csm-slot-actions,
+.csm-auto-switch {
+    display: flex;
+    align-items: center;
+}
+
+.csm-slot-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.csm-auto-switch {
+    gap: 4px;
+    min-height: 24px;
+    padding: 2px 7px 2px 4px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--vscode-foreground);
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:has(input:disabled) {
+        cursor: default;
+        opacity: 0.6;
+    }
+}
+
+.csm-auto-switch-enabled {
+    border-color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
+.csm-auto-switch-status {
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editor-background);
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.csm-auto-switch-status-on {
+    color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
 .csm-slot-tag-main,
 .csm-slot-tag-variant {
     flex: none;

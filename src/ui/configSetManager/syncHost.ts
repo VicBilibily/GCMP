@@ -4,6 +4,7 @@
  *  通过构造注入 post 与 sendStates 回调与 Panel 解耦；口令下载上下文在内部维护。
  *---------------------------------------------------------------------------------------------*/
 
+import { randomUUID } from 'node:crypto';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetStore, type ConfigSetItem } from '../../utils/config/configSetStore';
 import {
@@ -150,12 +151,27 @@ export class ConfigSetSyncHost {
             items: ConfigSetItem[];
             keys: Record<string, string | undefined>;
             activeId?: string;
+            operationToken: string;
         }>
     ): Promise<boolean> {
         let rollbackFailed = false;
         for (const snapshot of [...snapshots].reverse()) {
             try {
-                await ConfigSetStore.writeAll(snapshot.slot, snapshot.items, snapshot.keys, snapshot.activeId);
+                if (ConfigSetStore.getApplyOperationToken(snapshot.slot) !== snapshot.operationToken) {
+                    Logger.info(
+                        `[ConfigSetManager] Skipped restore rollback for ${snapshot.slot} because a newer update owns the slot`
+                    );
+                    continue;
+                }
+                const rollbackToken = randomUUID();
+                await ConfigSetStore.setApplyOperationToken(snapshot.slot, rollbackToken);
+                await ConfigSetStore.writeAll(
+                    snapshot.slot,
+                    snapshot.items,
+                    snapshot.keys,
+                    snapshot.activeId,
+                    rollbackToken
+                );
             } catch (error) {
                 rollbackFailed = true;
                 Logger.error(`[ConfigSetManager] Failed to roll back restored slot ${snapshot.slot}:`, error);
@@ -574,6 +590,7 @@ export class ConfigSetSyncHost {
             items: ConfigSetItem[];
             keys: Record<string, string | undefined>;
             activeId?: string;
+            operationToken: string;
         }> = [];
         try {
             let remote = this.preparedDownloadSlots;
@@ -638,6 +655,8 @@ export class ConfigSetSyncHost {
             await enqueueConfigSetMutation(async () => {
                 try {
                     for (const selection of restoreSelections) {
+                        const operationToken = randomUUID();
+                        await ConfigSetStore.setApplyOperationToken(selection.slot, operationToken);
                         const previous = await this.snapshotSlotState(selection.slot);
                         const mergedItems = new Map(previous.items.map(item => [item.id, item] as const));
                         const mergedKeys: Record<string, string | undefined> = { ...previous.keys };
@@ -650,11 +669,12 @@ export class ConfigSetSyncHost {
                             selection.slot,
                             Array.from(mergedItems.values()),
                             mergedKeys,
-                            previous.activeId
+                            previous.activeId,
+                            operationToken
                         );
-                        appliedSnapshots.push({ slot: selection.slot, ...previous });
+                        appliedSnapshots.push({ slot: selection.slot, ...previous, operationToken });
                         // 激活状态由本地确认：生效 Key 匹配恢复项时补登激活标记，不改动当前生效 Key
-                        await this.confirmLocalActive(selection.slot);
+                        await this.confirmLocalActive(selection.slot, operationToken);
                         applied += selection.selectedCount;
                         Logger.info(
                             `[ConfigSetSync] Restored ${selection.selectedCount} config set(s) for ${selection.slot}`
@@ -697,11 +717,11 @@ export class ConfigSetSyncHost {
      * 激活状态本地确认（恢复后调用）：生效 Key + 当前站点匹配到某配置项时补登激活标记，
      * 均不匹配时清除残留标记；不改动当前生效的 Key（激活是本地运行时状态，不随同步强制变更）
      */
-    private async confirmLocalActive(slot: string): Promise<void> {
+    private async confirmLocalActive(slot: string, operationToken?: string): Promise<void> {
         const currentKey = await ApiKeyManager.getApiKey(slot);
         if (!currentKey) {
             if (ConfigSetStore.getActiveId(slot)) {
-                await ConfigSetStore.clearActive(slot);
+                await ConfigSetStore.clearActive(slot, operationToken);
             }
             return;
         }
@@ -715,12 +735,12 @@ export class ConfigSetSyncHost {
                 continue;
             }
             if (ConfigSetStore.getActiveId(slot) !== item.id) {
-                await ConfigSetStore.setActive(slot, item.id);
+                await ConfigSetStore.setActive(slot, item.id, operationToken);
             }
             return;
         }
         if (ConfigSetStore.getActiveId(slot)) {
-            await ConfigSetStore.clearActive(slot);
+            await ConfigSetStore.clearActive(slot, operationToken);
         }
     }
 

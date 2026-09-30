@@ -1,18 +1,30 @@
 ﻿import assert from 'node:assert/strict';
+import * as crypto from 'node:crypto';
 
 import * as vscode from 'vscode';
 
 import { GistSyncService } from '../../src/sync/gistSyncService';
 import { runClearPassphraseFlow } from '../../src/sync/passphraseFlow';
 import { runSetPassphraseFlow } from '../../src/sync/passphraseFlow';
+import { readRemoteConfigSets, readRemoteConfigSetsWithPassphrase } from '../../src/sync/configSetSyncService';
 import { StatusBarManager } from '../../src/status';
 import { CrudHost } from '../../src/ui/configSetManager/crudHost';
 import { ConfigSetSyncHost } from '../../src/ui/configSetManager/syncHost';
 import type { PanelContext } from '../../src/ui/configSetManager/types';
 import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
-import { enqueueConfigSetMutation } from '../../src/utils/config/configSetCommands';
+import {
+    applyConfigSetUnlocked,
+    enqueueConfigSetMutation,
+    readCurrentSite
+} from '../../src/utils/config/configSetCommands';
 import { ConfigSetStore, type ConfigSetItem } from '../../src/utils/config/configSetStore';
+import { ApiKeyFailoverManager } from '../../src/utils/config/failover/apiKeyFailoverManager';
+
+function failoverIdentity(id: string, apiKey: string, site?: string): string {
+    const fingerprint = crypto.createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
+    return `${id}:${fingerprint}:${site ?? ''}`;
+}
 
 function createMemento(): vscode.Memento {
     const store = new Map<string, unknown>();
@@ -95,6 +107,558 @@ function createPanelContext(posts: unknown[]): PanelContext {
         }
     };
 }
+
+suite('API key automatic failover', () => {
+    test('captureAttempt waits for an in-progress local configuration commit', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-capture-queue';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+
+        const operationToken = crypto.randomUUID();
+        let completeWrite!: () => void;
+        let reportStarted!: () => void;
+        const writeGate = new Promise<void>(resolve => {
+            completeWrite = resolve;
+        });
+        const writeStarted = new Promise<void>(resolve => {
+            reportStarted = resolve;
+        });
+        const write = enqueueConfigSetMutation(async () => {
+            await ConfigSetStore.setApplyOperationToken(slot, operationToken);
+            await ConfigSetStore.setActive(slot, 'b', operationToken);
+            reportStarted();
+            await writeGate;
+            await ApiKeyManager.setApiKey(slot, 'key-b');
+        });
+        await writeStarted;
+
+        let settled = false;
+        const capture = ApiKeyFailoverManager.captureAttempt(slot).finally(() => {
+            settled = true;
+        });
+        try {
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(settled, false);
+        } finally {
+            completeWrite();
+        }
+        await write;
+        const attempt = await capture;
+        assert.equal(attempt?.activeId, 'b');
+        assert.equal(attempt?.apiKey, 'key-b');
+    });
+
+    test('switches to the next saved configuration after three consecutive request failures', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-threshold';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+
+        const attempted = new Set<string>();
+        for (let count = 1; count <= 2; count += 1) {
+            const decision = await ApiKeyFailoverManager.handleFailure(
+                slot,
+                { status: 429 },
+                await ApiKeyFailoverManager.captureAttempt(slot),
+                attempted,
+                count
+            );
+            assert.deepEqual(decision, { handled: true, shouldRetry: true, switched: false });
+            assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+        }
+
+        const decision = await ApiKeyFailoverManager.handleFailure(
+            slot,
+            { status: 429 },
+            await ApiKeyFailoverManager.captureAttempt(slot),
+            attempted,
+            3
+        );
+
+        assert.deepEqual(decision, { handled: true, shouldRetry: true, switched: true });
+        assert.equal(ConfigSetStore.getActiveId(slot), 'b');
+        assert.equal(await ApiKeyManager.getApiKey(slot), 'key-b');
+    });
+
+    test('successful requests clear the consecutive failure count', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-success-reset';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+
+        const attempted = new Set<string>();
+        const firstAttempt = await ApiKeyFailoverManager.captureAttempt(slot);
+        await ApiKeyFailoverManager.handleFailure(slot, { status: 401 }, firstAttempt, attempted, 1);
+        await ApiKeyFailoverManager.handleFailure(
+            slot,
+            { status: 401 },
+            await ApiKeyFailoverManager.captureAttempt(slot),
+            attempted,
+            2
+        );
+
+        const decision = await ApiKeyFailoverManager.handleFailure(
+            slot,
+            { status: 401 },
+            await ApiKeyFailoverManager.captureAttempt(slot),
+            attempted,
+            1
+        );
+
+        assert.deepEqual(decision, { handled: true, shouldRetry: true, switched: false });
+        assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+    });
+
+    for (const [name, error] of [
+        ['server', { status: 503 }],
+        ['network', { code: 'ECONNRESET', message: 'socket terminated' }],
+        ['request', { status: 400, type: 'invalid_request_error' }],
+        ['quota', new Error('令牌额度不足')],
+        ['unknown', new Error('unrecognized upstream failure')]
+    ] as const) {
+        test(`counts ${name} failures toward switching`, async () => {
+            const context = createExtensionContext();
+            ApiKeyManager.initialize(context);
+            ConfigSetStore.initialize(context);
+            const slot = `failover-any-error-${name}`;
+            await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+            await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+            await ConfigSetStore.setActive(slot, 'a');
+            await ApiKeyManager.setApiKey(slot, 'key-a');
+            await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+            const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
+            const attempted = new Set<string>();
+
+            for (const count of [1, 2]) {
+                assert.deepEqual(await ApiKeyFailoverManager.handleFailure(slot, error, attempt, attempted, count), {
+                    handled: true,
+                    shouldRetry: true,
+                    switched: false
+                });
+                assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+            }
+            assert.deepEqual(await ApiKeyFailoverManager.handleFailure(slot, error, attempt, attempted, 3), {
+                handled: true,
+                shouldRetry: true,
+                switched: true
+            });
+            assert.equal(ConfigSetStore.getActiveId(slot), 'b');
+            assert.equal(await ApiKeyManager.getApiKey(slot), 'key-b');
+        });
+    }
+
+    test('does not switch for a cancellation error at the failure threshold', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-cancellation-error';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+        const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
+
+        assert.deepEqual(
+            await ApiKeyFailoverManager.handleFailure(
+                slot,
+                Object.assign(new vscode.CancellationError(), { status: 429 }),
+                attempt,
+                new Set(),
+                3
+            ),
+            { handled: false, shouldRetry: false, switched: false }
+        );
+        assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+    });
+
+    test('does not start switching when the request was already cancelled', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-cancelled-before-switch';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'a' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'b' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+        const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
+        const cancellation = new vscode.CancellationTokenSource();
+        cancellation.cancel();
+        try {
+            assert.deepEqual(
+                await ApiKeyFailoverManager.handleFailure(
+                    slot,
+                    { status: 429 },
+                    attempt,
+                    new Set(),
+                    3,
+                    'a',
+                    false,
+                    undefined,
+                    undefined,
+                    undefined,
+                    cancellation.token
+                ),
+                { handled: true, shouldRetry: false, switched: false }
+            );
+            assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+            assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
+        } finally {
+            cancellation.dispose();
+        }
+    });
+
+    test('stops instead of cycling to a configuration already attempted by the request', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-no-cycle';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+        const attempted = new Set<string>([failoverIdentity('b', 'key-b')]);
+
+        for (let count = 1; count <= 2; count += 1) {
+            const decision = await ApiKeyFailoverManager.handleFailure(
+                slot,
+                { status: 403 },
+                await ApiKeyFailoverManager.captureAttempt(slot),
+                attempted,
+                count
+            );
+            assert.equal(decision.shouldRetry, true);
+        }
+        const decision = await ApiKeyFailoverManager.handleFailure(
+            slot,
+            { status: 403 },
+            await ApiKeyFailoverManager.captureAttempt(slot),
+            attempted,
+            3
+        );
+
+        assert.deepEqual(decision, { handled: true, shouldRetry: false, switched: false });
+        assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+    });
+
+    test('retries a configuration whose credential changed under the same ID', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-updated-credential';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a-v1');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a-v1');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+
+        const attempted = new Set<string>();
+        const firstAttempt = await ApiKeyFailoverManager.captureAttempt(slot);
+        assert.ok(firstAttempt);
+        const firstRotation = await ApiKeyFailoverManager.handleFailure(
+            slot,
+            { status: 429 },
+            firstAttempt,
+            attempted,
+            3,
+            'a'
+        );
+        assert.deepEqual(firstRotation, { handled: true, shouldRetry: true, switched: true });
+        assert.equal(ConfigSetStore.getActiveId(slot), 'b');
+
+        await ConfigSetStore.setApiKey(slot, 'a', 'key-a-v2');
+        const secondAttempt = await ApiKeyFailoverManager.captureAttempt(slot);
+        assert.ok(secondAttempt);
+        const secondRotation = await ApiKeyFailoverManager.handleFailure(
+            slot,
+            { status: 429 },
+            secondAttempt,
+            attempted,
+            3,
+            'a'
+        );
+
+        assert.deepEqual(secondRotation, {
+            handled: true,
+            shouldRetry: true,
+            switched: true,
+            switchedToInitial: true
+        });
+        assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+        assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a-v2');
+    });
+
+    test('rolls back a failover write when leader authority changes during apply', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-authority-change';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+
+        let authorized = true;
+        const originalUpdate = context.globalState.update.bind(context.globalState);
+        context.globalState.update = async (key: string, value: unknown): Promise<void> => {
+            await originalUpdate(key, value);
+            if (key === `configSets.active.${slot}` && value === 'b') {
+                authorized = false;
+            }
+        };
+
+        await assert.rejects(
+            () => applyConfigSetUnlocked(slot, { id: 'b', label: 'Account B' }, () => authorized),
+            /authorization changed|权限已变化/
+        );
+        assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+        assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
+    });
+
+    test('does not roll back a newer writer that committed the same failover target', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-authority-aba';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+
+        let authorized = true;
+        const originalUpdate = context.globalState.update.bind(context.globalState);
+        context.globalState.update = async (key: string, value: unknown): Promise<void> => {
+            await originalUpdate(key, value);
+            if (key === `configSets.active.${slot}` && value === 'b') {
+                authorized = false;
+                await context.secrets.store(`${slot}.apiKey`, 'key-b');
+                await originalUpdate(`configSets.applyOperation.${slot}`, 'new-leader-operation');
+            }
+        };
+
+        await assert.rejects(
+            () => applyConfigSetUnlocked(slot, { id: 'b', label: 'Account B' }, () => authorized),
+            /authorization changed|权限已变化/
+        );
+        assert.equal(ConfigSetStore.getActiveId(slot), 'b');
+        assert.equal(await ApiKeyManager.getApiKey(slot), 'key-b');
+    });
+
+    test('serializes queued configuration writes until the old operation rolls back', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-authority-queue';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.add(slot, { id: 'c', label: 'Account C' }, 'key-c');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+
+        const mutableKeys = ApiKeyManager as unknown as { setApiKey: typeof ApiKeyManager.setApiKey };
+        const originalSetApiKey = mutableKeys.setApiKey;
+        let oldAuthorized = true;
+        let releaseOldWrite: (() => void) | undefined;
+        let reportOldWrite: (() => void) | undefined;
+        const oldWriteStarted = new Promise<void>(resolve => {
+            reportOldWrite = resolve;
+        });
+        const oldWriteGate = new Promise<void>(resolve => {
+            releaseOldWrite = resolve;
+        });
+        let blockOldWrite = true;
+
+        try {
+            mutableKeys.setApiKey = async (provider, apiKey, operationToken) => {
+                if (provider === slot && apiKey === 'key-b' && blockOldWrite) {
+                    blockOldWrite = false;
+                    reportOldWrite?.();
+                    await oldWriteGate;
+                }
+                return await originalSetApiKey.call(ApiKeyManager, provider, apiKey, operationToken);
+            };
+
+            const oldOperation = assert.rejects(
+                () =>
+                    enqueueConfigSetMutation(() =>
+                        applyConfigSetUnlocked(slot, { id: 'b', label: 'Account B' }, () => oldAuthorized)
+                    ),
+                /authorization changed|权限已变化/
+            );
+            await oldWriteStarted;
+            oldAuthorized = false;
+
+            let newOperationSettled = false;
+            const newOperation = enqueueConfigSetMutation(() =>
+                applyConfigSetUnlocked(slot, { id: 'c', label: 'Account C' }, () => true)
+            ).then(result => {
+                newOperationSettled = true;
+                return result;
+            });
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(newOperationSettled, false);
+
+            releaseOldWrite?.();
+            await oldOperation;
+            assert.equal(await newOperation, true);
+        } finally {
+            releaseOldWrite?.();
+            mutableKeys.setApiKey = originalSetApiKey;
+        }
+
+        assert.equal(ConfigSetStore.getActiveId(slot), 'c');
+        assert.equal(await ApiKeyManager.getApiKey(slot), 'key-c');
+    });
+
+    test('aborts an in-flight failover when another instance disables automatic switching', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-disabled-in-flight';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+        const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
+        assert.ok(attempt);
+
+        const mutableStore = ConfigSetStore as unknown as {
+            getApiKey: typeof ConfigSetStore.getApiKey;
+        };
+        const originalGetApiKey = mutableStore.getApiKey;
+        let targetReads = 0;
+        let releaseTargetRead: (() => void) | undefined;
+        let reportTargetRead: (() => void) | undefined;
+        const targetReadStarted = new Promise<void>(resolve => {
+            reportTargetRead = resolve;
+        });
+        const targetReadGate = new Promise<void>(resolve => {
+            releaseTargetRead = resolve;
+        });
+
+        try {
+            mutableStore.getApiKey = async (targetSlot, id) => {
+                if (targetSlot === slot && id === 'b' && ++targetReads === 2) {
+                    reportTargetRead?.();
+                    await targetReadGate;
+                }
+                return await originalGetApiKey.call(ConfigSetStore, targetSlot, id);
+            };
+
+            const failover = ApiKeyFailoverManager.handleFailure(slot, { status: 429 }, attempt, new Set(), 3);
+            await targetReadStarted;
+            await ConfigSetStore.setAutoSwitchEnabled(slot, false);
+            releaseTargetRead?.();
+
+            assert.deepEqual(await failover, { handled: true, shouldRetry: false, switched: false });
+            assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+            assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
+        } finally {
+            mutableStore.getApiKey = originalGetApiKey;
+        }
+    });
+
+    test('does not enable failover for duplicate credential identities', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'failover-duplicate-credentials';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'same-key');
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'same-key');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'same-key');
+
+        assert.equal(await ApiKeyFailoverManager.canEnableAutoSwitch(slot), false);
+    });
+
+    test('rotates the same API key across different sites as distinct failover candidates', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'zhipu';
+        const configuration = vscode.workspace.getConfiguration('gcmp.zhipu');
+        const previousEffectiveEndpoint = configuration.get<string>('endpoint');
+        const previousEndpoint = configuration.inspect<string>('endpoint')?.globalValue;
+
+        try {
+            await configuration.update('endpoint', 'open.bigmodel.cn', vscode.ConfigurationTarget.Global);
+            await ConfigSetStore.add(slot, { id: 'china', label: 'China', site: 'open.bigmodel.cn' }, 'same-key');
+            await ConfigSetStore.add(slot, { id: 'global', label: 'Global', site: 'api.z.ai' }, 'same-key');
+            await ConfigSetStore.setActive(slot, 'china');
+            await ApiKeyManager.setApiKey(slot, 'same-key');
+
+            assert.equal(await ApiKeyFailoverManager.canEnableAutoSwitch(slot), true);
+            await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+            const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
+            assert.ok(attempt);
+            const decision = await ApiKeyFailoverManager.handleFailure(
+                slot,
+                { status: 429 },
+                attempt,
+                new Set(),
+                3,
+                'china'
+            );
+
+            assert.deepEqual(decision, { handled: true, shouldRetry: true, switched: true });
+            assert.equal(ConfigSetStore.getActiveId(slot), 'global');
+            assert.equal(await ApiKeyManager.getApiKey(slot), 'same-key');
+            assert.equal(
+                vscode.workspace.getConfiguration('gcmp.zhipu').inspect<string>('endpoint')?.globalValue,
+                'api.z.ai'
+            );
+            assert.equal(readCurrentSite('zhipu'), 'api.z.ai');
+        } finally {
+            await configuration.update('endpoint', previousEndpoint, vscode.ConfigurationTarget.Global);
+        }
+        const restoredConfiguration = vscode.workspace.getConfiguration('gcmp.zhipu');
+        assert.equal(restoredConfiguration.inspect<string>('endpoint')?.globalValue, previousEndpoint);
+        assert.equal(restoredConfiguration.get<string>('endpoint'), previousEffectiveEndpoint);
+    });
+
+    test('rejects unavailable failover pools and disables failover after deletion', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'zhipu';
+        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+
+        const posts: unknown[] = [];
+        const host = new CrudHost(createPanelContext(posts));
+        await host.handleSetAutoSwitch(slot, true);
+        assert.equal(ConfigSetStore.isAutoSwitchEnabled(slot), false);
+        assert.equal((posts.at(-1) as { command?: string; ok?: boolean }).command, 'autoSwitchResult');
+        assert.equal((posts.at(-1) as { ok?: boolean }).ok, false);
+
+        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+        await host.handleSetAutoSwitch(slot, true);
+        assert.equal(ConfigSetStore.isAutoSwitchEnabled(slot), true);
+
+        await host.handleRemove(slot, 'b');
+        assert.equal(ConfigSetStore.isAutoSwitchEnabled(slot), false);
+    });
+});
 
 suite('config set label behavior', () => {
     test('ConfigSetStore.add allows duplicate labels in the same slot', async () => {
@@ -185,6 +749,22 @@ suite('config set label behavior', () => {
 
         assert.equal(ConfigSetStore.getActiveId('slot-writeall'), undefined);
         assert.equal(await ConfigSetStore.getApiKey('slot-writeall', 'write-a'), undefined);
+    });
+
+    test('ConfigSetStore serializes concurrent local CRUD', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+        const slot = 'slot-local-serialization';
+        await Promise.all([
+            ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a'),
+            ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b')
+        ]);
+        assert.deepEqual(ConfigSetStore.list(slot), [
+            { id: 'a', label: 'Account A' },
+            { id: 'b', label: 'Account B' }
+        ]);
+        assert.equal(await ConfigSetStore.getApiKey(slot, 'a'), 'key-a');
+        assert.equal(await ConfigSetStore.getApiKey(slot, 'b'), 'key-b');
     });
 
     test('CrudHost.handleAdd does not reject duplicate labels', async () => {
@@ -830,6 +1410,147 @@ suite('config set label behavior', () => {
         assert.ok(result, 'expected a remoteConfigsResult message');
         assert.equal(result?.ok, false);
         assert.match(result?.error ?? '', /1/);
+    });
+
+    test('remote config set reads reject malformed schemas and excessive KDF identities before decrypting', async () => {
+        const mutableGist = GistSyncService as unknown as {
+            createBatchDecryptor: typeof GistSyncService.createBatchDecryptor;
+            createBatchDecryptorWithPassphrase: typeof GistSyncService.createBatchDecryptorWithPassphrase;
+        };
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        const originalCreateBatchDecryptor = mutableGist.createBatchDecryptor;
+        const originalCreateBatchDecryptorWithPassphrase = mutableGist.createBatchDecryptorWithPassphrase;
+        let content = '';
+        let decryptorCreations = 0;
+
+        ConfigManager.fetchWithProxy = (async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                files: {
+                    'gcmp-configsets.json': {
+                        content
+                    }
+                }
+            })
+        })) as unknown as typeof ConfigManager.fetchWithProxy;
+        mutableGist.createBatchDecryptor = (async () => {
+            decryptorCreations += 1;
+            return Object.assign(async () => 'plain-key', { dispose(): void {} });
+        }) as typeof GistSyncService.createBatchDecryptor;
+        mutableGist.createBatchDecryptorWithPassphrase = (() => {
+            decryptorCreations += 1;
+            return Object.assign(async () => 'plain-key', { dispose(): void {} });
+        }) as typeof GistSyncService.createBatchDecryptorWithPassphrase;
+
+        const timestamp = '2026-09-29T00:00:00.000Z';
+        const encryptedPayload = (index: number, N = 131072) =>
+            JSON.stringify({
+                algorithm: 'aes-256-gcm',
+                kdf: 'scrypt',
+                kdfParams: { N, r: 8, p: 1 },
+                salt: index.toString(16).padStart(64, '0'),
+                iv: '0'.repeat(32),
+                tag: '0'.repeat(32),
+                data: ''
+            });
+        const malformedPayloads: unknown[] = [
+            { version: 2, timestamp, slots: {} },
+            JSON.parse(`{"version":1,"timestamp":"${timestamp}","slots":{"__proto__":{"items":[]}}}`) as unknown,
+            {
+                version: 1,
+                timestamp,
+                slots: {
+                    'custom.provider': {
+                        items: [{ id: 'unsafe.id', label: 'Unsafe ID', apiKey: 'encrypted' }]
+                    }
+                }
+            },
+            {
+                version: 1,
+                timestamp,
+                slots: {
+                    slot: {
+                        items: [
+                            { id: 'duplicate', label: 'First', apiKey: 'encrypted-a' },
+                            { id: 'duplicate', label: 'Second', apiKey: 'encrypted-b' }
+                        ]
+                    }
+                }
+            },
+            {
+                version: 1,
+                timestamp,
+                slots: {
+                    slot: {
+                        items: [{ id: 'valid-id', label: 'x'.repeat(8193), apiKey: 'encrypted' }]
+                    }
+                }
+            },
+            {
+                version: 1,
+                timestamp,
+                slots: {
+                    slot: {
+                        items: Array.from({ length: 17 }, (_, index) => ({
+                            id: `unique-salt-${index}`,
+                            label: `Unique salt ${index}`,
+                            apiKey: encryptedPayload(index + 1)
+                        }))
+                    }
+                }
+            }
+        ];
+
+        try {
+            for (const payload of malformedPayloads) {
+                content = JSON.stringify(payload);
+                assert.deepEqual(await readRemoteConfigSets('token', 'gist-1'), { status: 'error' });
+                assert.deepEqual(await readRemoteConfigSetsWithPassphrase('token', 'gist-1', 'passphrase'), {
+                    status: 'error'
+                });
+            }
+
+            assert.equal(decryptorCreations, 0);
+            content = JSON.stringify({
+                version: 1,
+                timestamp,
+                slots: {
+                    slot: {
+                        items: Array.from({ length: 16 }, (_, index) => ({
+                            id: `allowed-salt-${index}`,
+                            label: `Allowed salt ${index}`,
+                            apiKey: encryptedPayload(index + 1)
+                        }))
+                    }
+                }
+            });
+            const regularResult = await readRemoteConfigSets('token', 'gist-1');
+            const passphraseResult = await readRemoteConfigSetsWithPassphrase('token', 'gist-1', 'passphrase');
+            assert.equal(regularResult.status, 'ok');
+            assert.equal(passphraseResult.status, 'ok');
+
+            content = JSON.stringify({
+                version: 1,
+                timestamp,
+                slots: {
+                    slot: {
+                        items: Array.from({ length: 128 }, (_, index) => ({
+                            id: `legacy-salt-${index}`,
+                            label: `Legacy salt ${index}`,
+                            apiKey: encryptedPayload(index + 1, 16384)
+                        }))
+                    }
+                }
+            });
+            assert.equal((await readRemoteConfigSets('token', 'gist-1')).status, 'ok');
+        } finally {
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+            mutableGist.createBatchDecryptor = originalCreateBatchDecryptor;
+            mutableGist.createBatchDecryptorWithPassphrase = originalCreateBatchDecryptorWithPassphrase;
+        }
+
+        assert.equal(decryptorCreations, 3);
     });
 
     test('ConfigSetSyncHost.handleDownloadWithPassphrase does not persist partial passphrases', async () => {
@@ -1501,6 +2222,27 @@ suite('config set label behavior', () => {
         assert.equal(eventCount, 1);
     });
 
+    test('ApiKeyManager notifies configuration changes when the key is unchanged', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        await ApiKeyManager.setApiKey('slot-sync', 'runtime-key');
+
+        let syncCount = 0;
+        const subscription = ApiKeyManager.onDidChangeApiKey(({ provider, action }) => {
+            if (provider === 'slot-sync' && action === 'sync') {
+                syncCount += 1;
+            }
+        });
+        try {
+            ApiKeyManager.notifyApiKeyConfigurationChanged('slot-sync');
+        } finally {
+            subscription.dispose();
+        }
+
+        assert.equal(syncCount, 1);
+        assert.equal(await ApiKeyManager.getApiKey('slot-sync'), 'runtime-key');
+    });
+
     test('ApiKeyManager.setApiKey deletes the key when given a blank value', async () => {
         const context = createExtensionContext();
         ApiKeyManager.initialize(context);
@@ -1614,12 +2356,24 @@ suite('config set label behavior', () => {
         const mutableKeys = ApiKeyManager as unknown as {
             setApiKey: typeof ApiKeyManager.setApiKey;
         };
+        const mutableStore = ConfigSetStore as unknown as {
+            setActive: typeof ConfigSetStore.setActive;
+        };
         const originalSetApiKey = mutableKeys.setApiKey;
-        mutableKeys.setApiKey = async (provider, apiKey) => {
+        const originalSetActive = mutableStore.setActive;
+        let rejectFirstDeepseekRollback = true;
+        mutableKeys.setApiKey = async (provider, apiKey, operationToken) => {
             if (provider === 'deepseek' && apiKey === 'd-new-key') {
                 throw new Error('apply failed');
             }
-            return await originalSetApiKey.call(ApiKeyManager, provider, apiKey);
+            return await originalSetApiKey.call(ApiKeyManager, provider, apiKey, operationToken);
+        };
+        mutableStore.setActive = async (slot, id, operationToken) => {
+            if (slot === 'deepseek' && id === 'd-old' && rejectFirstDeepseekRollback) {
+                rejectFirstDeepseekRollback = false;
+                throw new Error('internal rollback failed');
+            }
+            return await originalSetActive.call(ConfigSetStore, slot, id, operationToken);
         };
 
         try {
@@ -1629,6 +2383,7 @@ suite('config set label behavior', () => {
             ]);
         } finally {
             mutableKeys.setApiKey = originalSetApiKey;
+            mutableStore.setActive = originalSetActive;
         }
 
         assert.equal(sendStatesCalls, 0, 'sendStates should not run after failed batch apply');
@@ -1643,6 +2398,53 @@ suite('config set label behavior', () => {
         assert.ok(result, 'expected an activeKeysResult message');
         assert.equal(result?.ok, false);
         assert.match(result?.error ?? '', /apply failed/);
+    });
+
+    test('CrudHost.handleApplyActiveKeys preserves a newer external commit during rollback', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+
+        await ConfigSetStore.add('zhipu', { id: 'z-old', label: 'Z Old' }, 'z-old-key');
+        await ConfigSetStore.add('zhipu', { id: 'z-new', label: 'Z New' }, 'z-new-key');
+        await ConfigSetStore.add('zhipu', { id: 'z-external', label: 'Z External' }, 'z-external-key');
+        await ConfigSetStore.setActive('zhipu', 'z-old');
+        await ApiKeyManager.setApiKey('zhipu', 'z-old-key');
+
+        await ConfigSetStore.add('deepseek', { id: 'd-old', label: 'D Old' }, 'd-old-key');
+        await ConfigSetStore.add('deepseek', { id: 'd-new', label: 'D New' }, 'd-new-key');
+        await ConfigSetStore.setActive('deepseek', 'd-old');
+        await ApiKeyManager.setApiKey('deepseek', 'd-old-key');
+
+        const posts: unknown[] = [];
+        const host = new CrudHost(createPanelContext(posts));
+        const mutableKeys = ApiKeyManager as unknown as { setApiKey: typeof ApiKeyManager.setApiKey };
+        const originalSetApiKey = mutableKeys.setApiKey;
+        mutableKeys.setApiKey = async (provider, apiKey, operationToken) => {
+            if (provider === 'deepseek' && apiKey === 'd-new-key') {
+                await ConfigSetStore.setActive('zhipu', 'z-external');
+                await originalSetApiKey.call(ApiKeyManager, 'zhipu', 'z-external-key');
+                throw new Error('apply failed after external commit');
+            }
+            return await originalSetApiKey.call(ApiKeyManager, provider, apiKey, operationToken);
+        };
+
+        try {
+            await host.handleApplyActiveKeys([
+                { slot: 'zhipu', activateId: 'z-new' },
+                { slot: 'deepseek', activateId: 'd-new' }
+            ]);
+        } finally {
+            mutableKeys.setApiKey = originalSetApiKey;
+        }
+
+        assert.equal(ConfigSetStore.getActiveId('zhipu'), 'z-external');
+        assert.equal(await ApiKeyManager.getApiKey('zhipu'), 'z-external-key');
+        const result = posts.find(msg => (msg as { command?: string }).command === 'activeKeysResult') as
+            | { command: 'activeKeysResult'; ok: boolean; error?: string }
+            | undefined;
+        assert.equal(result?.ok, false);
+        assert.match(result?.error ?? '', /apply failed after external commit/);
     });
 
     test('ConfigSetSyncHost.handleRestore rolls back earlier slots when a later slot fails', async () => {
@@ -1680,12 +2482,12 @@ suite('config set label behavior', () => {
         };
         mutableHost.confirmLocalActive = async () => {};
         mutableHost.postSyncState = async () => {};
-        mutableStore.writeAll = async (slot, items, keys, activeId) => {
+        mutableStore.writeAll = async (slot, items, keys, activeId, operationToken) => {
             if (slot === 'slot-fail' && !failed) {
                 failed = true;
                 throw new Error('restore failed');
             }
-            return await originalWriteAll.call(ConfigSetStore, slot, items, keys, activeId);
+            return await originalWriteAll.call(ConfigSetStore, slot, items, keys, activeId, operationToken);
         };
 
         try {
@@ -1712,6 +2514,63 @@ suite('config set label behavior', () => {
         assert.equal(mutableHost.preparedDownloadSlots, undefined, 'prepared snapshot should be cleared after failure');
         assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
         assert.ok(posts.some(msg => (msg as { ok?: boolean }).ok === false));
+    });
+
+    test('ConfigSetSyncHost.handleRestore preserves a newer external slot update during rollback', async () => {
+        ConfigSetStore.initialize(createExtensionContext());
+        await ConfigSetStore.add('slot-ok', { id: 'local-ok', label: 'Local OK' }, 'local-key-ok');
+        await ConfigSetStore.add('slot-fail', { id: 'local-fail', label: 'Local Fail' }, 'local-key-fail');
+
+        const host = new ConfigSetSyncHost({
+            post() {},
+            async sendStates(): Promise<void> {}
+        });
+        const mutableHost = host as unknown as {
+            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+            confirmLocalActive: (slot: string, operationToken?: string) => Promise<void>;
+            postSyncState: () => Promise<void>;
+        };
+        const mutableStore = ConfigSetStore as unknown as { writeAll: typeof ConfigSetStore.writeAll };
+        const originalWriteAll = mutableStore.writeAll;
+        const originalConfirmLocalActive = mutableHost.confirmLocalActive;
+        const originalPostSyncState = mutableHost.postSyncState;
+        let failed = false;
+
+        mutableHost.preparedDownloadSlots = {
+            'slot-ok': {
+                items: [{ id: 'remote-ok', label: 'Remote OK', apiKey: 'remote-key-ok' }]
+            },
+            'slot-fail': {
+                items: [{ id: 'remote-fail', label: 'Remote Fail', apiKey: 'remote-key-fail' }]
+            }
+        };
+        mutableHost.confirmLocalActive = async () => {};
+        mutableHost.postSyncState = async () => {};
+        mutableStore.writeAll = async (slot, items, keys, activeId, operationToken) => {
+            if (slot === 'slot-fail' && !failed) {
+                failed = true;
+                await ConfigSetStore.add('slot-ok', { id: 'external-ok', label: 'External OK' }, 'external-key-ok');
+                throw new Error('restore failed after external update');
+            }
+            return await originalWriteAll.call(ConfigSetStore, slot, items, keys, activeId, operationToken);
+        };
+
+        try {
+            await host.handleRestore([
+                { slot: 'slot-ok', itemIds: ['remote-ok'] },
+                { slot: 'slot-fail', itemIds: ['remote-fail'] }
+            ]);
+        } finally {
+            mutableStore.writeAll = originalWriteAll;
+            mutableHost.confirmLocalActive = originalConfirmLocalActive;
+            mutableHost.postSyncState = originalPostSyncState;
+        }
+
+        assert.deepEqual(
+            ConfigSetStore.list('slot-ok').map(item => item.id),
+            ['local-ok', 'remote-ok', 'external-ok']
+        );
+        assert.equal(await ConfigSetStore.getApiKey('slot-ok', 'external-ok'), 'external-key-ok');
     });
 
     test('ConfigSetSyncHost.handleRestore preserves queued local mutations that finish before restore runs', async () => {
@@ -1842,14 +2701,14 @@ suite('config set label behavior', () => {
         };
         mutableHost.confirmLocalActive = async () => {};
         mutableHost.postSyncState = async () => {};
-        mutableStore.writeAll = async (slot, items, keys, activeId) => {
+        mutableStore.writeAll = async (slot, items, keys, activeId, operationToken) => {
             if (slot === 'slot-fail' && !observerTask) {
                 observerTask = enqueueConfigSetMutation(async () => {
                     observedIds = ConfigSetStore.list('slot-ok').map(item => item.id);
                 });
                 throw new Error('restore failed');
             }
-            return await originalWriteAll.call(ConfigSetStore, slot, items, keys, activeId);
+            return await originalWriteAll.call(ConfigSetStore, slot, items, keys, activeId, operationToken);
         };
 
         try {

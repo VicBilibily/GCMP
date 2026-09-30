@@ -238,6 +238,22 @@ function parsePayload(encryptedPayload: string): EncryptedPayload | undefined {
     return payload;
 }
 
+export interface EncryptedPayloadKdfMetadata {
+    identity: string;
+    costUnits: number;
+}
+
+export function getEncryptedPayloadKdfMetadata(encryptedPayload: string): EncryptedPayloadKdfMetadata | undefined {
+    const payload = parsePayload(encryptedPayload);
+    if (!payload) {
+        return undefined;
+    }
+    return {
+        identity: `${payload.salt}:${payload.kdfParams.N}:${payload.kdfParams.r}:${payload.kdfParams.p}`,
+        costUnits: payload.kdfParams.N / LEGACY_SCRYPT_PARAMS.N
+    };
+}
+
 /** 用已派生的密钥解密数据包；认证失败返回 undefined */
 function decryptPayload(payload: EncryptedPayload, key: Buffer): string | undefined {
     const iv = Buffer.from(payload.iv, 'hex');

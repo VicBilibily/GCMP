@@ -370,10 +370,10 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
     /**
      * 国际站切换：Token Plan 接入点为 minimax.io 时将国内站域名替换为国际站域名
      */
-    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
-        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig, siteOverride?: string): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig, siteOverride);
         if (baseUrl && this.getProviderKeyForModel(modelConfig) === 'minimax-token') {
-            if (ConfigManager.getMinimaxEndpoint() === 'minimax.io') {
+            if ((siteOverride ?? ConfigManager.getMinimaxEndpoint()) === 'minimax.io') {
                 return baseUrl.replace('api.minimaxi.com', 'api.minimax.io');
             }
         }

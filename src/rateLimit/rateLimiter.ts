@@ -382,8 +382,12 @@ export class RateLimiter {
     /**
      * Leader 处理远端 release（extension.ts 订阅挂接）
      */
-    static handleRemoteRelease(payload: RateLimitReleasedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+    static handleRemoteRelease(payload: RateLimitReleasedEvent['payload'], senderInstanceId: string): void {
+        if (
+            !LeaderElectionService.isLeader() ||
+            !senderInstanceId ||
+            this.leaderStore.getGrantOwnerInstanceId(payload.grantId) !== senderInstanceId
+        ) {
             return;
         }
         const currentAuthorityTerm = LeaderElectionService.getAuthorityTerm();
@@ -394,8 +398,15 @@ export class RateLimiter {
         this.distributeLeaderGrants(granted);
     }
 
-    static handleRemoteAcquireCancelled(payload: RateLimitAcquireCancelledEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+    static handleRemoteAcquireCancelled(
+        payload: RateLimitAcquireCancelledEvent['payload'],
+        senderInstanceId: string
+    ): void {
+        if (
+            !LeaderElectionService.isLeader() ||
+            !senderInstanceId ||
+            this.leaderStore.getRequestOwnerInstanceId(payload.bucketKey, payload.requestId) !== senderInstanceId
+        ) {
             return;
         }
         const currentAuthorityTerm = LeaderElectionService.getAuthorityTerm();
@@ -410,8 +421,12 @@ export class RateLimiter {
         this.publishQueuePositionUpdates(this.leaderStore.getPendingPositions(payload.bucketKey));
     }
 
-    static handleRemoteLeaseRenewal(payload: RateLimitLeaseRenewedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+    static handleRemoteLeaseRenewal(payload: RateLimitLeaseRenewedEvent['payload'], senderInstanceId: string): void {
+        if (
+            !LeaderElectionService.isLeader() ||
+            !senderInstanceId ||
+            this.leaderStore.getGrantOwnerInstanceId(payload.grantId) !== senderInstanceId
+        ) {
             return;
         }
         const currentAuthorityTerm = LeaderElectionService.getAuthorityTerm();
@@ -949,7 +964,11 @@ export class RateLimiter {
 
     private static handleLeaderResigning(event: LeaderResigningEvent): void {
         const payload = event.payload;
-        if (payload.leaderId === LeaderElectionService.getInstanceId() || !payload.rateLimitSnapshot) {
+        if (
+            payload.leaderId === LeaderElectionService.getInstanceId() ||
+            payload.leaderId !== event.senderInstanceId ||
+            !payload.rateLimitSnapshot
+        ) {
             return;
         }
         const receivedAt = Number.isFinite(event.timestamp) ? event.timestamp : Date.now();
@@ -1025,7 +1044,8 @@ export class RateLimiter {
                 throw new Error('invalid handoff snapshot shape');
             }
             this.leaderStore.importSnapshot(handoff.snapshot, now, {
-                ownerlessGrantGraceMs: LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS
+                ownerlessGrantGraceMs: LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS,
+                ownerlessGrantOwnerInstanceId: handoff.leaderId
             });
             this.exitDegraded('became leader');
             StatusLogger.info(

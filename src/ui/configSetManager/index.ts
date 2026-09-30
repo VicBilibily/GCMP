@@ -19,6 +19,11 @@ import { sanitizeWebViewMessage } from './types';
 
 export class ConfigSetManagerPanel implements PanelContext {
     private static currentPanel: ConfigSetManagerPanel | undefined;
+
+    static get current(): ConfigSetManagerPanel | undefined {
+        return this.currentPanel;
+    }
+
     private panel: vscode.WebviewPanel | undefined;
 
     private stateHost!: StateHost;
@@ -118,6 +123,13 @@ export class ConfigSetManagerPanel implements PanelContext {
         return this.stateHost.sendStates();
     }
 
+    async requestStatesRefresh(): Promise<void> {
+        if (!this.panel) {
+            return;
+        }
+        await this.sendStates();
+    }
+
     async refreshCliProviders(): Promise<void> {
         return this.stateHost.refreshCliProviders();
     }
@@ -179,6 +191,9 @@ export class ConfigSetManagerPanel implements PanelContext {
                     return;
                 case 'deactivate':
                     await this.crudHost.handleDeactivate(message.slot);
+                    return;
+                case 'setAutoSwitch':
+                    await this.crudHost.handleSetAutoSwitch(message.slot, message.enabled);
                     return;
                 case 'manageActiveKeys':
                     await this.crudHost.handleListActiveKeys();

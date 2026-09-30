@@ -257,10 +257,10 @@ export class XiaomimimoProvider extends GenericModelProvider implements Language
     /**
      * Token Plan 接入点切换：非 cn 接入点时替换 token-plan-cn 域名
      */
-    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
-        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig, siteOverride?: string): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig, siteOverride);
         if (baseUrl && this.getProviderKeyForModel(modelConfig) === 'xiaomimimo-token') {
-            const endpoint = ConfigManager.getXiaomimimoEndpoint();
+            const endpoint = siteOverride ?? ConfigManager.getXiaomimimoEndpoint();
             if (endpoint && endpoint !== 'cn') {
                 return baseUrl.replace('token-plan-cn', `token-plan-${endpoint}`);
             }

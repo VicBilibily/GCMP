@@ -10,6 +10,7 @@ import { ConfigManager } from '../utils/config/configManager';
 import { ConfigSetItem, ConfigSetStore } from '../utils/config/configSetStore';
 import { Logger } from '../utils/runtime/logger';
 import { GistSyncService } from './gistSyncService';
+import { getEncryptedPayloadKdfMetadata } from './syncCrypto';
 
 /** Gist 中存储配置集同步数据的文件名 */
 const CONFIGSET_SYNC_FILENAME = 'gcmp-configsets.json';
@@ -26,6 +27,118 @@ export interface ConfigSetSyncData {
 export interface SyncedSlotConfigSet {
     /** 配置项列表；传输/存储态 apiKey 为加密 payload 字符串，业务层调用前已解密为明文 */
     items: (ConfigSetItem & { apiKey: string })[];
+}
+
+const MAX_SYNC_SLOT_COUNT = 512;
+const MAX_SYNC_ITEMS_PER_SLOT = 2048;
+const MAX_SYNC_TOTAL_ITEMS = 4096;
+const MAX_SYNC_SLOT_LENGTH = 256;
+const MAX_SYNC_FIELD_LENGTH = 8192;
+const MAX_ENCRYPTED_KEY_LENGTH = MAX_SYNC_FIELD_LENGTH * 6 + 1024;
+const MAX_SYNC_KDF_COST_UNITS = 128;
+const SAFE_ITEM_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function containsControlCharacter(value: string): boolean {
+    for (let index = 0; index < value.length; index++) {
+        const code = value.charCodeAt(index);
+        if (code < 32 || code === 127) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function isBoundedText(value: unknown, maxLength: number, allowEmpty = false): value is string {
+    return (
+        typeof value === 'string' &&
+        (allowEmpty || value.length > 0) &&
+        value.length <= maxLength &&
+        !containsControlCharacter(value)
+    );
+}
+
+function normalizeRemoteConfigSetData(value: unknown): ConfigSetSyncData | undefined {
+    if (!isRecord(value) || value.version !== 1 || !isRecord(value.slots)) {
+        return undefined;
+    }
+    if (
+        typeof value.timestamp !== 'string' ||
+        value.timestamp.length === 0 ||
+        value.timestamp.length > 64 ||
+        !Number.isFinite(Date.parse(value.timestamp))
+    ) {
+        return undefined;
+    }
+
+    const slotEntries = Object.entries(value.slots);
+    if (slotEntries.length > MAX_SYNC_SLOT_COUNT) {
+        return undefined;
+    }
+
+    const slots: Record<string, SyncedSlotConfigSet> = {};
+    let totalItems = 0;
+    const kdfIdentities = new Set<string>();
+    let kdfCostUnits = 0;
+    for (const [slot, rawSet] of slotEntries) {
+        if (
+            !isBoundedText(slot, MAX_SYNC_SLOT_LENGTH) ||
+            slot.trim() !== slot ||
+            UNSAFE_OBJECT_KEYS.has(slot) ||
+            !isRecord(rawSet) ||
+            !Array.isArray(rawSet.items) ||
+            rawSet.items.length > MAX_SYNC_ITEMS_PER_SLOT
+        ) {
+            return undefined;
+        }
+        totalItems += rawSet.items.length;
+        if (totalItems > MAX_SYNC_TOTAL_ITEMS) {
+            return undefined;
+        }
+
+        const seenIds = new Set<string>();
+        const items: (ConfigSetItem & { apiKey: string })[] = [];
+        for (const rawItem of rawSet.items) {
+            if (
+                !isRecord(rawItem) ||
+                typeof rawItem.id !== 'string' ||
+                !SAFE_ITEM_ID_PATTERN.test(rawItem.id) ||
+                UNSAFE_OBJECT_KEYS.has(rawItem.id) ||
+                seenIds.has(rawItem.id) ||
+                !isBoundedText(rawItem.label, MAX_SYNC_FIELD_LENGTH) ||
+                (rawItem.site !== undefined && !isBoundedText(rawItem.site, MAX_SYNC_FIELD_LENGTH)) ||
+                (rawItem.note !== undefined && !isBoundedText(rawItem.note, MAX_SYNC_FIELD_LENGTH, true)) ||
+                typeof rawItem.apiKey !== 'string' ||
+                rawItem.apiKey.length === 0 ||
+                rawItem.apiKey.length > MAX_ENCRYPTED_KEY_LENGTH
+            ) {
+                return undefined;
+            }
+            const kdfMetadata = getEncryptedPayloadKdfMetadata(rawItem.apiKey);
+            if (kdfMetadata && !kdfIdentities.has(kdfMetadata.identity)) {
+                kdfIdentities.add(kdfMetadata.identity);
+                kdfCostUnits += kdfMetadata.costUnits;
+                if (kdfCostUnits > MAX_SYNC_KDF_COST_UNITS) {
+                    return undefined;
+                }
+            }
+            seenIds.add(rawItem.id);
+            items.push({
+                id: rawItem.id,
+                label: rawItem.label,
+                ...(rawItem.site === undefined ? {} : { site: rawItem.site }),
+                ...(rawItem.note === undefined ? {} : { note: rawItem.note }),
+                apiKey: rawItem.apiKey
+            });
+        }
+        slots[slot] = { items };
+    }
+
+    return { version: 1, timestamp: value.timestamp, slots };
 }
 
 /** Gist 响应中的文件结构（仅本服务用到的字段） */
@@ -147,7 +260,7 @@ async function decryptSlotKeys(
         for (const item of set.items ?? []) {
             total += 1;
             const apiKey = await decryptFn(item.apiKey);
-            if (apiKey === undefined) {
+            if (!isBoundedText(apiKey, MAX_SYNC_FIELD_LENGTH)) {
                 skipped += 1;
                 continue;
             }
@@ -232,7 +345,11 @@ export async function readRemoteConfigSets(token: string, gistId: string): Promi
     }
     let decryptor: Awaited<ReturnType<typeof GistSyncService.createBatchDecryptor>>;
     try {
-        const parsed = JSON.parse(file.content) as ConfigSetSyncData;
+        const parsed = normalizeRemoteConfigSetData(JSON.parse(file.content) as unknown);
+        if (!parsed) {
+            Logger.warn('[ConfigSetSync] Rejected malformed remote config set data');
+            return { status: 'error' };
+        }
         decryptor = await GistSyncService.createBatchDecryptor();
         const result = decryptor ? await decryptSlotKeys(parsed, decryptor) : undefined;
         if (!result) {
@@ -264,9 +381,14 @@ export async function readRemoteConfigSetsWithPassphrase(
     if (file.status !== 'ok') {
         return file;
     }
-    const decryptor = GistSyncService.createBatchDecryptorWithPassphrase(passphrase);
+    let decryptor: ReturnType<typeof GistSyncService.createBatchDecryptorWithPassphrase>;
     try {
-        const parsed = JSON.parse(file.content) as ConfigSetSyncData;
+        const parsed = normalizeRemoteConfigSetData(JSON.parse(file.content) as unknown);
+        if (!parsed) {
+            Logger.warn('[ConfigSetSync] Rejected malformed remote config set data');
+            return { status: 'error' };
+        }
+        decryptor = GistSyncService.createBatchDecryptorWithPassphrase(passphrase);
         const result = decryptor ? await decryptSlotKeys(parsed, decryptor) : undefined;
         if (!result) {
             return { status: 'decrypt-failed' };

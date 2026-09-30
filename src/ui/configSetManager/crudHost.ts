@@ -23,6 +23,7 @@ import {
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
+import { ApiKeyFailoverManager } from '../../utils/config/failover/apiKeyFailoverManager';
 import { collectManagedSlots } from './stateHost';
 import type { ActiveConfigItemSnapshot, ActiveKeyAction, ActiveSlotSnapshot, PanelContext } from './types';
 
@@ -74,24 +75,31 @@ export class CrudHost {
         };
     }
 
-    private async restoreActiveState(snapshot: ActiveStateSnapshot): Promise<void> {
+    private async restoreActiveState(snapshot: ActiveStateSnapshot, expectedOperationToken: string): Promise<boolean> {
+        if (ConfigSetStore.getApplyOperationToken(snapshot.slot) !== expectedOperationToken) {
+            return false;
+        }
+        const rollbackToken = randomUUID();
+        await ConfigSetStore.setApplyOperationToken(snapshot.slot, rollbackToken);
+
         if (snapshot.siteProvider) {
             await applySiteSetting(snapshot.siteProvider, snapshot.currentSite);
         }
 
         if (snapshot.currentKey === undefined) {
-            await ApiKeyManager.deleteApiKey(snapshot.slot);
+            await ApiKeyManager.deleteApiKey(snapshot.slot, rollbackToken);
         } else {
-            await ApiKeyManager.setApiKey(snapshot.slot, snapshot.currentKey);
+            await ApiKeyManager.setApiKey(snapshot.slot, snapshot.currentKey, rollbackToken);
         }
 
         if (snapshot.activeId) {
-            await ConfigSetStore.setActive(snapshot.slot, snapshot.activeId);
+            await ConfigSetStore.setActive(snapshot.slot, snapshot.activeId, rollbackToken);
         } else {
-            await ConfigSetStore.clearActive(snapshot.slot);
+            await ConfigSetStore.clearActive(snapshot.slot, rollbackToken);
         }
 
         notifySlotProviderChanged(snapshot.slot);
+        return true;
     }
 
     private async isActuallyActive(slot: string, id: string): Promise<boolean> {
@@ -226,6 +234,48 @@ export class CrudHost {
         }
     }
 
+    async handleSetAutoSwitch(slot: string, enabled: boolean): Promise<void> {
+        if (!collectManagedSlots().some(entry => entry.slot === slot)) {
+            this.ctx.post({
+                command: 'autoSwitchResult',
+                ok: false,
+                error: t('Provider slot not found', '提供商槽位不存在')
+            });
+            return;
+        }
+
+        try {
+            const updated = await enqueueConfigSetMutation(async () => {
+                if (enabled && !(await ApiKeyFailoverManager.canEnableAutoSwitch(slot))) {
+                    return false;
+                }
+                await ConfigSetStore.setAutoSwitchEnabled(slot, enabled);
+                return true;
+            });
+            if (!updated) {
+                this.ctx.post({
+                    command: 'autoSwitchResult',
+                    ok: false,
+                    error: t(
+                        'At least two saved API Key configurations are required, and the current key must match one of them.',
+                        '至少需要两套已保存的 API Key 配置，且当前 Key 必须匹配其中一套。'
+                    )
+                });
+                return;
+            }
+            Logger.info(`[ConfigSet] ${slot}: automatic API key failover ${enabled ? 'enabled' : 'disabled'}`);
+            await this.sendStatesAfterCommit('updating automatic API key failover');
+            this.ctx.post({ command: 'autoSwitchResult', ok: true });
+        } catch (error) {
+            Logger.error(`[ConfigSet] ${slot}: failed to update automatic API key failover:`, error);
+            this.ctx.post({
+                command: 'autoSwitchResult',
+                ok: false,
+                error: error instanceof Error ? error.message : String(error)
+            });
+        }
+    }
+
     /** 收集各受管槽位的配置与当前激活状态（含面板外直接设置的 Key），供激活管理对话框 */
     async handleListActiveKeys(): Promise<void> {
         const snapshots: ActiveSlotSnapshot[] = [];
@@ -281,20 +331,35 @@ export class CrudHost {
     async handleApplyActiveKeys(actions: ActiveKeyAction[]): Promise<void> {
         try {
             const changedSlots: string[] = [];
+            const touchedSlots: string[] = [];
+            const touchedSlotSet = new Set<string>();
             const snapshots = new Map<string, ActiveStateSnapshot>();
+            const operationTokens = new Map<string, string>();
+            const markTouched = (slot: string): void => {
+                if (!touchedSlotSet.has(slot)) {
+                    touchedSlotSet.add(slot);
+                    touchedSlots.push(slot);
+                }
+            };
             await enqueueConfigSetMutation(async () => {
                 try {
                     for (const action of actions) {
-                        if (!snapshots.has(action.slot)) {
-                            snapshots.set(action.slot, await this.snapshotActiveState(action.slot));
-                        }
+                        const hooks = {
+                            onStarted: async (operationToken: string): Promise<void> => {
+                                operationTokens.set(action.slot, operationToken);
+                                if (!snapshots.has(action.slot)) {
+                                    snapshots.set(action.slot, await this.snapshotActiveState(action.slot));
+                                }
+                            }
+                        };
 
                         if (action.activateId) {
                             const item = ConfigSetStore.list(action.slot).find(i => i.id === action.activateId);
                             if (!item) {
                                 continue;
                             }
-                            const applied = await applyConfigSetUnlocked(action.slot, item);
+                            markTouched(action.slot);
+                            const applied = await applyConfigSetUnlocked(action.slot, item, undefined, hooks);
                             if (!applied) {
                                 throw new Error(
                                     t(
@@ -314,18 +379,25 @@ export class CrudHost {
                         const hadActive = !!ConfigSetStore.getActiveId(action.slot);
                         const shouldDeleteCurrentKey = hadKey && (hadActive || action.clearOutsideKey);
                         if (shouldDeleteCurrentKey || hadActive) {
-                            await deactivateConfigSetUnlocked(action.slot, shouldDeleteCurrentKey);
+                            markTouched(action.slot);
+                            await deactivateConfigSetUnlocked(action.slot, shouldDeleteCurrentKey, hooks);
                             changedSlots.push(action.slot);
                             Logger.info(`[ConfigSet] ${action.slot}: deactivated via active keys management`);
                         }
                     }
                 } catch (error) {
                     let rollbackFailed = false;
-                    for (const slot of [...changedSlots].reverse()) {
+                    for (const slot of [...touchedSlots].reverse()) {
                         try {
                             const snapshot = snapshots.get(slot);
-                            if (snapshot) {
-                                await this.restoreActiveState(snapshot);
+                            const operationToken = operationTokens.get(slot);
+                            if (snapshot && operationToken) {
+                                const restored = await this.restoreActiveState(snapshot, operationToken);
+                                if (!restored) {
+                                    Logger.info(
+                                        `[ConfigSet] Skipped rollback for ${slot} because a newer update owns the slot`
+                                    );
+                                }
                             }
                         } catch (rollbackError) {
                             rollbackFailed = true;
@@ -377,17 +449,19 @@ export class CrudHost {
                 if (!currentItem) {
                     throw new Error(t('Configuration not found', '配置不存在'));
                 }
+                const operationToken = randomUUID();
+                await ConfigSetStore.setApplyOperationToken(slot, operationToken);
 
                 const active = await this.isActuallyActive(slot, id);
                 const shouldApplyKey = active && apiKey !== undefined;
                 const previousSavedKey = shouldApplyKey ? await ConfigSetStore.getApiKey(slot, id) : undefined;
                 const previousRuntimeKey = shouldApplyKey ? await ApiKeyManager.getApiKey(slot) : undefined;
 
-                await ConfigSetStore.updateMeta(slot, id, { label, note }, apiKey);
+                await ConfigSetStore.updateMeta(slot, id, { label, note }, apiKey, operationToken);
 
                 if (shouldApplyKey) {
                     try {
-                        await ApiKeyManager.setApiKey(slot, apiKey);
+                        await ApiKeyManager.setApiKey(slot, apiKey, operationToken);
                     } catch (error) {
                         let rollbackFailed = false;
                         try {
@@ -395,7 +469,8 @@ export class CrudHost {
                                 slot,
                                 id,
                                 { label: currentItem.label, note: currentItem.note ?? '' },
-                                previousSavedKey ?? null
+                                previousSavedKey ?? null,
+                                operationToken
                             );
                         } catch (rollbackError) {
                             rollbackFailed = true;
@@ -409,9 +484,9 @@ export class CrudHost {
                             const currentRuntimeKey = await ApiKeyManager.getApiKey(slot);
                             if (currentRuntimeKey !== previousRuntimeKey) {
                                 if (previousRuntimeKey === undefined) {
-                                    await ApiKeyManager.deleteApiKey(slot);
+                                    await ApiKeyManager.deleteApiKey(slot, operationToken);
                                 } else {
-                                    await ApiKeyManager.setApiKey(slot, previousRuntimeKey);
+                                    await ApiKeyManager.setApiKey(slot, previousRuntimeKey, operationToken);
                                 }
                             }
                         } catch (rollbackError) {
@@ -421,7 +496,7 @@ export class CrudHost {
 
                         if (rollbackFailed) {
                             try {
-                                await ConfigSetStore.clearActive(slot);
+                                await ConfigSetStore.clearActive(slot, operationToken);
                             } catch (clearError) {
                                 Logger.error('[ConfigSet] Failed to clear stale active marker after edit:', clearError);
                             }
@@ -481,6 +556,7 @@ export class CrudHost {
                 });
                 return;
             }
+            const autoSwitchDisabled = await ApiKeyFailoverManager.disableIfUnavailable(slot);
             Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" removed`);
             await this.sendStatesAfterCommit('removing a configuration');
             this.ctx.post({
@@ -491,6 +567,11 @@ export class CrudHost {
                         t(
                             'Removed. The current key stays in effect until the next switch.',
                             '已删除，当前 Key 将继续生效直至下次切换。'
+                        )
+                    : autoSwitchDisabled ?
+                        t(
+                            'Removed. Automatic failover was disabled because fewer than two usable configurations remain.',
+                            '已删除。由于剩余可用配置不足两套，自动故障切换已关闭。'
                         )
                     :   t('Removed', '已删除')
             });

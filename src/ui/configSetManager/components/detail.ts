@@ -271,6 +271,41 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
     slotTitle.appendChild(el('span', 'csm-slot-count', String(slotState.rows.length)));
     slotHead.appendChild(slotTitle);
 
+    const slotActions = el('div', 'csm-slot-actions');
+    const failoverLabel = el(
+        'label',
+        `csm-auto-switch${slotState.autoSwitchEnabled ? ' csm-auto-switch-enabled' : ''}`
+    );
+    failoverLabel.title = t(
+        slotState.rows.length < 2 && !slotState.autoSwitchEnabled ?
+            'Add at least 2 saved configurations before enabling automatic failover.'
+        :   'When enabled, any request error counts toward failover. After 3 consecutive failures, activate the next saved configuration. User cancellation does not count or stop a switch already started.',
+        slotState.rows.length < 2 && !slotState.autoSwitchEnabled ?
+            '至少添加 2 套已保存配置后才能开启自动故障切换。'
+        :   '开启后，任意请求错误均计入连续失败，达到 3 次后激活下一套配置；主动取消不计入，也不阻止已开始的切换。'
+    );
+    const failoverInput = el('input') as HTMLInputElement;
+    failoverInput.type = 'checkbox';
+    failoverInput.setAttribute('aria-label', t('Enable automatic API key failover', '启用 API Key 自动故障切换'));
+    failoverInput.checked = slotState.autoSwitchEnabled;
+    failoverInput.disabled = state.busy || (slotState.rows.length < 2 && !slotState.autoSwitchEnabled);
+    failoverInput.addEventListener('change', () => {
+        clearMessage();
+        state.busy = true;
+        render();
+        postToVSCode({ command: 'setAutoSwitch', slot: slotState.slot, enabled: failoverInput.checked });
+    });
+    failoverLabel.appendChild(failoverInput);
+    failoverLabel.appendChild(el('span', '', t('Auto failover', '自动故障切换')));
+    failoverLabel.appendChild(
+        el(
+            'span',
+            slotState.autoSwitchEnabled ? 'csm-auto-switch-status csm-auto-switch-status-on' : 'csm-auto-switch-status',
+            slotState.autoSwitchEnabled ? t('ON', '已开启') : t('OFF', '未开启')
+        )
+    );
+    slotActions.appendChild(failoverLabel);
+
     const addBtn = el(
         'button',
         'csm-btn csm-btn-primary csm-btn-sm',
@@ -285,7 +320,8 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
         clearMessage();
         render();
     });
-    slotHead.appendChild(addBtn);
+    slotActions.appendChild(addBtn);
+    slotHead.appendChild(slotActions);
     section.appendChild(slotHead);
 
     const hasRows = slotState.rows.length > 0;

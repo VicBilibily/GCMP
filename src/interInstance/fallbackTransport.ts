@@ -4,8 +4,10 @@
  *  每个实例写入自己的 events 文件，所有实例监听目录下全部 events 文件
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import * as vscode from 'vscode';
 import { InterInstanceEvent, parseIncrementalEvents, INTER_INSTANCE_EVENT_TYPES } from './eventProtocol';
 import { StatusLogger } from '../utils/runtime/statusLogger';
@@ -14,7 +16,7 @@ export interface FallbackTransportOptions {
     /** 当前实例 ID */
     instanceId: string;
     /** 接收到事件时的回调 */
-    onEvent: (event: InterInstanceEvent) => void;
+    onEvent: (event: InterInstanceEvent, replayed: boolean) => void;
 }
 
 interface FileReadState {
@@ -24,13 +26,50 @@ interface FileReadState {
     remaining?: string;
     /** Node fs.FSWatcher */
     watcher?: fs.FSWatcher;
+    reading?: boolean;
+    readAgain?: boolean;
+    continuityTail?: Buffer;
+    decoder?: StringDecoder;
+    replayUntil?: number;
+    rewrite?: {
+        readUntil?: number;
+        records: FallbackRecord[];
+        history: Set<string>;
+    };
+    seenEvents?: Map<string, number>;
+    seenEventBytes?: number;
 }
 
 const EVENT_FILE_PREFIX = 'events-';
 const EVENT_FILE_SUFFIX = '.jsonl';
 const EVENT_FILE_RETENTION_MS = 24 * 60 * 60 * 1000; // 1 天
-/** 单个事件文件的最大体积，超过后截断仅保留尾部，避免活跃实例的事件文件无限增长 */
+/** 单个事件文件的最大体积，超过后压缩，避免活跃实例的事件文件无限增长 */
 const MAX_EVENT_FILE_SIZE_BYTES = 1024 * 1024; // 1MB
+const CONTINUITY_TAIL_BYTES = 64;
+const REPLAY_BOUNDARY_LINE = '{"gcmpFallbackReplayBoundary":1}';
+const RETAINED_REPLAY_EVENT_TYPES = new Set<InterInstanceEvent['type']>([
+    'apiKeyFailoverRequested',
+    'apiKeyFailoverReset'
+]);
+
+type FallbackRecord = { event: InterInstanceEvent } | { boundary: true };
+
+function parseFallbackRecords(previous: string, chunk: string): { records: FallbackRecord[]; remaining: string } {
+    const lines = (previous + chunk).split('\n');
+    const remaining = lines.pop() ?? '';
+    const records: FallbackRecord[] = [];
+    for (const line of lines) {
+        if (line.trim() === REPLAY_BOUNDARY_LINE) {
+            records.push({ boundary: true });
+            continue;
+        }
+        const parsed = parseIncrementalEvents('', `${line}\n`);
+        for (const event of parsed.events) {
+            records.push({ event });
+        }
+    }
+    return { records, remaining };
+}
 
 /**
  * 基于文件系统的降级传输层
@@ -128,8 +167,9 @@ export class FallbackTransport {
             }
             try {
                 const line = JSON.stringify(event) + '\n';
-                await this.truncateOwnFileIfOversized();
-                await fs.promises.appendFile(this.ownFilePath, line, 'utf8');
+                if (!(await this.compactOwnFileIfOversized(line))) {
+                    await fs.promises.appendFile(this.ownFilePath, line, 'utf8');
+                }
             } catch (error) {
                 StatusLogger.warn('[FallbackTransport] Failed to append event to own file', error);
             }
@@ -138,17 +178,14 @@ export class FallbackTransport {
         return task;
     }
 
-    /**
-     * 事件文件超过体积上限时截断，仅保留尾部最近内容。
-     * 读取方检测到文件变小时会从头读取，截断边界的半行事件由 NDJSON 解析容错跳过。
-     */
-    private async truncateOwnFileIfOversized(): Promise<void> {
+    /** 超限时仅保留允许重放的 failover 事件，再单独追加当前事件。 */
+    private async compactOwnFileIfOversized(currentLine: string): Promise<boolean> {
         if (!this.ownFilePath) {
-            return;
+            return false;
         }
         const stats = await fs.promises.stat(this.ownFilePath).catch(() => null);
         if (!stats || stats.size <= MAX_EVENT_FILE_SIZE_BYTES) {
-            return;
+            return false;
         }
         const keepBytes = Math.floor(MAX_EVENT_FILE_SIZE_BYTES / 2);
         const handle = await fs.promises.open(this.ownFilePath, 'r');
@@ -163,8 +200,20 @@ export class FallbackTransport {
         // 丢弃可能截断的首行，从下一个换行符开始保留
         const firstNewline = tail.indexOf('\n');
         const safeTail = firstNewline >= 0 ? tail.slice(firstNewline + 1) : '';
-        await fs.promises.writeFile(this.ownFilePath, safeTail, 'utf8');
-        StatusLogger.debug('[FallbackTransport] Truncated oversized event file');
+        const { records } = parseFallbackRecords('', safeTail);
+        const retained = records
+            .filter(
+                (record): record is { event: InterInstanceEvent } =>
+                    'event' in record &&
+                    record.event.senderInstanceId === this.options.instanceId &&
+                    RETAINED_REPLAY_EVENT_TYPES.has(record.event.type)
+            )
+            .map(record => JSON.stringify(record.event) + '\n')
+            .join('');
+        await fs.promises.writeFile(this.ownFilePath, `${retained}${REPLAY_BOUNDARY_LINE}\n`, 'utf8');
+        await fs.promises.appendFile(this.ownFilePath, currentLine, 'utf8');
+        StatusLogger.debug('[FallbackTransport] Compacted oversized event file');
+        return true;
     }
 
     private initializeExistingFiles(): void {
@@ -178,9 +227,9 @@ export class FallbackTransport {
                     continue;
                 }
                 const filePath = path.join(this.eventsDir, entry);
-                const stats = fs.statSync(filePath);
-                this.fileStates.set(filePath, { position: stats.size, remaining: '' });
+                this.fileStates.set(filePath, { position: 0, remaining: '' });
                 this.watchFile(filePath);
+                void this.readNewEvents(filePath, true);
             }
         } catch {
             // 目录可能不存在或为空，忽略
@@ -231,7 +280,7 @@ export class FallbackTransport {
         }
     }
 
-    private async readNewEvents(filePath: string): Promise<void> {
+    private async readNewEvents(filePath: string, replayed = false): Promise<void> {
         if (this.disposed) {
             return;
         }
@@ -239,10 +288,15 @@ export class FallbackTransport {
         if (!state) {
             return;
         }
+        if (state.reading) {
+            state.readAgain = true;
+            return;
+        }
+        state.reading = true;
 
         let handle: fs.promises.FileHandle | undefined;
         try {
-            const stats = await fs.promises.stat(filePath).catch(() => null);
+            let stats = await fs.promises.stat(filePath).catch(() => null);
             if (!stats) {
                 // 文件被删除：同步关闭 watcher，避免句柄泄漏
                 state.watcher?.close();
@@ -250,38 +304,164 @@ export class FallbackTransport {
                 return;
             }
 
-            // 文件被截断或重写，从头读取
-            if (stats.size < state.position) {
-                state.position = 0;
-                state.remaining = '';
+            handle = await fs.promises.open(filePath, 'r');
+            let rewritten = stats.size < state.position;
+            if (!rewritten && state.position > 0 && state.continuityTail?.length) {
+                const probeLength = Math.min(state.continuityTail.length, state.position);
+                const probe = Buffer.alloc(probeLength);
+                let probeBytesRead = 0;
+                while (probeBytesRead < probeLength) {
+                    const probeRead = await handle.read(
+                        probe,
+                        probeBytesRead,
+                        probeLength - probeBytesRead,
+                        state.position - probeLength + probeBytesRead
+                    );
+                    if (probeRead.bytesRead === 0) {
+                        break;
+                    }
+                    probeBytesRead += probeRead.bytesRead;
+                }
+                if (probeBytesRead < probeLength) {
+                    stats = await handle.stat();
+                    if (stats.size >= state.position) {
+                        return;
+                    }
+                    rewritten = true;
+                } else {
+                    rewritten = !probe.equals(state.continuityTail.subarray(state.continuityTail.length - probeLength));
+                }
             }
 
-            const readLength = stats.size - state.position;
+            if (rewritten) {
+                state.position = 0;
+                state.remaining = '';
+                state.continuityTail = undefined;
+                state.decoder = new StringDecoder('utf8');
+                state.replayUntil = undefined;
+                state.rewrite = {
+                    readUntil: stats.size,
+                    records: [],
+                    history: new Set(state.seenEvents?.keys())
+                };
+            }
+
+            if (replayed) {
+                state.replayUntil ??= stats.size;
+            }
+            if (state.replayUntil !== undefined) {
+                state.replayUntil = Math.min(state.replayUntil, stats.size);
+                if (state.position >= state.replayUntil) {
+                    state.replayUntil = undefined;
+                }
+            }
+            if (state.rewrite?.readUntil !== undefined) {
+                state.rewrite.readUntil =
+                    state.rewrite.readUntil === 0 ? stats.size : Math.min(state.rewrite.readUntil, stats.size);
+            }
+            const replaying = state.replayUntil !== undefined;
+            const readUntil = Math.min(
+                stats.size,
+                state.replayUntil ?? stats.size,
+                state.rewrite?.readUntil ?? stats.size
+            );
+            const readLength = readUntil - state.position;
             if (readLength <= 0) {
                 return;
             }
 
-            handle = await fs.promises.open(filePath, 'r');
             const buffer = Buffer.alloc(readLength);
-            await handle.read(buffer, 0, readLength, state.position);
-            state.position = stats.size;
+            const read = await handle.read(buffer, 0, readLength, state.position);
+            if (read.bytesRead <= 0) {
+                return;
+            }
+            const bytes = buffer.subarray(0, read.bytesRead);
+            state.position += read.bytesRead;
+            if (bytes.length >= CONTINUITY_TAIL_BYTES) {
+                state.continuityTail = Buffer.from(bytes.subarray(bytes.length - CONTINUITY_TAIL_BYTES));
+            } else {
+                const combined = Buffer.concat([state.continuityTail ?? Buffer.alloc(0), bytes]);
+                state.continuityTail = Buffer.from(
+                    combined.subarray(Math.max(0, combined.length - CONTINUITY_TAIL_BYTES))
+                );
+            }
+            if (state.position < stats.size) {
+                state.readAgain = true;
+            }
+            if (state.replayUntil !== undefined && state.position >= state.replayUntil) {
+                state.replayUntil = undefined;
+            }
 
-            const chunk = buffer.toString('utf8');
-            const { events, remaining } = parseIncrementalEvents(state.remaining ?? '', chunk);
-            state.remaining = remaining;
-            for (const event of events) {
+            state.decoder ??= new StringDecoder('utf8');
+            const chunk = state.decoder.write(bytes);
+            const parsed = parseFallbackRecords(state.remaining ?? '', chunk);
+            let records = parsed.records;
+            state.remaining = parsed.remaining;
+            if (state.rewrite?.readUntil !== undefined) {
+                for (const record of records) {
+                    state.rewrite.records.push(record);
+                }
+                if (state.position < state.rewrite.readUntil) {
+                    return;
+                }
+                records = state.rewrite.records;
+                state.rewrite.records = [];
+                state.rewrite.readUntil = undefined;
+            }
+            const sourceInstanceId = this.getEventFileInstanceId(filePath);
+            let latestBoundary = -1;
+            for (let index = records.length - 1; index >= 0; index--) {
+                if ('boundary' in records[index]) {
+                    latestBoundary = index;
+                    break;
+                }
+            }
+            if (latestBoundary >= 0) {
+                state.rewrite = undefined;
+            }
+            for (let index = 0; index < records.length; index++) {
+                const record = records[index];
+                if ('boundary' in record) {
+                    continue;
+                }
+                const event = record.event;
                 if (!INTER_INSTANCE_EVENT_TYPES.includes(event.type)) {
+                    continue;
+                }
+                if (!sourceInstanceId || event.senderInstanceId !== sourceInstanceId) {
+                    StatusLogger.warn('[FallbackTransport] Ignored event with a mismatched sender identity');
                     continue;
                 }
                 if (event.senderInstanceId === this.options.instanceId) {
                     continue;
                 }
-                this.options.onEvent(event);
+                const serialized = JSON.stringify(event);
+                const identity = createHash('sha256').update(serialized).digest('hex');
+                // 旧版重写没有边界，已消费事件用于识别历史记录。
+                const eventReplayed =
+                    replaying ||
+                    (latestBoundary >= 0 ? index < latestBoundary : state.rewrite?.history.has(identity) === true);
+                const seenEvents = (state.seenEvents ??= new Map());
+                state.seenEventBytes = (state.seenEventBytes ?? 0) + Buffer.byteLength(serialized) + 1;
+                seenEvents.delete(identity);
+                seenEvents.set(identity, state.seenEventBytes);
+                for (const [seenIdentity, end] of seenEvents) {
+                    if (end > state.seenEventBytes - MAX_EVENT_FILE_SIZE_BYTES) {
+                        break;
+                    }
+                    seenEvents.delete(seenIdentity);
+                }
+                this.options.onEvent(event, eventReplayed);
             }
         } catch (error) {
             StatusLogger.warn(`[FallbackTransport] Failed to read events from ${filePath}`, error);
         } finally {
             await handle?.close();
+            state.reading = false;
+            if (state.readAgain && this.fileStates.get(filePath) === state) {
+                state.readAgain = false;
+                void this.readNewEvents(filePath);
+            }
         }
     }
 
@@ -316,6 +496,15 @@ export class FallbackTransport {
 
     private isEventFile(filename: string): boolean {
         return filename.startsWith(EVENT_FILE_PREFIX) && filename.endsWith(EVENT_FILE_SUFFIX);
+    }
+
+    private getEventFileInstanceId(filePath: string): string | undefined {
+        const filename = path.basename(filePath);
+        if (!this.isEventFile(filename)) {
+            return undefined;
+        }
+        const instanceId = filename.slice(EVENT_FILE_PREFIX.length, -EVENT_FILE_SUFFIX.length);
+        return instanceId || undefined;
     }
 
     /**

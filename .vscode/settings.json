@@ -1,5 +1,7 @@
 // Place your settings in this file to overwrite default and user settings.
 {
+    "files.encoding": "utf8",
+    "files.eol": "\n",
     "files.exclude": {
         "out": true, // hide the old "out" folder since we use esbuild now
         "dist": false // show the "dist" folder with esbuild compiled JS files

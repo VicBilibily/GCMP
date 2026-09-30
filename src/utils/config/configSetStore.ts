@@ -6,7 +6,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as crypto from 'node:crypto';
 import { ApiKeyManager } from './apiKeyManager';
+import { InterInstanceBus } from '../../interInstance';
 import { t } from '../runtime/l10n';
 import { Logger } from '../runtime/logger';
 
@@ -34,10 +36,7 @@ export class ConfigSetStore {
         this.context = context;
     }
 
-    /** 旧版整表索引键：Record<slot, ConfigSetItem[]>（仅迁移期读取，新数据按槽位分键存储） */
     private static readonly INDEX_KEY = 'configSets';
-
-    /** per-slot 索引键前缀：按槽位分键存储，避免跨窗口整表覆盖互相丢更新 */
     private static readonly ITEMS_KEY_PREFIX = 'configSets.items.';
 
     private static itemsKey(slot: string): string {
@@ -52,6 +51,14 @@ export class ConfigSetStore {
         return `configSets.active.${slot}`;
     }
 
+    private static autoSwitchKey(slot: string): string {
+        return `configSets.autoSwitch.${slot}`;
+    }
+
+    private static applyOperationKey(slot: string): string {
+        return `configSets.applyOperation.${slot}`;
+    }
+
     private static secretKey(slot: string, id: string): string {
         return `configSet.${slot}.${id}`;
     }
@@ -60,7 +67,6 @@ export class ConfigSetStore {
         await this.context.globalState.update(this.migratedKey(slot), true);
     }
 
-    /** 读取槽位配置列表：per-slot 键优先，回退旧版整表索引（懒迁移前的兼容读） */
     private static readSlotItems(slot: string): ConfigSetItem[] {
         const perSlot = this.context.globalState.get<ConfigSetItem[]>(this.itemsKey(slot));
         if (perSlot !== undefined) {
@@ -71,12 +77,10 @@ export class ConfigSetStore {
         return Array.isArray(items) ? items : [];
     }
 
-    /** 写入槽位配置列表（空列表删除该键） */
     private static async writeSlotItems(slot: string, items: ConfigSetItem[]): Promise<void> {
         await this.context.globalState.update(this.itemsKey(slot), items.length > 0 ? items : undefined);
     }
 
-    /** enqueue 内调用：把该槽位从旧版整表索引迁入 per-slot 键（幂等，旧表搬空后删除） */
     private static async migrateSlotIndexUnlocked(slot: string): Promise<void> {
         const legacy = this.context.globalState.get<Record<string, ConfigSetItem[]>>(this.INDEX_KEY);
         if (!legacy || !(slot in legacy)) {
@@ -84,7 +88,6 @@ export class ConfigSetStore {
         }
         const items = legacy[slot];
         const existingPerSlot = this.context.globalState.get<ConfigSetItem[]>(this.itemsKey(slot));
-        // per-slot 已存在时只清 legacy，避免陈旧整表快照覆盖较新的分键数据
         if (existingPerSlot === undefined && Array.isArray(items) && items.length > 0) {
             await this.context.globalState.update(this.itemsKey(slot), items);
         }
@@ -93,10 +96,6 @@ export class ConfigSetStore {
         await this.context.globalState.update(this.INDEX_KEY, Object.keys(rest).length > 0 ? rest : undefined);
     }
 
-    /**
-     * 串行化"读-改-写"临界区：避免同实例内并发操作互相覆盖。
-     * 跨窗口按槽位分键后仅同槽位并发仍为 last-write-wins（globalState 无 CAS 原语）。
-     */
     private static writeQueue: Promise<unknown> = Promise.resolve();
 
     private static enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -105,29 +104,56 @@ export class ConfigSetStore {
         return run;
     }
 
+    private static async mutateSlot<T>(
+        slot: string,
+        operationToken: string | undefined,
+        task: (operationToken: string) => Promise<T>,
+        markOperation = true
+    ): Promise<T> {
+        if (operationToken) {
+            if (this.getApplyOperationToken(slot) !== operationToken) {
+                throw new Error(t('Configuration update ownership has changed.', '配置更新所有权已变化。'));
+            }
+            return await task(operationToken);
+        }
+
+        return await this.enqueue(async () => {
+            const token = crypto.randomUUID();
+            if (markOperation) {
+                await this.setApplyOperationToken(slot, token);
+            }
+            return await task(token);
+        });
+    }
+
     /** 列出某槽位的全部配置 */
     static list(slot: string): ConfigSetItem[] {
         return this.readSlotItems(slot);
     }
 
-    static async backfillMissingSite(slot: string, site: string | undefined): Promise<void> {
-        await this.enqueue(async () => {
-            if (!site) {
-                return;
-            }
-            await this.migrateSlotIndexUnlocked(slot);
-            const items = this.readSlotItems(slot);
-            if (!items.some(item => !item.site)) {
-                return;
-            }
-            await this.writeSlotItems(
-                slot,
-                items.map(item => (item.site ? item : { ...item, site }))
-            );
-        });
+    static async backfillMissingSite(slot: string, site: string | undefined, operationToken?: string): Promise<void> {
+        if (!site) {
+            return;
+        }
+        await this.mutateSlot(
+            slot,
+            operationToken,
+            async token => {
+                await this.migrateSlotIndexUnlocked(slot);
+                const items = this.readSlotItems(slot);
+                if (!items.some(item => !item.site)) {
+                    return;
+                }
+                await this.setApplyOperationToken(slot, token);
+                await this.writeSlotItems(
+                    slot,
+                    items.map(item => (item.site ? item : { ...item, site }))
+                );
+            },
+            false
+        );
     }
 
-    /** 列出所有存在配置集的槽位（合并 per-slot 键与旧版整表索引） */
     static listProviders(): string[] {
         const fromKeys = this.context.globalState
             .keys()
@@ -142,12 +168,51 @@ export class ConfigSetStore {
         return this.context.globalState.get<string>(this.activeKey(slot));
     }
 
+    static isAutoSwitchEnabled(slot: string): boolean {
+        if (!this.context) {
+            return false;
+        }
+        return this.context.globalState.get<boolean>(this.autoSwitchKey(slot), false);
+    }
+
+    static async setAutoSwitchEnabled(slot: string, enabled: boolean, operationToken?: string): Promise<void> {
+        const update = async (): Promise<void> => {
+            await this.context.globalState.update(this.autoSwitchKey(slot), enabled || undefined);
+        };
+        if (operationToken) {
+            if (this.getApplyOperationToken(slot) !== operationToken) {
+                throw new Error(t('Configuration update ownership has changed.', '配置更新所有权已变化。'));
+            }
+            await update();
+        } else {
+            await this.enqueue(update);
+        }
+        try {
+            InterInstanceBus.publish({
+                type: 'apiKeyFailoverToggled',
+                payload: { slot, enabled }
+            });
+        } catch (error) {
+            Logger.warn(`[ConfigSetStore] Failed to publish automatic failover change for ${slot}:`, error);
+        }
+    }
+
+    static getApplyOperationToken(slot: string): string | undefined {
+        return this.context.globalState.get<string>(this.applyOperationKey(slot));
+    }
+
+    static async setApplyOperationToken(slot: string, token: string): Promise<void> {
+        await this.context.globalState.update(this.applyOperationKey(slot), token);
+    }
+
     static async getApiKey(slot: string, id: string): Promise<string | undefined> {
         return await this.context.secrets.get(this.secretKey(slot, id));
     }
 
-    static async setApiKey(slot: string, id: string, apiKey: string): Promise<void> {
-        await this.context.secrets.store(this.secretKey(slot, id), apiKey);
+    static async setApiKey(slot: string, id: string, apiKey: string, operationToken?: string): Promise<void> {
+        await this.mutateSlot(slot, operationToken, async () => {
+            await this.context.secrets.store(this.secretKey(slot, id), apiKey);
+        });
     }
 
     private static async setActiveUnlocked(slot: string, id: string): Promise<void> {
@@ -163,9 +228,10 @@ export class ConfigSetStore {
         slot: string,
         id: string,
         patch: { label?: string; note?: string },
-        apiKey?: string | null
+        apiKey?: string | null,
+        operationToken?: string
     ): Promise<void> {
-        await this.enqueue(async () => {
+        await this.mutateSlot(slot, operationToken, async () => {
             await this.migrateSlotIndexUnlocked(slot);
             const previousItems = this.readSlotItems(slot);
             if (!previousItems.length) {
@@ -244,13 +310,13 @@ export class ConfigSetStore {
     }
 
     /** 新增一套配置 */
-    static async add(slot: string, item: ConfigSetItem, apiKey: string): Promise<void> {
-        await this.enqueue(() => this.addUnlocked(slot, item, apiKey));
+    static async add(slot: string, item: ConfigSetItem, apiKey: string, operationToken?: string): Promise<void> {
+        await this.mutateSlot(slot, operationToken, () => this.addUnlocked(slot, item, apiKey));
     }
 
     /** 删除一套配置 */
-    static async remove(slot: string, id: string): Promise<void> {
-        await this.enqueue(async () => {
+    static async remove(slot: string, id: string, operationToken?: string): Promise<void> {
+        await this.mutateSlot(slot, operationToken, async () => {
             await this.migrateSlotIndexUnlocked(slot);
             const previousItems = this.readSlotItems(slot);
             const items = previousItems.filter(i => i.id !== id);
@@ -312,9 +378,10 @@ export class ConfigSetStore {
         slot: string,
         items: ConfigSetItem[],
         keys: Record<string, string | undefined>,
-        activeId?: string
+        activeId?: string,
+        operationToken?: string
     ): Promise<void> {
-        await this.enqueue(async () => {
+        await this.mutateSlot(slot, operationToken, async () => {
             await this.migrateSlotIndexUnlocked(slot);
             const previousItems = this.readSlotItems(slot);
             const previousActiveId = this.getActiveId(slot);
@@ -398,13 +465,13 @@ export class ConfigSetStore {
         });
     }
 
-    static async setActive(slot: string, id: string): Promise<void> {
-        await this.enqueue(() => this.setActiveUnlocked(slot, id));
+    static async setActive(slot: string, id: string, operationToken?: string): Promise<void> {
+        await this.mutateSlot(slot, operationToken, () => this.setActiveUnlocked(slot, id));
     }
 
-    /** 清除激活标记（停用场景）：globalState.update(key, undefined) 即删除该键 */
-    static async clearActive(slot: string): Promise<void> {
-        await this.enqueue(() => this.clearActiveUnlocked(slot));
+    /** 清除激活标记（停用场景） */
+    static async clearActive(slot: string, operationToken?: string): Promise<void> {
+        await this.mutateSlot(slot, operationToken, () => this.clearActiveUnlocked(slot));
     }
 
     /**
@@ -412,33 +479,39 @@ export class ConfigSetStore {
      * @param slot 槽位标识（provider 名或变体名）
      * @param currentSite 当前站点设置值（支持站点切换的槽位传入）
      */
-    static async ensureMigrated(slot: string, currentSite?: string): Promise<void> {
-        await this.enqueue(async () => {
-            await this.migrateSlotIndexUnlocked(slot);
-            if (this.context.globalState.get<boolean>(this.migratedKey(slot), false)) {
-                return;
-            }
-            if (this.readSlotItems(slot).length > 0) {
+    static async ensureMigrated(slot: string, currentSite?: string, operationToken?: string): Promise<void> {
+        await this.mutateSlot(
+            slot,
+            operationToken,
+            async token => {
+                await this.migrateSlotIndexUnlocked(slot);
+                if (this.context.globalState.get<boolean>(this.migratedKey(slot), false)) {
+                    return;
+                }
+                if (this.readSlotItems(slot).length > 0) {
+                    try {
+                        await this.markMigrated(slot);
+                    } catch (error) {
+                        Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
+                    }
+                    return;
+                }
+                const existingKey = await ApiKeyManager.getApiKey(slot);
+                if (!existingKey) {
+                    return;
+                }
+                await this.setApplyOperationToken(slot, token);
+                const item: ConfigSetItem = { id: 'default', label: t('Default', '默认'), site: currentSite };
+                await this.addUnlocked(slot, item, existingKey);
+                await this.setActiveUnlocked(slot, item.id);
                 try {
                     await this.markMigrated(slot);
                 } catch (error) {
                     Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
                 }
-                return;
-            }
-            const existingKey = await ApiKeyManager.getApiKey(slot);
-            if (!existingKey) {
-                return;
-            }
-            const item: ConfigSetItem = { id: 'default', label: t('Default', '默认'), site: currentSite };
-            await this.addUnlocked(slot, item, existingKey);
-            await this.setActiveUnlocked(slot, item.id);
-            try {
-                await this.markMigrated(slot);
-            } catch (error) {
-                Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
-            }
-        });
+            },
+            false
+        );
     }
 }
 

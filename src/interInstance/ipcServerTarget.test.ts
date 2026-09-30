@@ -461,6 +461,18 @@ test('usage query transport requires a matching leader capability', async t => {
             type: 'remoteInstanceCapabilities',
             payload: {
                 targetInstanceId: 'follower',
+                extensionVersion: '1.0.0',
+                usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
+            },
+            timestamp: 1,
+            senderInstanceId: 'spoofed-follower'
+        });
+        assert.equal(bus.hasCompatibleUsagesQueryTransport(), false);
+
+        bus.dispatchEvent({
+            type: 'remoteInstanceCapabilities',
+            payload: {
+                targetInstanceId: 'follower',
                 extensionVersion: '0.9.0',
                 usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
             },

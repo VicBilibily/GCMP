@@ -76,6 +76,7 @@ export interface SlotState {
     displayName: string;
     isMain: boolean;
     hasSite: boolean;
+    autoSwitchEnabled: boolean;
     currentSiteLabel?: string;
     /** 是否支持用量/余额查询（后端判定，前端不自行猜测） */
     hasUsage: boolean;
@@ -263,6 +264,7 @@ export type HostMessage =
     | { command: 'addResult'; ok: boolean; error?: string; note?: string }
     | { command: 'applyResult'; ok: boolean; error?: string }
     | { command: 'deactivateResult'; ok: boolean; error?: string; note?: string }
+    | { command: 'autoSwitchResult'; ok: boolean; error?: string }
     | { command: 'editResult'; ok: boolean; error?: string; note?: string }
     | { command: 'removeResult'; ok: boolean; error?: string; note?: string }
     | { command: 'uploadResult'; ok: boolean; error?: string; warning?: string; uploadedCount?: number }
@@ -287,6 +289,7 @@ export type WebViewMessage =
     | { command: 'add'; slot: string; label: string; note?: string; site?: string; apiKey: string }
     | { command: 'apply'; slot: string; id: string }
     | { command: 'deactivate'; slot: string }
+    | { command: 'setAutoSwitch'; slot: string; enabled: boolean }
     | { command: 'edit'; slot: string; id: string; label: string; note?: string; apiKey?: string }
     | { command: 'remove'; slot: string; id: string }
     | { command: 'setupCli'; provider: string }
@@ -387,6 +390,10 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
             return isValidString(msg.slot) && isValidString(msg.id) ? (msg as unknown as WebViewMessage) : undefined;
         case 'deactivate':
             return isValidString(msg.slot) ? (msg as unknown as WebViewMessage) : undefined;
+        case 'setAutoSwitch':
+            return isValidString(msg.slot) && typeof msg.enabled === 'boolean' ?
+                    (msg as unknown as WebViewMessage)
+                :   undefined;
         case 'add': {
             if (
                 !isValidString(msg.slot) ||

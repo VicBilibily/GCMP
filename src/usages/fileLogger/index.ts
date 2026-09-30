@@ -67,7 +67,7 @@ export class TokenFileLogger {
     private readonly statsRefreshCompletedDisposable: vscode.Disposable;
     private readonly pendingStatsRefreshRequests = new Map<
         string,
-        { resolve: (dates: string[]) => void; timer: ReturnType<typeof setTimeout> }
+        { leaderId: string; resolve: (dates: string[]) => void; timer: ReturnType<typeof setTimeout> }
     >();
     private static readonly STATS_REFRESH_TIMEOUT_MS = 10_000; // 10s 超时
 
@@ -115,7 +115,7 @@ export class TokenFileLogger {
         this.statsRefreshCompletedDisposable = InterInstanceBus.subscribe('statsRefreshCompleted', event => {
             const payload = event.payload as { requestId: string; regeneratedDates: string[] };
             const pending = this.pendingStatsRefreshRequests.get(payload.requestId);
-            if (pending) {
+            if (pending && event.senderInstanceId === pending.leaderId) {
                 clearTimeout(pending.timer);
                 this.pendingStatsRefreshRequests.delete(payload.requestId);
                 pending.resolve(payload.regeneratedDates);
@@ -604,7 +604,7 @@ export class TokenFileLogger {
         const leaderId = LeaderElectionService.getLeaderId();
         if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
             const requestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-            const waitForCompletion = this.waitForStatsRefreshCompletion(requestId);
+            const waitForCompletion = this.waitForStatsRefreshCompletion(requestId, leaderId);
             StatusLogger.debug(
                 '[TokenFileLogger] Non-leader instance, delegating regenerateOutdatedStats to leader via IPC'
             );
@@ -978,7 +978,7 @@ export class TokenFileLogger {
      * 等待 Leader 完成 statsRefreshRequested 对应的重建（带超时）。
      * 超时后返回空数组，调用方使用当前磁盘上的可用数据继续。
      */
-    private waitForStatsRefreshCompletion(requestId: string): Promise<string[]> {
+    private waitForStatsRefreshCompletion(requestId: string, leaderId: string): Promise<string[]> {
         return new Promise<string[]>(resolve => {
             const timer = setTimeout(() => {
                 if (this.pendingStatsRefreshRequests.has(requestId)) {
@@ -987,7 +987,7 @@ export class TokenFileLogger {
                 }
                 resolve([]);
             }, TokenFileLogger.STATS_REFRESH_TIMEOUT_MS);
-            this.pendingStatsRefreshRequests.set(requestId, { resolve, timer });
+            this.pendingStatsRefreshRequests.set(requestId, { leaderId, resolve, timer });
         });
     }
 
@@ -1000,7 +1000,7 @@ export class TokenFileLogger {
         const leaderId = LeaderElectionService.getLeaderId();
         if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
             const requestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-            const waitForCompletion = this.waitForStatsRefreshCompletion(requestId);
+            const waitForCompletion = this.waitForStatsRefreshCompletion(requestId, leaderId);
             StatusLogger.trace(
                 `[TokenFileLogger] Non-leader instance, delegating refresh to leader via IPC: ${dateStr}`
             );

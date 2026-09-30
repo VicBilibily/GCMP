@@ -9,6 +9,7 @@ import {
     InterInstanceEventHandler,
     type RemoteInstanceDisconnectedEvent,
     USAGES_QUERY_PROTOCOL_VERSION,
+    isAuthorityEventType,
     isUsagesQueryCapabilityCompatible
 } from './eventProtocol';
 import { IpcServer, type IpcTargetSendResult } from './ipcServer';
@@ -108,9 +109,9 @@ export class InterInstanceBus {
             this.enqueueRoleSwitch(isLeader);
         });
         context.subscriptions.push(
-            LeaderElectionService.onLeaderIdentityChanged(identity => {
+            LeaderElectionService.onLeaderIdentityChanged(() => {
                 if (LeaderElectionService.isLeader()) {
-                    this.setAuthorityTerm(identity?.authorityTerm);
+                    this.setAuthorityTerm(LeaderElectionService.getOwnedAuthorityTerm());
                     return;
                 }
                 // Follower 保留旧任期，等新连接成功后再切到新 term，避免切主窗口把在途请求打成 unavailable
@@ -394,7 +395,7 @@ export class InterInstanceBus {
                 return;
             }
             this.server = server;
-            const authorityTerm = LeaderElectionService.getAuthorityTerm();
+            const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
             if (!authorityTerm) {
                 await server.stop();
                 this.server = undefined;
@@ -459,6 +460,9 @@ export class InterInstanceBus {
         const generation = this.lifecycleGeneration;
         const target = this.getLeaderConnectionTarget();
         if (!target) {
+            if (LeaderElectionService.isAgentsWindow()) {
+                this.setAuthorityTerm(undefined);
+            }
             this.scheduleReconnect();
             return;
         }
@@ -590,7 +594,12 @@ export class InterInstanceBus {
         }
         this.fallbackTransport = new FallbackTransport({
             instanceId: this.instanceId ?? 'unknown',
-            onEvent: event => this.dispatchEvent(event)
+            onEvent: (event, replayed) => {
+                if (replayed && event.type !== 'apiKeyFailoverRequested' && event.type !== 'apiKeyFailoverReset') {
+                    return;
+                }
+                this.dispatchEvent(event);
+            }
         });
         if (this.context) {
             this.fallbackTransport.start(this.context);
@@ -603,6 +612,13 @@ export class InterInstanceBus {
     private static dispatchEvent(event: InterInstanceEvent): void {
         // 跳过自己发送的事件
         if (event.senderInstanceId === this.instanceId) {
+            return;
+        }
+
+        if (isAuthorityEventType(event.type) && event.senderInstanceId !== this.getAuthorityInstanceId()) {
+            StatusLogger.warn(
+                `[InterInstanceBus] Ignoring authority-only ${event.type} event from ${event.senderInstanceId}`
+            );
             return;
         }
 
@@ -633,11 +649,13 @@ export class InterInstanceBus {
     }
 
     private static getAuthorityInstanceId(): string | undefined {
-        if (!this.authorityTerm) {
-            return undefined;
+        if (this.authorityTerm) {
+            const separator = this.authorityTerm.lastIndexOf(':');
+            if (separator > 0) {
+                return this.authorityTerm.slice(0, separator);
+            }
         }
-        const separator = this.authorityTerm.lastIndexOf(':');
-        return separator > 0 ? this.authorityTerm.slice(0, separator) : undefined;
+        return LeaderElectionService.getLeaderId();
     }
 
     private static invokeHandlers(event: InterInstanceEvent): void {

@@ -1,9 +1,10 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
     INTER_INSTANCE_EVENT_TYPES,
     USAGES_QUERY_PROTOCOL_VERSION,
+    isAuthorityEventType,
     isUsagesQueryCapabilityCompatible,
     parseEventsFromBuffer,
     parseIncrementalEvents
@@ -41,6 +42,59 @@ test('remote metadata update event is registered and parses', () => {
 
     assert.equal(events.length, 1);
     assert.equal(events[0]?.type, 'remoteMetadataUpdated');
+    assert.equal(remaining, '');
+});
+
+test('parseEventsFromBuffer rejects events with an invalid envelope', () => {
+    const { events, remaining } = parseEventsFromBuffer(
+        [
+            '{"type":"configChanged","payload":{"changedKeys":[]},"timestamp":1}',
+            '{"type":"configChanged","payload":null,"timestamp":1,"senderInstanceId":"a"}',
+            '{"type":"configChanged","payload":{"changedKeys":[]},"timestamp":"1","senderInstanceId":"a"}',
+            '{"type":"unknown","payload":{},"timestamp":1,"senderInstanceId":"a"}'
+        ].join('\n') + '\n'
+    );
+
+    assert.deepEqual(events, []);
+    assert.equal(remaining, '');
+});
+
+test('authority event types exclude follower requests', () => {
+    assert.equal(isAuthorityEventType('leaderResigning'), true);
+    assert.equal(isAuthorityEventType('rateLimitAcquireGranted'), true);
+    assert.equal(isAuthorityEventType('cliAuthRefreshCompleted'), true);
+    assert.equal(isAuthorityEventType('rateLimitAcquireRequested'), false);
+    assert.equal(isAuthorityEventType('statsRefreshRequested'), false);
+});
+
+test('API key failover toggle event is registered and parses', () => {
+    assert.ok(INTER_INSTANCE_EVENT_TYPES.includes('apiKeyFailoverToggled'));
+    const { events, remaining } = parseEventsFromBuffer(
+        '{"type":"apiKeyFailoverToggled","payload":{"slot":"zhipu","enabled":true},"timestamp":1,"senderInstanceId":"instance-a"}\n'
+    );
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.type, 'apiKeyFailoverToggled');
+    assert.deepEqual(events[0]?.payload, { slot: 'zhipu', enabled: true });
+    assert.equal(remaining, '');
+});
+
+test('API key failover request and resolution events are registered and parse', () => {
+    assert.ok(INTER_INSTANCE_EVENT_TYPES.includes('apiKeyFailoverRequested'));
+    assert.ok(INTER_INSTANCE_EVENT_TYPES.includes('apiKeyFailoverReset'));
+    assert.ok(INTER_INSTANCE_EVENT_TYPES.includes('apiKeyFailoverResolved'));
+    const { events, remaining } = parseEventsFromBuffer(
+        [
+            '{"type":"apiKeyFailoverRequested","payload":{"requestId":"request-1","failureRequestId":"failure-1","requestedBy":"follower-a","authorityTerm":"leader-a:1","slot":"zhipu","activeId":"config-a","identity":"config-a:fingerprint:open.bigmodel.cn","site":"open.bigmodel.cn","consecutiveFailureCount":3,"attemptedIdentities":["config-a:fingerprint:open.bigmodel.cn"],"initialConfigId":"config-a","returnedToInitial":false},"timestamp":1,"senderInstanceId":"follower-a"}',
+            '{"type":"apiKeyFailoverReset","payload":{"requestId":"reset-1","failureRequestId":"failure-1","requestedBy":"follower-a","authorityTerm":"leader-a:1","slot":"zhipu"},"timestamp":2,"senderInstanceId":"follower-a"}',
+            '{"type":"apiKeyFailoverResolved","payload":{"requestId":"request-1","authorityTerm":"leader-a:1","handled":true,"shouldRetry":true,"switched":true},"timestamp":3,"senderInstanceId":"leader-a"}'
+        ].join('\n') + '\n'
+    );
+
+    assert.equal(events.length, 3);
+    assert.equal(events[0]?.type, 'apiKeyFailoverRequested');
+    assert.equal(events[1]?.type, 'apiKeyFailoverReset');
+    assert.equal(events[2]?.type, 'apiKeyFailoverResolved');
     assert.equal(remaining, '');
 });
 

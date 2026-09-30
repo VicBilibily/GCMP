@@ -211,7 +211,7 @@ export class OpenAIHandler {
     async createOpenAIClient(modelConfig?: ModelConfig, sessionId?: string): Promise<OpenAI> {
         // 优先级：model.provider -> this.provider
         const providerKey = modelConfig?.provider || this.provider;
-        const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
+        const currentApiKey = await ApiKeyManager.getApiKeyForRequest(providerKey, modelConfig);
         if (!currentApiKey) {
             throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', this.displayName));
         }

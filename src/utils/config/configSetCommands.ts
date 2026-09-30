@@ -6,6 +6,7 @@
  *  不改动任何现有实现。
  *--------------------------------------------------------------------------------------------*/
 
+import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import { configProviders } from '../../providers/config';
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
@@ -253,12 +254,46 @@ export function notifySlotProviderChanged(slot: string): void {
  * 应用一套配置到指定槽位：激活标记 + Key 覆盖 + 站点覆盖（仅受接入点影响的槽位）
  * 每个槽位独立切换，互不影响。
  */
-export async function applyConfigSetUnlocked(slot: string, item: ConfigSetItem): Promise<boolean> {
+export async function applyConfigSetUnlocked(
+    slot: string,
+    item: ConfigSetItem,
+    canCommit?: () => boolean,
+    hooks?: {
+        canStart?: () => boolean;
+        onStarted?: (operationToken: string) => Promise<void>;
+        onCommitted?: (operationToken: string) => void;
+    }
+): Promise<boolean> {
     const apiKey = await ConfigSetStore.getApiKey(slot, item.id);
     if (!apiKey) {
         return false;
     }
 
+    if (hooks?.canStart && !hooks.canStart()) {
+        throw new Error(t('Configuration changed before automatic switching.', '自动切换前配置已变化。'));
+    }
+    const operationToken = crypto.randomUUID();
+    await ConfigSetStore.setApplyOperationToken(slot, operationToken);
+    await hooks?.onStarted?.(operationToken);
+
+    const createAuthorizationError = (): Error =>
+        new Error(
+            t(
+                'Configuration update authorization changed before the operation completed.',
+                '配置更新权限已变化，操作未完成。'
+            )
+        );
+    if (canCommit && !canCommit()) {
+        throw createAuthorizationError();
+    }
+    const ownsOperation = (): boolean => ConfigSetStore.getApplyOperationToken(slot) === operationToken;
+    const ensureAuthorized = (): void => {
+        if (!ownsOperation() || (canCommit && !canCommit())) {
+            throw createAuthorizationError();
+        }
+    };
+
+    ensureAuthorized();
     const siteProvider = getSiteOwnerProvider(slot);
     const previousKey = await ApiKeyManager.getApiKey(slot);
     const previousActiveId = ConfigSetStore.getActiveId(slot);
@@ -267,23 +302,51 @@ export async function applyConfigSetUnlocked(slot: string, item: ConfigSetItem):
     const nextSite = item.site;
     let siteChanged = false;
 
-    if (nextSite && siteProvider && nextSite !== readCurrentSite(siteProvider)) {
-        // 站点先于 Key 写入：apiKeyChanged 事件触发的状态栏刷新会在事件后读取站点设置
-        await applySiteSetting(siteProvider, nextSite);
-        siteChanged = true;
-    }
-
     try {
-        await ConfigSetStore.setActive(slot, item.id);
-        await ApiKeyManager.setApiKey(slot, apiKey);
-    } catch (error) {
-        if (previousActiveId) {
-            await ConfigSetStore.setActive(slot, previousActiveId);
-        } else {
-            await ConfigSetStore.clearActive(slot);
+        ensureAuthorized();
+        if (nextSite && siteProvider && nextSite !== readCurrentSite(siteProvider)) {
+            // 站点先于 Key 写入：apiKeyChanged 事件触发的状态栏刷新会在事件后读取站点设置
+            await applySiteSetting(siteProvider, nextSite);
+            siteChanged = true;
+            ensureAuthorized();
         }
-        if (siteChanged && siteProvider) {
-            await writeSiteSetting(siteProvider, previousSite);
+
+        await ConfigSetStore.setActive(slot, item.id, operationToken);
+        ensureAuthorized();
+        await ApiKeyManager.setApiKey(slot, apiKey, operationToken);
+        ensureAuthorized();
+    } catch (error) {
+        try {
+            const currentKey = ownsOperation() ? await ApiKeyManager.getApiKey(slot) : undefined;
+            if (ownsOperation() && currentKey === apiKey && currentKey !== previousKey) {
+                if (previousKey === undefined) {
+                    await ApiKeyManager.deleteApiKey(slot, operationToken);
+                } else {
+                    await ApiKeyManager.setApiKey(slot, previousKey, operationToken);
+                }
+            }
+        } catch (rollbackError) {
+            Logger.error(`[ConfigSet] Failed to roll back API key for ${slot}:`, rollbackError);
+        }
+
+        try {
+            if (ownsOperation() && ConfigSetStore.getActiveId(slot) === item.id && previousActiveId !== item.id) {
+                if (previousActiveId) {
+                    await ConfigSetStore.setActive(slot, previousActiveId, operationToken);
+                } else {
+                    await ConfigSetStore.clearActive(slot, operationToken);
+                }
+            }
+        } catch (rollbackError) {
+            Logger.error(`[ConfigSet] Failed to roll back active configuration for ${slot}:`, rollbackError);
+        }
+
+        try {
+            if (ownsOperation() && siteChanged && siteProvider && readCurrentSite(siteProvider) === nextSite) {
+                await writeSiteSetting(siteProvider, previousSite);
+            }
+        } catch (rollbackError) {
+            Logger.error(`[ConfigSet] Failed to roll back endpoint for ${slot}:`, rollbackError);
         }
         throw error;
     }
@@ -292,8 +355,13 @@ export async function applyConfigSetUnlocked(slot: string, item: ConfigSetItem):
         void StatusBarManager.checkAndShowStatus(siteProvider);
     }
 
+    if (previousKey === apiKey && (previousActiveId !== item.id || siteChanged)) {
+        ApiKeyManager.notifyApiKeyConfigurationChanged(slot);
+    }
+
     // setApiKey 命令链路自带的 invalidateAndNotify 只覆盖手动命令，不覆盖面板 apply
     notifySlotProviderChanged(slot);
+    hooks?.onCommitted?.(operationToken);
     return true;
 }
 
@@ -301,26 +369,37 @@ export async function applyConfigSet(slot: string, item: ConfigSetItem): Promise
     return await enqueueConfigSetMutation(() => applyConfigSetUnlocked(slot, item));
 }
 
-export async function deactivateConfigSetUnlocked(slot: string, deleteCurrentKey = true): Promise<void> {
+export async function deactivateConfigSetUnlocked(
+    slot: string,
+    deleteCurrentKey = true,
+    hooks?: {
+        onStarted?: (operationToken: string) => Promise<void>;
+        onCommitted?: (operationToken: string) => void;
+    }
+): Promise<void> {
+    const operationToken = crypto.randomUUID();
+    await ConfigSetStore.setApplyOperationToken(slot, operationToken);
     const previousActiveId = ConfigSetStore.getActiveId(slot);
     const previousKey = await ApiKeyManager.getApiKey(slot);
+    await hooks?.onStarted?.(operationToken);
 
     if (previousActiveId) {
-        await ConfigSetStore.clearActive(slot);
+        await ConfigSetStore.clearActive(slot, operationToken);
     }
 
     try {
         if (deleteCurrentKey && previousKey) {
-            await ApiKeyManager.deleteApiKey(slot);
+            await ApiKeyManager.deleteApiKey(slot, operationToken);
         }
     } catch (error) {
         if (previousActiveId) {
-            await ConfigSetStore.setActive(slot, previousActiveId);
+            await ConfigSetStore.setActive(slot, previousActiveId, operationToken);
         }
         throw error;
     }
 
     notifySlotProviderChanged(slot);
+    hooks?.onCommitted?.(operationToken);
 }
 
 export async function deactivateConfigSet(slot: string, deleteCurrentKey = true): Promise<void> {

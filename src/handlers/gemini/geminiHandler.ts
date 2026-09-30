@@ -247,7 +247,7 @@ export class GeminiHandler {
 
     private async getApiKey(modelConfig?: ModelConfig): Promise<string> {
         const providerKey = modelConfig?.provider || this.provider;
-        const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
+        const currentApiKey = await ApiKeyManager.getApiKeyForRequest(providerKey, modelConfig);
         if (!currentApiKey) {
             throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', this.displayName));
         }

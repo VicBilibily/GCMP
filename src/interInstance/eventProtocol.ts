@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  跨实例事件协议
  *  定义 VS Code 多窗口之间通过 IPC 传输的事件类型与序列化格式
  *--------------------------------------------------------------------------------------------*/
@@ -53,6 +53,66 @@ export interface ApiKeyChangedEvent extends InterInstanceEventBase {
         provider: string;
         /** 变更动作 */
         action: 'set' | 'delete' | 'sync';
+    };
+}
+
+/**
+ * API Key 故障切换开关已变更
+ */
+export interface ApiKeyFailoverToggledEvent extends InterInstanceEventBase {
+    type: 'apiKeyFailoverToggled';
+    payload: {
+        /** API Key 槽位标识 */
+        slot: string;
+        /** 是否启用自动故障切换 */
+        enabled: boolean;
+    };
+}
+
+/**
+ * 请求主实例确认 API Key 故障切换
+ */
+export interface ApiKeyFailoverRequestedEvent extends InterInstanceEventBase {
+    type: 'apiKeyFailoverRequested';
+    payload: {
+        requestId: string;
+        failureRequestId: string;
+        requestedBy: string;
+        authorityTerm: string;
+        slot: string;
+        activeId: string;
+        identity: string;
+        site?: string;
+        consecutiveFailureCount: number;
+        attemptedIdentities: string[];
+        initialConfigId?: string;
+        returnedToInitial: boolean;
+    };
+}
+
+export interface ApiKeyFailoverResetEvent extends InterInstanceEventBase {
+    type: 'apiKeyFailoverReset';
+    payload: {
+        requestId: string;
+        failureRequestId: string;
+        requestedBy: string;
+        authorityTerm: string;
+        slot: string;
+    };
+}
+
+/**
+ * 主实例完成 API Key 故障切换确认
+ */
+export interface ApiKeyFailoverResolvedEvent extends InterInstanceEventBase {
+    type: 'apiKeyFailoverResolved';
+    payload: {
+        requestId: string;
+        authorityTerm: string;
+        handled: boolean;
+        shouldRetry: boolean;
+        switched: boolean;
+        switchedToInitial?: boolean;
     };
 }
 
@@ -419,6 +479,10 @@ export interface RateLimitLeaseRenewedEvent extends InterInstanceEventBase {
 export type InterInstanceEvent =
     | StatusUpdatedEvent
     | ApiKeyChangedEvent
+    | ApiKeyFailoverToggledEvent
+    | ApiKeyFailoverRequestedEvent
+    | ApiKeyFailoverResetEvent
+    | ApiKeyFailoverResolvedEvent
     | ConfigChangedEvent
     | TokenUsageUpdatedEvent
     | RemoteMetadataUpdatedEvent
@@ -449,6 +513,10 @@ export type InterInstanceEvent =
 export const INTER_INSTANCE_EVENT_TYPES = [
     'statusUpdated',
     'apiKeyChanged',
+    'apiKeyFailoverToggled',
+    'apiKeyFailoverRequested',
+    'apiKeyFailoverReset',
+    'apiKeyFailoverResolved',
     'configChanged',
     'tokenUsageUpdated',
     'remoteMetadataUpdated',
@@ -474,6 +542,49 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'rateLimitLeaseRenewed'
 ] as const;
 
+export type InterInstanceEventType = (typeof INTER_INSTANCE_EVENT_TYPES)[number];
+
+const INTER_INSTANCE_EVENT_TYPE_SET = new Set<string>(INTER_INSTANCE_EVENT_TYPES);
+
+const AUTHORITY_EVENT_TYPES = new Set<InterInstanceEventType>([
+    'apiKeyFailoverResolved',
+    'remoteMetadataUpdated',
+    'leaderChanged',
+    'leaderResigning',
+    'liveMetricsSnapshotSync',
+    'remoteInstanceCapabilities',
+    'remoteInstanceDisconnected',
+    'cliAuthRefreshCompleted',
+    'statsRefreshCompleted',
+    'usagesQueryCompleted',
+    'rateLimitAcquireGranted',
+    'rateLimitQueueUpdated'
+]);
+
+export function isAuthorityEventType(type: InterInstanceEventType): boolean {
+    return AUTHORITY_EVENT_TYPES.has(type);
+}
+
+export function isInterInstanceEvent(value: unknown): value is InterInstanceEvent {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const event = value as Record<string, unknown>;
+    return (
+        typeof event.type === 'string' &&
+        INTER_INSTANCE_EVENT_TYPE_SET.has(event.type) &&
+        !!event.payload &&
+        typeof event.payload === 'object' &&
+        !Array.isArray(event.payload) &&
+        typeof event.timestamp === 'number' &&
+        Number.isFinite(event.timestamp) &&
+        event.timestamp >= 0 &&
+        typeof event.senderInstanceId === 'string' &&
+        event.senderInstanceId.length > 0 &&
+        event.senderInstanceId.length <= 128
+    );
+}
+
 /**
  * 将事件序列化为 NDJSON 行
  */
@@ -496,8 +607,8 @@ export function parseEventsFromBuffer(buffer: string): { events: InterInstanceEv
             continue;
         }
         try {
-            const parsed = JSON.parse(trimmed) as InterInstanceEvent;
-            if (INTER_INSTANCE_EVENT_TYPES.includes(parsed.type)) {
+            const parsed = JSON.parse(trimmed) as unknown;
+            if (isInterInstanceEvent(parsed)) {
                 events.push(parsed);
             }
         } catch {

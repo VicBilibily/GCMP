@@ -181,6 +181,60 @@ suite('Gemini handler stream lifecycle', () => {
         }
     });
 
+    test('使用当前请求绑定的 API Key 快照', async () => {
+        const originalGetApiKey = ApiKeyManager.getApiKey;
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        const originalUpdateActualTokens = TokenUsagesManager.instance.updateActualTokens;
+        const cancellationSource = new vscode.CancellationTokenSource();
+        let authorization: string | null | undefined;
+
+        ApiKeyManager.getApiKey = async () => 'global-api-key';
+        TokenUsagesManager.instance.updateActualTokens = () => {};
+        ConfigManager.fetchWithProxy = (async (_input, init) => {
+            authorization = new Headers(init?.headers as HeadersInit).get('authorization');
+            return new Response(
+                'data: {"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}\n\n',
+                { status: 200, headers: { 'content-type': 'text/event-stream' } }
+            );
+        }) as typeof ConfigManager.fetchWithProxy;
+
+        try {
+            const handler = new GeminiHandler({
+                provider: 'test-provider',
+                providerConfig: { displayName: 'Test Provider', baseUrl: 'https://gateway.test/gemini' }
+            } as unknown as GenericModelProvider);
+            const requestModelConfig = {
+                id: 'gemini-3.8-flash',
+                name: 'Gemini 3.8 Flash',
+                model: 'gemini-3.8-flash',
+                baseUrl: 'https://gateway.test/gemini'
+            } as never;
+            ApiKeyManager.bindRequestApiKey(requestModelConfig, 'attempt-api-key');
+
+            await handler.handleRequest(
+                {
+                    id: 'gemini-3.8-flash',
+                    name: 'Gemini 3.8 Flash',
+                    maxOutputTokens: 32000
+                } as vscode.LanguageModelChatInformation,
+                requestModelConfig,
+                [],
+                {} as never,
+                { report() {} },
+                'request-bound-api-key',
+                'session-1',
+                cancellationSource.token
+            );
+
+            assert.equal(authorization, 'Bearer attempt-api-key');
+        } finally {
+            cancellationSource.dispose();
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+            ApiKeyManager.getApiKey = originalGetApiKey;
+            TokenUsagesManager.instance.updateActualTokens = originalUpdateActualTokens;
+        }
+    });
+
     test('跨 chunk 合并 usage 并保留 finish reason 与 responseId', async () => {
         const parts: vscode.LanguageModelResponsePart2[] = [];
         const reporter = createReporter(parts);

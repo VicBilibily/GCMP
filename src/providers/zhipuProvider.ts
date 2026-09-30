@@ -140,9 +140,9 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     /**
      * 国际站切换：接入点为 api.z.ai 时将国内站域名替换为国际站域名
      */
-    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
-        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
-        if (baseUrl && ConfigManager.getZhipuEndpoint() === 'api.z.ai') {
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig, siteOverride?: string): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig, siteOverride);
+        if (baseUrl && (siteOverride ?? ConfigManager.getZhipuEndpoint()) === 'api.z.ai') {
             return baseUrl.replace('open.bigmodel.cn', 'api.z.ai');
         }
         return baseUrl;

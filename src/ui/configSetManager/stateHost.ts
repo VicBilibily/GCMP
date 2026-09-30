@@ -14,6 +14,7 @@ import {
 } from '../../utils/config/configSetCommands';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetItem, ConfigSetStore } from '../../utils/config/configSetStore';
+import { ApiKeyFailoverManager } from '../../utils/config/failover/apiKeyFailoverManager';
 import { getKeyDisplayName } from '../../sync/gistSyncService';
 import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
 import { Logger } from '../../utils/runtime/logger';
@@ -105,6 +106,7 @@ export class StateHost {
                 const itemKeys = new Map<string, string | undefined>(
                     items.map((item, index) => [item.id, itemKeyValues[index]] as const)
                 );
+                await ApiKeyFailoverManager.disableIfUnavailable(slotInfo.slot);
                 // 计算真实激活 ID：仅当当前生效 Key 与配置项实际匹配时才标记为激活。
                 const siteOwner = slotInfo.siteProvider;
                 const matchesCurrent = (item: ConfigSetItem): boolean => {
@@ -127,6 +129,7 @@ export class StateHost {
                     displayName: slotInfo.displayName,
                     isMain: slotInfo.isMain,
                     hasSite: !p.custom && !!slotInfo.siteProvider,
+                    autoSwitchEnabled: ConfigSetStore.isAutoSwitchEnabled(slotInfo.slot),
                     hasUsage,
                     usageMetricType: hasUsage ? getQuotaMetricType(slotInfo.slot) : undefined,
                     currentSiteLabel:

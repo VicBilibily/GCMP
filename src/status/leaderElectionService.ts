@@ -235,6 +235,10 @@ export class LeaderElectionService {
         return this._isLeader;
     }
 
+    public static isInitialized(): boolean {
+        return this.initialized;
+    }
+
     /**
      * 当前是否运行在 Agents 窗体中（该环境下选举被禁用）
      */
@@ -272,6 +276,17 @@ export class LeaderElectionService {
         return this.getLeaderIdentity()?.authorityTerm;
     }
 
+    public static getOwnedAuthorityTerm(): string | undefined {
+        if (!this._isLeader || !this.instanceId || this.ownElectedAt <= 0) {
+            return undefined;
+        }
+        const current = this.getLeaderIdentity();
+        if (current?.instanceId !== this.instanceId || current.electedAt !== this.ownElectedAt) {
+            return undefined;
+        }
+        return current.authorityTerm;
+    }
+
     /**
      * 判断当前记录的 Leader 心跳是否仍在有效期内。
      * 用于委托超时后的回退决策：委托超时≠Leader 失联（可能只是执行耗时），
@@ -303,7 +318,15 @@ export class LeaderElectionService {
         this.context.subscriptions.push(
             InterInstanceBus.subscribe('leaderResigning', event => {
                 const { leaderId: resigningLeaderId, nextLeaderId } = (event as LeaderResigningEvent).payload;
-                if (resigningLeaderId === this.instanceId) {
+                const now = Date.now();
+                if (
+                    resigningLeaderId === this.instanceId ||
+                    resigningLeaderId !== event.senderInstanceId ||
+                    resigningLeaderId !== this.getLeaderId() ||
+                    !Number.isFinite(event.timestamp) ||
+                    now - event.timestamp > 10_000 ||
+                    event.timestamp - now > 1_000
+                ) {
                     return;
                 }
 

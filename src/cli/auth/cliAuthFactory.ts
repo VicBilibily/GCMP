@@ -22,7 +22,11 @@ export class CliAuthFactory {
     private static readonly LEADER_REFRESH_TIMEOUT_ERROR = 'timed out waiting for leader refresh';
     private static readonly pendingRefreshRequests = new Map<
         string,
-        { resolve: (result: { success: boolean; error?: string }) => void; timer: ReturnType<typeof setTimeout> }
+        {
+            leaderId: string;
+            resolve: (result: { success: boolean; error?: string }) => void;
+            timer: ReturnType<typeof setTimeout>;
+        }
     >();
     private static readonly CLI_AUTH_REFRESH_TIMEOUT_MS = 15_000;
     /** 委托刷新超时后的宽限轮询：Leader 可能刚好在超时窗口后完成刷新并落盘 */
@@ -47,7 +51,7 @@ export class CliAuthFactory {
             InterInstanceBus.subscribe('cliAuthRefreshCompleted', event => {
                 const payload = (event as CliAuthRefreshCompletedEvent).payload;
                 const pending = this.pendingRefreshRequests.get(payload.requestId);
-                if (!pending) {
+                if (!pending || event.senderInstanceId !== pending.leaderId) {
                     return;
                 }
 
@@ -123,7 +127,7 @@ export class CliAuthFactory {
 
         const leaderId = LeaderElectionService.getLeaderId();
         if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
-            return await this.delegateRefreshToLeader(cliType, instance);
+            return await this.delegateRefreshToLeader(cliType, instance, leaderId);
         }
 
         return await instance.ensureAuthenticated(true);
@@ -186,10 +190,11 @@ export class CliAuthFactory {
 
     private static async delegateRefreshToLeader(
         cliType: string,
-        instance: BaseCliAuth
+        instance: BaseCliAuth,
+        leaderId: string
     ): Promise<OAuthCredentials | null> {
         const requestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-        const waitForCompletion = this.waitForRefreshCompletion(requestId);
+        const waitForCompletion = this.waitForRefreshCompletion(requestId, leaderId);
 
         Logger.info(`[CliAuthFactory] Delegating ${cliType} CLI auth refresh to leader`);
         InterInstanceBus.publish({
@@ -260,7 +265,10 @@ export class CliAuthFactory {
         return await instance.loadCredentials();
     }
 
-    private static waitForRefreshCompletion(requestId: string): Promise<{ success: boolean; error?: string }> {
+    private static waitForRefreshCompletion(
+        requestId: string,
+        leaderId: string
+    ): Promise<{ success: boolean; error?: string }> {
         return new Promise(resolve => {
             const timer = setTimeout(() => {
                 if (this.pendingRefreshRequests.has(requestId)) {
@@ -270,7 +278,7 @@ export class CliAuthFactory {
                 resolve({ success: false, error: this.LEADER_REFRESH_TIMEOUT_ERROR });
             }, this.CLI_AUTH_REFRESH_TIMEOUT_MS);
 
-            this.pendingRefreshRequests.set(requestId, { resolve, timer });
+            this.pendingRefreshRequests.set(requestId, { leaderId, resolve, timer });
         });
     }
 

@@ -83,6 +83,7 @@ export interface RateLimitStoreSnapshot {
 
 interface ImportSnapshotOptions {
     ownerlessGrantGraceMs?: number;
+    ownerlessGrantOwnerInstanceId?: string;
 }
 
 interface GrantRecord {
@@ -327,6 +328,19 @@ export class RateLimitStore {
         return this.grants.get(grantId)?.ownerInstanceId;
     }
 
+    getRequestOwnerInstanceId(bucketKey: string, requestId: string): string | undefined {
+        const pending = this.buckets.get(bucketKey)?.pending.find(entry => entry.requestId === requestId);
+        if (pending) {
+            return pending.ownerInstanceId;
+        }
+        for (const grant of this.grants.values()) {
+            if (grant.bucketKey === bucketKey && grant.requestId === requestId) {
+                return grant.ownerInstanceId;
+            }
+        }
+        return undefined;
+    }
+
     hasRequest(bucketKey: string, requestId: string): boolean {
         const bucket = this.buckets.get(bucketKey);
         if (bucket?.pending.some(entry => entry.requestId === requestId)) {
@@ -382,7 +396,7 @@ export class RateLimitStore {
                     costs: { ...grantSnapshot.costs },
                     expiresAt,
                     leaseMs: grantSnapshot.leaseMs,
-                    ownerInstanceId: grantSnapshot.ownerInstanceId
+                    ownerInstanceId: grantSnapshot.ownerInstanceId ?? options?.ownerlessGrantOwnerInstanceId
                 });
                 survivingGrantIds.add(grantSnapshot.grantId);
                 bucket.inflight += 1;

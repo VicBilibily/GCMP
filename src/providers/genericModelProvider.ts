@@ -48,6 +48,12 @@ import { processVisionMessages } from '../tools/vision/messageProcessor';
 import { StatusBarManager } from '../status/statusBarManager';
 import * as crypto from 'node:crypto';
 import type { SessionRecoverySource } from '../usages/fileLogger/types';
+import {
+    API_KEY_FAILOVER_ERROR_THRESHOLD,
+    ApiKeyFailoverManager,
+    type ApiKeyFailoverAttempt
+} from '../utils/config/failover/apiKeyFailoverManager';
+import { isApiKeyFailoverError } from '../utils/config/failover/apiKeyFailoverClassifier';
 
 interface ContextUsageSummary {
     totalInputTokens: number;
@@ -255,7 +261,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 判定基于模型实际生效的 provider，compatible 中自定义的百炼模型同样覆盖；
      * 其余 provider 的站点切换由各自的覆盖实现处理。
      */
-    protected resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
+    protected resolveRequestBaseUrl(modelConfig: ModelConfig, _siteOverride?: string): string | undefined {
         const baseUrl = modelConfig.baseUrl || this.providerConfig.baseUrl;
         if (!baseUrl || !isDashscopeProviderSlot(this.getProviderKeyForModel(modelConfig))) {
             return baseUrl;
@@ -682,20 +688,41 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         onAttemptStarted?: (requestMetricStartTime: number) => void,
         onThrottled?: () => void
     ): Promise<void> {
+        const baseModelConfig = modelConfig;
         const sdkMode = modelConfig.sdkMode || 'openai';
         if (sdkMode === 'gemini-sse' && !modelConfig.baseUrl?.trim()) {
             throw new Error(
                 t('Gemini mode requires baseUrl in modelInfo', 'Gemini 模式需要在 modelInfo 中配置 baseUrl')
             );
         }
-        // 站点/接入点切换统一在 provider 层解析，经浅拷贝下发避免污染共享配置
-        modelConfig = { ...modelConfig, baseUrl: this.resolveRequestBaseUrl(modelConfig) };
 
         // requestStarted 不再在外层发射，而是移入 retry callback 内部，
         // 每次 attempt 使用 liveAttemptStartTime 作为 live metrics 时间基准。
         // 外层 requestStartTime 保留给 recordEstimatedTokens / 持久化记录使用。
 
-        const retryManager = new RetryManager(this.getRequestRetryConfig(effectiveProviderKey));
+        const configuredRetryConfig = this.getRequestRetryConfig(effectiveProviderKey);
+        const failoverCandidateCount = ApiKeyFailoverManager.getCandidateCountUpperBound(effectiveProviderKey);
+        const failoverRetryBudget =
+            failoverCandidateCount >= 2 && configuredRetryConfig.enabled && configuredRetryConfig.maxAttempts !== 0 ?
+                API_KEY_FAILOVER_ERROR_THRESHOLD * failoverCandidateCount
+            :   0;
+        const retryConfig = {
+            ...configuredRetryConfig,
+            maxAttempts:
+                configuredRetryConfig.maxAttempts === -1 || failoverRetryBudget === 0 ?
+                    configuredRetryConfig.maxAttempts
+                :   Math.max(configuredRetryConfig.maxAttempts, failoverRetryBudget)
+        };
+        const retryManager = new RetryManager(retryConfig);
+        const failoverRetryDecisions = new WeakMap<object, boolean>();
+        const attemptedFailoverIdentities = new Set<string>();
+        let failoverFailureCount = 0;
+        let failoverFailureIdentity: string | undefined;
+        let retryAttempt = 0;
+        let initialFailoverConfigId: string | undefined;
+        let returnedToInitial = false;
+        let failoverFailureReported = false;
+        let failoverFailureRequestId = crypto.randomUUID();
 
         // 请求是否受过节流控制（限流等待/排队，跨 retry 累积）。
         let wasThrottled = false;
@@ -739,6 +766,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let titleResponseBuffer = '';
         let summaryResponseBuffer = '';
         let hasReportedProgress = false;
+        let attemptDispatched = false;
         const requestMetadata = this.getEstimatedRequestMetadata(options);
 
         try {
@@ -763,11 +791,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     // 标题响应按 attempt 独立累积，避免重试时拼接上一轮的半截文本
                     titleResponseBuffer = '';
                     summaryResponseBuffer = '';
+                    attemptDispatched = false;
 
                     // 限流闸门：任一维度触顶即自主延迟；重试也会重新取令牌（文档铁律）
                     const limitHandle = await this.acquireRateLimit(
                         effectiveProviderKey,
-                        modelConfig,
+                        baseModelConfig,
                         totalInputTokens,
                         token,
                         requestId,
@@ -776,12 +805,38 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             onThrottled?.();
                         }
                     );
-
+                    let failoverAttempt: ApiKeyFailoverAttempt | undefined;
                     try {
+                        if (token.isCancellationRequested) {
+                            throw new vscode.CancellationError();
+                        }
+                        failoverAttempt = await ApiKeyFailoverManager.captureAttempt(effectiveProviderKey);
+                        if (failoverAttempt?.identity !== failoverFailureIdentity) {
+                            if (failoverFailureReported) {
+                                ApiKeyFailoverManager.resetFailureCount(effectiveProviderKey, failoverFailureRequestId);
+                                failoverFailureReported = false;
+                                failoverFailureRequestId = crypto.randomUUID();
+                            }
+                            failoverFailureCount = 0;
+                            failoverFailureIdentity = failoverAttempt?.identity;
+                        }
+                        initialFailoverConfigId ??= failoverAttempt?.activeId;
+                        const attemptModelConfig = {
+                            ...baseModelConfig,
+                            ...(sdkMode === 'openai-responses' ? { provider: effectiveProviderKey } : {}),
+                            baseUrl: this.resolveRequestBaseUrl(baseModelConfig, failoverAttempt?.site)
+                        };
+                        if (failoverAttempt) {
+                            ApiKeyManager.bindRequestApiKey(attemptModelConfig, failoverAttempt.apiKey);
+                        }
+                        if (token.isCancellationRequested) {
+                            throw new vscode.CancellationError();
+                        }
+                        attemptDispatched = true;
                         if (sdkMode === 'gemini-sse') {
                             await this.geminiHandler.handleRequest(
                                 model,
-                                modelConfig,
+                                attemptModelConfig,
                                 messages,
                                 options,
                                 wrappedProgress,
@@ -795,7 +850,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         } else if (sdkMode === 'anthropic') {
                             await this.anthropicHandler.handleRequest(
                                 model,
-                                modelConfig,
+                                attemptModelConfig,
                                 messages,
                                 options,
                                 wrappedProgress,
@@ -809,7 +864,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         } else if (sdkMode === 'openai-sse') {
                             await this.openaiCustomHandler.handleRequest(
                                 model,
-                                modelConfig,
+                                attemptModelConfig,
                                 messages,
                                 options,
                                 wrappedProgress,
@@ -823,7 +878,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         } else if (sdkMode === 'openai-responses') {
                             await this.openaiResponsesHandler.handleResponsesRequest(
                                 model,
-                                { ...modelConfig, provider: effectiveProviderKey },
+                                attemptModelConfig,
                                 messages,
                                 options,
                                 wrappedProgress,
@@ -837,7 +892,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         } else {
                             await this.openaiHandler.handleRequest(
                                 model,
-                                modelConfig,
+                                attemptModelConfig,
                                 messages,
                                 options,
                                 wrappedProgress,
@@ -853,16 +908,85 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         if (limitHandle) {
                             RateLimiter.release(limitHandle);
                         }
-                    } catch (error) {
-                        // 已发出后失败/取消：tokens 全退、requests 不退（上游已消耗调度成本）
+                        if (failoverFailureReported) {
+                            ApiKeyFailoverManager.resetFailureCount(effectiveProviderKey, failoverFailureRequestId);
+                            failoverFailureReported = false;
+                            failoverFailureRequestId = crypto.randomUUID();
+                        }
+                        failoverFailureCount = 0;
+                    } catch (caught) {
+                        const error =
+                            typeof caught === 'object' && caught !== null ?
+                                caught
+                            :   new Error(String(caught), { cause: caught });
+                        // 派发前失败不消耗调度成本，派发后仍保留 requests 成本。
                         if (limitHandle) {
-                            RateLimiter.release(limitHandle, { tokens: limitHandle.costs.tokens });
+                            RateLimiter.release(
+                                limitHandle,
+                                attemptDispatched ? { tokens: limitHandle.costs.tokens } : limitHandle.costs
+                            );
+                        }
+                        if (!attemptDispatched || token.isCancellationRequested || !isApiKeyFailoverError(error)) {
+                            throw error;
+                        }
+                        const hasRetryBudget = retryConfig.maxAttempts === -1 || retryAttempt < retryConfig.maxAttempts;
+                        if (failoverAttempt) {
+                            failoverFailureCount += 1;
+                            const decision = await ApiKeyFailoverManager.handleFailure(
+                                effectiveProviderKey,
+                                error,
+                                failoverAttempt,
+                                attemptedFailoverIdentities,
+                                failoverFailureCount,
+                                initialFailoverConfigId,
+                                returnedToInitial,
+                                undefined,
+                                failoverFailureRequestId,
+                                undefined,
+                                token
+                            );
+                            if (decision.switched) {
+                                ApiKeyFailoverManager.resetFailureCount(effectiveProviderKey, failoverFailureRequestId);
+                                failoverFailureRequestId = crypto.randomUUID();
+                                failoverFailureReported = false;
+                                failoverFailureCount = 0;
+                            }
+                            if (decision.switchedToInitial) {
+                                returnedToInitial = true;
+                            }
+                            if (decision.handled && !decision.switched) {
+                                failoverFailureReported = true;
+                            }
+                            if (decision.handled) {
+                                failoverRetryDecisions.set(error, hasRetryBudget && decision.shouldRetry);
+                            }
+                        } else {
+                            if (failoverFailureReported) {
+                                ApiKeyFailoverManager.resetFailureCount(effectiveProviderKey, failoverFailureRequestId);
+                                failoverFailureReported = false;
+                                failoverFailureRequestId = crypto.randomUUID();
+                            }
+                            if (!hasReportedProgress) {
+                                failoverFailureCount = 0;
+                            }
                         }
                         throw error;
                     }
                 },
                 error => {
-                    if (hasReportedProgress || hasGeminiPartialUsage(error)) {
+                    if (
+                        !attemptDispatched ||
+                        token.isCancellationRequested ||
+                        !isApiKeyFailoverError(error) ||
+                        hasReportedProgress ||
+                        hasGeminiPartialUsage(error)
+                    ) {
+                        return false;
+                    }
+                    if (typeof error === 'object' && failoverRetryDecisions.has(error)) {
+                        return failoverRetryDecisions.get(error) === true;
+                    }
+                    if (configuredRetryConfig.maxAttempts !== -1 && retryAttempt >= configuredRetryConfig.maxAttempts) {
                         return false;
                     }
                     const fallback = this.shouldRetryRequest(error);
@@ -882,6 +1006,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         );
                     },
                     onRetryAttempt: (attempt, maxAttempts) => {
+                        retryAttempt = attempt;
                         retryMessageDisposable?.dispose();
                         const maxLabel = maxAttempts === -1 ? '∞' : `${maxAttempts}`;
                         const modelName = model.name || modelConfig.name;

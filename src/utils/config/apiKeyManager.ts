@@ -20,9 +20,13 @@ import { t } from '../runtime/l10n';
 export class ApiKeyManager {
     private static context: vscode.ExtensionContext;
     private static builtinProviders: Set<string> | null = null;
+    private static requestApiKeySnapshots = new WeakMap<object, string>();
 
     /** 本实例内 API Key 变更事件（跨实例事件走 InterInstanceBus.publish） */
-    private static _onDidChangeApiKey = new vscode.EventEmitter<{ provider: string; action: 'set' | 'delete' }>();
+    private static _onDidChangeApiKey = new vscode.EventEmitter<{
+        provider: string;
+        action: 'set' | 'delete' | 'sync';
+    }>();
     static readonly onDidChangeApiKey = this._onDidChangeApiKey.event;
 
     /**
@@ -57,7 +61,7 @@ export class ApiKeyManager {
         return `${provider}.apiKey`;
     }
 
-    private static emitApiKeyChanged(provider: string, action: 'set' | 'delete'): void {
+    private static emitApiKeyChanged(provider: string, action: 'set' | 'delete' | 'sync'): void {
         try {
             this._onDidChangeApiKey.fire({ provider, action });
         } catch (error) {
@@ -65,7 +69,7 @@ export class ApiKeyManager {
         }
     }
 
-    private static publishApiKeyChanged(provider: string, action: 'set' | 'delete'): void {
+    private static publishApiKeyChanged(provider: string, action: 'set' | 'delete' | 'sync'): void {
         try {
             InterInstanceBus.publish({
                 type: 'apiKeyChanged',
@@ -103,6 +107,20 @@ export class ApiKeyManager {
         return await this.context.secrets.get(secretKey);
     }
 
+    static bindRequestApiKey(target: object, apiKey: string): void {
+        this.requestApiKeySnapshots.set(target, apiKey);
+    }
+
+    static async getApiKeyForRequest(provider: string, target?: object): Promise<string | undefined> {
+        const snapshot = target ? this.requestApiKeySnapshots.get(target) : undefined;
+        return snapshot ?? (await this.getApiKey(provider));
+    }
+
+    static notifyApiKeyConfigurationChanged(provider: string): void {
+        this.emitApiKeyChanged(provider, 'sync');
+        this.publishApiKeyChanged(provider, 'sync');
+    }
+
     /**
      * 验证API密钥
      */
@@ -118,7 +136,7 @@ export class ApiKeyManager {
     /**
      * 设置API密钥到安全存储
      */
-    static async setApiKey(provider: string, apiKey: string): Promise<void> {
+    static async setApiKey(provider: string, apiKey: string, operationToken?: string): Promise<void> {
         const secretKey = this.getSecretKey(provider);
         const currentKey = await this.context.secrets.get(secretKey);
         const normalizedApiKey = apiKey.trim();
@@ -126,14 +144,14 @@ export class ApiKeyManager {
             if (currentKey === undefined) {
                 return;
             }
-            await this.deleteApiKey(provider);
+            await this.deleteApiKey(provider, operationToken);
             return;
         }
         if (currentKey === normalizedApiKey) {
             // 避免重复写入导致性能问题（OS keychain 写入可能超过 500ms，导致 Promise.race 超时）
             return;
         }
-        await this.context.secrets.store(secretKey, normalizedApiKey);
+        await this.writeApiKey(provider, normalizedApiKey, operationToken);
 
         // 先完成密钥持久化，再以 best-effort 方式刷新派生状态，避免调用方落入半提交事务。
         const action: 'set' | 'delete' = 'set';
@@ -145,14 +163,58 @@ export class ApiKeyManager {
     /**
      * 删除API密钥
      */
-    static async deleteApiKey(provider: string): Promise<void> {
-        const secretKey = this.getSecretKey(provider);
-        await this.context.secrets.delete(secretKey);
+    static async deleteApiKey(provider: string, operationToken?: string): Promise<void> {
+        await this.writeApiKey(provider, undefined, operationToken);
         delete this.cachedCliAuthStatus[provider];
 
         this.emitApiKeyChanged(provider, 'delete');
         this.publishApiKeyChanged(provider, 'delete');
         await this.refreshApiKeyConsumers(provider);
+    }
+
+    private static async writeApiKey(
+        provider: string,
+        apiKey: string | undefined,
+        operationToken?: string
+    ): Promise<void> {
+        // 与配置批次共用归属标记，阻止旧回滚覆盖直接密钥更新。
+        const stateKey = `configSets.applyOperation.${provider}`;
+        const secretKey = this.getSecretKey(provider);
+        const isDirectWrite = !operationToken;
+        const previousKey = isDirectWrite ? await this.context.secrets.get(secretKey) : undefined;
+        const previousOperation = isDirectWrite ? this.context.globalState.get<string>(stateKey) : undefined;
+        try {
+            if (isDirectWrite) {
+                operationToken = crypto.randomUUID();
+                await this.context.globalState.update(stateKey, operationToken);
+            }
+            if (this.context.globalState.get<string>(stateKey) !== operationToken) {
+                throw new Error(t('Configuration update ownership has changed.', '配置更新所有权已变化。'));
+            }
+            if (apiKey === undefined) {
+                await this.context.secrets.delete(secretKey);
+            } else {
+                await this.context.secrets.store(secretKey, apiKey);
+            }
+        } catch (error) {
+            if (isDirectWrite && this.context.globalState.get<string>(stateKey) === operationToken) {
+                try {
+                    const currentKey = await this.context.secrets.get(secretKey);
+                    if (
+                        currentKey === previousKey &&
+                        this.context.globalState.get<string>(stateKey) === operationToken
+                    ) {
+                        await this.context.globalState.update(stateKey, previousOperation);
+                    }
+                } catch (restoreError) {
+                    Logger.warn(
+                        `[ApiKeyManager] Failed to restore API key write ownership for ${provider}:`,
+                        restoreError
+                    );
+                }
+            }
+            throw error;
+        }
     }
 
     /**

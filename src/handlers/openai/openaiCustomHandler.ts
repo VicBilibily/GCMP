@@ -146,7 +146,7 @@ export class OpenAICustomHandler {
         wasThrottled = false
     ): Promise<void> {
         const provider = modelConfig.provider || this.provider;
-        const apiKey = await ApiKeyManager.getApiKey(provider);
+        const apiKey = await ApiKeyManager.getApiKeyForRequest(provider, modelConfig);
         if (!apiKey) {
             throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', provider));
         }
