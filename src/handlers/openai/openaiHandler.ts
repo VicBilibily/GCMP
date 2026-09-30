@@ -235,6 +235,7 @@ export class OpenAIHandler {
         const processedCustomHeader = preserveRequiredHeaders(
             ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId)
         );
+        ApiKeyManager.validateRequestApiKeyHash(modelConfig, currentApiKey, processedCustomHeader);
         if (Object.keys(processedCustomHeader).length > 0) {
             defaultHeaders = mergeCustomHeaders(defaultHeaders, processedCustomHeader);
             Logger.debug(

@@ -135,6 +135,23 @@ test('mergeSnapshotRecord keeps completed status and usage when overlay falls ba
     assert.equal(merged.telemetryTurn, 7);
 });
 
+for (const scenario of ['known', 'unknown-name', 'unknown-key'] as const) {
+    for (const terminalIsOverlay of [false, true]) {
+        test(`snapshot merge preserves ${scenario} key identity with terminal overlay ${terminalIsOverlay}`, () => {
+            const partial = { ...createRecord(), apiKeyHash: 'old-hash', apiKeyName: 'Old name' };
+            const apiKeyHash = scenario === 'unknown-key' ? undefined : 'new-hash';
+            const apiKeyName = scenario === 'known' ? 'Request name' : undefined;
+            const terminal = parseSnapshotFileContent(
+                JSON.stringify({ ...createRecord({ status: 'completed' }), apiKeyHash, apiKeyName })
+            )['req-1']!;
+            const merged =
+                terminalIsOverlay ? mergeSnapshotRecord(partial, terminal) : mergeSnapshotRecord(terminal, partial);
+            assert.equal(merged.apiKeyHash, apiKeyHash);
+            assert.equal(merged.apiKeyName, apiKeyName);
+        });
+    }
+}
+
 test('mergeSnapshotFiles keeps records unique to both stores and upgrades shared request to completed', () => {
     const baseOnly = createRecord({ requestId: 'base-only', status: 'completed', actualInput: 40, outputTokens: 8 });
     const oldShared = createRecord({ requestId: 'shared', status: 'estimated', timestamp: 2000 });

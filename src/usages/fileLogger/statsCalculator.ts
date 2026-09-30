@@ -206,6 +206,8 @@ export abstract class StatsCalculator {
                 // 无论时间戳如何，都更新为最新状态（completed/failed/cancelled 和 rawUsage）
                 existing.status = log.status;
                 existing.rawUsage = log.rawUsage;
+                existing.apiKeyHash = log.apiKeyHash;
+                existing.apiKeyName = log.apiKeyName;
                 if (log.estimatedIncrement !== undefined) {
                     existing.estimatedIncrement = log.estimatedIncrement;
                 }

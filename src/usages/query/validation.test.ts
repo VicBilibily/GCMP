@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { sanitizeWebViewMessage } from '../../ui/configSetManager/types';
 import { createEmptyNativeCostSplit } from '../fileLogger/nativeCostSplit';
 import type { UsagesPendingRecord, UsagesQuery } from './types';
 import { isUsagesQueryResult, normalizeUsagesPendingRecords, normalizeUsagesQuery } from './validation';
@@ -88,6 +89,8 @@ function pendingRecord(requestId = 'pending-1'): UsagesPendingRecord {
         isoTime: new Date(timestamp).toISOString(),
         providerKey: 'test',
         providerName: 'Test',
+        apiKeyHash: 'a'.repeat(64),
+        apiKeyName: '主要 Key',
         modelId: 'model',
         modelName: 'Model',
         estimatedInput: 10,
@@ -131,6 +134,14 @@ for (const [field, invalidValue] of [
     ['isoTime', 'not-a-date'],
     ['providerKey', null],
     ['providerName', {}],
+    ['apiKeyHash', null],
+    ['apiKeyHash', 1],
+    ['apiKeyHash', 'a'.repeat(63)],
+    ['apiKeyHash', 'a'.repeat(65)],
+    ['apiKeyHash', 'z'.repeat(64)],
+    ['apiKeyName', null],
+    ['apiKeyName', {}],
+    ['apiKeyName', 'x'.repeat(8193)],
     ['modelId', 'x'.repeat(513)],
     ['estimatedInput', -1],
     ['status', 'completed'],
@@ -149,6 +160,50 @@ for (const [field, invalidValue] of [
 ] as const) {
     test(`pending normalization rejects invalid ${field}: ${String(invalidValue).slice(0, 40)}`, () => {
         assert.equal(normalizeUsagesPendingRecords([{ ...pendingRecord(), [field]: invalidValue }]), undefined);
+    });
+}
+
+test('pending key identity survives JSON transport without exposing unsupported secret fields', () => {
+    const record = pendingRecord();
+    const serialized = JSON.stringify([{ ...record, apiKey: 'fake-raw-key' }]);
+    const normalized = normalizeUsagesPendingRecords(JSON.parse(serialized) as unknown);
+    assert.deepEqual(normalized, [record]);
+    assert.equal(JSON.stringify(normalized).includes('fake-raw-key'), false);
+    assert.deepEqual(normalizeUsagesPendingRecords(normalized), normalized);
+});
+
+test('pending key metadata remains optional and accepts bounded names', () => {
+    const legacy = pendingRecord();
+    delete legacy.apiKeyHash;
+    delete legacy.apiKeyName;
+    assert.deepEqual(normalizeUsagesPendingRecords([legacy]), [legacy]);
+    const unnamed = { ...legacy, apiKeyHash: 'b'.repeat(64) };
+    assert.deepEqual(normalizeUsagesPendingRecords([unnamed]), [unnamed]);
+    const longName = { ...pendingRecord(), apiKeyName: 'x'.repeat(2048) };
+    assert.deepEqual(normalizeUsagesPendingRecords([longName]), [longName]);
+});
+
+for (const length of [2049, 8192]) {
+    test(`configuration names of ${length} characters survive pending and result validation`, () => {
+        const message = sanitizeWebViewMessage({
+            command: 'edit',
+            slot: 'test',
+            id: 'primary',
+            label: '名'.repeat(length)
+        });
+        assert.ok(message?.command === 'edit');
+        const record = { ...pendingRecord(), apiKeyName: message.label };
+        assert.deepEqual(normalizeUsagesPendingRecords(JSON.parse(JSON.stringify([record])) as unknown), [record]);
+        assert.equal(
+            isUsagesQueryResult(
+                {
+                    kind: 'recentRecords',
+                    value: [{ ...record, actualInput: 10, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 35 }]
+                },
+                { kind: 'recentRecords', limit: 1 }
+            ),
+            true
+        );
     });
 }
 
@@ -173,7 +228,43 @@ test('pending limits reject duplicates, count overflow and UTF-8 byte overflow w
         ),
         undefined
     );
+    assert.equal(
+        normalizeUsagesPendingRecords(
+            Array.from({ length: 100 }, (_, index) => ({
+                ...pendingRecord(`${index}`),
+                apiKeyName: '名'.repeat(2000)
+            }))
+        ),
+        undefined
+    );
 });
+
+for (const [field, invalidValue] of [
+    ['apiKeyHash', null],
+    ['apiKeyHash', 1],
+    ['apiKeyHash', 'a'.repeat(63)],
+    ['apiKeyHash', 'a'.repeat(65)],
+    ['apiKeyHash', 'z'.repeat(64)],
+    ['apiKeyName', null],
+    ['apiKeyName', {}],
+    ['apiKeyName', 'x'.repeat(8193)]
+] as const) {
+    test(`remote query results reject invalid ${field}: ${String(invalidValue).slice(0, 40)}`, () => {
+        const record = {
+            ...pendingRecord(),
+            actualInput: 10,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            outputTokens: 25,
+            totalTokens: 35,
+            [field]: invalidValue
+        };
+        assert.equal(
+            isUsagesQueryResult({ kind: 'recentRecords', value: [record] }, { kind: 'recentRecords', limit: 1 }),
+            false
+        );
+    });
+}
 
 test('query totals validate average output duration', () => {
     const query: UsagesQuery = { kind: 'recordsPage', date: '2026-09-26', mode: 'all', page: 1, pageSize: 20 };

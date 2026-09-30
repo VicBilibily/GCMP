@@ -11,6 +11,8 @@ function createLog(overrides: Partial<TokenRequestLog> = {}): TokenRequestLog {
         isoTime: overrides.isoTime ?? '1970-01-01T00:00:01.000Z',
         providerKey: overrides.providerKey ?? 'provider',
         providerName: overrides.providerName ?? 'Provider',
+        apiKeyHash: overrides.apiKeyHash,
+        apiKeyName: overrides.apiKeyName,
         modelId: overrides.modelId ?? 'model',
         modelName: overrides.modelName ?? 'Model',
         estimatedInput: overrides.estimatedInput ?? 80,
@@ -393,6 +395,41 @@ test('mergeLogsByRequestId keeps late session title backfill metadata', () => {
     assert.equal(record.outputTokens, 20);
     assert.equal(record.streamStartTime, 1600);
     assert.equal(record.streamEndTime, 1900);
+});
+
+for (const status of ['completed', 'failed', 'cancelled'] as const) {
+    test(`mergeLogsByRequestId uses the ${status} request key identity`, () => {
+        const merged = StatsCalculator.mergeLogsByRequestId([
+            createLog({
+                requestId: `req-key-${status}`,
+                status: 'estimated',
+                apiKeyHash: 'old-hash',
+                apiKeyName: 'Old name'
+            }),
+            createLog({
+                requestId: `req-key-${status}`,
+                timestamp: 2000,
+                isoTime: '1970-01-01T00:00:02.000Z',
+                status,
+                apiKeyHash: 'terminal-hash',
+                apiKeyName: 'Terminal name'
+            })
+        ]).get(`req-key-${status}`);
+
+        assert.equal(merged?.apiKeyHash, 'terminal-hash');
+        assert.equal(merged?.apiKeyName, 'Terminal name');
+    });
+}
+
+test('mergeLogsByRequestId does not retain a stale request key identity', () => {
+    const merged = StatsCalculator.mergeLogsByRequestId([
+        createLog({ apiKeyHash: 'old-hash', apiKeyName: 'Old name' }),
+        createLog({ timestamp: 2000, isoTime: '1970-01-01T00:00:02.000Z', status: 'completed' })
+    ]).get('req-1');
+
+    assert.ok(merged);
+    assert.equal(merged.apiKeyHash, undefined);
+    assert.equal(merged.apiKeyName, undefined);
 });
 
 test('mergeLogsByRequestId keeps late chat-title session reassignment', () => {

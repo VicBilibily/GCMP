@@ -17,6 +17,7 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { RateLimiter, type RateLimitHandle } from '../rateLimit/rateLimiter';
 import { sanitizeAuthoritativeDims } from '../rateLimit/rateLimitStore';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { captureRequestApiKeyNames, getSiteOwnerProvider, readCurrentSite } from '../utils/config/configSetCommands';
 import { ConfigManager } from '../utils/config/configManager';
 import { isDashscopeProviderSlot, resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
 import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
@@ -728,7 +729,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let wasThrottled = false;
 
         // 失败路径也要依赖真实派发时间补齐延迟统计。
-        const handleAttemptStarted = (attemptStartedAt: number) => {
+        const handleAttemptStarted = (attemptStartedAt: number, apiKeyHash?: string, apiKeyName?: string) => {
             onAttemptStarted?.(attemptStartedAt);
             if (requestId) {
                 liveMetrics.emitLiveMetrics({
@@ -736,7 +737,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     requestId,
                     requestStartTime: attemptStartedAt,
                     providerName: this.providerConfig.displayName,
-                    modelName: model.name || modelConfig.name
+                    modelName: model.name || modelConfig.name,
+                    apiKeyHash,
+                    apiKeyName
                 });
             }
         };
@@ -821,14 +824,31 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             failoverFailureIdentity = failoverAttempt?.identity;
                         }
                         initialFailoverConfigId ??= failoverAttempt?.activeId;
+                        const siteProvider = getSiteOwnerProvider(effectiveProviderKey);
+                        const requestSite =
+                            failoverAttempt?.site ?? (siteProvider ? readCurrentSite(siteProvider) : undefined);
                         const attemptModelConfig = {
                             ...baseModelConfig,
                             ...(sdkMode === 'openai-responses' ? { provider: effectiveProviderKey } : {}),
-                            baseUrl: this.resolveRequestBaseUrl(baseModelConfig, failoverAttempt?.site)
+                            baseUrl: this.resolveRequestBaseUrl(baseModelConfig, requestSite)
                         };
                         if (failoverAttempt) {
                             ApiKeyManager.bindRequestApiKey(attemptModelConfig, failoverAttempt.apiKey);
                         }
+                        const requestApiKeyNames =
+                            requestId && !failoverAttempt ?
+                                await captureRequestApiKeyNames(effectiveProviderKey, requestSite)
+                            :   undefined;
+                        const handleRequestDispatched = (attemptStartedAt: number) => {
+                            const apiKeyHash = ApiKeyManager.getRequestApiKeyHash(attemptModelConfig);
+                            handleAttemptStarted(
+                                attemptStartedAt,
+                                apiKeyHash,
+                                apiKeyHash ?
+                                    (failoverAttempt?.apiKeyName ?? requestApiKeyNames?.get(apiKeyHash))
+                                :   undefined
+                            );
+                        };
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
                         }
@@ -844,7 +864,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                handleAttemptStarted,
+                                handleRequestDispatched,
                                 wasThrottled
                             );
                         } else if (sdkMode === 'anthropic') {
@@ -858,7 +878,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                handleAttemptStarted,
+                                handleRequestDispatched,
                                 wasThrottled
                             );
                         } else if (sdkMode === 'openai-sse') {
@@ -872,7 +892,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                handleAttemptStarted,
+                                handleRequestDispatched,
                                 wasThrottled
                             );
                         } else if (sdkMode === 'openai-responses') {
@@ -886,7 +906,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                handleAttemptStarted,
+                                handleRequestDispatched,
                                 wasThrottled
                             );
                         } else {
@@ -900,7 +920,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                handleAttemptStarted,
+                                handleRequestDispatched,
                                 wasThrottled
                             );
                         }

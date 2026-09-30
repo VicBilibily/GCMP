@@ -1073,11 +1073,17 @@ export function createRequestRecordsTable(
         const provName = getProviderDisplayName(record.providerKey, record.providerName) || '-';
         const modName = record.modelName || '-';
         providerModel.title = `${provName} · ${modName}`;
+        const providerHeader = createElement('div', 'prov-model-header');
         const providerDiv = createElement('div', 'prov-model-provider');
         providerDiv.textContent = provName;
+        const apiKeyName = record.apiKeyName?.trim() || '';
+        const apiKeyDiv = createElement('div', 'prov-model-key');
+        apiKeyDiv.textContent = apiKeyName;
+        apiKeyDiv.title = apiKeyName;
+        providerHeader.append(providerDiv, apiKeyDiv);
         const modelDiv = createElement('div', 'prov-model-model');
         modelDiv.textContent = modName;
-        providerModel.append(providerDiv, modelDiv);
+        providerModel.append(providerHeader, modelDiv);
 
         const input = createElement('td', 'records-input-merged');
         const hasActualUsage = hasRecordedUsage(record);

@@ -52,6 +52,45 @@ export function enqueueConfigSetMutation<T>(task: () => Promise<T>): Promise<T> 
     return run;
 }
 
+export async function captureRequestApiKeyNames(
+    slot: string,
+    site?: string
+): Promise<ReadonlyMap<string, string | undefined>> {
+    try {
+        const operationToken = ConfigSetStore.getApplyOperationToken(slot);
+        const activeId = ConfigSetStore.getActiveId(slot);
+        const items = ConfigSetStore.list(slot)
+            .filter(item => site === undefined || (item.site ?? site) === site)
+            .map(item => ({ id: item.id, label: item.label }));
+        const keys = await Promise.all(items.map(item => ConfigSetStore.getApiKey(slot, item.id)));
+        if (ConfigSetStore.getApplyOperationToken(slot) !== operationToken) {
+            return new Map();
+        }
+        const names = new Map<string, string | undefined>();
+        let active: { hash: string; name: string | undefined } | undefined;
+        for (let index = 0; index < items.length; index += 1) {
+            const apiKey = keys[index];
+            if (!apiKey) {
+                continue;
+            }
+            const item = items[index];
+            const hash = crypto.createHash('sha256').update(apiKey).digest('hex');
+            const name = item.label.trim() || undefined;
+            names.set(hash, names.has(hash) ? undefined : name);
+            if (item.id === activeId) {
+                active = { hash, name };
+            }
+        }
+        if (active) {
+            names.set(active.hash, active.name);
+        }
+        return names;
+    } catch {
+        Logger.debug(`[ConfigSet] ${slot}: request key name metadata unavailable`);
+        return new Map();
+    }
+}
+
 async function writeSiteSetting(provider: string, site: string | undefined): Promise<void> {
     await vscode.workspace
         .getConfiguration(`gcmp.${provider}`)

@@ -8,6 +8,7 @@ import {
     getActiveMetricsSnapshot,
     onLiveMetrics,
     receiveRemoteLiveMetrics,
+    setCrossInstanceBroadcaster,
     syncRemoteLiveMetricsSnapshot,
     type LiveStreamMetricEvent
 } from './liveMetrics';
@@ -94,6 +95,130 @@ test('snapshot is updated to latest event for the same requestId', () => {
     assert.equal(found.tokensPerSecond, 25.5);
 
     cleanupAllSnapshots();
+});
+
+for (const remote of [false, true]) {
+    for (const type of ['firstChunk', 'streamingUpdate'] as const) {
+        test(`${remote ? 'remote' : 'local'} ${type} preserves the attempt key identity in snapshots and delivery`, () => {
+            cleanupAllSnapshots();
+            const received: LiveStreamMetricEvent[] = [];
+            const broadcast: LiveStreamMetricEvent[] = [];
+            const disposable = onLiveMetrics(event => received.push(event));
+            setCrossInstanceBroadcaster(event => broadcast.push(event));
+            const dispatch = (event: LiveStreamMetricEvent): void => {
+                if (remote) {
+                    receiveRemoteLiveMetrics(event, 'key-source');
+                } else {
+                    emitLiveMetrics(event);
+                }
+            };
+            const started = makeEvent({
+                type: 'requestStarted',
+                apiKeyHash: 'a'.repeat(64),
+                apiKeyName: 'Primary Key'
+            });
+            const update = makeEvent({ type, streamStartTime: 1200, lastFlushSeq: 1 });
+            try {
+                dispatch(started);
+                dispatch(update);
+                const snapshot = getActiveMetricsSnapshot().find(event => event.requestId === started.requestId);
+                assert.ok(snapshot);
+                assert.equal(snapshot.type, type);
+                assert.equal(snapshot.apiKeyHash, started.apiKeyHash);
+                assert.equal(snapshot.apiKeyName, started.apiKeyName);
+                assert.equal(snapshot.streamStartTime, update.streamStartTime);
+                assert.equal(received.at(-1)?.apiKeyHash, started.apiKeyHash);
+                assert.equal(received.at(-1)?.apiKeyName, started.apiKeyName);
+                if (!remote) {
+                    assert.equal(broadcast.at(-1)?.apiKeyName, started.apiKeyName);
+                }
+                assert.equal(update.apiKeyHash, undefined);
+                assert.equal(update.apiKeyName, undefined);
+            } finally {
+                disposable.dispose();
+                setCrossInstanceBroadcaster(undefined);
+                cleanupAllSnapshots();
+            }
+        });
+    }
+}
+
+for (const sameMillisecond of [false, true]) {
+    for (const identity of ['known', 'unknown-name', 'unknown-key'] as const) {
+        test(`live snapshots replace ${identity} retry identity ${sameMillisecond ? 'within one millisecond' : 'at a later time'}`, () => {
+            cleanupAllSnapshots();
+            const started = makeEvent({
+                type: 'requestStarted',
+                apiKeyHash: 'a'.repeat(64),
+                apiKeyName: 'Old Key'
+            });
+            const retry = makeEvent({
+                type: 'requestStarted',
+                requestStartTime: sameMillisecond ? 1000 : 2000,
+                apiKeyHash: identity === 'unknown-key' ? undefined : 'b'.repeat(64),
+                apiKeyName: identity === 'known' ? 'Next Key' : undefined
+            });
+            try {
+                emitLiveMetrics(started);
+                emitLiveMetrics(makeEvent({ type: 'streamingUpdate' }));
+                emitLiveMetrics(JSON.parse(JSON.stringify(retry)) as LiveStreamMetricEvent);
+                emitLiveMetrics(makeEvent({ type: 'streamingUpdate', requestStartTime: retry.requestStartTime }));
+                const snapshot = getActiveMetricsSnapshot().find(event => event.requestId === started.requestId);
+                assert.ok(snapshot);
+                assert.equal(snapshot.apiKeyHash, retry.apiKeyHash);
+                assert.equal(snapshot.apiKeyName, retry.apiKeyName);
+            } finally {
+                cleanupAllSnapshots();
+            }
+        });
+    }
+}
+
+test('live identity does not cross attempt times or remote source ownership', () => {
+    cleanupAllSnapshots();
+    try {
+        const started = makeEvent({ type: 'requestStarted', apiKeyHash: 'a'.repeat(64), apiKeyName: 'Old Key' });
+        emitLiveMetrics(started);
+        emitLiveMetrics(makeEvent({ requestStartTime: 2000 }));
+        assert.equal(getActiveMetricsSnapshot()[0].apiKeyName, undefined);
+        cleanupAllSnapshots();
+
+        receiveRemoteLiveMetrics(started, 'source-a');
+        receiveRemoteLiveMetrics(makeEvent(), 'source-b');
+        assert.equal(getActiveMetricsSnapshot()[0].apiKeyName, undefined);
+        assert.equal(getActiveMetricsSnapshot()[0].apiKeyHash, undefined);
+    } finally {
+        cleanupAllSnapshots();
+    }
+});
+
+test('late previous-attempt metrics cannot replace the current key snapshot', () => {
+    cleanupAllSnapshots();
+    try {
+        emitLiveMetrics(makeEvent({ type: 'requestStarted', apiKeyName: 'Old Key' }));
+        emitLiveMetrics(makeEvent({ type: 'requestStarted', requestStartTime: 2000, apiKeyName: 'Next Key' }));
+        emitLiveMetrics(makeEvent({ requestStartTime: 1000 }));
+        assert.equal(getActiveMetricsSnapshot()[0].requestStartTime, 2000);
+        assert.equal(getActiveMetricsSnapshot()[0].apiKeyName, 'Next Key');
+    } finally {
+        cleanupAllSnapshots();
+    }
+});
+
+test('cross-instance snapshot round trip preserves the latest attempt key identity', () => {
+    cleanupAllSnapshots();
+    const started = makeEvent({ type: 'requestStarted', apiKeyHash: 'a'.repeat(64), apiKeyName: 'Primary Key' });
+    try {
+        emitLiveMetrics(started);
+        emitLiveMetrics(makeEvent({ lastFlushSeq: 2 }));
+        const snapshot = getCrossInstanceLiveMetricsSnapshot();
+        cleanupAllSnapshots();
+        syncRemoteLiveMetricsSnapshot(JSON.parse(JSON.stringify(snapshot)) as typeof snapshot, 'leader');
+        assert.equal(getActiveMetricsSnapshot()[0].apiKeyHash, started.apiKeyHash);
+        assert.equal(getActiveMetricsSnapshot()[0].apiKeyName, started.apiKeyName);
+    } finally {
+        cleanupAllSnapshots();
+    }
 });
 
 test('rateLimitWaiting is kept in snapshot until request starts', () => {

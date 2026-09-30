@@ -280,6 +280,7 @@ export class GeminiHandler {
             apiKey,
             sessionId
         );
+        ApiKeyManager.validateRequestApiKeyHash(modelConfig, apiKey, processedHeaders);
         const requestHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
             ...buildGeminiAuthHeaders(baseUrl, apiKey)

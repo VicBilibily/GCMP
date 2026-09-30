@@ -937,6 +937,8 @@ export class TokenFileLogger {
             pendingLog.outputTokens = undefined;
         }
         if (event.type === 'requestStarted') {
+            pendingLog.apiKeyHash = event.apiKeyHash;
+            pendingLog.apiKeyName = event.apiKeyName;
             return;
         }
 

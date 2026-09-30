@@ -23,6 +23,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
     let suppressRemoteResponse = false;
     let forgeBeforeRemoteResponse = false;
     let malformedAuthorityResponseOnly = false;
+    let returnPendingRecords = false;
     let remoteError: UsagesQueryCompletedEvent['payload']['error'];
     let rejectResultAsTooLarge = false;
     let remoteSuccesses = 0;
@@ -110,7 +111,20 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                         requestId: request.requestId,
                         targetInstanceId: 'follower',
                         authorityTerm: request.authorityTerm,
-                        result: { kind: 'recentRecords', value: [] }
+                        result: {
+                            kind: 'recentRecords',
+                            value:
+                                returnPendingRecords ?
+                                    (request.pendingRecords ?? []).map(record => ({
+                                        ...record,
+                                        actualInput: record.estimatedInput,
+                                        cacheReadTokens: 0,
+                                        cacheCreationTokens: 0,
+                                        outputTokens: 0,
+                                        totalTokens: record.estimatedInput
+                                    }))
+                                :   []
+                        }
                     },
                     timestamp: Date.now(),
                     senderInstanceId: 'leader'
@@ -273,6 +287,41 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             }
         });
 
+        await t.test('follower requests and remote results preserve request key identity', async () => {
+            const timestamp = Date.now();
+            const pending: UsagesPendingRecord = {
+                requestId: 'key-pending',
+                timestamp,
+                isoTime: new Date(timestamp).toISOString(),
+                providerKey: 'test',
+                providerName: 'Test',
+                modelId: 'test',
+                modelName: 'Test',
+                estimatedInput: 10,
+                status: 'estimated',
+                rawUsage: null,
+                apiKeyHash: 'a'.repeat(64),
+                apiKeyName: 'Follower Key'
+            };
+            const localExecutionsBefore = localExecutions;
+            returnPendingRecords = true;
+            try {
+                for (const name of ['Follower Key', '名'.repeat(2049), '名'.repeat(8192)]) {
+                    pending.apiKeyName = name;
+                    const result = await coordinator.run({ kind: 'recentRecords', limit: 3 }, [pending]);
+                    const sent = remoteRequestEvents.at(-1)?.payload.pendingRecords;
+                    assert.equal(sent?.[0].apiKeyHash, pending.apiKeyHash);
+                    assert.equal(sent?.[0].apiKeyName, pending.apiKeyName);
+                    assert.equal(result.length, 1);
+                    assert.equal(result[0].apiKeyHash, pending.apiKeyHash);
+                    assert.equal(result[0].apiKeyName, pending.apiKeyName);
+                    assert.equal(localExecutions, localExecutionsBefore);
+                }
+            } finally {
+                returnPendingRecords = false;
+            }
+        });
+
         isLeader = true;
         await handlers.get('usagesQueryRequested')?.({
             type: 'usagesQueryRequested',
@@ -358,7 +407,9 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             estimatedInput: 10,
             status: 'estimated',
             rawUsage: null,
-            sessionTitle: '本窗标题'
+            sessionTitle: '本窗标题',
+            apiKeyHash: 'b'.repeat(64),
+            apiKeyName: 'Leader Received Key'
         };
         const request: UsagesQueryRequestedEvent = {
             type: 'usagesQueryRequested',

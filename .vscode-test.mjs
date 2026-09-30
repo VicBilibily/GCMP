@@ -2,6 +2,7 @@ import { defineConfig } from '@vscode/test-cli';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
 
 function resolveVSCodeExecutablePath() {

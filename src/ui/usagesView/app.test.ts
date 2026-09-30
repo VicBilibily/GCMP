@@ -22,6 +22,7 @@ class TestElement {
     id = '';
     className = '';
     textContent = '';
+    title = '';
     scrollLeft = 0;
     scrollTop = 0;
     readonly dataset: Record<string, string> = {};
@@ -638,10 +639,29 @@ test('request records render output duration and average speed in static and tot
         const rows = table.querySelector('tbody')!.children;
         return {
             header: table.querySelector('thead')!.children[0].children[3].innerHTML,
+            providerModel: rows[0].children[1],
             output: rows[0].children[3].innerHTML,
             total: rows[1].children[3].innerHTML
         };
     };
+
+    await context.test('request rows show only the captured API key name', () => {
+        const apiKeyHash = '0123456789abcdef';
+        const named = render({ apiKeyName: '  Primary Key  ', apiKeyHash }).providerModel;
+        const namedKey = named.children[0].children[1];
+        assert.equal(namedKey.className, 'prov-model-key');
+        assert.equal(namedKey.textContent, 'Primary Key');
+        assert.equal(namedKey.title, 'Primary Key');
+        assert.equal(named.textContent.includes(apiKeyHash), false);
+        assert.equal(namedKey.title.includes(apiKeyHash), false);
+
+        for (const apiKeyName of [undefined, '', '   ']) {
+            const unnamed = render({ apiKeyName, apiKeyHash }).providerModel.children[0].children[1];
+            assert.equal(unnamed.className, 'prov-model-key');
+            assert.equal(unnamed.textContent, '');
+            assert.equal(unnamed.title, '');
+        }
+    });
 
     for (const lang of ['zh-CN', 'en']) {
         await context.test(`static and total output labels match their values in ${lang}`, () => {

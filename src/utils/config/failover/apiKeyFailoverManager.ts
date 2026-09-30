@@ -22,6 +22,7 @@ const FAILOVER_ROTATION_SETTLE_MS = 100;
 export interface ApiKeyFailoverAttempt {
     activeId: string;
     apiKey: string;
+    apiKeyName?: string;
     identity: string;
     site?: string;
 }
@@ -42,6 +43,7 @@ interface ResolvedConfigPool {
     current: KeyedConfigSetItem;
     candidates: KeyedConfigSetItem[];
     currentSite?: string;
+    currentApiKeyName?: string;
 }
 
 interface LeaderRotationResult {
@@ -438,6 +440,7 @@ export class ApiKeyFailoverManager {
             return {
                 activeId: pool.current.item.id,
                 apiKey: pool.current.apiKey,
+                apiKeyName: pool.currentApiKeyName,
                 identity: this.getIdentity(pool.current.item.id, pool.current.apiKey, pool.currentSite),
                 site: pool.currentSite
             };
@@ -749,7 +752,11 @@ export class ApiKeyFailoverManager {
             seenCredentialIdentities.add(credentialIdentity);
             return true;
         });
-        return candidates.length >= 2 ? { current, candidates, currentSite } : undefined;
+        const currentApiKeyName =
+            current === marked || keyedItems.filter(matchesCurrent).length === 1 ?
+                current.item.label.trim() || undefined
+            :   undefined;
+        return candidates.length >= 2 ? { current, candidates, currentSite, currentApiKeyName } : undefined;
     }
 
     private static findNextCandidate(

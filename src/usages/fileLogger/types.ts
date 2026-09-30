@@ -146,6 +146,10 @@ export interface TokenRequestLog {
     providerKey: string;
     /** 提供商显示名 */
     providerName: string;
+    /** 实际请求密钥的完整 SHA-256；旧日志或未派发请求可缺失。 */
+    apiKeyHash?: string;
+    /** 配置名称的请求时快照，不随后续改名回填。 */
+    apiKeyName?: string;
     /** 模型ID */
     modelId: string;
     /** 模型名称 */

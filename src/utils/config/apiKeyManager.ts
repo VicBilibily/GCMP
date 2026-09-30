@@ -21,6 +21,7 @@ export class ApiKeyManager {
     private static context: vscode.ExtensionContext;
     private static builtinProviders: Set<string> | null = null;
     private static requestApiKeySnapshots = new WeakMap<object, string>();
+    private static requestApiKeyHashes = new WeakMap<object, string>();
 
     /** 本实例内 API Key 变更事件（跨实例事件走 InterInstanceBus.publish） */
     private static _onDidChangeApiKey = new vscode.EventEmitter<{
@@ -113,7 +114,37 @@ export class ApiKeyManager {
 
     static async getApiKeyForRequest(provider: string, target?: object): Promise<string | undefined> {
         const snapshot = target ? this.requestApiKeySnapshots.get(target) : undefined;
-        return snapshot ?? (await this.getApiKey(provider));
+        const apiKey = snapshot ?? (await this.getApiKey(provider));
+        if (target) {
+            if (apiKey) {
+                this.requestApiKeyHashes.set(target, crypto.createHash('sha256').update(apiKey).digest('hex'));
+            } else {
+                this.requestApiKeyHashes.delete(target);
+            }
+        }
+        return apiKey;
+    }
+
+    static getRequestApiKeyHash(target: object): string | undefined {
+        return this.requestApiKeyHashes.get(target);
+    }
+
+    static validateRequestApiKeyHash(target: object | undefined, apiKey: string, customHeaders: CustomHeaders): void {
+        if (!target) {
+            return;
+        }
+        for (const [name, value] of Object.entries(customHeaders)) {
+            const header = name.toLowerCase();
+            if (!['authorization', 'x-api-key', 'api-key', 'x-goog-api-key'].includes(header)) {
+                continue;
+            }
+            const credential = header === 'authorization' ? value?.replace(/^Bearer\s+/i, '') : value;
+            if (credential !== apiKey) {
+                // 不猜测服务端在多个鉴权头之间的优先级。
+                this.requestApiKeyHashes.delete(target);
+                return;
+            }
+        }
     }
 
     static notifyApiKeyConfigurationChanged(provider: string): void {

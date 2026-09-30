@@ -13,6 +13,8 @@ export interface LiveStreamMetricEvent {
     requestStartTime: number;
     providerName: string;
     modelName: string;
+    apiKeyHash?: string;
+    apiKeyName?: string;
     /** 限流等待范围：leader=本实例权威桶，local=本地降级桶，ipc=远端权威桶回执后的本地等待 */
     waitScope?: RateLimitWaitScope;
     queuePosition?: number;
@@ -83,25 +85,29 @@ export function setCrossInstanceBroadcaster(broadcaster: CrossInstanceBroadcaste
 }
 
 export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
-    applyLiveMetricsEvent(event, false);
+    const applied = applyLiveMetricsEvent(event, false);
+    if (!applied) {
+        return;
+    }
 
     // 跨实例广播：高频事件走 IPC-only 通道，失败即丢弃，不阻塞本地 listener
     if (crossInstanceBroadcaster) {
         try {
-            crossInstanceBroadcaster(event);
+            crossInstanceBroadcaster(applied);
         } catch (error) {
             console.warn('[LiveMetrics] cross-instance broadcast failed:', error);
         }
     }
 
-    notifyListeners(event);
+    notifyListeners(applied);
 }
 
 export function receiveRemoteLiveMetrics(event: LiveStreamMetricEvent, sourceInstanceId?: string): void {
-    if (!applyLiveMetricsEvent(event, true, sourceInstanceId)) {
+    const applied = applyLiveMetricsEvent(event, true, sourceInstanceId);
+    if (!applied) {
         return;
     }
-    notifyListeners(event);
+    notifyListeners(applied);
 }
 
 export function clearRemoteLiveMetrics(sourceInstanceId?: string): void {
@@ -178,29 +184,47 @@ export function syncRemoteLiveMetricsSnapshot(
     }
 
     for (const entry of nextEntries.values()) {
-        if (!applyLiveMetricsEvent(entry.event, true, entry.sourceInstanceId)) {
+        const applied = applyLiveMetricsEvent(entry.event, true, entry.sourceInstanceId);
+        if (!applied) {
             continue;
         }
-        notifyListeners(entry.event);
+        notifyListeners(applied);
     }
 }
 
-function applyLiveMetricsEvent(event: LiveStreamMetricEvent, remote: boolean, sourceInstanceId?: string): boolean {
+function applyLiveMetricsEvent(
+    event: LiveStreamMetricEvent,
+    remote: boolean,
+    sourceInstanceId?: string
+): LiveStreamMetricEvent | undefined {
     // 快照更新 — 无论是否有 listener 都必须执行，否则面板未打开时无法缓存
     const existing = activeMetrics.get(event.requestId);
     if (remote && existing && !existing.remote) {
-        return false;
+        return undefined;
+    }
+    const sameSource = existing?.remote === remote && existing.sourceInstanceId === sourceInstanceId;
+    if (sameSource && event.type !== 'streamEnd' && event.requestStartTime < existing.event.requestStartTime) {
+        return undefined;
     }
     if (event.type === 'streamEnd') {
         activeMetrics.delete(event.requestId);
     } else {
+        if (
+            sameSource &&
+            existing.event.requestStartTime === event.requestStartTime &&
+            (event.type === 'firstChunk' || event.type === 'streamingUpdate') &&
+            event.apiKeyHash === undefined &&
+            event.apiKeyName === undefined
+        ) {
+            event = { ...event, apiKeyHash: existing.event.apiKeyHash, apiKeyName: existing.event.apiKeyName };
+        }
         activeMetrics.set(event.requestId, {
             event,
             remote,
             sourceInstanceId: remote ? sourceInstanceId : undefined
         });
     }
-    return true;
+    return event;
 }
 
 function notifyListeners(event: LiveStreamMetricEvent): void {

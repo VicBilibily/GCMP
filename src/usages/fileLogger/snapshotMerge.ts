@@ -6,6 +6,8 @@ export interface SnapshotRequestRecord {
     isoTime: string;
     providerKey: string;
     providerName: string;
+    apiKeyHash?: string;
+    apiKeyName?: string;
     modelId: string;
     modelName: string;
     estimatedInput: number;
@@ -99,6 +101,8 @@ export function mergeSnapshotRecord(
     return {
         ...fallbackRecord,
         ...preferredRecord,
+        apiKeyHash: preferredRecord.apiKeyHash,
+        apiKeyName: preferredRecord.apiKeyName,
         timestamp: Math.min(baseRecord.timestamp, overlayRecord.timestamp),
         isoTime: overlayRecord.timestamp < baseRecord.timestamp ? overlayRecord.isoTime : baseRecord.isoTime,
         status: preferredRecord.status,

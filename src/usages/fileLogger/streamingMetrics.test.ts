@@ -1,5 +1,6 @@
 ﻿import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -53,6 +54,7 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
                 const internals = logger as unknown as {
                     pathManager: import('./logPathManager').LogPathManager;
+                    snapshotManager: import('./snapshotManager').SnapshotManager;
                     finalizingRequestIds: Set<string>;
                     updateStreamingMetrics(event: LiveStreamMetricEvent): void;
                     refreshCurrentStats(): void;
@@ -73,6 +75,17 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 });
                 const pending = logger.getPendingLogs()[0];
                 assert.ok(pending);
+                const apiKeyHash = createHash('sha256').update('request-key-a').digest('hex');
+                const requestStarted = {
+                    type: 'requestStarted' as const,
+                    requestId,
+                    requestStartTime,
+                    providerName: 'Test',
+                    modelName: 'Test',
+                    apiKeyHash,
+                    apiKeyName: '请求时的配置名称'
+                };
+                internals.updateStreamingMetrics(requestStarted);
                 let now = streamStartTime;
                 const tracker = new LiveMetricsTracker({
                     requestId,
@@ -121,6 +134,12 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 assert.equal(pending.streamEndTime, streamEndTime);
                 if (finishOrder === 'during') {
                     tracker.finishMetrics();
+                    internals.updateStreamingMetrics({
+                        ...requestStarted,
+                        requestStartTime: streamEndTime + 1,
+                        apiKeyHash: createHash('sha256').update('request-key-b').digest('hex'),
+                        apiKeyName: '不应覆盖的名称'
+                    });
                 }
                 releaseWrite();
                 await terminalWrite;
@@ -138,6 +157,28 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 assert.equal(saved.streamEndTime, streamEndTime);
                 assert.deepEqual(saved.rawUsage, rawUsage);
                 assert.equal(saved.estimatedCost, 0.125);
+                assert.equal(saved.apiKeyHash, apiKeyHash);
+                assert.equal(saved.apiKeyName, requestStarted.apiKeyName);
+                const date = DateUtils.formatDate(new Date(saved.timestamp));
+                const merged = (await logger.getRequestDetails(date)).find(record => record.requestId === requestId);
+                assert.equal(merged?.apiKeyHash, apiKeyHash);
+                assert.equal(merged?.apiKeyName, requestStarted.apiKeyName);
+                const rawLog = await readFile(
+                    internals.pathManager.getLogPathFromDate(new Date(saved.timestamp)).fullPath,
+                    'utf8'
+                );
+                assert.equal(rawLog.includes('request-key-a'), false);
+                assert.equal(rawLog.includes('request-key-b'), false);
+                await internals.snapshotManager.buildSnapshotFromLogs(date, [saved]);
+                const snapshotText = await readFile(join(dir, 'usages', date, 'requests.jsonl'), 'utf8');
+                assert.equal(snapshotText.includes(apiKeyHash), true);
+                assert.equal(snapshotText.includes(requestStarted.apiKeyName), true);
+                assert.equal(snapshotText.includes('request-key-a'), false);
+                assert.equal((await internals.snapshotManager.readRecord(date, requestId))?.apiKeyHash, apiKeyHash);
+                assert.equal(
+                    (await internals.snapshotManager.readRecord(date, requestId))?.apiKeyName,
+                    requestStarted.apiKeyName
+                );
                 const usage = UsageParser.parseFromLog(saved);
                 assert.equal(usage.streamDuration, 1000);
                 assert.equal(usage.outputTokens, 100);
@@ -151,4 +192,81 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
             }
         });
     }
+}
+
+for (const scenario of ['later-attempt', 'same-millisecond', 'unknown-key', 'unknown-name'] as const) {
+    test(`request key hash follows ${scenario} without retaining a stale key`, async context => {
+        const dir = await mkdtemp(join(tmpdir(), 'gcmp-request-key-hash-'));
+        const restoreHost = mockLoggerHost();
+        let logger: import('./index').TokenFileLogger | undefined;
+        try {
+            const { TokenFileLogger } = await import('./index');
+            logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
+            const internals = logger as unknown as {
+                snapshotManager: import('./snapshotManager').SnapshotManager;
+                updateStreamingMetrics(event: LiveStreamMetricEvent): void;
+                refreshCurrentStats(): void;
+            };
+            context.mock.method(internals, 'refreshCurrentStats', () => {});
+            const timestamp = Date.now();
+            const requestId = `key-hash-${scenario}`;
+            await logger.recordEstimatedTokens({
+                requestId,
+                providerKey: 'test',
+                providerName: 'Test',
+                modelId: 'test',
+                modelName: 'Test',
+                estimatedInput: 10,
+                timestamp
+            });
+            const legacyRecords = await logger.readDateLogs(DateUtils.formatDate(new Date(timestamp)));
+            assert.equal(legacyRecords[0].apiKeyHash, undefined);
+            assert.equal(legacyRecords[0].apiKeyName, undefined);
+            const first = {
+                type: 'requestStarted' as const,
+                requestId,
+                requestStartTime: timestamp,
+                providerName: 'Test',
+                modelName: 'Test',
+                apiKeyHash: createHash('sha256').update('first-key').digest('hex'),
+                apiKeyName: '首次配置'
+            };
+            internals.updateStreamingMetrics(first);
+            assert.equal(logger.getPendingLogs()[0].apiKeyHash, first.apiKeyHash);
+            assert.equal(logger.getPendingLogs()[0].apiKeyName, first.apiKeyName);
+            const next = {
+                ...first,
+                requestStartTime: scenario === 'same-millisecond' ? timestamp : timestamp + 1,
+                apiKeyHash:
+                    scenario === 'unknown-key' ? undefined : createHash('sha256').update('next-key').digest('hex'),
+                apiKeyName: scenario === 'unknown-key' || scenario === 'unknown-name' ? undefined : '下一配置'
+            };
+            internals.updateStreamingMetrics(next);
+            internals.updateStreamingMetrics({ ...first, requestStartTime: timestamp - 1 });
+            assert.equal(logger.getPendingLogs()[0].apiKeyHash, next.apiKeyHash);
+            assert.equal(logger.getPendingLogs()[0].apiKeyName, next.apiKeyName);
+            await logger.updateActualTokens({
+                requestId,
+                status: 'completed',
+                rawUsage: { prompt_tokens: 10, completion_tokens: 5 }
+            });
+            const saved = (await logger.readDateLogs(DateUtils.formatDate(new Date(timestamp)))).find(
+                record => record.requestId === requestId && record.status === 'completed'
+            );
+            assert.ok(saved);
+            assert.equal(saved.apiKeyHash, next.apiKeyHash);
+            assert.equal(saved.apiKeyName, next.apiKeyName);
+            const date = DateUtils.formatDate(new Date(saved.timestamp));
+            await internals.snapshotManager.buildSnapshotFromLogs(date, legacyRecords);
+            assert.equal((await internals.snapshotManager.readRecord(date, requestId))?.apiKeyHash, undefined);
+            assert.equal((await internals.snapshotManager.readRecord(date, requestId))?.apiKeyName, undefined);
+            await internals.snapshotManager.upsertRecord(date, saved);
+            assert.equal((await internals.snapshotManager.readRecord(date, requestId))?.apiKeyHash, next.apiKeyHash);
+            assert.equal((await internals.snapshotManager.readRecord(date, requestId))?.apiKeyName, next.apiKeyName);
+        } finally {
+            await logger?.dispose();
+            restoreHost();
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
 }

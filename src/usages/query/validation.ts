@@ -10,6 +10,7 @@ const INITIAL_RECORDS_PAGE_SIZE = 20;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PENDING_RECORDS = 100;
 const MAX_PENDING_BYTES = 256 * 1024;
+const MAX_API_KEY_NAME_LENGTH = 8192;
 const SESSION_RECOVERY_SOURCES = new Set<SessionRecoverySource>([
     'stateful-marker',
     'trace-bridge',
@@ -238,17 +239,28 @@ function normalizePendingRecord(value: unknown): UsagesPendingRecord | undefined
     for (const key of [
         'sessionId',
         'sessionTitle',
+        'apiKeyName',
         'requestKind',
         'requestInitiator',
         'capturingTokenCorrelationId'
     ] as const) {
         const text = entry[key];
         if (text !== undefined) {
-            if (typeof text !== 'string' || text.length > (key === 'sessionTitle' ? 2048 : 512)) {
+            const maxLength =
+                key === 'apiKeyName' ? MAX_API_KEY_NAME_LENGTH
+                : key === 'sessionTitle' ? 2048
+                : 512;
+            if (typeof text !== 'string' || text.length > maxLength) {
                 return undefined;
             }
             record[key] = text;
         }
+    }
+    if (!isOptionalApiKeyHash(entry.apiKeyHash)) {
+        return undefined;
+    }
+    if (entry.apiKeyHash !== undefined) {
+        record.apiKeyHash = entry.apiKeyHash;
     }
     for (const key of [
         'estimatedIncrement',
@@ -314,6 +326,10 @@ function isOptionalString(value: unknown, maxLength = 2048): boolean {
     return value === undefined || (typeof value === 'string' && value.length <= maxLength);
 }
 
+function isOptionalApiKeyHash(value: unknown): value is string | undefined {
+    return value === undefined || (typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value));
+}
+
 function isExtendedRecord(value: unknown): boolean {
     if (!isRecord(value)) {
         return false;
@@ -360,14 +376,18 @@ function isExtendedRecord(value: unknown): boolean {
     for (const key of [
         'sessionId',
         'sessionTitle',
+        'apiKeyName',
         'requestKind',
         'requestInitiator',
         'capturingTokenCorrelationId',
         'sessionRecoverySource'
     ] as const) {
-        if (!isOptionalString(value[key])) {
+        if (!isOptionalString(value[key], key === 'apiKeyName' ? MAX_API_KEY_NAME_LENGTH : undefined)) {
             return false;
         }
+    }
+    if (!isOptionalApiKeyHash(value.apiKeyHash)) {
+        return false;
     }
     if (value.wasThrottled !== undefined && typeof value.wasThrottled !== 'boolean') {
         return false;

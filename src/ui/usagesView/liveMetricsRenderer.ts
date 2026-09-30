@@ -18,6 +18,7 @@ import { formatDuration, getLiveWaitingPresentation, getTodayDateString, t } fro
  */
 interface LiveMetricsState extends LiveRequestUiState {
     attemptStartTime: number; // 当前 attempt 开始时间（live TTFT 计算）
+    apiKeyName?: string;
     streamStartTime?: number; // 当前 attempt 首流事件时间
     streamEndTime?: number; // 来源端结束流式指标采集的时间
     firstChunkLatencyMs: number; // 当前 attempt 固定的首流延迟
@@ -82,6 +83,10 @@ export class LiveMetricsRenderer {
                         event.lastFlushSeq !== undefined &&
                         event.lastFlushSeq < current.lastFlushSeq)
                 ) {
+                    if (event.type === 'requestStarted') {
+                        current.apiKeyName = event.apiKeyName?.trim() || undefined;
+                        this.render();
+                    }
                     return;
                 }
             }
@@ -238,6 +243,7 @@ export class LiveMetricsRenderer {
     private createEmptyLiveMetricsState(event: LiveStreamMetricEvent): LiveMetricsState {
         return {
             attemptStartTime: event.requestStartTime,
+            apiKeyName: event.apiKeyName?.trim() || undefined,
             firstChunkLatencyMs: 0,
             estimatedOutputTokens: 0,
             lastOutputTokenDelta: 0,
@@ -283,6 +289,9 @@ export class LiveMetricsRenderer {
         waitingEvent?: Pick<LiveStreamMetricEvent, 'waitScope' | 'queuePosition'>
     ): void {
         state.attemptStartTime = event.requestStartTime;
+        if (event.type === 'requestStarted' || event.apiKeyHash !== undefined || event.apiKeyName !== undefined) {
+            state.apiKeyName = event.apiKeyName?.trim() || undefined;
+        }
         state.isRateLimitWaiting = waitingEvent !== undefined;
         state.waitScope = waitingEvent?.waitScope;
         state.queuePosition = waitingEvent?.queuePosition;
@@ -396,6 +405,12 @@ export class LiveMetricsRenderer {
                     this.rowCache.delete(requestId);
                 }
                 return;
+            }
+
+            const apiKeyName = targetRow.querySelector('.prov-model-key') as HTMLElement | null;
+            if (apiKeyName) {
+                apiKeyName.textContent = metricState.apiKeyName ?? '';
+                apiKeyName.title = metricState.apiKeyName ?? '';
             }
 
             const isEnded = metricState.endedAt !== undefined;

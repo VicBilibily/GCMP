@@ -4,7 +4,7 @@ import type { LiveMetricsRendererDeps } from './liveMetricsRenderer';
 import { LiveMetricsRenderer } from './liveMetricsRenderer';
 import type { NativeCostSplit } from '../../usages/fileLogger/types';
 import type { State } from './types';
-import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
+import { emitLiveMetrics, getActiveMetricsSnapshot, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { LiveMetricsTracker } from '../../handlers/liveMetricsTracker';
 
 interface TestTextNode {
@@ -37,7 +37,7 @@ interface TestRow {
     dataset: { requestId: string };
     lastElementChild: TestStatusCell;
     getAttribute(name: string): string | null;
-    querySelector(selector: string): TestOutputCell | null;
+    querySelector(selector: string): TestOutputCell | TestTextNode | null;
 }
 
 interface TestTBody {
@@ -101,6 +101,7 @@ function createOutputCell() {
 }
 
 function createRendererDom(requestId: string) {
+    const apiKeyName = createTextNode();
     const statusLabel = createTextNode();
     const statusCell = {
         classList: createClassList(['status-estimated']),
@@ -123,7 +124,10 @@ function createRendererDom(requestId: string) {
             return null;
         },
         querySelector(selector: string) {
-            return selector === 'td.records-output-merged[data-metric="output"]' ? outputCell : null;
+            if (selector === 'td.records-output-merged[data-metric="output"]') {
+                return outputCell;
+            }
+            return selector === '.prov-model-key' ? apiKeyName : null;
         }
     };
     const tbody = {
@@ -144,7 +148,7 @@ function createRendererDom(requestId: string) {
     };
     Reflect.set(globalThis, 'document', documentStub);
 
-    return { row, statusCell, statusLabel, outputCell };
+    return { row, statusCell, statusLabel, outputCell, apiKeyName };
 }
 
 function createEmptyNativeCostSplit(): NativeCostSplit {
@@ -282,6 +286,37 @@ test('LiveMetricsRenderer switches status label between WAIT and ACTIVE', () => 
     assert.equal(statusCell.classList.contains('status-estimated'), true);
 });
 
+test('LiveMetricsRenderer updates and clears the API key name across attempts', () => {
+    const { apiKeyName } = createRendererDom('req-key-name');
+    const renderer = new LiveMetricsRenderer(createRendererDeps());
+
+    renderer.handleEvent({
+        type: 'requestStarted',
+        requestId: 'req-key-name',
+        requestStartTime: 1000,
+        providerName: 'GCMP',
+        modelName: 'test-model',
+        apiKeyHash: 'not-visible',
+        apiKeyName: 'Primary Key'
+    });
+
+    assert.equal(apiKeyName.textContent, 'Primary Key');
+    assert.equal(apiKeyName.title, 'Primary Key');
+    assert.equal(apiKeyName.textContent.includes('not-visible'), false);
+
+    renderer.handleEvent({
+        type: 'requestStarted',
+        requestId: 'req-key-name',
+        requestStartTime: 2000,
+        providerName: 'GCMP',
+        modelName: 'test-model',
+        apiKeyHash: 'still-not-visible'
+    });
+
+    assert.equal(apiKeyName.textContent, '');
+    assert.equal(apiKeyName.title, '');
+});
+
 test('LiveMetricsRenderer switches status to PACE when pacing wait has no queue position', () => {
     const { statusCell, statusLabel, outputCell } = createRendererDom('req-2');
     const renderer = new LiveMetricsRenderer(createRendererDeps());
@@ -352,6 +387,85 @@ function createClockFixture(context: TestContext) {
         }
     };
 }
+
+for (const type of ['firstChunk', 'streamingUpdate'] as const) {
+    test(`opening a live page after ${type} restores the recorded key name from its snapshot`, context => {
+        const { renderer, dom, event } = createClockFixture(context);
+        const started = {
+            ...event,
+            type: 'requestStarted' as const,
+            apiKeyHash: 'a'.repeat(64),
+            apiKeyName: 'Recorded Key'
+        };
+        context.after(() => emitLiveMetrics({ ...event, type: 'streamEnd' }));
+        emitLiveMetrics(started);
+        emitLiveMetrics({ ...event, type });
+        dom.apiKeyName.textContent = started.apiKeyName;
+        dom.apiKeyName.title = started.apiKeyName;
+        const snapshot = getActiveMetricsSnapshot().find(item => item.requestId === event.requestId);
+        assert.ok(snapshot);
+        renderer.handleEvent(snapshot);
+        assert.equal(dom.apiKeyName.textContent, started.apiKeyName);
+        assert.equal(dom.apiKeyName.title, started.apiKeyName);
+        dom.row.isConnected = false;
+        const replacement = createRendererDom(event.requestId);
+        renderer.render();
+        assert.equal(replacement.apiKeyName.textContent, started.apiKeyName);
+        assert.equal(replacement.apiKeyName.title.includes(started.apiKeyHash), false);
+    });
+}
+
+for (const name of ['Recovered Key', undefined]) {
+    test(`same-attempt streaming snapshots ${name ? 'restore' : 'clear'} the key name`, context => {
+        const { renderer, dom, event } = createClockFixture(context);
+        renderer.handleEvent({ ...event, apiKeyName: 'Previous Key' });
+        renderer.handleEvent({ ...event, apiKeyHash: 'b'.repeat(64), apiKeyName: name, lastFlushSeq: 5 });
+        assert.equal(dom.apiKeyName.textContent, name ?? '');
+        assert.equal(dom.apiKeyName.title, name ?? '');
+    });
+}
+
+for (const identity of ['known', 'unknown-name', 'unknown-key'] as const) {
+    test(`same-millisecond requestStarted replaces ${identity} key identity without resetting progress`, context => {
+        const { renderer, dom, event } = createClockFixture(context);
+        const started = {
+            ...event,
+            type: 'requestStarted' as const,
+            apiKeyHash: 'a'.repeat(64),
+            apiKeyName: 'First Key'
+        };
+        renderer.handleEvent(started);
+        renderer.handleEvent(event);
+        renderer.handleEvent({
+            ...started,
+            apiKeyHash: identity === 'unknown-key' ? undefined : 'b'.repeat(64),
+            apiKeyName: identity === 'known' ? 'Next Key' : undefined
+        });
+        const expectedName = identity === 'known' ? 'Next Key' : '';
+        assert.equal(dom.apiKeyName.textContent, expectedName);
+        assert.equal(dom.apiKeyName.title, expectedName);
+        assert.equal(dom.outputCell.tokens.textContent, '+25 tks');
+        assert.equal(dom.outputCell.duration.textContent, '8.0s');
+        renderer.handleEvent({ ...started, requestStartTime: 500 });
+        assert.equal(dom.apiKeyName.textContent, expectedName);
+        dom.row.dataset.requestStatus = 'completed';
+        dom.apiKeyName.textContent = 'Terminal Key';
+        renderer.render();
+        assert.equal(dom.apiKeyName.textContent, 'Terminal Key');
+    });
+}
+
+test('a duplicate named requestStarted cannot resume ended metrics', context => {
+    const { renderer, dom, event, frameCount } = createClockFixture(context);
+    const started = { ...event, type: 'requestStarted' as const, apiKeyName: 'Primary Key' };
+    renderer.handleEvent(started);
+    renderer.handleEvent(event);
+    renderer.handleEvent({ ...event, type: 'streamEnd' });
+    renderer.handleEvent(started);
+    assert.equal(dom.apiKeyName.textContent, 'Primary Key');
+    assert.equal(dom.statusLabel.textContent, 'SYNC');
+    assert.equal(frameCount(), 0);
+});
 
 test('live clocks advance without provider output and resume after a date switch', context => {
     const { renderer, deps, dom, event, advance, frameCount } = createClockFixture(context);

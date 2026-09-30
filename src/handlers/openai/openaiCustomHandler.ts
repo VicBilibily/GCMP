@@ -193,6 +193,7 @@ export class OpenAICustomHandler {
 
             // 处理合并后的 customHeader 中的 API 密钥替换
             const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey, sessionId);
+            ApiKeyManager.validateRequestApiKeyHash(modelConfig, apiKey, processedCustomHeader);
 
             // opencode 专有：传递请求级跟踪标识头
             if (this.provider === 'opencode') {
