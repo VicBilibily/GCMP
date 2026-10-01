@@ -66,6 +66,8 @@ export interface ApiKeyFailoverToggledEvent extends InterInstanceEventBase {
         slot: string;
         /** 是否启用自动故障切换 */
         enabled: boolean;
+        /** 三态切换模式（enabled 的精确化，旧事件可缺省） */
+        mode?: 'off' | 'failover' | 'balance';
     };
 }
 

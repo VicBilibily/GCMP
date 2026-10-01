@@ -18,8 +18,11 @@ export const API_KEY_FAILOVER_ERROR_THRESHOLD = 3;
 const FAILOVER_COORDINATION_TIMEOUT_MS = 10_000;
 const FAILOVER_FAILURE_WINDOW_MS = 10_000;
 const FAILOVER_ROTATION_SETTLE_MS = 100;
+// 隔离只对当前平衡单元生效，全池被隔离时仍允许回退。
+const BALANCE_EXCLUSION_TTL_MS = 5 * 60_000;
 
 export interface ApiKeyFailoverAttempt {
+    mode: 'failover' | 'balance';
     activeId: string;
     apiKey: string;
     apiKeyName?: string;
@@ -42,6 +45,7 @@ interface KeyedConfigSetItem {
 interface ResolvedConfigPool {
     current: KeyedConfigSetItem;
     candidates: KeyedConfigSetItem[];
+    keyedItems: KeyedConfigSetItem[];
     currentSite?: string;
     currentApiKeyName?: string;
 }
@@ -148,7 +152,7 @@ export class ApiKeyFailoverManager {
         if (!this.isCurrentLeaderTerm(payload.authorityTerm)) {
             return STOP_DECISION;
         }
-        if (!ConfigSetStore.isAutoSwitchEnabled(payload.slot)) {
+        if (ConfigSetStore.getSwitchMode(payload.slot) !== 'failover') {
             return STOP_DECISION;
         }
         const now = Date.now();
@@ -387,6 +391,41 @@ export class ApiKeyFailoverManager {
         ]);
     }
 
+    private static async handleBalanceFailure(
+        slot: string,
+        balanceKey: string,
+        attempt: ApiKeyFailoverAttempt,
+        consecutiveFailureCount: number
+    ): Promise<ApiKeyFailoverDecision> {
+        if (consecutiveFailureCount < API_KEY_FAILOVER_ERROR_THRESHOLD) {
+            return { handled: true, shouldRetry: true, switched: false };
+        }
+        try {
+            const recorded = await enqueueConfigSetMutation(async () => {
+                if (ConfigSetStore.getSwitchMode(slot) !== 'balance') {
+                    return false;
+                }
+                await ConfigSetStore.addBalanceExclusion(
+                    slot,
+                    balanceKey,
+                    this.getCredentialIdentity(attempt.apiKey, attempt.site),
+                    Date.now()
+                );
+                return true;
+            });
+            if (!recorded) {
+                return UNHANDLED_DECISION;
+            }
+            Logger.warn(
+                `[ApiKeyFailover] ${slot}: balance unit "${balanceKey}" excluded request credential from config "${attempt.activeId}" after ${consecutiveFailureCount} consecutive failures (recovers in 5 min)`
+            );
+        } catch (error) {
+            Logger.warn(`[ApiKeyFailover] Failed to record balance exclusion for ${slot}:`, error);
+            return STOP_DECISION;
+        }
+        return { handled: true, shouldRetry: true, switched: true };
+    }
+
     static getCandidateCountUpperBound(slot: string): number {
         return ConfigSetStore.isAutoSwitchEnabled(slot) ? ConfigSetStore.list(slot).length : 0;
     }
@@ -418,13 +457,17 @@ export class ApiKeyFailoverManager {
         });
     }
 
-    static async captureAttempt(slot: string): Promise<ApiKeyFailoverAttempt | undefined> {
-        if (!ConfigSetStore.isAutoSwitchEnabled(slot)) {
+    static async captureAttempt(slot: string, balanceKey?: string): Promise<ApiKeyFailoverAttempt | undefined> {
+        const mode = ConfigSetStore.getSwitchMode(slot);
+        if (mode === 'balance' && balanceKey) {
+            return await enqueueConfigSetMutation(async () => this.captureBalanceAttempt(slot, balanceKey));
+        }
+        if (mode !== 'failover') {
             return undefined;
         }
 
         return await enqueueConfigSetMutation(async () => {
-            if (!ConfigSetStore.isAutoSwitchEnabled(slot)) {
+            if (ConfigSetStore.getSwitchMode(slot) !== 'failover') {
                 return undefined;
             }
             const operationToken = ConfigSetStore.getApplyOperationToken(slot);
@@ -438,6 +481,7 @@ export class ApiKeyFailoverManager {
                 return undefined;
             }
             return {
+                mode: 'failover',
                 activeId: pool.current.item.id,
                 apiKey: pool.current.apiKey,
                 apiKeyName: pool.currentApiKeyName,
@@ -445,6 +489,75 @@ export class ApiKeyFailoverManager {
                 site: pool.currentSite
             };
         });
+    }
+
+    private static async captureBalanceAttempt(
+        slot: string,
+        balanceKey: string
+    ): Promise<ApiKeyFailoverAttempt | undefined> {
+        if (ConfigSetStore.getSwitchMode(slot) !== 'balance') {
+            return undefined;
+        }
+        const operationToken = ConfigSetStore.getApplyOperationToken(slot);
+        const pool = await this.resolveConfigPool(slot);
+        if (ConfigSetStore.getApplyOperationToken(slot) !== operationToken) {
+            throw new Error(
+                t('Configuration changed while capturing the request snapshot.', '读取请求快照时配置已变化。')
+            );
+        }
+        if (!pool) {
+            return undefined;
+        }
+        const now = Date.now();
+        const excludedCredentialIds = new Set(
+            ConfigSetStore.getBalanceExclusions(slot)
+                .filter(entry => entry.k === balanceKey && now - entry.at < BALANCE_EXCLUSION_TTL_MS)
+                .map(entry => entry.credentialId)
+        );
+        const balanceCandidates = new Map<string, KeyedConfigSetItem>();
+        for (const candidate of pool.keyedItems) {
+            const credentialId = this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite);
+            // 激活别名只替换组代表，不能改变该凭据组的哈希位置。
+            if (!balanceCandidates.has(credentialId) || candidate === pool.current) {
+                balanceCandidates.set(credentialId, candidate);
+            }
+        }
+        let candidates = [...balanceCandidates]
+            .filter(([credentialId]) => !excludedCredentialIds.has(credentialId))
+            .map(([, candidate]) => candidate);
+        if (candidates.length === 0) {
+            // 全部候选被隔离时回退完整池，隔离仅为 Advisory，不造成可用性空洞
+            candidates = [...balanceCandidates.values()];
+        }
+        const target = candidates[this.balanceIndex(balanceKey, candidates.length)]!;
+        const targetSite = target.item.site ?? pool.currentSite;
+        return {
+            mode: 'balance',
+            activeId: target.item.id,
+            apiKey: target.apiKey,
+            apiKeyName: this.resolveBalanceApiKeyName(pool, target),
+            identity: this.getCredentialIdentity(target.apiKey, targetSite),
+            site: targetSite
+        };
+    }
+
+    private static balanceIndex(balanceKey: string, length: number): number {
+        return parseInt(crypto.createHash('sha256').update(balanceKey).digest('hex').slice(0, 8), 16) % length;
+    }
+
+    /** 同凭据出现在多套配置时名称有歧义，与激活配置的名称规则保持一致 */
+    private static resolveBalanceApiKeyName(pool: ResolvedConfigPool, target: KeyedConfigSetItem): string | undefined {
+        if (target === pool.current) {
+            return pool.currentApiKeyName;
+        }
+        const targetCredential = this.getCredentialIdentity(target.apiKey, target.item.site ?? pool.currentSite);
+        const ambiguous = pool.keyedItems.some(
+            candidate =>
+                candidate !== target &&
+                this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite) ===
+                    targetCredential
+        );
+        return !ambiguous && target.item.label.trim() ? target.item.label.trim() : undefined;
     }
 
     static async handleFailure(
@@ -458,13 +571,23 @@ export class ApiKeyFailoverManager {
         authorityTerm?: string,
         failureRequestId?: string,
         canContinue?: () => boolean,
-        token?: vscode.CancellationToken
+        token?: vscode.CancellationToken,
+        balanceKey?: string
     ): Promise<ApiKeyFailoverDecision> {
         if (!attempt || !isApiKeyFailoverError(error)) {
             return UNHANDLED_DECISION;
         }
         if (token?.isCancellationRequested) {
             return STOP_DECISION;
+        }
+        if (ConfigSetStore.getSwitchMode(slot) !== attempt.mode) {
+            return UNHANDLED_DECISION;
+        }
+        if (attempt.mode === 'balance' && balanceKey) {
+            return await this.handleBalanceFailure(slot, balanceKey, attempt, consecutiveFailureCount);
+        }
+        if (attempt.mode !== 'failover') {
+            return UNHANDLED_DECISION;
         }
 
         const requestAuthorityTerm = this.getRequestAuthorityTerm();
@@ -573,7 +696,7 @@ export class ApiKeyFailoverManager {
     ): Promise<ApiKeyFailoverDecision> {
         try {
             return await enqueueConfigSetMutation(async () => {
-                if (!ConfigSetStore.isAutoSwitchEnabled(slot) || (canContinue && !canContinue())) {
+                if (ConfigSetStore.getSwitchMode(slot) !== 'failover' || (canContinue && !canContinue())) {
                     return STOP_DECISION;
                 }
 
@@ -756,7 +879,7 @@ export class ApiKeyFailoverManager {
             current === marked || keyedItems.filter(matchesCurrent).length === 1 ?
                 current.item.label.trim() || undefined
             :   undefined;
-        return candidates.length >= 2 ? { current, candidates, currentSite, currentApiKeyName } : undefined;
+        return candidates.length >= 2 ? { current, candidates, keyedItems, currentSite, currentApiKeyName } : undefined;
     }
 
     private static findNextCandidate(

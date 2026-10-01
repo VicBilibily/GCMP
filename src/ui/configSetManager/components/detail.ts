@@ -272,39 +272,66 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
     slotHead.appendChild(slotTitle);
 
     const slotActions = el('div', 'csm-slot-actions');
-    const failoverLabel = el(
-        'label',
-        `csm-auto-switch${slotState.autoSwitchEnabled ? ' csm-auto-switch-enabled' : ''}`
-    );
-    failoverLabel.title = t(
-        slotState.rows.length < 2 && !slotState.autoSwitchEnabled ?
-            'Add at least 2 saved configurations before enabling automatic failover.'
-        :   'When enabled, any request error counts toward failover. After 3 consecutive failures, activate the next saved configuration. User cancellation does not count or stop a switch already started.',
-        slotState.rows.length < 2 && !slotState.autoSwitchEnabled ?
-            '至少添加 2 套已保存配置后才能开启自动故障切换。'
-        :   '开启后，任意请求错误均计入连续失败，达到 3 次后激活下一套配置；主动取消不计入，也不阻止已开始的切换。'
-    );
-    const failoverInput = el('input') as HTMLInputElement;
-    failoverInput.type = 'checkbox';
-    failoverInput.setAttribute('aria-label', t('Enable automatic API key failover', '启用 API Key 自动故障切换'));
-    failoverInput.checked = slotState.autoSwitchEnabled;
-    failoverInput.disabled = state.busy || (slotState.rows.length < 2 && !slotState.autoSwitchEnabled);
-    failoverInput.addEventListener('change', () => {
-        clearMessage();
-        state.busy = true;
-        render();
-        postToVSCode({ command: 'setAutoSwitch', slot: slotState.slot, enabled: failoverInput.checked });
-    });
-    failoverLabel.appendChild(failoverInput);
-    failoverLabel.appendChild(el('span', '', t('Auto failover', '自动故障切换')));
-    failoverLabel.appendChild(
-        el(
-            'span',
-            slotState.autoSwitchEnabled ? 'csm-auto-switch-status csm-auto-switch-status-on' : 'csm-auto-switch-status',
-            slotState.autoSwitchEnabled ? t('ON', '已开启') : t('OFF', '未开启')
-        )
-    );
-    slotActions.appendChild(failoverLabel);
+    const switchTabs = el('div', 'csm-switch-tabs');
+    const switchModes: Array<{
+        mode: SlotState['switchMode'];
+        labelEn: string;
+        labelZh: string;
+        titleEn: string;
+        titleZh: string;
+    }> = [
+        {
+            mode: 'off',
+            labelEn: 'Off',
+            labelZh: '关闭',
+            titleEn: 'Switch configurations manually.',
+            titleZh: '仅手动切换配置。'
+        },
+        {
+            mode: 'failover',
+            labelEn: 'Failover',
+            labelZh: '故障切换',
+            titleEn:
+                'When enabled, any request error counts toward failover. After 3 consecutive failures, activate the next saved configuration. User cancellation does not count or stop a switch already started.',
+            titleZh:
+                '开启后，任意请求错误均计入连续失败，达到 3 次后激活下一套配置；主动取消不计入，也不阻止已开始的切换。'
+        },
+        {
+            mode: 'balance',
+            labelEn: 'Balance',
+            labelZh: '负载均衡',
+            titleEn:
+                'Distributes chat sessions and sub-agent sub-sessions across saved configurations by hash. A configuration that fails 3 times in a row is avoided by that unit for 5 minutes. Adding or removing configurations may re-map sessions to different keys.',
+            titleZh:
+                '按哈希把会话与子代理子会话分散到各套已保存配置；某单元连续失败 3 次的配置会被其回避 5 分钟后自动恢复；增删配置后会话可能重新映射到其他 Key。'
+        }
+    ];
+    for (const switchMode of switchModes) {
+        const tab = el(
+            'button',
+            `csm-switch-tab${slotState.switchMode === switchMode.mode ? ' csm-switch-tab-active' : ''}`,
+            t(switchMode.labelEn, switchMode.labelZh)
+        );
+        tab.type = 'button';
+        tab.title =
+            slotState.rows.length < 2 && slotState.switchMode === 'off' && switchMode.mode !== 'off' ?
+                t('Add at least 2 saved configurations first.', '请先添加至少 2 套已保存配置。')
+            :   t(switchMode.titleEn, switchMode.titleZh);
+        tab.disabled =
+            state.busy || (slotState.rows.length < 2 && slotState.switchMode === 'off' && switchMode.mode !== 'off');
+        tab.setAttribute('aria-pressed', slotState.switchMode === switchMode.mode ? 'true' : 'false');
+        tab.addEventListener('click', () => {
+            if (switchMode.mode === slotState.switchMode) {
+                return;
+            }
+            clearMessage();
+            state.busy = true;
+            render();
+            postToVSCode({ command: 'setSwitchMode', slot: slotState.slot, mode: switchMode.mode });
+        });
+        switchTabs.appendChild(tab);
+    }
+    slotActions.appendChild(switchTabs);
 
     const addBtn = el(
         'button',

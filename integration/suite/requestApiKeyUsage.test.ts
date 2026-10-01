@@ -150,6 +150,7 @@ suite('request API key usage identity', () => {
                 const originalCapture = ApiKeyFailoverManager.captureAttempt;
                 if (snapshot) {
                     ApiKeyFailoverManager.captureAttempt = async () => ({
+                        mode: 'failover',
                         activeId: 'bound-config',
                         apiKey: 'bound-request-key',
                         apiKeyName: '绑定配置',

@@ -53,6 +53,8 @@ export interface StreamReporterOptions {
     progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
     /** 会话 ID（可选，如果不提供则自动生成） */
     sessionId?: string;
+    /** 子会话 ID（可选，仅子代理请求传入，随 StatefulMarker 回写供下轮读回） */
+    subSessionId?: string;
     /** 请求 ID（可选，用于实时指标） */
     requestId?: string;
     /** 请求开始时间戳（可选，用于实时指标） */
@@ -104,6 +106,7 @@ export class StreamReporter {
     private readonly reportedToolCallIds = new Set<string>();
 
     private readonly sessionId: string;
+    private readonly subSessionId: string | undefined;
     private responseId: string | null = null;
     private hasToolCalls = false;
     private hasReceivedContent = false;
@@ -137,6 +140,7 @@ export class StreamReporter {
         this.sdkMode = options.sdkMode;
         this.progress = options.progress;
         this.sessionId = options.sessionId || crypto.randomUUID();
+        this.subSessionId = options.subSessionId;
         this.tracker = new LiveMetricsTracker({
             requestId: options.requestId,
             requestStartTime: options.requestStartTime,
@@ -561,6 +565,7 @@ export class StreamReporter {
             ...Object.assign(
                 {
                     sessionId: this.sessionId,
+                    subSessionId: this.subSessionId,
                     responseId: this.responseId
                 },
                 statefulMarkerData

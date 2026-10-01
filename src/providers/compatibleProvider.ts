@@ -379,6 +379,8 @@ export class CompatibleProvider extends GenericModelProvider {
                 maxInputTokens,
                 estimatedIncrement,
                 sessionId,
+                subSessionId,
+                balanceKey,
                 sessionRecoverySource
             } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
@@ -402,6 +404,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 maxInputTokens,
                 requestKind,
                 sessionId,
+                subSessionId,
                 sessionRecoverySource,
                 options
             });
@@ -424,7 +427,8 @@ export class CompatibleProvider extends GenericModelProvider {
                     },
                     () => {
                         wasThrottled = true;
-                    }
+                    },
+                    balanceKey
                 );
             } catch (error) {
                 if (isCancellationError(error)) {

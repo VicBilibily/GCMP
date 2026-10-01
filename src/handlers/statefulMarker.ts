@@ -40,6 +40,8 @@ export interface StatefulMarkerContainer {
     sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini';
     /** 会话ID，标识会话上下文 */
     sessionId: string;
+    /** 子代理会话ID（仅 search/execution-subagent 请求的 marker 携带），用于负载均衡粘滞与用量归属 */
+    subSessionId?: string;
     /** 响应ID，模型返回响应标识 */
     responseId: string;
     /** 需要跨轮次稳定回传的完整思考内容 */

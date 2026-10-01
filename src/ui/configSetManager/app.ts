@@ -188,12 +188,12 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
                 showMessage('info', msg.note);
             }
             return;
-        case 'autoSwitchResult':
+        case 'switchModeResult':
             state.busy = false;
             render();
             showMessage(
                 msg.ok ? 'info' : 'error',
-                msg.ok ? t('Automatic failover settings saved.', '自动故障切换设置已保存。') : msg.error
+                msg.ok ? t('Switch mode settings saved.', '切换模式设置已保存。') : msg.error
             );
             return;
         case 'editResult':

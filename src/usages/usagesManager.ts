@@ -252,6 +252,7 @@ export class TokenUsagesManager {
         maxInputTokens?: number;
         requestKind?: string;
         sessionId?: string;
+        subSessionId?: string;
         sessionRecoverySource?: SessionRecoverySource;
         sessionTitle?: string;
         requestInitiator?: string;
@@ -284,6 +285,7 @@ export class TokenUsagesManager {
                     maxInputTokens: params.maxInputTokens,
                     requestKind: params.requestKind,
                     sessionId: params.sessionId,
+                    subSessionId: params.subSessionId,
                     sessionRecoverySource: params.sessionRecoverySource,
                     sessionTitle: params.sessionTitle,
                     requestInitiator: params.requestInitiator,

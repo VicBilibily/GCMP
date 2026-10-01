@@ -146,6 +146,7 @@ export class OpenAIResponsesHandler {
                     sdkMode: 'openai-responses',
                     progress,
                     sessionId,
+                    subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
                     requestId,
                     requestStartTime: requestMetricStartTime,
                     onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)

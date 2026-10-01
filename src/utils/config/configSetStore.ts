@@ -27,6 +27,24 @@ export interface ConfigSetItem {
 }
 
 /**
+ * 配置集切换模式：
+ * - off：关闭自动切换
+ * - failover：故障切换（连续失败达阈值后全局轮换激活配置）
+ * - balance：负载均衡（按会话/子代理哈希分配 Key，失败 Key 按单元隔离后恢复）
+ */
+export type ConfigSetSwitchMode = 'off' | 'failover' | 'balance';
+
+/** 负载均衡模式下某平衡单元对请求凭据的隔离记录（TTL 由消费方判定） */
+export interface BalanceKeyExclusion {
+    /** 平衡键（s:{sessionId} 或 a:{subSessionId}） */
+    k: string;
+    /** 请求 Key 与站点的不可逆指纹 */
+    credentialId: string;
+    /** 隔离发生时间戳 */
+    at: number;
+}
+
+/**
  * 配置集存储（per-slot）
  */
 export class ConfigSetStore {
@@ -54,6 +72,16 @@ export class ConfigSetStore {
     private static autoSwitchKey(slot: string): string {
         return `configSets.autoSwitch.${slot}`;
     }
+
+    private static switchModeKey(slot: string): string {
+        return `configSets.switchMode.${slot}`;
+    }
+
+    private static balanceExclusionsKey(slot: string): string {
+        return `configSets.balanceExclusions.${slot}`;
+    }
+
+    private static readonly BALANCE_EXCLUSION_MAX = 500;
 
     private static applyOperationKey(slot: string): string {
         return `configSets.applyOperation.${slot}`;
@@ -172,12 +200,29 @@ export class ConfigSetStore {
         if (!this.context) {
             return false;
         }
-        return this.context.globalState.get<boolean>(this.autoSwitchKey(slot), false);
+        return this.getSwitchMode(slot) !== 'off';
     }
 
-    static async setAutoSwitchEnabled(slot: string, enabled: boolean, operationToken?: string): Promise<void> {
+    static getSwitchMode(slot: string): ConfigSetSwitchMode {
+        if (!this.context) {
+            return 'off';
+        }
+        const mode = this.context.globalState.get<ConfigSetSwitchMode>(this.switchModeKey(slot));
+        if (mode === 'failover' || mode === 'balance') {
+            return mode;
+        }
+        // 旧版本仅有布尔开关：启用即等价于故障切换模式
+        return this.context.globalState.get<boolean>(this.autoSwitchKey(slot), false) ? 'failover' : 'off';
+    }
+
+    static async setSwitchMode(slot: string, mode: ConfigSetSwitchMode, operationToken?: string): Promise<void> {
         const update = async (): Promise<void> => {
-            await this.context.globalState.update(this.autoSwitchKey(slot), enabled || undefined);
+            await this.context.globalState.update(this.switchModeKey(slot), mode === 'off' ? undefined : mode);
+            // 写入新模式即完成旧布尔键迁移，避免旧实例回读legacy值
+            await this.context.globalState.update(this.autoSwitchKey(slot), undefined);
+            if (mode !== 'balance') {
+                await this.context.globalState.update(this.balanceExclusionsKey(slot), undefined);
+            }
         };
         if (operationToken) {
             if (this.getApplyOperationToken(slot) !== operationToken) {
@@ -190,11 +235,42 @@ export class ConfigSetStore {
         try {
             InterInstanceBus.publish({
                 type: 'apiKeyFailoverToggled',
-                payload: { slot, enabled }
+                payload: { slot, enabled: mode !== 'off', mode }
             });
         } catch (error) {
-            Logger.warn(`[ConfigSetStore] Failed to publish automatic failover change for ${slot}:`, error);
+            Logger.warn(`[ConfigSetStore] Failed to publish switch mode change for ${slot}:`, error);
         }
+    }
+
+    static async setAutoSwitchEnabled(slot: string, enabled: boolean, operationToken?: string): Promise<void> {
+        await this.setSwitchMode(slot, enabled ? 'failover' : 'off', operationToken);
+    }
+
+    static getBalanceExclusions(slot: string): BalanceKeyExclusion[] {
+        if (!this.context) {
+            return [];
+        }
+        const value = this.context.globalState.get<BalanceKeyExclusion[]>(this.balanceExclusionsKey(slot));
+        // 旧记录只有配置 ID，无法还原失败时实际使用的凭据。
+        return Array.isArray(value) ? value.filter(entry => typeof entry?.credentialId === 'string') : [];
+    }
+
+    static async addBalanceExclusion(
+        slot: string,
+        balanceKey: string,
+        credentialId: string,
+        at: number
+    ): Promise<void> {
+        await this.enqueue(async () => {
+            const next = this.getBalanceExclusions(slot).filter(
+                entry => !(entry.k === balanceKey && entry.credentialId === credentialId)
+            );
+            next.push({ k: balanceKey, credentialId, at });
+            while (next.length > this.BALANCE_EXCLUSION_MAX) {
+                next.shift();
+            }
+            await this.context.globalState.update(this.balanceExclusionsKey(slot), next.length > 0 ? next : undefined);
+        });
     }
 
     static getApplyOperationToken(slot: string): string | undefined {

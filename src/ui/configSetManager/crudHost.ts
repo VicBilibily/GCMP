@@ -234,10 +234,10 @@ export class CrudHost {
         }
     }
 
-    async handleSetAutoSwitch(slot: string, enabled: boolean): Promise<void> {
+    async handleSetSwitchMode(slot: string, mode: 'off' | 'failover' | 'balance'): Promise<void> {
         if (!collectManagedSlots().some(entry => entry.slot === slot)) {
             this.ctx.post({
-                command: 'autoSwitchResult',
+                command: 'switchModeResult',
                 ok: false,
                 error: t('Provider slot not found', '提供商槽位不存在')
             });
@@ -246,15 +246,15 @@ export class CrudHost {
 
         try {
             const updated = await enqueueConfigSetMutation(async () => {
-                if (enabled && !(await ApiKeyFailoverManager.canEnableAutoSwitch(slot))) {
+                if (mode !== 'off' && !(await ApiKeyFailoverManager.canEnableAutoSwitch(slot))) {
                     return false;
                 }
-                await ConfigSetStore.setAutoSwitchEnabled(slot, enabled);
+                await ConfigSetStore.setSwitchMode(slot, mode);
                 return true;
             });
             if (!updated) {
                 this.ctx.post({
-                    command: 'autoSwitchResult',
+                    command: 'switchModeResult',
                     ok: false,
                     error: t(
                         'At least two saved API Key configurations are required, and the current key must match one of them.',
@@ -263,13 +263,13 @@ export class CrudHost {
                 });
                 return;
             }
-            Logger.info(`[ConfigSet] ${slot}: automatic API key failover ${enabled ? 'enabled' : 'disabled'}`);
-            await this.sendStatesAfterCommit('updating automatic API key failover');
-            this.ctx.post({ command: 'autoSwitchResult', ok: true });
+            Logger.info(`[ConfigSet] ${slot}: switch mode set to ${mode}`);
+            await this.sendStatesAfterCommit('updating switch mode');
+            this.ctx.post({ command: 'switchModeResult', ok: true, mode });
         } catch (error) {
-            Logger.error(`[ConfigSet] ${slot}: failed to update automatic API key failover:`, error);
+            Logger.error(`[ConfigSet] ${slot}: failed to update switch mode:`, error);
             this.ctx.post({
-                command: 'autoSwitchResult',
+                command: 'switchModeResult',
                 ok: false,
                 error: error instanceof Error ? error.message : String(error)
             });

@@ -646,14 +646,14 @@ suite('API key automatic failover', () => {
 
         const posts: unknown[] = [];
         const host = new CrudHost(createPanelContext(posts));
-        await host.handleSetAutoSwitch(slot, true);
-        assert.equal(ConfigSetStore.isAutoSwitchEnabled(slot), false);
-        assert.equal((posts.at(-1) as { command?: string; ok?: boolean }).command, 'autoSwitchResult');
+        await host.handleSetSwitchMode(slot, 'failover');
+        assert.equal(ConfigSetStore.getSwitchMode(slot), 'off');
+        assert.equal((posts.at(-1) as { command?: string; ok?: boolean }).command, 'switchModeResult');
         assert.equal((posts.at(-1) as { ok?: boolean }).ok, false);
 
         await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
-        await host.handleSetAutoSwitch(slot, true);
-        assert.equal(ConfigSetStore.isAutoSwitchEnabled(slot), true);
+        await host.handleSetSwitchMode(slot, 'failover');
+        assert.equal(ConfigSetStore.getSwitchMode(slot), 'failover');
 
         await host.handleRemove(slot, 'b');
         assert.equal(ConfigSetStore.isAutoSwitchEnabled(slot), false);

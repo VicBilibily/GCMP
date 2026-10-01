@@ -186,6 +186,8 @@ export class VolcengineProvider extends GenericModelProvider implements Language
             maxInputTokens,
             estimatedIncrement,
             sessionId,
+            subSessionId,
+            balanceKey,
             sessionRecoverySource,
             sdkMode
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
@@ -203,6 +205,7 @@ export class VolcengineProvider extends GenericModelProvider implements Language
             maxInputTokens,
             requestKind,
             sessionId,
+            subSessionId,
             sessionRecoverySource,
             options
         });
@@ -230,7 +233,8 @@ export class VolcengineProvider extends GenericModelProvider implements Language
                 },
                 () => {
                     wasThrottled = true;
-                }
+                },
+                balanceKey
             );
         } catch (error) {
             if (isCancellationError(error)) {

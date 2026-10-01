@@ -192,8 +192,8 @@ export class ConfigSetManagerPanel implements PanelContext {
                 case 'deactivate':
                     await this.crudHost.handleDeactivate(message.slot);
                     return;
-                case 'setAutoSwitch':
-                    await this.crudHost.handleSetAutoSwitch(message.slot, message.enabled);
+                case 'setSwitchMode':
+                    await this.crudHost.handleSetSwitchMode(message.slot, message.mode);
                     return;
                 case 'manageActiveKeys':
                     await this.crudHost.handleListActiveKeys();

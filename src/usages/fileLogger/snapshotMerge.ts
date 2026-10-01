@@ -16,6 +16,7 @@ export interface SnapshotRequestRecord {
     maxInputTokens?: number;
     requestKind?: string;
     sessionId?: string;
+    subSessionId?: string;
     sessionRecoverySource?: SessionRecoverySource;
     sessionTitle?: string;
     requestInitiator?: string;

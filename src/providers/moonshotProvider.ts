@@ -231,6 +231,8 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             maxInputTokens,
             estimatedIncrement,
             sessionId,
+            subSessionId,
+            balanceKey,
             sessionRecoverySource,
             sdkMode
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
@@ -251,6 +253,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             maxInputTokens,
             requestKind,
             sessionId,
+            subSessionId,
             sessionRecoverySource,
             options
         });
@@ -278,7 +281,8 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 },
                 () => {
                     wasThrottled = true;
-                }
+                },
+                balanceKey
             );
         } catch (error) {
             if (isCancellationError(error)) {

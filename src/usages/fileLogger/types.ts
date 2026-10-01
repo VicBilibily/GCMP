@@ -168,6 +168,8 @@ export interface TokenRequestLog {
     requestKind?: RequestKind;
     /** 会话ID */
     sessionId?: string;
+    /** 子会话ID（仅子代理请求有值），用于子代理级用量归属与负载均衡分析 */
+    subSessionId?: string;
     /** 会话ID 的恢复来源，用于观测 stateful/summary-bridge/new uuid 命中情况 */
     sessionRecoverySource?: SessionRecoverySource;
     /**

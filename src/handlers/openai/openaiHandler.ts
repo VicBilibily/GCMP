@@ -1074,6 +1074,7 @@ export class OpenAIHandler {
                     sdkMode: 'openai',
                     progress,
                     sessionId,
+                    subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
                     requestId,
                     requestStartTime: requestMetricStartTime,
                     onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)

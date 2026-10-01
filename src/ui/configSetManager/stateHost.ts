@@ -129,7 +129,7 @@ export class StateHost {
                     displayName: slotInfo.displayName,
                     isMain: slotInfo.isMain,
                     hasSite: !p.custom && !!slotInfo.siteProvider,
-                    autoSwitchEnabled: ConfigSetStore.isAutoSwitchEnabled(slotInfo.slot),
+                    switchMode: ConfigSetStore.getSwitchMode(slotInfo.slot),
                     hasUsage,
                     usageMetricType: hasUsage ? getQuotaMetricType(slotInfo.slot) : undefined,
                     currentSiteLabel:

@@ -5,6 +5,8 @@
  *  WebViewMessage: 前端 -> 后端
  *--------------------------------------------------------------------------------------------*/
 
+import type { ConfigSetSwitchMode } from '../../utils/config/configSetStore';
+
 /** 站点选项 */
 export interface SiteOption {
     value: string;
@@ -76,7 +78,7 @@ export interface SlotState {
     displayName: string;
     isMain: boolean;
     hasSite: boolean;
-    autoSwitchEnabled: boolean;
+    switchMode: ConfigSetSwitchMode;
     currentSiteLabel?: string;
     /** 是否支持用量/余额查询（后端判定，前端不自行猜测） */
     hasUsage: boolean;
@@ -264,7 +266,7 @@ export type HostMessage =
     | { command: 'addResult'; ok: boolean; error?: string; note?: string }
     | { command: 'applyResult'; ok: boolean; error?: string }
     | { command: 'deactivateResult'; ok: boolean; error?: string; note?: string }
-    | { command: 'autoSwitchResult'; ok: boolean; error?: string }
+    | { command: 'switchModeResult'; ok: boolean; mode?: ConfigSetSwitchMode; error?: string }
     | { command: 'editResult'; ok: boolean; error?: string; note?: string }
     | { command: 'removeResult'; ok: boolean; error?: string; note?: string }
     | { command: 'uploadResult'; ok: boolean; error?: string; warning?: string; uploadedCount?: number }
@@ -289,7 +291,7 @@ export type WebViewMessage =
     | { command: 'add'; slot: string; label: string; note?: string; site?: string; apiKey: string }
     | { command: 'apply'; slot: string; id: string }
     | { command: 'deactivate'; slot: string }
-    | { command: 'setAutoSwitch'; slot: string; enabled: boolean }
+    | { command: 'setSwitchMode'; slot: string; mode: ConfigSetSwitchMode }
     | { command: 'edit'; slot: string; id: string; label: string; note?: string; apiKey?: string }
     | { command: 'remove'; slot: string; id: string }
     | { command: 'setupCli'; provider: string }
@@ -390,8 +392,10 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
             return isValidString(msg.slot) && isValidString(msg.id) ? (msg as unknown as WebViewMessage) : undefined;
         case 'deactivate':
             return isValidString(msg.slot) ? (msg as unknown as WebViewMessage) : undefined;
-        case 'setAutoSwitch':
-            return isValidString(msg.slot) && typeof msg.enabled === 'boolean' ?
+        case 'setSwitchMode':
+            return (
+                    isValidString(msg.slot) && (msg.mode === 'off' || msg.mode === 'failover' || msg.mode === 'balance')
+                ) ?
                     (msg as unknown as WebViewMessage)
                 :   undefined;
         case 'add': {

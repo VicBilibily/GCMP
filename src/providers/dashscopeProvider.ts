@@ -258,6 +258,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             maxInputTokens,
             estimatedIncrement,
             sessionId,
+            subSessionId,
+            balanceKey,
             sessionRecoverySource,
             sdkMode
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
@@ -275,6 +277,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             maxInputTokens,
             requestKind,
             sessionId,
+            subSessionId,
             sessionRecoverySource,
             options
         });
@@ -302,7 +305,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 },
                 () => {
                     wasThrottled = true;
-                }
+                },
+                balanceKey
             );
         } catch (error) {
             if (isCancellationError(error)) {

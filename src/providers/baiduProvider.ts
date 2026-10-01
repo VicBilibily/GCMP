@@ -235,6 +235,8 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             maxInputTokens,
             estimatedIncrement,
             sessionId,
+            subSessionId,
+            balanceKey,
             sessionRecoverySource,
             sdkMode
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
@@ -252,6 +254,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             maxInputTokens,
             requestKind,
             sessionId,
+            subSessionId,
             sessionRecoverySource,
             options
         });
@@ -280,7 +283,8 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 },
                 () => {
                     wasThrottled = true;
-                }
+                },
+                balanceKey
             );
         } catch (error) {
             if (isCancellationError(error)) {

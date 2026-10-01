@@ -220,6 +220,9 @@ export abstract class StatsCalculator {
                 if (log.sessionId !== undefined) {
                     existing.sessionId = log.sessionId;
                 }
+                if (log.subSessionId !== undefined) {
+                    existing.subSessionId = log.subSessionId;
+                }
                 if (log.sessionRecoverySource !== undefined) {
                     existing.sessionRecoverySource = log.sessionRecoverySource;
                 }

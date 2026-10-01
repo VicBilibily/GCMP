@@ -238,6 +238,7 @@ function normalizePendingRecord(value: unknown): UsagesPendingRecord | undefined
     };
     for (const key of [
         'sessionId',
+        'subSessionId',
         'sessionTitle',
         'apiKeyName',
         'requestKind',
@@ -375,6 +376,7 @@ function isExtendedRecord(value: unknown): boolean {
     }
     for (const key of [
         'sessionId',
+        'subSessionId',
         'sessionTitle',
         'apiKeyName',
         'requestKind',

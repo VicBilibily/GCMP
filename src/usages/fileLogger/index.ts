@@ -321,6 +321,7 @@ export class TokenFileLogger {
         maxInputTokens?: number;
         requestKind?: string; // 请求来源类型
         sessionId?: string;
+        subSessionId?: string;
         sessionRecoverySource?: TokenRequestLog['sessionRecoverySource'];
         sessionTitle?: string;
         requestInitiator?: string;
@@ -349,6 +350,7 @@ export class TokenFileLogger {
             maxInputTokens: params.maxInputTokens,
             requestKind: params.requestKind,
             sessionId: params.sessionId,
+            subSessionId: params.subSessionId,
             sessionRecoverySource: params.sessionRecoverySource,
             sessionTitle: params.sessionTitle,
             requestInitiator: params.requestInitiator,

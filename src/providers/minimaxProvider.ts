@@ -292,6 +292,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             maxInputTokens,
             estimatedIncrement,
             sessionId,
+            subSessionId,
+            balanceKey,
             sessionRecoverySource,
             sdkMode
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
@@ -312,6 +314,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             maxInputTokens,
             requestKind,
             sessionId,
+            subSessionId,
             sessionRecoverySource,
             options
         });
@@ -339,7 +342,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 },
                 () => {
                     wasThrottled = true;
-                }
+                },
+                balanceKey
             );
         } catch (error) {
             if (isCancellationError(error)) {

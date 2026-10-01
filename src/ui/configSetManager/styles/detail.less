@@ -79,8 +79,7 @@
     min-width: 0;
 }
 
-.csm-slot-actions,
-.csm-auto-switch {
+.csm-slot-actions {
     display: flex;
     align-items: center;
 }
@@ -91,39 +90,35 @@
     gap: 8px;
 }
 
-.csm-auto-switch {
-    gap: 4px;
-    min-height: 24px;
-    padding: 2px 7px 2px 4px;
+.csm-switch-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
     border: 1px solid var(--vscode-panel-border);
     border-radius: 4px;
-    font-size: 11px;
-    color: var(--vscode-foreground);
     background: var(--vscode-editor-inactiveSelectionBackground);
     white-space: nowrap;
+}
+
+.csm-switch-tab {
+    border: none;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--vscode-foreground);
+    background: transparent;
     cursor: pointer;
 
-    &:has(input:disabled) {
+    &:disabled {
+        opacity: 0.5;
         cursor: default;
-        opacity: 0.6;
     }
 }
 
-.csm-auto-switch-enabled {
-    border-color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
-}
-
-.csm-auto-switch-status {
-    padding: 1px 4px;
-    border-radius: 3px;
-    color: var(--vscode-descriptionForeground);
-    background: var(--vscode-editor-background);
-    font-size: 10px;
-    font-weight: 600;
-}
-
-.csm-auto-switch-status-on {
-    color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+.csm-switch-tab-active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
 }
 
 .csm-slot-tag-main,
