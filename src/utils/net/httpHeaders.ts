@@ -5,6 +5,13 @@
 
 import type { CustomHeaderValue, CustomHeaders } from '../../types/sharedTypes';
 
+export function isSensitiveHeaderName(headerName: string): boolean {
+    return (
+        /^(authorization|proxy-authorization|cookie|set-cookie)$/i.test(headerName) ||
+        /(^|[-_])(api[-_]?key|auth[-_]?token|access[-_]?token)([-_]|$)/i.test(headerName)
+    );
+}
+
 function getUserAgentHeaderEntry(headers?: CustomHeaders): CustomHeaderValue | undefined {
     if (!headers) {
         return undefined;

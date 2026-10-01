@@ -11,6 +11,7 @@ import {
     type MiniMaxStatusData
 } from '../../src/quota/statusAdapters';
 import { ChatGPTStatusBar } from '../../src/status/chatgptStatusBar';
+import { CompatibleStatusBar, type CompatibleStatusData } from '../../src/status/compatibleStatusBar';
 import { ProviderQuotaStatusBar } from '../../src/status/providerQuotaStatusBar';
 import { ConfigSetStore } from '../../src/utils/config/configSetStore';
 
@@ -107,6 +108,37 @@ suite('quota alignment', () => {
     test('OpenCode slot is supported by the shared quota layer', () => {
         assert.equal(isQuotaSupportedSlot('opencode'), true);
         assert.equal(getQuotaMetricType('opencode'), 'usage');
+    });
+
+    test('Compatible tooltip renders all quotas and escapes response names with the real MarkdownString', () => {
+        const status = new CompatibleStatusBar();
+        const data: CompatibleStatusData = {
+            totalCount: 1,
+            successCount: 1,
+            providers: [
+                {
+                    providerId: 'provider-a',
+                    providerName: 'provider-a',
+                    balance: 10,
+                    currency: 'USD',
+                    lastUpdated: new Date(),
+                    success: true,
+                    items: [
+                        { displayName: 'A', balance: 10, currency: 'USD' },
+                        { displayName: '[click](command:test) | <b>name</b>\nnext', balance: 20, currency: 'Tokens' }
+                    ]
+                }
+            ]
+        };
+        const generateTooltip: (data: CompatibleStatusData) => vscode.MarkdownString = Reflect.get(
+            status,
+            'generateTooltip'
+        );
+        const tooltip = generateTooltip.call(status, data);
+        assert.ok(tooltip.value.includes('$10\\.00'));
+        assert.ok(tooltip.value.includes('20 Tokens'));
+        assert.ok(tooltip.value.includes('\\[click\\]\\(command:test\\) \\| \\<b\\>name\\</b\\> next'));
+        assert.equal(tooltip.value.includes('[click](command:test)'), false);
     });
 
     test('MiniMax adapter summary drives the generic status bar text', () => {

@@ -10,6 +10,7 @@ import { EnvHttpProxyAgent, fetch as undiciFetch, ProxyAgent } from 'undici';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { Logger } from '../runtime/logger';
 import type { CustomHeaders } from '../../types/sharedTypes';
+import { isSensitiveHeaderName } from './httpHeaders';
 
 export type ProxiedFetch = typeof globalThis.fetch;
 export const NO_PROXY_SENTINEL = 'noproxy';
@@ -34,9 +35,6 @@ function getDirectFetch(): ProxiedFetch {
 export function isNoProxyValue(proxyUrl?: string | null): boolean {
     return typeof proxyUrl === 'string' && proxyUrl.trim().toLowerCase() === NO_PROXY_SENTINEL;
 }
-
-const sensitiveHeaderNamePattern =
-    /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token)$/i;
 
 type TlsModuleWithCaApis = typeof tls & {
     getCACertificates?: (type?: 'default' | 'system' | 'bundled' | 'extra') => string[];
@@ -424,7 +422,7 @@ export function redactHeaders(headers?: CustomHeaders): CustomHeaders {
     }
 
     return Object.fromEntries(
-        Object.entries(headers).map(([key, value]) => [key, sensitiveHeaderNamePattern.test(key) ? '***' : value])
+        Object.entries(headers).map(([key, value]) => [key, isSensitiveHeaderName(key) ? '***' : value])
     );
 }
 
@@ -454,12 +452,12 @@ export function sanitizeConfigForLogging<T>(value: T): T {
         const result: Record<string, unknown> = {};
         for (const [entryKey, entryValue] of Object.entries(current)) {
             if (
-                entryKey === 'customHeader' &&
+                (entryKey === 'customHeader' || entryKey === 'headers') &&
                 entryValue &&
                 typeof entryValue === 'object' &&
                 !Array.isArray(entryValue)
             ) {
-                result[entryKey] = redactHeaders(entryValue as CustomHeaders);
+                result[entryKey] = redactHeaders(sanitize(entryValue) as CustomHeaders);
                 continue;
             }
 

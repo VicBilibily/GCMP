@@ -22,6 +22,7 @@ import {
 } from '../../quota/providerQuota';
 import type { PanelContext, ConfigUsageState } from './types';
 import type { QuotaQueryResult } from '../../quota/types';
+import { BalanceQueryManager } from '../../quota/compatible/balanceQueryManager';
 
 /** 支持余量查询的 CLI 提供商（首屏占位 + 后台查询） */
 const CLI_USAGE_PROVIDERS = new Set(['codex', 'grok']);
@@ -166,7 +167,7 @@ export class UsageHost {
             for (const [index, item] of items.entries()) {
                 const configUsageKey = this.getConfigUsageKey(slotInfo.slot, item.id);
                 const apiKey = itemApiKeys[index];
-                if (!apiKey) {
+                if (!apiKey && BalanceQueryManager.requiresApiKey(slotInfo.slot)) {
                     this.clearConfigUsageTimeout(configUsageKey);
                     configUsages.push(this.buildMissingKeyUsageState(slotInfo.slot, item.id));
                     continue;
@@ -180,7 +181,7 @@ export class UsageHost {
                 const request: UsageRequest = {
                     slot: slotInfo.slot,
                     id: item.id,
-                    apiKey,
+                    apiKey: apiKey ?? '',
                     site: resolveQuotaSite(slotInfo.slot, item.site),
                     requestSeq
                 };
@@ -208,7 +209,7 @@ export class UsageHost {
         }
 
         const apiKey = await ConfigSetStore.getApiKey(slot, id);
-        if (!apiKey) {
+        if (!apiKey && BalanceQueryManager.requiresApiKey(slot)) {
             this.clearConfigUsageTimeout(this.getConfigUsageKey(slot, id));
             this.postConfigUsages([this.buildMissingKeyUsageState(slot, id)]);
             return;
@@ -218,7 +219,7 @@ export class UsageHost {
         const requestSeq = this.nextConfigUsageRequestSeq(configUsageKey);
         this.scheduleConfigUsageTimeout(slot, id, requestSeq);
         this.postConfigUsages([this.createConfigUsageState(slot, id, { loading: true })]);
-        void this.queryAndPostConfigUsage(slot, id, apiKey, resolveQuotaSite(slot, item.site), requestSeq);
+        void this.queryAndPostConfigUsage(slot, id, apiKey ?? '', resolveQuotaSite(slot, item.site), requestSeq);
     }
 
     // ============= 内部辅助 =============

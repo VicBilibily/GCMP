@@ -84,7 +84,7 @@ function toFiniteNumberOrUndefined(value: unknown): number | undefined {
         return Number.isFinite(value) ? value : undefined;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === 'string' && value.trim().length > 0) {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : undefined;
     }

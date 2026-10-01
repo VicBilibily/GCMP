@@ -18,6 +18,8 @@ import {
     resolveCustomUsageEntries
 } from './usageConfigResolver';
 
+export type BalanceQueryTargetKind = 'provider' | 'entry';
+
 /**
  * 余额查询管理器
  * 负责管理所有兼容提供商的余额查询器
@@ -75,7 +77,11 @@ export class BalanceQueryManager {
      * @param providerId 提供商标识符
      * @returns 余额查询结果
      */
-    static async queryBalance(providerId: string, apiKeyOverride?: string): Promise<BalanceQueryResult> {
+    static async queryBalance(
+        providerId: string,
+        apiKeyOverride?: string,
+        targetKind: BalanceQueryTargetKind = 'provider'
+    ): Promise<BalanceQueryResult> {
         BalanceQueryManager.ensureInitialized();
 
         // 1. 内置/已知 provider 优先使用专用 handler
@@ -94,9 +100,14 @@ export class BalanceQueryManager {
         }
 
         // 2. provider usage/usages 配置，使用通用查询
-        if (BalanceQueryManager.isCustomProviderWithUsage(providerId)) {
+        const usageEntry = BalanceQueryManager.getCustomUsageTarget(providerId, targetKind);
+        if (usageEntry) {
             try {
-                const result = await BalanceQueryManager.customUsageQuery.queryBalance(providerId, apiKeyOverride);
+                const result = await BalanceQueryManager.customUsageQuery.queryBalance(
+                    usageEntry.baseProviderId,
+                    apiKeyOverride,
+                    usageEntry.usageKey
+                );
                 StatusLogger.debug(
                     `[BalanceQueryManager] Successfully queried custom balance for provider ${providerId}: ${result.balance}`
                 );
@@ -107,14 +118,7 @@ export class BalanceQueryManager {
             }
         }
 
-        // 3. 如果没有注册的查询器，返回默认值
-        StatusLogger.warn(
-            `[BalanceQueryManager] No balance query handler found for provider ${providerId}, using default value`
-        );
-        return {
-            balance: 0,
-            currency: 'CNY'
-        };
+        throw new Error(`No balance query handler found for provider ${providerId}`);
     }
 
     /**
@@ -142,12 +146,16 @@ export class BalanceQueryManager {
             return [providerId];
         }
 
+        if (BalanceQueryManager.getConfiguredProviderIds().includes(providerId)) {
+            return BalanceQueryManager.getCustomUsageEntries(providerId).map(entry => entry.id);
+        }
+
         const exactCustomEntry = BalanceQueryManager.getCustomUsageEntry(providerId);
         if (exactCustomEntry) {
             return [providerId];
         }
 
-        return BalanceQueryManager.getCustomUsageEntries(providerId).map(entry => entry.id);
+        return [];
     }
 
     /**
@@ -170,12 +178,8 @@ export class BalanceQueryManager {
      * @param providerId 提供商标识符
      * @returns 是否可直接用于 usage 查询
      */
-    static isCustomProviderWithUsage(providerId: string): boolean {
-        if (BalanceQueryManager.getCustomUsageEntry(providerId)) {
-            return true;
-        }
-
-        return BalanceQueryManager.getCustomUsageEntries(providerId).length === 1;
+    static isCustomProviderWithUsage(providerId: string, targetKind: BalanceQueryTargetKind = 'provider'): boolean {
+        return BalanceQueryManager.getCustomUsageTarget(providerId, targetKind) !== undefined;
     }
 
     /**
@@ -188,7 +192,14 @@ export class BalanceQueryManager {
     /**
      * 获取 provider/usage entry 对应的基础 provider ID。
      */
-    static getBaseProviderId(providerId: string): string {
+    static getBaseProviderId(providerId: string, targetKind: BalanceQueryTargetKind = 'provider'): string {
+        if (targetKind === 'provider' && BalanceQueryManager.getConfiguredProviderIds().includes(providerId)) {
+            return providerId;
+        }
+        const entry = BalanceQueryManager.getCustomUsageEntry(providerId);
+        if (entry) {
+            return entry.baseProviderId;
+        }
         return parseCustomUsageTarget(providerId).baseProviderId;
     }
 
@@ -211,13 +222,18 @@ export class BalanceQueryManager {
     /**
      * 判断指定 provider/usage entry 是否需要 API Key。
      */
-    static requiresApiKey(providerId: string): boolean {
-        const entry = BalanceQueryManager.getCustomUsageEntry(providerId);
-        if (!entry) {
+    static requiresApiKey(providerId: string, targetKind: BalanceQueryTargetKind = 'provider'): boolean {
+        if (BalanceQueryManager.hasHandler(providerId)) {
             return true;
         }
 
-        return entry.usageConfig.authType !== 'none';
+        if (targetKind === 'provider' && BalanceQueryManager.getConfiguredProviderIds().includes(providerId)) {
+            const entries = BalanceQueryManager.getCustomUsageEntries(providerId);
+            return entries.length === 0 || entries.some(item => item.usageConfig.authType !== 'none');
+        }
+
+        const entry = BalanceQueryManager.getCustomUsageEntry(providerId);
+        return !entry || entry.usageConfig.authType !== 'none';
     }
 
     /**
@@ -230,9 +246,8 @@ export class BalanceQueryManager {
         return BalanceQueryManager.queryHandlers.has(providerId);
     }
 
-    private static getCustomUsageEntries(baseProviderId?: string) {
-        const overrides = ConfigManager.getProviderOverrides();
-        const configuredProviderIds = Array.from(
+    private static getConfiguredProviderIds(): string[] {
+        return Array.from(
             new Set([
                 ...CompatibleModelManager.getModels()
                     .map(model => model.provider)
@@ -240,8 +255,13 @@ export class BalanceQueryManager {
                 ...Object.keys(InnerProviders)
             ])
         );
-        const providerIds =
-            baseProviderId ? configuredProviderIds.filter(id => id === baseProviderId) : configuredProviderIds;
+    }
+
+    private static getCustomUsageEntries(baseProviderId?: string) {
+        const overrides = ConfigManager.getProviderOverrides();
+        const providerIds = BalanceQueryManager.getConfiguredProviderIds().filter(
+            id => baseProviderId === undefined || id === baseProviderId
+        );
 
         return providerIds.flatMap(providerId => {
             const override = mergeProviderUsageOverride(
@@ -252,9 +272,20 @@ export class BalanceQueryManager {
         });
     }
 
+    private static getCustomUsageTarget(
+        providerId: string,
+        targetKind: BalanceQueryTargetKind
+    ): ResolvedCustomUsageEntry | undefined {
+        if (targetKind === 'provider' && BalanceQueryManager.getConfiguredProviderIds().includes(providerId)) {
+            const entries = BalanceQueryManager.getCustomUsageEntries(providerId);
+            return entries.length === 1 ? entries[0] : undefined;
+        }
+        return BalanceQueryManager.getCustomUsageEntry(providerId);
+    }
+
     private static getCustomUsageEntry(providerId: string): ResolvedCustomUsageEntry | undefined {
         const { baseProviderId, usageKey } = parseCustomUsageTarget(providerId);
-        if (!usageKey) {
+        if (usageKey === undefined) {
             return undefined;
         }
 

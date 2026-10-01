@@ -3,6 +3,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
+ * 单项余额/用量结果（当同接口返回多组结果时使用）
+ */
+export interface BalanceQueryItem {
+    /** 模式/额度显示名称（可选） */
+    displayName?: string;
+    /** 已支付余额 */
+    paid?: number;
+    /** 赠送余额 */
+    granted?: number;
+    /** 可用余额 */
+    balance: number;
+    /** 货币符号(CNY/USD/Tokens等) */
+    currency: string;
+}
+
+/**
  * 余额查询结果
  */
 export interface BalanceQueryResult {
@@ -14,6 +30,8 @@ export interface BalanceQueryResult {
     balance: number;
     /** 货币符号(CNY/USD) */
     currency: string;
+    /** 多组额度结果（可选，当同接口返回多个额度时提供） */
+    items?: BalanceQueryItem[];
 }
 
 /**

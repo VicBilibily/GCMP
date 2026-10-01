@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { StatusLogger } from '../runtime/statusLogger';
+import { isSensitiveHeaderName } from './httpHeaders';
 import {
     buildHarFileName,
     calculateHarCompression,
@@ -130,9 +131,6 @@ interface HarRecorderState {
     closedPromise: Promise<void>;
     resolveClosed: (() => void) | undefined;
 }
-
-const sensitiveHeaderNamePattern =
-    /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token)$/i;
 
 const sensitiveFieldPattern = /(api[-_]?key|auth|authorization|token|session|cookie|secret|password|signature|nonce)$/i;
 
@@ -988,7 +986,7 @@ export class HarRecorder {
     private sanitizeHeaders(headers: HarHeader[]): HarHeader[] {
         return headers.map(({ name, value }) => ({
             name,
-            value: sensitiveHeaderNamePattern.test(name) ? '***' : this.maskSecretsInText(value)
+            value: isSensitiveHeaderName(name) ? '***' : this.maskSecretsInText(value)
         }));
     }
 

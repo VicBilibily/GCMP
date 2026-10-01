@@ -1,4 +1,5 @@
-﻿import type {
+﻿import { isDeepStrictEqual } from 'node:util';
+import type {
     ProviderOverride,
     ProviderUsageConfig,
     ProviderUsageOverrideConfig,
@@ -14,6 +15,10 @@ export interface ResolvedCustomUsageEntry {
     usageConfig: ProviderUsageConfig;
 }
 
+function encodeUsageIdPart(value: string): string {
+    return value.replace(/[%:]/g, encodeURIComponent);
+}
+
 export function parseCustomUsageTarget(providerId: string): { baseProviderId: string; usageKey?: string } {
     const separatorIndex = providerId.indexOf(CUSTOM_USAGE_ENTRY_SEPARATOR);
     if (separatorIndex < 0) {
@@ -21,8 +26,10 @@ export function parseCustomUsageTarget(providerId: string): { baseProviderId: st
     }
 
     return {
-        baseProviderId: providerId.slice(0, separatorIndex),
-        usageKey: providerId.slice(separatorIndex + CUSTOM_USAGE_ENTRY_SEPARATOR.length)
+        baseProviderId: providerId.slice(0, separatorIndex).replace(/%(?:25|3a)/gi, decodeURIComponent),
+        usageKey: providerId
+            .slice(separatorIndex + CUSTOM_USAGE_ENTRY_SEPARATOR.length)
+            .replace(/%(?:25|3a)/gi, decodeURIComponent)
     };
 }
 
@@ -50,7 +57,7 @@ export function resolveCustomUsageEntries(
             }
 
             resolvedUsageEntries.push({
-                id: `${baseProviderId}${CUSTOM_USAGE_ENTRY_SEPARATOR}${usageKey}`,
+                id: `${encodeUsageIdPart(baseProviderId)}${CUSTOM_USAGE_ENTRY_SEPARATOR}${encodeUsageIdPart(usageKey)}`,
                 baseProviderId,
                 usageKey,
                 usageConfig: mergedConfig
@@ -61,9 +68,10 @@ export function resolveCustomUsageEntries(
             defaultUsageConfig !== undefined &&
             resolvedUsageEntries.some(entry => areEquivalentUsageConfigs(entry.usageConfig, defaultUsageConfig));
 
-        if (defaultUsageConfig && !hasEquivalentNamedDefault) {
+        const hasExplicitDefault = resolvedUsageEntries.some(entry => entry.usageKey === 'default');
+        if (defaultUsageConfig && !hasExplicitDefault && !hasEquivalentNamedDefault) {
             entries.push({
-                id: `${baseProviderId}${CUSTOM_USAGE_ENTRY_SEPARATOR}default`,
+                id: `${encodeUsageIdPart(baseProviderId)}${CUSTOM_USAGE_ENTRY_SEPARATOR}default`,
                 baseProviderId,
                 usageKey: 'default',
                 usageConfig: defaultUsageConfig
@@ -76,7 +84,7 @@ export function resolveCustomUsageEntries(
 
     if (defaultUsageConfig) {
         entries.push({
-            id: `${baseProviderId}${CUSTOM_USAGE_ENTRY_SEPARATOR}default`,
+            id: `${encodeUsageIdPart(baseProviderId)}${CUSTOM_USAGE_ENTRY_SEPARATOR}default`,
             baseProviderId,
             usageKey: 'default',
             usageConfig: defaultUsageConfig
@@ -87,17 +95,14 @@ export function resolveCustomUsageEntries(
 }
 
 export function resolveUsageConfig(
-    baseUsage: ProviderUsageConfig | undefined,
+    baseUsage: ProviderUsageOverrideConfig | undefined,
     usageOverride: ProviderUsageConfig | ProviderUsageOverrideConfig | undefined
 ): ProviderUsageConfig | undefined {
     if (!baseUsage && !usageOverride) {
         return undefined;
     }
 
-    const mergedFields = {
-        ...(baseUsage?.fields || {}),
-        ...(usageOverride?.fields || {})
-    };
+    const mergedFields = mergeFields(baseUsage?.fields, usageOverride?.fields);
 
     const mergedConfig = {
         displayName: usageOverride?.displayName ?? baseUsage?.displayName,
@@ -116,10 +121,41 @@ export function resolveUsageConfig(
     return isCompleteUsageConfig(mergedConfig) ? mergedConfig : undefined;
 }
 
-function isCompleteUsageConfig(
-    config: Omit<Partial<ProviderUsageConfig>, 'fields'> & { fields?: Partial<ProviderUsageConfig['fields']> }
-): config is ProviderUsageConfig {
-    return config.fields?.balance !== undefined && typeof config.url === 'string' && config.url.length > 0;
+function mergeFields(
+    baseFields: ProviderUsageOverrideConfig['fields'],
+    overrideFields: ProviderUsageOverrideConfig['fields']
+): ProviderUsageOverrideConfig['fields'] {
+    if (!baseFields && !overrideFields) {
+        return undefined;
+    }
+    if (Array.isArray(overrideFields)) {
+        return overrideFields;
+    }
+    if (Array.isArray(baseFields)) {
+        if (!overrideFields) {
+            return baseFields;
+        }
+        if (baseFields.length === 1) {
+            return [{ ...baseFields[0], ...overrideFields }];
+        }
+        return overrideFields;
+    }
+    return {
+        ...(baseFields || {}),
+        ...(overrideFields || {})
+    };
+}
+
+function isCompleteUsageConfig(config: ProviderUsageOverrideConfig): config is ProviderUsageConfig {
+    if (typeof config.url !== 'string' || config.url.length === 0 || !config.fields) {
+        return false;
+    }
+
+    if (Array.isArray(config.fields)) {
+        return config.fields.length > 0 && config.fields.every(item => item && item.balance !== undefined);
+    }
+
+    return typeof config.fields === 'object' && config.fields.balance !== undefined;
 }
 
 function areEquivalentUsageConfigs(left: ProviderUsageConfig, right: ProviderUsageConfig): boolean {
@@ -128,12 +164,12 @@ function areEquivalentUsageConfigs(left: ProviderUsageConfig, right: ProviderUsa
         (left.method ?? 'GET') === (right.method ?? 'GET') &&
         (left.authType ?? 'bearer') === (right.authType ?? 'bearer') &&
         (left.unit ?? 'USD') === (right.unit ?? 'USD') &&
-        JSON.stringify(left.headers || {}) === JSON.stringify(right.headers || {}) &&
-        JSON.stringify(left.params || {}) === JSON.stringify(right.params || {}) &&
-        JSON.stringify(left.body || {}) === JSON.stringify(right.body || {}) &&
-        JSON.stringify(left.successConditions || []) === JSON.stringify(right.successConditions || []) &&
+        isDeepStrictEqual(left.headers || {}, right.headers || {}) &&
+        isDeepStrictEqual(left.params || {}, right.params || {}) &&
+        isDeepStrictEqual(left.body || {}, right.body || {}) &&
+        isDeepStrictEqual(left.successConditions || [], right.successConditions || []) &&
         (left.errorMessagePath || '') === (right.errorMessagePath || '') &&
-        JSON.stringify(left.fields) === JSON.stringify(right.fields)
+        isDeepStrictEqual(left.fields, right.fields)
     );
 }
 
@@ -162,10 +198,7 @@ function mergeUsageOverrideItem(
         headers: mergeRecord(baseItem?.headers, overrideItem?.headers),
         params: mergeRecord(baseItem?.params, overrideItem?.params),
         body: mergeRecord(baseItem?.body, overrideItem?.body),
-        fields: {
-            ...(baseItem?.fields || {}),
-            ...(overrideItem?.fields || {})
-        }
+        fields: mergeFields(baseItem?.fields, overrideItem?.fields)
     };
 }
 
@@ -201,7 +234,9 @@ export function mergeProviderUsageOverride(
         baseUrl: override?.baseUrl ?? baseOverride?.baseUrl,
         customHeader: mergeRecord(baseOverride?.customHeader, override?.customHeader),
         models: override?.models ?? baseOverride?.models,
-        usage: resolveUsageConfig(baseOverride?.usage, override?.usage),
+        usage:
+            resolveUsageConfig(baseOverride?.usage, override?.usage) ??
+            mergeUsageOverrideItem(baseOverride?.usage, override?.usage),
         usages: mergeUsages(baseOverride?.usages, override?.usages)
     };
 }

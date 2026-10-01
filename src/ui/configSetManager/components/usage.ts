@@ -173,7 +173,7 @@ export function renderConfigUsage(slotState: SlotState, row: ConfigSetRow, usage
 
     if (usageState.usageEntries && usageState.usageEntries.length > 0) {
         const entriesWrap = el('div', 'csm-slot-usage-entries');
-        const singleEntry = usageState.usageEntries.length === 1;
+        const singleEntry = usageState.usageEntries.length === 1 && !usageState.usageEntries[0].label;
         for (const entry of usageState.usageEntries) {
             const item = singleEntry ? entriesWrap : el('div', 'csm-slot-usage-entry');
             if (!singleEntry) {
@@ -185,7 +185,7 @@ export function renderConfigUsage(slotState: SlotState, row: ConfigSetRow, usage
                 item.appendChild(entryHead);
             }
 
-            if (entry.tables && entry.tables.length > 0) {
+            if (entry.tables && entry.tables.length > 0 && (!singleEntry || !usageState.tables?.length)) {
                 item.appendChild(renderUsageTables(entry.tables));
             }
 

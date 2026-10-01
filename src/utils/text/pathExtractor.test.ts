@@ -84,4 +84,24 @@ describe('getNumberByPath', () => {
     it('returns undefined when path is undefined', () => {
         assert.strictEqual(getNumberByPath(data, undefined), undefined);
     });
+
+    for (const value of ['', '  ', '\t', '\r\n', '\u00a0']) {
+        it(`returns undefined for blank numeric string ${JSON.stringify(value)}`, () => {
+            assert.strictEqual(getNumberByPath({ balance: value }, 'balance'), undefined);
+            assert.strictEqual(getNumberByPath({ items: [{ balance: value }] }, 'items[0].balance'), undefined);
+        });
+    }
+
+    it('preserves real zero values and padded numeric strings', () => {
+        for (const value of [0, '0', ' 0 ', '\t0\n']) {
+            assert.strictEqual(getNumberByPath({ balance: value }, 'balance'), 0);
+        }
+        assert.strictEqual(getNumberByPath({ balance: ' 25.5 ' }, 'balance'), 25.5);
+    });
+
+    it('keeps wildcard missing and blank values equivalent to zero', () => {
+        const items = [{ balance: '' }, { balance: '\t' }, {}, { balance: '0' }, { balance: '25' }];
+        assert.strictEqual(getNumberByPath({ items }, 'items[*].balance'), 25);
+        assert.strictEqual(getNumberByPath({ items: [{ balance: '' }] }, 'items[*].balance'), 0);
+    });
 });

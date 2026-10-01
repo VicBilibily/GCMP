@@ -560,10 +560,122 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 对于 `Compatible` 自定义 provider，可在 `gcmp.providerOverrides.{providerId}` 下配置：
 
-- `usage`：可选；单一余额查询时只配置它即可，也可作为 `usages` 的公共默认值
-- `usages`：可选；仅在需要多个命名金额/余额查询模式时使用，每个条目都可在 `usage` 基础上增量覆盖
+- `usage`：可选；配置一个查询接口。即使同一响应包含多个额度，也只需一个 `usage` 配合 `fields` 配置数组；它还可作为 `usages` 的公共默认值
+- `usages`：可选；用于多个命名查询模式，例如不同 URL、鉴权方式或查询参数。每个条目可在 `usage` 基础上增量覆盖，但 `fields` 数组是完整替换，不按项合并
 
-`fields.balance` 这类计算字段现在支持 `sum` / `subtract` / `multiply` / `divide`，`paths` 里既可以写 JSON 路径、常量数值（例如 `500000`），也可以继续嵌套计算字段对象，适合 `Ticket / 500000`、`(总额 - 已用) / 500000` 这类余额换算。
+#### 一个接口返回多个额度：`fields` 配置数组
+
+`fields` 既可以保持旧的单对象写法，也可以是非空数组。数组中每项都必须提供 `balance`，并可独立配置：
+
+- `balance`：必填，可用余额/剩余额度的字段路径或计算字段
+- `paid`：可选，充值/已付余额的字段路径或计算字段
+- `granted`：可选，赠送余额的字段路径或计算字段
+- `displayName`：可选，先尝试按路径读取名称；得到非空字符串或有限数字时使用该值，否则原样显示配置文本。例如 `data.wallet.name` 或 `现金钱包`
+- `arrayPath`：可选，明确指定要遍历的数组，其元素分别解析为额度项
+- `unit`：可选，该项的单位；依次回退到外层 `usage.unit`、`USD`，不做货币或单位换算
+
+外层 `usage.displayName` / `usages.<key>.displayName` 用于命名**查询模式**；`fields` 内的 `displayName` 用于命名**额度项**。二者都存在时可组合显示为“模式 / 额度”。没有配置额度名称时，会尝试当前元素的 `name`、`model`、`title`、`id`、`type`、`plan` 字符串字段；数组拆分后仍未找到名称时，再回退为 `#1`、`#2` 等序号。
+
+假设接口返回如下 JSON：
+
+```json
+{
+    "data": {
+        "wallet": { "name": "现金钱包", "remaining": 88.5, "paid": 80, "granted": 8.5 },
+        "packages": [
+            { "name": "月度套餐", "total": 1000, "used": 250 },
+            { "name": "加油包", "total": 200, "used": 50 }
+        ],
+        "addons": [{ "name": "联网搜索", "remaining": 30 }]
+    }
+}
+```
+
+下面的配置会从**一次响应**中解析钱包、两个套餐和搜索额度。示例 provider 与 URL 仅作说明，需替换为实际配置；自定义模型的 `provider` 也应使用相同的 key。
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "readme_demo": {
+            "usage": {
+                "url": "https://api.example.com/usage",
+                "unit": "CNY",
+                "fields": [
+                    {
+                        "displayName": "data.wallet.name",
+                        "balance": "data.wallet.remaining",
+                        "paid": "data.wallet.paid",
+                        "granted": "data.wallet.granted"
+                    },
+                    {
+                        "arrayPath": "data.packages",
+                        "displayName": "name",
+                        "balance": {
+                            "operation": "subtract",
+                            "paths": ["total", "used"]
+                        },
+                        "unit": "次"
+                    },
+                    {
+                        "displayName": "data.addons[].name",
+                        "balance": "data.addons[].remaining",
+                        "unit": "次"
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+
+解析结果按 `fields` 配置顺序、再按数组元素顺序展开：
+
+| 额度名称 | 可用余额 | 单位 |
+| -------- | -------- | ---- |
+| 现金钱包 | 88.5     | CNY  |
+| 月度套餐 | 750      | 次   |
+| 加油包   | 150      | 次   |
+| 联网搜索 | 30       | 次   |
+
+钱包还会显示充值 `80`、赠送 `8.5` 的明细。不同单位的额度分别展示，不会把它们累加成一个总额，也不会为每个额度项单独请求接口。
+
+#### 数组路径：拆分、求和与索引的区别
+
+拆分范围由 `arrayPath` 或 `balance` 的路径决定；计算字段也会检查其操作数路径。`paid`、`granted` 与 `displayName` 跟随同一个额度上下文解析，不独立决定拆分范围。
+
+假设 `data.packages` 包含两个元素，其 `remaining` 分别为 `10` 和 `20`：
+
+| 写法                                                 | 结果                         |
+| ---------------------------------------------------- | ---------------------------- |
+| `balance: "data.packages[].remaining"`               | 拆分为两项：`10`、`20`       |
+| `balance: "data.packages.remaining"`                 | 途经数组自动拆分为两项       |
+| `balance: "data.packages[*].remaining"`              | 对数组求和，只产生一项：`30` |
+| `balance: "data.packages[0].remaining"`              | 只选第一项：`10`             |
+| `balance: "data.packages.0.remaining"`               | 与 `[0]` 相同，只选第一项    |
+| `arrayPath: "data.packages"`，`balance: "remaining"` | 明确遍历数组，分别得到两项   |
+
+`arrayPath` **不是必填项**。它适合明确指定某个数组，并将其元素作为字段解析上下文，让名称、余额与计算操作数可以使用元素相对路径：
+
+```json
+{
+    "fields": {
+        "arrayPath": "data.packages",
+        "displayName": "name",
+        "balance": "remaining",
+        "unit": "次"
+    }
+}
+```
+
+不写 `arrayPath` 时，可用 `data.packages[].remaining` 或 `data.packages.remaining` 自动拆分。嵌套数组也可逐层展开，例如 `data.groups[].limits[].remaining`；响应本身是数组时，直接写 `remaining` 即可按元素解析。
+
+这些路径是 dot 字段路径及数组索引/通配语法，不是完整的 JSONPath 表达式。不要把 `[*]` 当作拆分，也不要把 `[0]` 当作遍历全部元素。
+
+#### 计算字段与数组求和
+
+`fields` 中的 `balance`、`paid`、`granted` 支持 `sum` / `subtract` / `multiply` / `divide`。`paths` 里既可以写字段路径、常量数值（例如 `500000`），也可以继续嵌套计算字段对象，适合 `Ticket / 500000`、`(总额 - 已用) / 500000` 这类余额换算。
+
+数组拆分后，计算按元素执行，相对操作数路径优先在当前元素、父级元素中查找，再回退到响应根数据；完整数组路径会绑定到当前选中的元素。因此上面的 `arrayPath` 示例可以直接用 `total` 和 `used`，无需手写元素索引。
 
 ```json
 {
@@ -605,22 +717,30 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 }
 ```
 
-也就是说：
+#### 查询模式的继承与请求次数
 
-- 只配置 `usage`：就是单一余额查询
-- 需要多个查询模式时：再通过 `usages` 做多金额/多余额覆盖查询
+- 只配置 `usage`：注册一个查询模式；一个模式仍可通过 `fields` 数组返回多个额度
+- 需要多个查询模式时：通过 `usages` 配置，每个最终注册的模式分别查询一次。即使 URL 相同，不同模式也不会因为使用同一个接口而自动合并请求；同一响应内的多额度应优先使用 `fields` 数组
+- `usage` 与某个命名模式最终解析出的查询配置等价时，不额外生成重复的 `default` 模式；外层模式 `displayName` 不影响该等价判断
 - `usage` 和 `usages` 都不配置：就不会注册该自定义 provider 的余额/用量查询
 
-内置已知 provider 的 `usage` / `usages` 参考配置方式，可直接查看源码 [src/utils/knownProviders.ts](src/utils/knownProviders.ts)。
+`usages` 每项继承 `usage` 的 URL、鉴权、字段与单位等默认值。`fields` 的覆盖规则是：
+
+- 默认值为单对象时，覆盖对象按字段增量合并，例如只修改 `granted`，仍保留默认 `balance`
+- 覆盖值为数组时，**完整替换**默认 `fields`，不拼接、不按索引继承。数组不能为空，每一项都必须重新提供 `balance`
+- 默认 `fields` 是多项数组时，改成单对象不会继承其中任意一项；必须提供完整的 `balance`。默认数组只有一项时，兼容对该唯一项作对象增量覆盖
+- 未配置共享 `usage` 时，每个 `usages` 条目都必须自行提供 `url` 和完整 `fields`
+
+内置已知 provider 的 `usage` / `usages` 参考配置方式，可直接查看源码 [src/utils/config/knownProviders.ts](src/utils/config/knownProviders.ts)。
 
 > 注意：`gcmp.providerOverrides` 的 provider key 必须与 `gcmp.compatibleModels[*].provider` **完全一致**，包括大小写。
 
 例如，下面这个更贴近实际 `settings.json` 的 [NekoCode](https://nekocode.ai?aff=U9XPRBID) 相关配置片段表示：
 
-- `gcmp.compatibleModels` 下有多个模型共用同一个 `provider: "NekoCode"`
+- `gcmp.compatibleModels` 中的模型使用 `provider: "NekoCode"`，也可继续添加相同 provider 的其他模型
 - `gcmp.providerOverrides.NekoCode.usage` 提供默认查询 URL `https://api2.nekoapi.ai/v1/usage` 和公共字段路径 `balance`
 - `gcmp.providerOverrides.NekoCode.usages.pay` 与 `usage` 的最终查询配置等价，只额外提供显示名称 `余额`
-- `gcmp.providerOverrides.NekoCode.usages.sub` 复用 `usage.fields.balance`，但把查询 URL 覆盖为 `https://api2.nekoapi.ai/v1/user/balance`
+- `gcmp.providerOverrides.NekoCode.usages.sub` 把查询 URL 覆盖为 `https://api2.nekoapi.ai/v1/user/balance`，并把余额字段覆盖为 `remaining`
 
 ```json
 {
@@ -684,15 +804,24 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 该配置的实际效果是：
 
-- `providerOverrides.NekoCode` 会同时作用于所有 `provider: "NekoCode"` 的兼容模型，例如上面的 `GPT-5.4 (NekoCode)` 和 `GPT-5.5 (NekoCode)`
+- `providerOverrides.NekoCode` 会作用于所有 `provider: "NekoCode"` 的兼容模型，包括示例中的 `GPT-5.5 (NekoCode)`
 - `pay` 会继承 `usage.fields.balance = "balance"`
-- `sub` 也会继承 `usage.fields.balance = "balance"`
+- `sub` 会使用覆盖后的 `fields.balance = "remaining"`
 - 因为 `pay` 与 `usage` 解析出的查询配置等价，所以不会再额外生成一个重复的 `default` 模式
 
 最终状态栏会按两个命名模式进行查询与展示：
 
 - `NekoCode / 余额`
 - `NekoCode / 订阅`
+
+#### 展示、告警与刷新注意事项
+
+- Compatible 状态栏逐项显示余额；悬浮表格显示额度名称、余额及可选的充值/赠送明细。配置面板对具名的单个额度和多个额度显示名称与余额；无名单项保持紧凑展示
+- 所有成功解析的额度都参与余额告警：任意一项为负数时标红，否则按提供商的 `balanceWarning` 阈值判断黄色警告。不同单位的额度沿用同一个提供商数值阈值，不做单位换算
+- `balance` 未取到数值时，仅当 `paid` 与 `granted` 都有效才回退为两者之和，否则跳过该额度项。空的拆分数组不会生成额度项，所有配置都未解析出额度时查询失败；`[*]` 求和的缺失值仍按 `0` 处理
+- 修改 `gcmp.providerOverrides` 下的 `usage` / `usages` 后，不会立即重新查询现有缓存；可点击 Compatible 状态栏手动刷新。状态栏尚未出现时，可重新加载窗口；配置面板可点击对应配置的“刷新”按钮重新查询
+
+> **数组目标校验**：显式 `arrayPath` 必须对应实际数组。路径缺失或目标不是数组时，跳过该 `fields` 配置；嵌套路径只跳过无效分支，不回退到根余额。其他有效额度仍正常展示，所有配置都没有有效额度时查询失败。配置前应核对真实响应结构。
 
 </details>
 

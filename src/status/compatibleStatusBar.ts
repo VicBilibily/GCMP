@@ -10,6 +10,7 @@ import { CompatibleProviderCacheData, getCompatibleProviderCacheUpdate } from '.
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
 import { BalanceQueryManager } from '../quota/compatible/balanceQueryManager';
+import type { BalanceQueryItem } from '../quota/compatible/balanceQuery';
 import { getCurrencySymbol } from '../quota/format';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { InnerProviders, resolveBuiltinProviderConfig } from '../utils/config/knownProviders';
@@ -38,6 +39,8 @@ export interface CompatibleProviderBalance {
     lastUpdated: Date;
     /** 查询是否成功 */
     success: boolean;
+    /** 多组额度结果（可选，当同接口返回多个额度时提供） */
+    items?: BalanceQueryItem[];
     /** 错误信息（如果查询失败） */
     error?: string;
 }
@@ -105,7 +108,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             alignment: vscode.StatusBarAlignment.Right,
             priority: 10, // 优先级取一个低值，靠右显示
             refreshCommand: 'gcmp.compatible.refreshBalance',
-            cacheKeyPrefix: 'compatible',
+            // 旧协议的额度 ID 可能属于另一提供商。
+            cacheKeyPrefix: 'compatible.v2',
             logPrefix: 'Compatible Status Bar',
             icon: '$(gcmp-compatible)'
         };
@@ -147,7 +151,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      * 获取 provider 条目的显示名称。
      */
     private getProviderDisplayName(providerId: string): string {
-        const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId);
+        const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId, 'entry');
         const baseDisplayName = resolveBuiltinProviderConfig(baseProviderId)?.displayName || baseProviderId;
         const usageDisplayName = BalanceQueryManager.getCustomUsageDisplayName(providerId);
         return usageDisplayName ? `${baseDisplayName} / ${usageDisplayName}` : baseDisplayName;
@@ -160,11 +164,11 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         return [...providers].sort((left, right) => {
             const leftIsInner = Object.prototype.hasOwnProperty.call(
                 InnerProviders,
-                BalanceQueryManager.getBaseProviderId(left.providerId)
+                BalanceQueryManager.getBaseProviderId(left.providerId, 'entry')
             );
             const rightIsInner = Object.prototype.hasOwnProperty.call(
                 InnerProviders,
-                BalanceQueryManager.getBaseProviderId(right.providerId)
+                BalanceQueryManager.getBaseProviderId(right.providerId, 'entry')
             );
 
             if (leftIsInner !== rightIsInner) {
@@ -200,10 +204,12 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
 
         // 逐个检查，无需鉴权或有有效 API Key 即认为可显示
         for (const provider of providersToCheck) {
-            if (!BalanceQueryManager.requiresApiKey(provider)) {
+            if (!BalanceQueryManager.requiresApiKey(provider, 'entry')) {
                 return true;
             }
-            const hasApiKey = await ApiKeyManager.hasValidApiKey(BalanceQueryManager.getBaseProviderId(provider));
+            const hasApiKey = await ApiKeyManager.hasValidApiKey(
+                BalanceQueryManager.getBaseProviderId(provider, 'entry')
+            );
             if (hasApiKey) {
                 return true;
             }
@@ -247,7 +253,9 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         const successfulProviders = this.getProvidersInDisplayOrder(providers.filter(p => p.success));
 
         for (const provider of successfulProviders) {
-            balanceTexts.push(this.formatBalance(provider.balance, provider.currency));
+            for (const item of provider.items?.length ? provider.items : [provider]) {
+                balanceTexts.push(this.formatBalance(item.balance, item.currency));
+            }
         }
 
         const balanceText = balanceTexts.join(' ');
@@ -274,7 +282,12 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
 
         const providersInOrder = this.getProvidersInDisplayOrder(data.providers);
         const hasDetailedBalances = providersInOrder.some(
-            provider => provider.success && (provider.paid !== undefined || provider.granted !== undefined)
+            provider =>
+                provider.success &&
+                (provider.paid !== undefined ||
+                    provider.granted !== undefined ||
+                    (provider.items &&
+                        provider.items.some(item => item.paid !== undefined || item.granted !== undefined)))
         );
 
         if (hasDetailedBalances) {
@@ -288,27 +301,32 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         }
 
         for (const provider of providersInOrder) {
-            if (provider.success) {
-                const availableBalance = this.formatBalance(provider.balance, provider.currency);
-
+            const items: BalanceQueryItem[] = provider.success && provider.items?.length ? provider.items : [provider];
+            for (const item of items) {
+                const name =
+                    item.displayName ? `${provider.providerName} / ${item.displayName}` : provider.providerName;
+                const cells = [name];
                 if (hasDetailedBalances) {
-                    const paidBalance =
-                        provider.paid !== undefined ? this.formatBalance(provider.paid, provider.currency) : '-';
-                    const grantedBalance =
-                        provider.granted !== undefined ? this.formatBalance(provider.granted, provider.currency) : '-';
-
-                    md.appendMarkdown(
-                        `| ${provider.providerName} | ${paidBalance} | ${grantedBalance} | ${availableBalance} |\n`
+                    cells.push(
+                        provider.success && item.paid !== undefined ?
+                            this.formatBalance(item.paid, item.currency)
+                        :   '-',
+                        provider.success && item.granted !== undefined ?
+                            this.formatBalance(item.granted, item.currency)
+                        :   '-'
                     );
-                } else {
-                    md.appendMarkdown(`| ${provider.providerName} | ${availableBalance} |\n`);
                 }
-            } else {
-                if (hasDetailedBalances) {
-                    md.appendMarkdown(`| ${provider.providerName} |  - | - | ${t('Query failed', '查询失败')} |\n`);
-                } else {
-                    md.appendMarkdown(`| ${provider.providerName} | ${t('Query failed', '查询失败')} |\n`);
+                cells.push(
+                    provider.success ? this.formatBalance(item.balance, item.currency) : t('Query failed', '查询失败')
+                );
+                md.appendMarkdown('| ');
+                for (let i = 0; i < cells.length; i++) {
+                    if (i > 0) {
+                        md.appendMarkdown(' | ');
+                    }
+                    md.appendMarkdown(cells[i].replace(/[\r\n]+/g, ' ').replace(/[\\`*_{}[\]()#+\-.!<>|]/g, '\\$&'));
                 }
+                md.appendMarkdown(' |\n');
             }
         }
 
@@ -332,10 +350,10 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             const providerMap = new Map<string, CompatibleProviderBalance>();
 
             for (const providerId of providerEntries) {
-                const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId);
+                const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId, 'entry');
 
                 // 检查提供商是否有有效的 API Key（或无需鉴权），没有则跳过
-                const requiresApiKey = BalanceQueryManager.requiresApiKey(providerId);
+                const requiresApiKey = BalanceQueryManager.requiresApiKey(providerId, 'entry');
                 const hasApiKey = requiresApiKey ? await ApiKeyManager.hasValidApiKey(baseProviderId) : true;
                 if (!hasApiKey) {
                     StatusLogger.debug(
@@ -389,12 +407,13 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             const queryPromises = providersToQuery.map(async provider => {
                 try {
                     // 使用余额查询管理器查询余额
-                    const balanceInfo = await BalanceQueryManager.queryBalance(provider.providerId);
+                    const balanceInfo = await BalanceQueryManager.queryBalance(provider.providerId, undefined, 'entry');
 
                     provider.paid = balanceInfo.paid;
                     provider.granted = balanceInfo.granted;
                     provider.balance = balanceInfo.balance;
                     provider.currency = balanceInfo.currency;
+                    provider.items = balanceInfo.items;
                     provider.lastUpdated = new Date();
                     provider.success = true;
 
@@ -443,12 +462,13 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         return getHighestBalanceAlertLevel(
             data.providers
                 .filter(provider => provider.success)
-                .map(provider => {
-                    const baseProviderId = BalanceQueryManager.getBaseProviderId(provider.providerId);
-                    return {
-                        balance: provider.balance,
-                        warningThreshold: ConfigManager.getProviderBalanceWarningThreshold(baseProviderId)
-                    };
+                .flatMap(provider => {
+                    const baseProviderId = BalanceQueryManager.getBaseProviderId(provider.providerId, 'entry');
+                    const warningThreshold = ConfigManager.getProviderBalanceWarningThreshold(baseProviderId);
+                    return (provider.items?.length ? provider.items : [provider]).map(item => ({
+                        balance: item.balance,
+                        warningThreshold
+                    }));
                 })
         );
     }
@@ -540,7 +560,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      */
     async refreshAfterApiKeyChange(providerId: string): Promise<void> {
         const affectedProviderIds = this.getConfiguredProviderEntries().filter(
-            entryId => BalanceQueryManager.getBaseProviderId(entryId) === providerId
+            entryId => BalanceQueryManager.getBaseProviderId(entryId, 'entry') === providerId
         );
 
         if (affectedProviderIds.length === 0) {
@@ -927,7 +947,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             StatusLogger.debug(`[${this.config.logPrefix}] Starting balance query for provider ${providerId}...`);
 
             for (const targetProviderId of targetProviderIds) {
-                const baseProviderId = BalanceQueryManager.getBaseProviderId(targetProviderId);
+                const baseProviderId = BalanceQueryManager.getBaseProviderId(targetProviderId, 'entry');
                 const providerBalance: CompatibleProviderBalance = {
                     providerId: targetProviderId,
                     providerName: this.getProviderDisplayName(targetProviderId),
@@ -938,19 +958,20 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 };
 
                 try {
-                    if (BalanceQueryManager.requiresApiKey(targetProviderId)) {
+                    if (BalanceQueryManager.requiresApiKey(targetProviderId, 'entry')) {
                         const hasApiKey = await ApiKeyManager.hasValidApiKey(baseProviderId);
                         if (!hasApiKey) {
                             throw new Error(`No API key configured for provider ${baseProviderId}`);
                         }
                     }
 
-                    const balanceInfo = await BalanceQueryManager.queryBalance(targetProviderId);
+                    const balanceInfo = await BalanceQueryManager.queryBalance(targetProviderId, undefined, 'entry');
 
                     providerBalance.paid = balanceInfo.paid;
                     providerBalance.granted = balanceInfo.granted;
                     providerBalance.balance = balanceInfo.balance;
                     providerBalance.currency = balanceInfo.currency;
+                    providerBalance.items = balanceInfo.items;
                     providerBalance.lastUpdated = new Date();
                     providerBalance.success = true;
 

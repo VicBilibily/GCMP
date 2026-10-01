@@ -4,17 +4,10 @@
  *---------------------------------------------------------------------------------------------*/
 
 import { BalanceQueryManager } from '../compatible/balanceQueryManager';
+import type { BalanceQueryResult } from '../compatible/balanceQuery';
 import { t } from '../../utils/runtime/l10n';
 import { formatCompatibleBalanceValue } from '../common';
 import type { QuotaQueryResult, QuotaTable } from '../types';
-
-/** BalanceQueryManager.queryBalance 返回的余额查询结果 */
-interface BalanceQueryResult {
-    balance: number;
-    currency: string;
-    paid?: number;
-    granted?: number;
-}
 
 /** 单个余额条目的格式化结果 */
 interface QuotaEntryResult {
@@ -24,7 +17,9 @@ interface QuotaEntryResult {
 }
 
 export function formatCompatibleQuotaEntry(entryId: string, result: BalanceQueryResult): QuotaEntryResult {
-    const label = BalanceQueryManager.getCustomUsageDisplayName(entryId);
+    const baseLabel = BalanceQueryManager.getCustomUsageDisplayName(entryId);
+    const itemLabel = result.items?.[0]?.displayName;
+    const label = baseLabel && itemLabel ? `${baseLabel} / ${itemLabel}` : itemLabel || baseLabel;
     const summary = formatCompatibleBalanceValue(result.balance, result.currency);
     const tables =
         result.paid !== undefined || result.granted !== undefined ?
@@ -44,18 +39,30 @@ export function formatCompatibleQuotaEntry(entryId: string, result: BalanceQuery
     return { label, summary, tables };
 }
 
+/**
+ * 格式化余额查询结果为展示条目列表（支持多条目展开）
+ */
+export function formatCompatibleQuotaEntries(entryId: string, result: BalanceQueryResult): QuotaEntryResult[] {
+    if (result.items?.length) {
+        return result.items.map(item => formatCompatibleQuotaEntry(entryId, { ...item, items: [item] }));
+    }
+
+    return [formatCompatibleQuotaEntry(entryId, result)];
+}
+
 export async function queryCompatibleProviderQuota(
     slot: string,
     apiKey: string,
     lastUpdated: string
 ): Promise<QuotaQueryResult> {
     const entryIds = BalanceQueryManager.getRegisteredProvidersForBaseProvider(slot);
-    const results = await Promise.all(
+    const nestedResults = await Promise.all(
         entryIds.map(async entryId => {
-            const result = await BalanceQueryManager.queryBalance(entryId, apiKey);
-            return formatCompatibleQuotaEntry(entryId, result);
+            const result = await BalanceQueryManager.queryBalance(entryId, apiKey, 'entry');
+            return formatCompatibleQuotaEntries(entryId, result);
         })
     );
+    const results = nestedResults.flat();
 
     return {
         metricType: 'balance',

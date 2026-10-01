@@ -819,19 +819,20 @@ export class JsonSchemaProvider {
     static getSettingsSchema(): JSONSchema7 {
         const providerConfigs = ConfigManager.getConfigProvider();
         const patternProperties: Record<string, JSONSchema7> = {};
+        const providerKeyPattern = (key: string) => `^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
         const allProviderEntries: Record<string, string> = {}; // key -> displayName
 
         // 1. 内置提供商
         for (const [providerKey, config] of Object.entries(providerConfigs)) {
             allProviderEntries[providerKey] = config.displayName || providerKey;
-            patternProperties[`^${providerKey}$`] = this.createProviderSchema(providerKey, config);
+            patternProperties[providerKeyPattern(providerKey)] = this.createProviderSchema(providerKey, config);
         }
 
         // 2. 已知提供商（aihubmix, openrouter, siliconflow 等）
         for (const [providerKey, knownConfig] of Object.entries(KnownProviders)) {
             if (!allProviderEntries[providerKey]) {
                 allProviderEntries[providerKey] = knownConfig.displayName || providerKey;
-                patternProperties[`^${providerKey}$`] = this.createSimpleProviderSchema(
+                patternProperties[providerKeyPattern(providerKey)] = this.createSimpleProviderSchema(
                     knownConfig.displayName || providerKey
                 );
             }
@@ -855,7 +856,7 @@ export class JsonSchemaProvider {
         }
         for (const providerKey of Array.from(customProvidersFromModels).sort()) {
             allProviderEntries[providerKey] = t('Custom provider: {0}', '自定义提供商：{0}', providerKey);
-            patternProperties[`^${providerKey}$`] = this.createCustomProviderSchema(providerKey);
+            patternProperties[providerKeyPattern(providerKey)] = this.createCustomProviderSchema(providerKey);
         }
 
         // 4. Compatible 提供商自身
@@ -2534,33 +2535,80 @@ export class JsonSchemaProvider {
             properties: {
                 ...base.properties,
                 usage: {
-                    ...this.createUsageItemSchema(),
+                    ...this.createUsageItemSchema(false),
                     description: t(
-                        'Default or single balance/usage query configuration. Use this when the provider has only one balance endpoint or one default mode. When `usages` is also provided, this object acts as the shared default configuration merged into each usage mode; if a named usage resolves to the same query config, that named mode is used instead of emitting an extra default mode.',
-                        '默认或单一余额/用量查询配置。提供商只有一个余额接口或一个默认模式时使用。当同时提供 `usages` 时，该对象会作为共享默认配置合并到每个 usage 模式中；若某个命名 usage 最终解析出的查询配置与它一致，则优先使用该命名模式，而不会额外生成一个 default 模式。'
+                        'Default or single balance/usage query configuration. Without `usages`, url and fields are required. With `usages`, this object may contain only shared defaults such as authentication and headers; each mode must provide any missing required fields. If a named mode resolves to the same complete query config, no extra default mode is emitted.',
+                        '默认或单一余额/用量查询配置。不提供 `usages` 时，url 和 fields 必填。提供 `usages` 时，可仅设置认证、请求头等通用信息，由各模式补齐缺少的必填字段。若某个命名模式最终解析出的完整查询配置与它一致，则不额外生成 default 模式。'
                     )
                 },
-                usages: {
-                    type: 'object',
-                    description: t(
-                        'One or more balance/usage query modes. When `usage` exists, each item can override its defaults; otherwise each item must provide a complete usage configuration.',
-                        '一个或多个余额/用量查询模式。存在 `usage` 时，每个条目都可覆盖其默认值；否则每个条目都需要提供完整的 usage 配置。'
-                    )
-                }
+                usages: this.createUsagesConfigSchema()
             },
             allOf: [
                 {
                     if: {
-                        required: ['usage']
+                        required: ['usages']
                     },
-                    then: {
+                    else: {
                         properties: {
-                            usages: this.createUsagesConfigSchema(true)
+                            usage: this.createUsageItemSchema()
+                        }
+                    }
+                },
+                {
+                    if: {
+                        required: ['usage'],
+                        properties: {
+                            usage: { required: ['url'] }
                         }
                     },
                     else: {
                         properties: {
-                            usages: this.createUsagesConfigSchema()
+                            usages: { additionalProperties: { required: ['url'] } }
+                        }
+                    }
+                },
+                {
+                    if: {
+                        required: ['usage'],
+                        properties: {
+                            usage: {
+                                required: ['fields'],
+                                properties: {
+                                    fields: {
+                                        anyOf: [{ type: 'object', required: ['balance'] }, { type: 'array' }]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    else: {
+                        properties: {
+                            usages: {
+                                additionalProperties: {
+                                    required: ['fields'],
+                                    properties: { fields: { required: ['balance'] } }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    if: {
+                        required: ['usage'],
+                        properties: {
+                            usage: {
+                                required: ['fields'],
+                                properties: { fields: { type: 'array', minItems: 2 } }
+                            }
+                        }
+                    },
+                    then: {
+                        properties: {
+                            usages: {
+                                additionalProperties: {
+                                    properties: { fields: { required: ['balance'] } }
+                                }
+                            }
                         }
                     }
                 }
@@ -2571,19 +2619,15 @@ export class JsonSchemaProvider {
     /**
      * 创建 usages 配置 schema
      */
-    private static createUsagesConfigSchema(allowPartialItems = false): JSONSchema7 {
+    private static createUsagesConfigSchema(): JSONSchema7 {
         return {
             type: 'object',
             description: t(
-                allowPartialItems ?
-                    'One or more balance/usage query modes for a custom provider. Each item can override the defaults defined in `usage`, so only the differing fields need to be specified.'
-                :   'One or more balance/usage query modes for a custom provider. Each item must provide a complete usage configuration when no shared `usage` defaults exist.',
-                allowPartialItems ?
-                    '自定义提供商的一个或多个余额/用量查询模式。每个条目都可以覆盖 `usage` 中定义的默认值，因此只需要填写差异字段。'
-                :   '自定义提供商的一个或多个余额/用量查询模式。不存在共享 `usage` 默认值时，每个条目都必须提供完整的 usage 配置。'
+                'One or more balance/usage query modes. Each item inherits shared `usage` defaults and must provide any missing url, fields, and balance mapping.',
+                '一个或多个余额/用量查询模式。每个条目继承 `usage` 通用配置，并须补齐其中未提供的 url、fields 和余额映射。'
             ),
             minProperties: 1,
-            additionalProperties: this.createUsageItemSchema(!allowPartialItems)
+            additionalProperties: this.createUsageItemSchema(false)
         };
     }
 
@@ -2672,31 +2716,87 @@ export class JsonSchemaProvider {
                     )
                 },
                 fields: {
-                    type: 'object',
-                    ...(requireCoreFields ? { required: ['balance'] } : {}),
                     description: t(
-                        'JSON response field paths (dot notation). Example: "data.balance" or "data[0].credit_balance". Use [*] to sum a numeric field across array items; unparseable items count as 0.',
-                        'JSON 返回字段路径（dot 表示法）。示例："data.balance" 或 "data[0].credit_balance"。使用 [*] 可对数组项中的数值字段求和；无法解析的项按 0 处理。'
+                        'JSON response field paths (dot notation). Supports a single field config object or a replacement array of complete configs. Each config can define displayName as a string or {path, prefix, suffix} (resolves a path or preserves the original literal). Use [*] to sum; use arrayPath, [] or unindexed array paths to split items into separate quotas. Explicit numeric indices select one item.',
+                        'JSON 返回字段路径（dot 表示法）。支持单个字段配置对象或完整配置的替换数组。每项可定义字符串或 {path, prefix, suffix} 形式的 displayName（尝试路径解释，获取不到值时原样显示）。[*] 用于求和；arrayPath、[] 或无索引数组路径用于拆分多个额度；显式数值索引只选择对应项。'
                     ),
-                    properties: {
-                        balance: {
-                            ...this.createUsageFieldValueSchema(
-                                t('Available/remaining balance source', '可用/剩余余额来源')
-                            )
-                        },
-                        paid: {
-                            ...this.createUsageFieldValueSchema(t('Paid balance source', '充值余额来源'))
-                        },
-                        granted: {
-                            ...this.createUsageFieldValueSchema(t('Granted balance source', '赠送余额来源'))
+                    oneOf: [
+                        this.createUsageFieldItemSchema(requireCoreFields),
+                        {
+                            type: 'array',
+                            minItems: 1,
+                            items: this.createUsageFieldItemSchema()
                         }
-                    },
-                    additionalProperties: false
+                    ]
                 },
                 unit: {
                     type: 'string',
                     default: 'USD',
                     description: t('Display unit, e.g. USD, CNY, Token', '展示单位，如 USD、CNY、Token')
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
+    private static createUsageFieldItemSchema(requireCoreFields = true): JSONSchema7 {
+        return {
+            type: 'object',
+            ...(requireCoreFields ? { required: ['balance'] } : {}),
+            properties: {
+                displayName: {
+                    description: t(
+                        'Optional quota display name: a string or {path, prefix, suffix}. Resolves the path first, falling back to its literal value, then adds literal affixes.',
+                        '可选额度名称：字符串或 {path, prefix, suffix}。先解析路径，未命中时按路径字面量显示，再拼接固定前后缀。'
+                    ),
+                    oneOf: [
+                        { type: 'string' },
+                        {
+                            type: 'object',
+                            required: ['path'],
+                            properties: {
+                                path: {
+                                    type: 'string',
+                                    description: t(
+                                        'Name field path; displayed literally if no value is found.',
+                                        '名称字段路径；未获取到值时原样显示。'
+                                    )
+                                },
+                                prefix: {
+                                    type: 'string',
+                                    description: t('Literal prefix; whitespace is preserved.', '固定前缀，保留空格。')
+                                },
+                                suffix: {
+                                    type: 'string',
+                                    description: t('Literal suffix; whitespace is preserved.', '固定后缀，保留空格。')
+                                }
+                            },
+                            additionalProperties: false
+                        }
+                    ]
+                },
+                arrayPath: {
+                    type: 'string',
+                    description: t(
+                        'Optional JSON path to an array. When specified, automatically parses and splits array items into multiple quota entries.',
+                        '可选的数组 JSON 路径。指定后，自动解析并将数组内各项拆分为多个额度条目。'
+                    )
+                },
+                balance: {
+                    ...this.createUsageFieldValueSchema(t('Available/remaining balance source', '可用/剩余余额来源'))
+                },
+                paid: {
+                    ...this.createUsageFieldValueSchema(t('Paid balance source', '充值余额来源'))
+                },
+                granted: {
+                    ...this.createUsageFieldValueSchema(t('Granted balance source', '赠送余额来源'))
+                },
+                unit: {
+                    type: 'string',
+                    description: t(
+                        'Display unit for this quota (defaults to usage.unit)',
+                        '该额度的展示单位（缺省使用 usage.unit）'
+                    )
                 }
             },
             additionalProperties: false

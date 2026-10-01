@@ -3,15 +3,21 @@
  *  通过 provider usage / usages 配置查询余额
  *--------------------------------------------------------------------------------------------*/
 
-import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
+import { IBalanceQuery, BalanceQueryResult, BalanceQueryItem } from './balanceQuery';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigManager } from '../../utils/config/configManager';
 import { getValueByPath } from '../../utils/text/pathExtractor';
 import { resolveBuiltinProviderConfig } from '../../utils/config/knownProviders';
 import { Logger } from '../../utils/runtime/logger';
-import { applyCustomHeaders, mergeCustomHeaders } from '../../utils/net/httpHeaders';
-import type { CustomHeaderValue, CustomHeaders, ProviderUsageConfig } from '../../types/sharedTypes';
+import { applyCustomHeaders, isSensitiveHeaderName, mergeCustomHeaders } from '../../utils/net/httpHeaders';
+import type {
+    CustomHeaderValue,
+    CustomHeaders,
+    ProviderUsageConfig,
+    UsageFieldItemConfig,
+    UsageFieldValueSource
+} from '../../types/sharedTypes';
 import { resolveUsageFieldValue } from './usageComputedField';
 import {
     mergeProviderUsageOverride,
@@ -19,6 +25,12 @@ import {
     resolveCustomUsageEntries,
     resolveUsageConfig
 } from './usageConfigResolver';
+
+interface UsageItemContext {
+    data: unknown;
+    scopes: string[][];
+    bindings: ReadonlyMap<string, number>;
+}
 
 /**
  * Compatible 提供商通用余额查询器
@@ -29,20 +41,17 @@ export class CustomUsageQuery implements IBalanceQuery {
      * 查询 Compatible provider 余额
      * @param providerId 提供商标识
      */
-    async queryBalance(providerId: string, apiKeyOverride?: string): Promise<BalanceQueryResult> {
+    async queryBalance(providerId: string, apiKeyOverride?: string, usageKey?: string): Promise<BalanceQueryResult> {
         StatusLogger.debug(`[CustomUsageQuery] Querying balance for provider ${providerId}`);
 
-        const usageTarget = parseCustomUsageTarget(providerId);
-        const usageConfig = this.getUsageConfig(providerId);
-        if (!usageConfig) {
+        const usageTarget = this.getUsageConfig(providerId, usageKey);
+        if (!usageTarget) {
             throw new Error(`No usage configuration found for provider ${providerId}`);
         }
+        const { baseProviderId, usageConfig } = usageTarget;
 
         const requiresApiKey = usageConfig.authType !== 'none';
-        const apiKey =
-            requiresApiKey ?
-                (apiKeyOverride ?? (await ApiKeyManager.getApiKey(usageTarget.baseProviderId)))
-            :   undefined;
+        const apiKey = requiresApiKey ? (apiKeyOverride ?? (await ApiKeyManager.getApiKey(baseProviderId))) : undefined;
         if (requiresApiKey && !apiKey) {
             throw new Error(`No API key found for provider ${providerId}`);
         }
@@ -53,7 +62,7 @@ export class CustomUsageQuery implements IBalanceQuery {
         applyCustomHeaders(
             headers,
             mergeCustomHeaders(
-                this.buildMergedCustomHeader(usageTarget.baseProviderId, apiKey, usageConfig.authType),
+                this.buildMergedCustomHeader(baseProviderId, apiKey, usageConfig.authType),
                 usageConfig.headers
             )
         );
@@ -73,7 +82,7 @@ export class CustomUsageQuery implements IBalanceQuery {
 
         try {
             const response = await ConfigManager.fetchWithProxy(requestUrl, requestInit, {
-                providerKey: usageTarget.baseProviderId
+                providerKey: baseProviderId
             });
 
             const responseText = await response.text();
@@ -91,23 +100,18 @@ export class CustomUsageQuery implements IBalanceQuery {
 
             this.assertSuccessConditions(data, usageConfig);
 
-            const paid = resolveUsageFieldValue(data, usageConfig.fields.paid, 'paid');
-            const granted = resolveUsageFieldValue(data, usageConfig.fields.granted, 'granted');
-
-            let balance = resolveUsageFieldValue(data, usageConfig.fields.balance, 'balance');
-            if (balance === undefined && paid !== undefined && granted !== undefined) {
-                balance = paid + granted;
-            }
-
-            if (balance === undefined) {
+            const items = this.resolveUsageItems(data, usageConfig);
+            if (items.length === 0) {
                 throw new Error('Failed to extract balance from response');
             }
 
+            const primary = items[0];
             return {
-                balance,
-                currency: usageConfig.unit || 'USD',
-                paid,
-                granted
+                balance: primary.balance,
+                currency: primary.currency,
+                paid: primary.paid,
+                granted: primary.granted,
+                items
             };
         } catch (error) {
             Logger.error(`[CustomUsageQuery] Failed to query balance for ${providerId}`, error);
@@ -120,29 +124,37 @@ export class CustomUsageQuery implements IBalanceQuery {
     /**
      * 获取 provider 的 usage/usages 配置
      */
-    private getUsageConfig(providerId: string): ProviderUsageConfig | undefined {
+    private getUsageConfig(
+        providerId: string,
+        usageKey?: string
+    ): { baseProviderId: string; usageConfig: ProviderUsageConfig } | undefined {
         const overrides = ConfigManager.getProviderOverrides();
-        const { baseProviderId, usageKey } = parseCustomUsageTarget(providerId);
-        const override = mergeProviderUsageOverride(
-            resolveBuiltinProviderConfig(baseProviderId),
-            overrides[baseProviderId]
-        );
-        if (!override) {
-            return undefined;
+        const target = parseCustomUsageTarget(providerId);
+        const targets: (typeof target)[] = [{ baseProviderId: providerId, usageKey }];
+        if (
+            usageKey === undefined &&
+            target.usageKey !== undefined &&
+            !overrides[providerId] &&
+            !resolveBuiltinProviderConfig(providerId)
+        ) {
+            targets.push(target);
         }
 
-        const usageEntries = resolveCustomUsageEntries(baseProviderId, override);
-
-        if (usageKey) {
-            const usageEntry = usageEntries.find(entry => entry.usageKey === usageKey);
-            return usageEntry?.usageConfig;
+        for (const { baseProviderId, usageKey } of targets) {
+            const override = mergeProviderUsageOverride(
+                resolveBuiltinProviderConfig(baseProviderId),
+                overrides[baseProviderId]
+            );
+            const usageEntries = resolveCustomUsageEntries(baseProviderId, override);
+            const usageConfig =
+                usageKey !== undefined ? usageEntries.find(entry => entry.usageKey === usageKey)?.usageConfig
+                : usageEntries.length === 1 ? usageEntries[0].usageConfig
+                : resolveUsageConfig(undefined, override?.usage);
+            if (usageConfig) {
+                return { baseProviderId, usageConfig };
+            }
         }
-
-        if (usageEntries.length === 1) {
-            return usageEntries[0].usageConfig;
-        }
-
-        return resolveUsageConfig(undefined, override.usage);
+        return undefined;
     }
 
     /**
@@ -199,8 +211,7 @@ export class CustomUsageQuery implements IBalanceQuery {
      */
     private shouldStripProviderHeader(headerName: string, headerValue: CustomHeaderValue): boolean {
         return (
-            /^(authorization|proxy-authorization|cookie|set-cookie)$/i.test(headerName) ||
-            /(^|[-_])(api[-_]?key|auth[-_]?token|access[-_]?token)([-_]|$)/i.test(headerName) ||
+            isSensitiveHeaderName(headerName) ||
             (typeof headerValue === 'string' && /\$\{\s*APIKEY\s*\}/i.test(headerValue))
         );
     }
@@ -260,5 +271,208 @@ export class CustomUsageQuery implements IBalanceQuery {
                 configuredMessage
             :   'Business success condition not matched';
         throw new Error(errorMessage);
+    }
+
+    /**
+     * 从接口返回数据中解析出所有额度项
+     */
+    resolveUsageItems(data: unknown, usageConfig: ProviderUsageConfig): BalanceQueryItem[] {
+        const fieldConfigs: UsageFieldItemConfig[] =
+            Array.isArray(usageConfig.fields) ? usageConfig.fields : [usageConfig.fields];
+        const context: UsageItemContext = { data, scopes: [], bindings: new Map() };
+        return fieldConfigs.flatMap(fields => this.parseFieldContext(context, fields, usageConfig));
+    }
+
+    private parseFieldContext(
+        context: UsageItemContext,
+        fields: UsageFieldItemConfig,
+        usageConfig: ProviderUsageConfig
+    ): BalanceQueryItem[] {
+        let split: { path: string[]; items: unknown[] } | undefined;
+        if (fields.arrayPath !== undefined) {
+            const arrayPath = fields.arrayPath.trim();
+            const path = this.getPathSegments(arrayPath === '$' || arrayPath === '@' ? '' : arrayPath);
+            const boundPath = this.bindItemPath(path, context.bindings);
+            split = this.findArrayInPath(context.data, boundPath);
+            const selectedArrayPath = boundPath.slice(0, -1).join('.');
+            if (!split && !context.bindings.has(selectedArrayPath)) {
+                return [];
+            }
+        }
+
+        const balancePaths = this.getSourcePaths(fields.balance);
+        for (const path of balancePaths) {
+            if (split) {
+                break;
+            }
+            split = this.findArrayInPath(context.data, this.getItemPath(context, path));
+        }
+
+        if (split) {
+            const arrayPath = split.path;
+            return split.items.flatMap((_item, index) =>
+                this.parseFieldContext(
+                    {
+                        ...context,
+                        scopes: [...context.scopes, [...arrayPath, String(index)]],
+                        bindings: new Map([...context.bindings, [arrayPath.join('.'), index]])
+                    },
+                    fields,
+                    usageConfig
+                )
+            );
+        }
+
+        const paid = this.resolveItemField(context, fields.paid, 'paid');
+        const granted = this.resolveItemField(context, fields.granted, 'granted');
+        let balance = this.resolveItemField(context, fields.balance, 'balance');
+        if (balance === undefined && paid !== undefined && granted !== undefined) {
+            balance = paid + granted;
+        }
+        if (balance === undefined) {
+            return [];
+        }
+
+        return [
+            {
+                displayName: this.resolveDisplayName(context, fields.displayName),
+                balance,
+                currency: fields.unit || usageConfig.unit || 'USD',
+                paid,
+                granted
+            }
+        ];
+    }
+
+    private resolveItemField(
+        context: UsageItemContext,
+        source: UsageFieldValueSource | undefined,
+        name: 'balance' | 'paid' | 'granted'
+    ): number | undefined {
+        const mapped = source === undefined ? undefined : this.mapFieldSource(context, source);
+        return resolveUsageFieldValue({ response: context.data }, mapped, name);
+    }
+
+    private mapFieldSource(context: UsageItemContext, source: UsageFieldValueSource): UsageFieldValueSource {
+        if (typeof source === 'string') {
+            const path = this.getItemPath(context, source)
+                .join('.')
+                .replace(/(^|\.)\*/g, '[*]');
+            return path ? `response.${path}` : 'response';
+        }
+        return {
+            ...source,
+            paths: source.paths.map(entry =>
+                typeof entry === 'number' || (typeof entry === 'string' && !entry.trim()) ?
+                    entry
+                :   this.mapFieldSource(context, entry)
+            )
+        };
+    }
+
+    private getSourcePaths(source: UsageFieldValueSource): string[] {
+        return typeof source === 'string' ?
+                [source]
+            :   source.paths.flatMap(entry => (typeof entry === 'number' ? [] : this.getSourcePaths(entry)));
+    }
+
+    private resolveDisplayName(
+        context: UsageItemContext,
+        pattern?: UsageFieldItemConfig['displayName']
+    ): string | undefined {
+        if (pattern !== undefined) {
+            const source = typeof pattern === 'string' ? pattern : pattern.path;
+            const path = this.getItemPath(context, source).join('.');
+            const value = path ? getValueByPath(context.data, path) : context.data;
+            const name =
+                typeof value === 'string' && value.trim() ? value.trim()
+                : typeof value === 'number' && Number.isFinite(value) ? String(value)
+                : source;
+            return typeof pattern === 'string' ? name : `${pattern.prefix ?? ''}${name}${pattern.suffix ?? ''}`;
+        }
+
+        const scope = context.scopes.at(-1);
+        const candidate = scope ? getValueByPath(context.data, scope.join('.')) : undefined;
+        if (candidate && typeof candidate === 'object') {
+            for (const key of ['name', 'model', 'title', 'id', 'type', 'plan']) {
+                const val = (candidate as Record<string, unknown>)[key];
+                if (typeof val === 'string' && val.trim().length > 0) {
+                    return val.trim();
+                }
+            }
+        }
+        return scope ? `#${Number(scope.at(-1)) + 1}` : undefined;
+    }
+
+    private getItemPath(context: UsageItemContext, source: string): string[] {
+        const path = this.getPathSegments(source);
+        const absolutePath = this.bindItemPath(path, context.bindings);
+        if (absolutePath.join('.') !== path.join('.')) {
+            return absolutePath;
+        }
+
+        for (let i = context.scopes.length - 1; i >= 0; i--) {
+            const relativePath = this.bindItemPath([...context.scopes[i], ...path], context.bindings);
+            const marker = relativePath.findIndex(segment => segment === '*' || segment === '[]');
+            const prefix = marker < 0 ? relativePath : relativePath.slice(0, marker);
+            if (
+                this.findArrayInPath(context.data, relativePath) ||
+                getValueByPath(context.data, prefix.join('.')) !== undefined
+            ) {
+                return relativePath;
+            }
+        }
+        return absolutePath;
+    }
+
+    private bindItemPath(path: string[], bindings: ReadonlyMap<string, number>): string[] {
+        const result: string[] = [];
+        for (let i = 0; i <= path.length; i++) {
+            const segment = path[i];
+            let index = bindings.get(result.join('.'));
+            while (index !== undefined && segment !== '*' && (segment === undefined || !/^\d+$/.test(segment))) {
+                result.push(String(index));
+                if (segment === '[]') {
+                    break;
+                }
+                index = bindings.get(result.join('.'));
+            }
+            if (segment === '[]' && index !== undefined) {
+                continue;
+            }
+            if (segment !== undefined) {
+                result.push(segment);
+            }
+        }
+        return result;
+    }
+
+    private getPathSegments(path: string): string[] {
+        return path
+            .trim()
+            .replace(/\[(\d+|\*)\]/g, '.$1')
+            .replace(/\[\]/g, '.[]')
+            .split('.')
+            .filter(s => s.length > 0);
+    }
+
+    private findArrayInPath(data: unknown, path: string[]): { path: string[]; items: unknown[] } | undefined {
+        let current = data;
+        for (let i = 0; i <= path.length; i++) {
+            const segment = path[i];
+            if (Array.isArray(current)) {
+                if (segment === '*' || (segment !== '[]' && path.slice(i).includes('*'))) {
+                    return undefined;
+                }
+                if (segment === undefined || !/^\d+$/.test(segment)) {
+                    return { path: path.slice(0, i), items: current };
+                }
+            }
+            if (current == null || typeof current !== 'object') {
+                return undefined;
+            }
+            current = (current as Record<string, unknown>)[segment];
+        }
+        return undefined;
     }
 }

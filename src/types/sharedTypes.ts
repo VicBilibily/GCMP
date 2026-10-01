@@ -542,19 +542,16 @@ export interface ProviderUsageConfig {
     successConditions?: UsageSuccessCondition[];
     /** 业务失败时用于提取错误消息的字段路径（可选） */
     errorMessagePath?: string;
-    /** 返回字段解析路径（dot 表示法） */
-    fields: UsageFieldPaths;
+    /** 返回字段解析路径（dot 表示法，支持单个对象或配置数组） */
+    fields: UsageFieldsConfig;
     /** 余额单位，默认 USD */
     unit?: string;
 }
 
-/**
- * usages 条目的增量覆盖配置。
- * 当同时存在 usage 与 usages 时，usages 中的每个条目会基于 usage 进行智能合并。
- */
+/** usage 通用配置及 usages 条目的增量覆盖。 */
 export interface ProviderUsageOverrideConfig extends Omit<Partial<ProviderUsageConfig>, 'fields'> {
-    /** 返回字段解析路径增量覆盖（可选） */
-    fields?: Partial<UsageFieldPaths>;
+    /** 返回字段解析路径增量覆盖（可选，支持单个对象增量或多 fields 配置数组完整覆盖） */
+    fields?: Partial<UsageFieldItemConfig> | UsageFieldItemConfig[];
 }
 
 /**
@@ -563,18 +560,39 @@ export interface ProviderUsageOverrideConfig extends Omit<Partial<ProviderUsageC
  */
 export type ProviderUsagesConfig = Record<string, ProviderUsageOverrideConfig>;
 
+export interface UsageDisplayNameConfig {
+    path: string;
+    prefix?: string;
+    suffix?: string;
+}
+
 /**
- * 余额查询返回字段解析路径
- * 用 dot 路径从返回 JSON 中提取对应数值
+ * 单个余额/用量字段解析配置项
  */
-export interface UsageFieldPaths {
+export interface UsageFieldItemConfig {
+    /** 路径未命中时保留字面量；对象形式的前后缀仅用于展示 */
+    displayName?: string | UsageDisplayNameConfig;
+    /** 数组路径（可选）。若指定，则从该路径获取数组，对数组内每个元素分别解析额度 */
+    arrayPath?: string;
     /** 可用余额/剩余额度 */
     balance: UsageFieldValueSource;
     /** 充值/已付余额（可选） */
     paid?: UsageFieldValueSource;
     /** 赠送余额（可选） */
     granted?: UsageFieldValueSource;
+    /** 独立展示单位/货币（可选，缺省使用外层 unit） */
+    unit?: string;
 }
+
+/**
+ * 兼容旧命名：单个余额查询返回字段解析路径
+ */
+export type UsageFieldPaths = UsageFieldItemConfig;
+
+/**
+ * 字段解析配置：支持单对象定义或多 fields 配置数组
+ */
+export type UsageFieldsConfig = UsageFieldItemConfig | UsageFieldItemConfig[];
 
 /**
  * 提供商级别的重试配置覆盖。
@@ -635,8 +653,8 @@ export interface ProviderOverride {
     customHeader?: CustomHeaders;
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
-    /** 自定义提供商默认/单模式余额/用量查询配置（可选） */
-    usage?: ProviderUsageConfig;
+    /** 自定义提供商默认/单模式配置；存在 usages 时可仅提供通用信息 */
+    usage?: ProviderUsageOverrideConfig;
     /** 自定义提供商多模式余额/用量查询配置（多个模式时使用，可选；可基于 usage 增量覆盖） */
     usages?: ProviderUsagesConfig;
     /** 状态栏余额警告阈值；余额小于等于此值时显示黄色，未设置时默认为 20 */
