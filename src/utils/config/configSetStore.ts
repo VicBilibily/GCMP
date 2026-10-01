@@ -42,6 +42,7 @@ export interface BalanceKeyExclusion {
     credentialId: string;
     /** 隔离发生时间戳 */
     at: number;
+    authorityTerm?: string;
 }
 
 /**
@@ -252,20 +253,27 @@ export class ConfigSetStore {
         }
         const value = this.context.globalState.get<BalanceKeyExclusion[]>(this.balanceExclusionsKey(slot));
         // 旧记录只有配置 ID，无法还原失败时实际使用的凭据。
-        return Array.isArray(value) ? value.filter(entry => typeof entry?.credentialId === 'string') : [];
+        return Array.isArray(value) ?
+                value.filter(
+                    entry =>
+                        typeof entry?.credentialId === 'string' &&
+                        (entry.authorityTerm === undefined || typeof entry.authorityTerm === 'string')
+                )
+            :   [];
     }
 
     static async addBalanceExclusion(
         slot: string,
         balanceKey: string,
         credentialId: string,
-        at: number
+        at: number,
+        authorityTerm?: string
     ): Promise<void> {
         await this.enqueue(async () => {
             const next = this.getBalanceExclusions(slot).filter(
                 entry => !(entry.k === balanceKey && entry.credentialId === credentialId)
             );
-            next.push({ k: balanceKey, credentialId, at });
+            next.push({ k: balanceKey, credentialId, at, ...(authorityTerm ? { authorityTerm } : {}) });
             while (next.length > this.BALANCE_EXCLUSION_MAX) {
                 next.shift();
             }

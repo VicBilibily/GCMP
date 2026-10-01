@@ -84,6 +84,8 @@ export interface SlotState {
     hasUsage: boolean;
     /** 用量展示类型（hasUsage=true 时有值） */
     usageMetricType?: 'usage' | 'balance';
+    /** 负载均衡运行时权威状态；非 balance 模式不影响展示。 */
+    balanceStatus?: 'available' | 'fallback';
     rows: ConfigSetRow[];
 }
 

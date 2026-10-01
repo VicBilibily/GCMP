@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import * as vscode from 'vscode';
+import { InterInstanceBus } from '../../src/interInstance';
 import { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import { LeaderElectionService } from '../../src/status/leaderElectionService';
 import type { ModelConfig } from '../../src/types/sharedTypes';
@@ -155,20 +156,30 @@ suite('config set balance mode regressions', () => {
     const originalLeader = LeaderElectionService.isLeader;
     const originalAgents = LeaderElectionService.isAgentsWindow;
     const originalOwnedTerm = LeaderElectionService.getOwnedAuthorityTerm;
+    const originalInstanceId = LeaderElectionService.getInstanceId;
+    const originalAuthorityTerm = InterInstanceBus.getAuthorityTerm;
+    const originalHasActiveTransport = InterInstanceBus.hasActiveTransport;
+    const originalPublishIpcOnly = InterInstanceBus.publishIpcOnly;
 
     setup(() => {
-        LeaderElectionService.isInitialized = () => false;
-        LeaderElectionService.isLeader = () => false;
+        ApiKeyFailoverManager.handleBalanceAuthorityLost();
+        LeaderElectionService.isInitialized = () => true;
+        LeaderElectionService.isLeader = () => true;
         LeaderElectionService.isAgentsWindow = () => false;
         const authorityTerm = `balance-test:${randomUUID()}`;
         LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
     });
 
     teardown(() => {
+        ApiKeyFailoverManager.handleBalanceAuthorityLost();
         LeaderElectionService.isInitialized = originalInitialized;
         LeaderElectionService.isLeader = originalLeader;
         LeaderElectionService.isAgentsWindow = originalAgents;
         LeaderElectionService.getOwnedAuthorityTerm = originalOwnedTerm;
+        LeaderElectionService.getInstanceId = originalInstanceId;
+        InterInstanceBus.getAuthorityTerm = originalAuthorityTerm;
+        InterInstanceBus.hasActiveTransport = originalHasActiveTransport;
+        InterInstanceBus.publishIpcOnly = originalPublishIpcOnly;
     });
 
     test('legacy auto switch boolean migrates to failover mode', async () => {
@@ -190,8 +201,8 @@ suite('config set balance mode regressions', () => {
         await seed('slot');
         await ConfigSetStore.setSwitchMode('slot', 'balance');
 
-        const first = await ApiKeyFailoverManager.captureAttempt('slot', 's:session-1');
-        const second = await ApiKeyFailoverManager.captureAttempt('slot', 's:session-1');
+        const first = await ApiKeyFailoverManager.captureAttempt('slot', 's:session-1', 'request-1');
+        const second = await ApiKeyFailoverManager.captureAttempt('slot', 's:session-1', 'request-1');
         assert.equal(first?.activeId, second?.activeId);
         assert.ok(['a', 'b', 'c'].includes(first?.activeId ?? ''));
         assert.equal(first?.apiKey, `key-slot-${first?.activeId}`);
@@ -199,6 +210,278 @@ suite('config set balance mode regressions', () => {
 
         const other = await ApiKeyFailoverManager.captureAttempt('slot', 'a:sub-1');
         assert.ok(['a', 'b', 'c'].includes(other?.activeId ?? ''));
+    });
+
+    test('balance capture falls back to the primary key without a Leader', async () => {
+        initialize();
+        await seed('slot');
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        LeaderElectionService.isInitialized = () => false;
+        LeaderElectionService.isLeader = () => false;
+        assert.equal(await ApiKeyFailoverManager.captureAttempt('slot', 's:no-leader'), undefined);
+        assert.equal(await ApiKeyManager.getApiKey('slot'), 'key-slot-a');
+    });
+
+    test('Agents window uses an ordinary window Leader assignment over IPC', async () => {
+        initialize();
+        await seed('slot');
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        LeaderElectionService.isInitialized = () => true;
+        LeaderElectionService.isLeader = () => false;
+        LeaderElectionService.isAgentsWindow = () => true;
+        LeaderElectionService.getInstanceId = () => 'agents-a';
+        InterInstanceBus.getAuthorityTerm = () => 'leader-a:1';
+        InterInstanceBus.hasActiveTransport = () => true;
+        InterInstanceBus.publishIpcOnly = event => {
+            if (event.type !== 'apiKeyBalanceAssignmentRequested') {
+                return true;
+            }
+            const payload = event.payload as { requestId: string };
+            queueMicrotask(() => {
+                ApiKeyFailoverManager.resolveBalanceAssignment({
+                    requestId: payload.requestId,
+                    targetInstanceId: 'agents-a',
+                    authorityTerm: 'leader-a:1',
+                    handled: true,
+                    leaseId: 'lease-a',
+                    configId: 'b',
+                    credentialId: credentialId('key-slot-b'),
+                    apiKeyName: 'label-b',
+                    expiresAt: Date.now() + 30_000
+                });
+            });
+            return true;
+        };
+
+        const attempt = await ApiKeyFailoverManager.captureAttempt('slot', 'a:sub-1', 'request-agents-1');
+        assert.equal(attempt?.activeId, 'b');
+        assert.equal(attempt?.balanceAuthorityTerm, 'leader-a:1');
+        assert.equal(attempt?.apiKeyName, 'label-b');
+    });
+
+    test('Follower discards an assignment when its authority changes during secret lookup', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        LeaderElectionService.isInitialized = () => true;
+        LeaderElectionService.isLeader = () => false;
+        LeaderElectionService.getInstanceId = () => 'follower-a';
+        let authorityTerm = 'leader-a:1';
+        InterInstanceBus.getAuthorityTerm = () => authorityTerm;
+        InterInstanceBus.hasActiveTransport = () => true;
+
+        let unblockSecret!: () => void;
+        let secretLookupStarted!: () => void;
+        const secretLookup = new Promise<void>(resolve => {
+            secretLookupStarted = resolve;
+        });
+        const secretGate = new Promise<void>(resolve => {
+            unblockSecret = resolve;
+        });
+        const originalGetApiKey = ConfigSetStore.getApiKey.bind(ConfigSetStore);
+        ConfigSetStore.getApiKey = async (...args) => {
+            secretLookupStarted();
+            await secretGate;
+            return await originalGetApiKey(...args);
+        };
+        InterInstanceBus.publishIpcOnly = event => {
+            if (event.type !== 'apiKeyBalanceAssignmentRequested') {
+                return true;
+            }
+            const payload = event.payload as { requestId: string };
+            queueMicrotask(() => {
+                ApiKeyFailoverManager.resolveBalanceAssignment({
+                    requestId: payload.requestId,
+                    targetInstanceId: 'follower-a',
+                    authorityTerm: 'leader-a:1',
+                    handled: true,
+                    leaseId: 'lease-a',
+                    configId: 'b',
+                    credentialId: credentialId('key-slot-b'),
+                    expiresAt: Date.now() + 30_000
+                });
+            });
+            return true;
+        };
+
+        try {
+            const captured = ApiKeyFailoverManager.captureAttempt('slot', 'a:sub-1', 'request-late-term');
+            await secretLookup;
+            authorityTerm = 'leader-a:2';
+            unblockSecret();
+            assert.equal(await captured, undefined);
+        } finally {
+            ConfigSetStore.getApiKey = originalGetApiKey;
+        }
+    });
+
+    test('Leader loss during balance capture falls back without throwing', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+
+        let unblockSecret!: () => void;
+        let secretLookupStarted!: () => void;
+        const secretLookup = new Promise<void>(resolve => {
+            secretLookupStarted = resolve;
+        });
+        const secretGate = new Promise<void>(resolve => {
+            unblockSecret = resolve;
+        });
+        const originalGetApiKey = ConfigSetStore.getApiKey.bind(ConfigSetStore);
+        ConfigSetStore.getApiKey = async (...args) => {
+            secretLookupStarted();
+            await secretGate;
+            return await originalGetApiKey(...args);
+        };
+
+        try {
+            const captured = ApiKeyFailoverManager.captureAttempt('slot', 's:leader-loss', 'request-leader-loss');
+            await secretLookup;
+            LeaderElectionService.isLeader = () => false;
+            LeaderElectionService.getOwnedAuthorityTerm = () => undefined;
+            unblockSecret();
+            assert.equal(await captured, undefined);
+        } finally {
+            ConfigSetStore.getApiKey = originalGetApiKey;
+        }
+    });
+
+    test('late balance failure from an old lease term does not isolate under the new term', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        let authorityTerm = 'leader-a:1';
+        LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
+        const attempt: ApiKeyFailoverAttempt = {
+            mode: 'balance',
+            activeId: 'a',
+            apiKey: 'key-slot-a',
+            identity: credentialId('key-slot-a'),
+            balanceLeaseId: 'lease-old',
+            balanceLeaseExpiresAt: Date.now() + 30_000,
+            balanceAuthorityTerm: authorityTerm
+        };
+
+        authorityTerm = 'leader-a:2';
+        const decision = await ApiKeyFailoverManager.handleFailure(
+            'slot',
+            new Error('401 unauthorized'),
+            attempt,
+            new Set(),
+            3,
+            undefined,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            's:session-1'
+        );
+
+        assert.deepEqual(decision, { handled: true, shouldRetry: false, switched: false });
+        assert.equal(ConfigSetStore.getBalanceExclusions('slot').length, 0);
+    });
+
+    test('balance isolation write does not affect the new term', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const balanceKey = balanceKeyForBucket(0, 2);
+        let authorityTerm = 'leader-a:1';
+        LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
+
+        const attempt = await ApiKeyFailoverManager.captureAttempt('slot', balanceKey);
+        assert.ok(attempt);
+
+        const originalAddBalanceExclusion = ConfigSetStore.addBalanceExclusion.bind(ConfigSetStore);
+        let unblockWrite!: () => void;
+        let writeStarted!: () => void;
+        const writeStartedPromise = new Promise<void>(resolve => {
+            writeStarted = resolve;
+        });
+        const writeGate = new Promise<void>(resolve => {
+            unblockWrite = resolve;
+        });
+        ConfigSetStore.addBalanceExclusion = async (...args) => {
+            writeStarted();
+            await writeGate;
+            return await originalAddBalanceExclusion(...args);
+        };
+
+        try {
+            const failure = ApiKeyFailoverManager.handleFailure(
+                'slot',
+                new Error('401 unauthorized'),
+                attempt,
+                new Set(),
+                3,
+                undefined,
+                false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                balanceKey
+            );
+            await writeStartedPromise;
+            authorityTerm = 'leader-a:2';
+            ApiKeyFailoverManager.handleBalanceAuthorityLost();
+            unblockWrite();
+
+            assert.deepEqual(await failure, { handled: false, shouldRetry: false, switched: false });
+            const exclusion = ConfigSetStore.getBalanceExclusions('slot')[0];
+            assert.equal(exclusion?.authorityTerm, 'leader-a:1');
+
+            const next = await ApiKeyFailoverManager.captureAttempt('slot', balanceKey);
+            assert.equal(next?.identity, attempt.identity);
+        } finally {
+            ConfigSetStore.addBalanceExclusion = originalAddBalanceExclusion;
+        }
+    });
+
+    test('authority loss invalidates a cached balance lease', async () => {
+        initialize();
+        await seed('slot');
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        let authorityTerm = 'leader-a:1';
+        LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
+
+        const first = await ApiKeyFailoverManager.captureAttempt('slot', 's:session-1', 'request-authority-1');
+        assert.ok(first?.balanceLeaseId);
+        ApiKeyFailoverManager.handleBalanceAuthorityLost();
+        authorityTerm = 'leader-a:2';
+        const second = await ApiKeyFailoverManager.captureAttempt('slot', 's:session-1', 'request-authority-1');
+        assert.ok(second?.balanceLeaseId);
+        assert.notEqual(second.balanceLeaseId, first.balanceLeaseId);
+        assert.equal(second.balanceAuthorityTerm, 'leader-a:2');
+    });
+
+    test('queued remote balance assignment rechecks mode after serialization', async () => {
+        initialize();
+        await seed('slot');
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const blocked = enqueueConfigSetMutation(() => gate);
+        const changed = enqueueConfigSetMutation(() => ConfigSetStore.setSwitchMode('slot', 'off'));
+        const assigned = ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+            {
+                requestId: 'request-queued-1',
+                requestedBy: 'follower-a',
+                authorityTerm,
+                slot: 'slot',
+                balanceKey: 's:session-1'
+            },
+            'follower-a'
+        );
+        release();
+        await Promise.all([blocked, changed]);
+        assert.equal((await assigned)?.handled, false);
     });
 
     for (const mode of ['off', 'failover'] as const) {
@@ -613,6 +896,65 @@ suite('config set balance mode regressions', () => {
         assert.notEqual(redirected?.activeId, attempt.activeId);
     });
 
+    test('Follower reports balance isolation to the Leader for its assigned lease', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        LeaderElectionService.isInitialized = () => true;
+        LeaderElectionService.isLeader = () => false;
+        LeaderElectionService.getInstanceId = () => 'follower-a';
+        InterInstanceBus.getAuthorityTerm = () => 'leader-a:1';
+        InterInstanceBus.hasActiveTransport = () => true;
+        const attempt: ApiKeyFailoverAttempt = {
+            mode: 'balance',
+            activeId: 'a',
+            apiKey: 'key-slot-a',
+            identity: credentialId('key-slot-a'),
+            balanceLeaseId: 'lease-a',
+            balanceLeaseExpiresAt: Date.now() + 30_000,
+            balanceAuthorityTerm: 'leader-a:1'
+        };
+        let reported = false;
+        InterInstanceBus.publishIpcOnly = event => {
+            if (event.type !== 'apiKeyBalanceFailureReported') {
+                return true;
+            }
+            const payload = event.payload as { requestId: string; leaseId: string; credentialId: string };
+            reported = true;
+            assert.equal(payload.leaseId, 'lease-a');
+            assert.equal(payload.credentialId, credentialId('key-slot-a'));
+            queueMicrotask(() => {
+                ApiKeyFailoverManager.resolveBalanceFailure({
+                    requestId: payload.requestId,
+                    targetInstanceId: 'follower-a',
+                    authorityTerm: 'leader-a:1',
+                    handled: true,
+                    shouldRetry: true,
+                    switched: true
+                });
+            });
+            return true;
+        };
+
+        const decision = await ApiKeyFailoverManager.handleFailure(
+            'slot',
+            new Error('401 unauthorized'),
+            attempt,
+            new Set(),
+            3,
+            undefined,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            's:session-1'
+        );
+        assert.equal(reported, true);
+        assert.deepEqual(decision, { handled: true, shouldRetry: true, switched: true });
+        assert.equal(ConfigSetStore.getBalanceExclusions('slot').length, 0);
+    });
+
     test('attempts captured under another switch mode cannot trigger the new mode policy', async () => {
         initialize();
         await seed('slot');
@@ -720,7 +1062,7 @@ suite('config set balance mode regressions', () => {
 
                 const expected = ['a', 'a', 'a', 'b', 'b', 'b', 'c'];
                 if (scenario !== 'failover') {
-                    expected.unshift(scenario === 'balance-b' ? 'b' : 'a');
+                    expected.unshift(scenario === 'balance-b' && leader ? 'b' : 'a');
                 }
                 assert.deepEqual(
                     usedKeys,
@@ -757,7 +1099,7 @@ suite('config set balance mode regressions', () => {
                     await assert.rejects(request, { status: 503 });
                 } else {
                     await request;
-                    expected.push(transition === 'balance' ? 'b' : 'a', 'a', 'a', 'a', 'b');
+                    expected.push(transition === 'balance' && leader ? 'b' : 'a', 'a', 'a', 'a', 'b');
                 }
                 assert.deepEqual(
                     usedKeys,

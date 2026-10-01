@@ -4,6 +4,10 @@ import type {
     ApiKeyFailoverRequestedEvent,
     ApiKeyFailoverResetEvent,
     ApiKeyFailoverResolvedEvent,
+    ApiKeyBalanceAssignmentRequestedEvent,
+    ApiKeyBalanceAssignmentResolvedEvent,
+    ApiKeyBalanceFailureReportedEvent,
+    ApiKeyBalanceFailureResolvedEvent,
     LeaderResigningEvent,
     LiveMetricsSnapshotSyncEvent,
     RateLimitAcquireCancelledEvent,
@@ -100,6 +104,129 @@ function isApiKeyFailoverResetPayload(payload: unknown): payload is ApiKeyFailov
     );
 }
 
+function isApiKeyBalanceAssignmentRequestedPayload(
+    payload: unknown
+): payload is ApiKeyBalanceAssignmentRequestedEvent['payload'] {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+    const value = payload as Record<string, unknown>;
+    return (
+        typeof value.requestId === 'string' &&
+        value.requestId.length > 0 &&
+        value.requestId.length <= 128 &&
+        typeof value.requestedBy === 'string' &&
+        value.requestedBy.length > 0 &&
+        value.requestedBy.length <= 128 &&
+        typeof value.authorityTerm === 'string' &&
+        value.authorityTerm.length > 0 &&
+        value.authorityTerm.length <= 256 &&
+        typeof value.slot === 'string' &&
+        value.slot.length > 0 &&
+        value.slot.length <= 128 &&
+        typeof value.balanceKey === 'string' &&
+        value.balanceKey.length > 0 &&
+        value.balanceKey.length <= 512
+    );
+}
+
+function isApiKeyBalanceAssignmentResolvedPayload(
+    payload: unknown
+): payload is ApiKeyBalanceAssignmentResolvedEvent['payload'] {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+    const value = payload as Record<string, unknown>;
+    return (
+        typeof value.requestId === 'string' &&
+        value.requestId.length > 0 &&
+        value.requestId.length <= 128 &&
+        typeof value.targetInstanceId === 'string' &&
+        value.targetInstanceId.length > 0 &&
+        typeof value.authorityTerm === 'string' &&
+        value.authorityTerm.length > 0 &&
+        typeof value.handled === 'boolean' &&
+        (value.leaseId === undefined || (typeof value.leaseId === 'string' && value.leaseId.length > 0)) &&
+        (value.configId === undefined || (typeof value.configId === 'string' && value.configId.length > 0)) &&
+        (value.credentialId === undefined ||
+            (typeof value.credentialId === 'string' && value.credentialId.length > 0)) &&
+        (value.site === undefined || typeof value.site === 'string') &&
+        (value.apiKeyName === undefined || typeof value.apiKeyName === 'string') &&
+        (value.expiresAt === undefined || (typeof value.expiresAt === 'number' && Number.isFinite(value.expiresAt)))
+    );
+}
+
+function isApiKeyBalanceFailureReportedPayload(
+    payload: unknown
+): payload is ApiKeyBalanceFailureReportedEvent['payload'] {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+    const value = payload as Record<string, unknown>;
+    return (
+        typeof value.requestId === 'string' &&
+        value.requestId.length > 0 &&
+        value.requestId.length <= 128 &&
+        typeof value.requestedBy === 'string' &&
+        value.requestedBy.length > 0 &&
+        value.requestedBy.length <= 128 &&
+        typeof value.authorityTerm === 'string' &&
+        value.authorityTerm.length > 0 &&
+        value.authorityTerm.length <= 256 &&
+        typeof value.slot === 'string' &&
+        value.slot.length > 0 &&
+        value.slot.length <= 128 &&
+        typeof value.balanceKey === 'string' &&
+        value.balanceKey.length > 0 &&
+        value.balanceKey.length <= 512 &&
+        typeof value.credentialId === 'string' &&
+        value.credentialId.length > 0 &&
+        value.credentialId.length <= 512 &&
+        typeof value.leaseId === 'string' &&
+        value.leaseId.length > 0 &&
+        value.leaseId.length <= 128 &&
+        typeof value.consecutiveFailureCount === 'number' &&
+        Number.isSafeInteger(value.consecutiveFailureCount) &&
+        value.consecutiveFailureCount >= 1
+    );
+}
+
+function isApiKeyBalanceFailureResolvedPayload(
+    payload: unknown
+): payload is ApiKeyBalanceFailureResolvedEvent['payload'] {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+    const value = payload as Record<string, unknown>;
+    return (
+        typeof value.requestId === 'string' &&
+        value.requestId.length > 0 &&
+        value.requestId.length <= 128 &&
+        typeof value.targetInstanceId === 'string' &&
+        value.targetInstanceId.length > 0 &&
+        typeof value.authorityTerm === 'string' &&
+        value.authorityTerm.length > 0 &&
+        typeof value.handled === 'boolean' &&
+        typeof value.shouldRetry === 'boolean' &&
+        typeof value.switched === 'boolean'
+    );
+}
+
+function isApiKeyBalanceLeasePayload(payload: unknown): payload is { leaseId: string; authorityTerm: string } {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+    const value = payload as Record<string, unknown>;
+    return (
+        typeof value.leaseId === 'string' &&
+        value.leaseId.length > 0 &&
+        value.leaseId.length <= 128 &&
+        typeof value.authorityTerm === 'string' &&
+        value.authorityTerm.length > 0 &&
+        value.authorityTerm.length <= 256
+    );
+}
+
 function getFailoverLeaderId(): string | undefined {
     if (!LeaderElectionService.isAgentsWindow()) {
         return LeaderElectionService.getLeaderId();
@@ -159,7 +286,17 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
     };
 
     context.subscriptions.push(
-        InterInstanceBus.onAuthorityChanged(requestLiveMetricsSnapshot),
+        InterInstanceBus.onAuthorityChanged(authorityTerm => {
+            ApiKeyFailoverManager.handleBalanceAuthorityLost();
+            requestLiveMetricsSnapshot(authorityTerm);
+            refreshConfigSetManager('[ConfigSetManager] Failed to refresh after authority change');
+        }),
+        LeaderElectionService.onLeaderChanged(isLeader => {
+            if (!isLeader) {
+                ApiKeyFailoverManager.handleBalanceAuthorityLost();
+            }
+            refreshConfigSetManager('[ConfigSetManager] Failed to refresh after Leader change');
+        }),
         InterInstanceBus.subscribe('liveMetricsUpdated', event => {
             receiveRemoteLiveMetrics(
                 (event.payload as { event: import('../handlers/liveMetrics').LiveStreamMetricEvent }).event,
@@ -200,6 +337,7 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
             const instanceId = (event.payload as { instanceId: string }).instanceId;
             clearRemoteLiveMetrics(instanceId);
             RateLimiter.handleInstanceDisconnected(instanceId);
+            ApiKeyFailoverManager.handleBalanceInstanceDisconnected(instanceId);
         }),
         InterInstanceBus.subscribe('configChanged', () => {
             ConfigManager.handleExternalConfigChange();
@@ -314,6 +452,114 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
                 return;
             }
             ApiKeyFailoverManager.resolveLeaderDecision(event.payload.requestId, event.payload);
+        }),
+        InterInstanceBus.subscribe('apiKeyBalanceAssignmentRequested', event => {
+            if (!LeaderElectionService.isLeader()) {
+                return;
+            }
+            if (!isApiKeyBalanceAssignmentRequestedPayload(event.payload)) {
+                return;
+            }
+            const payload = event.payload;
+            if (
+                payload.requestedBy !== event.senderInstanceId ||
+                payload.authorityTerm !== LeaderElectionService.getOwnedAuthorityTerm() ||
+                !payload.requestId ||
+                !payload.slot ||
+                !payload.balanceKey ||
+                !Number.isFinite(event.timestamp) ||
+                Date.now() - event.timestamp > 10_000 ||
+                event.timestamp - Date.now() > 1_000
+            ) {
+                return;
+            }
+            void ApiKeyFailoverManager.handleBalanceAssignmentRequest(payload, event.senderInstanceId)
+                .then(resolved => {
+                    if (
+                        !resolved ||
+                        !LeaderElectionService.isLeader() ||
+                        LeaderElectionService.getOwnedAuthorityTerm() !== payload.authorityTerm
+                    ) {
+                        return;
+                    }
+                    InterInstanceBus.publishIpcOnly({
+                        type: 'apiKeyBalanceAssignmentResolved',
+                        payload: resolved
+                    });
+                })
+                .catch(error => Logger.warn('[InterInstanceBus] Failed to process API key balance assignment', error));
+        }),
+        InterInstanceBus.subscribe('apiKeyBalanceAssignmentResolved', event => {
+            if (!isApiKeyBalanceAssignmentResolvedPayload(event.payload)) {
+                return;
+            }
+            const payload = event.payload;
+            if (
+                payload.targetInstanceId !== LeaderElectionService.getInstanceId() ||
+                payload.authorityTerm !== InterInstanceBus.getAuthorityTerm() ||
+                event.senderInstanceId !== getFailoverLeaderId() ||
+                !Number.isFinite(event.timestamp) ||
+                Date.now() - event.timestamp > 10_000 ||
+                event.timestamp - Date.now() > 1_000
+            ) {
+                return;
+            }
+            ApiKeyFailoverManager.resolveBalanceAssignment(payload);
+        }),
+        InterInstanceBus.subscribe('apiKeyBalanceFailureReported', event => {
+            if (!LeaderElectionService.isLeader() || !isApiKeyBalanceFailureReportedPayload(event.payload)) {
+                return;
+            }
+            const payload = event.payload;
+            if (
+                payload.requestedBy !== event.senderInstanceId ||
+                payload.authorityTerm !== LeaderElectionService.getOwnedAuthorityTerm() ||
+                !Number.isFinite(event.timestamp) ||
+                Date.now() - event.timestamp > 10_000 ||
+                event.timestamp - Date.now() > 1_000
+            ) {
+                return;
+            }
+            void ApiKeyFailoverManager.handleBalanceFailureReport(payload, event.senderInstanceId)
+                .then(resolved => {
+                    if (
+                        resolved &&
+                        LeaderElectionService.isLeader() &&
+                        LeaderElectionService.getOwnedAuthorityTerm() === payload.authorityTerm
+                    ) {
+                        InterInstanceBus.publishIpcOnly({ type: 'apiKeyBalanceFailureResolved', payload: resolved });
+                    }
+                })
+                .catch(error => Logger.warn('[InterInstanceBus] Failed to process balance failure report', error));
+        }),
+        InterInstanceBus.subscribe('apiKeyBalanceFailureResolved', event => {
+            if (!isApiKeyBalanceFailureResolvedPayload(event.payload)) {
+                return;
+            }
+            const payload = event.payload;
+            if (
+                payload.targetInstanceId !== LeaderElectionService.getInstanceId() ||
+                payload.authorityTerm !== InterInstanceBus.getAuthorityTerm() ||
+                event.senderInstanceId !== getFailoverLeaderId() ||
+                !Number.isFinite(event.timestamp) ||
+                Date.now() - event.timestamp > 10_000 ||
+                event.timestamp - Date.now() > 1_000
+            ) {
+                return;
+            }
+            ApiKeyFailoverManager.resolveBalanceFailure(payload);
+        }),
+        InterInstanceBus.subscribe('apiKeyBalanceLeaseRenewed', event => {
+            if (!LeaderElectionService.isLeader() || !isApiKeyBalanceLeasePayload(event.payload)) {
+                return;
+            }
+            ApiKeyFailoverManager.handleRemoteBalanceLeaseRenewal(event.payload, event.senderInstanceId);
+        }),
+        InterInstanceBus.subscribe('apiKeyBalanceLeaseReleased', event => {
+            if (!LeaderElectionService.isLeader() || !isApiKeyBalanceLeasePayload(event.payload)) {
+                return;
+            }
+            ApiKeyFailoverManager.handleRemoteBalanceLeaseRelease(event.payload, event.senderInstanceId);
         })
     );
 

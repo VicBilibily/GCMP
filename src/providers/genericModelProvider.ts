@@ -85,6 +85,22 @@ function isSubagentRequestKind(requestKind?: string): boolean {
     return requestKind === 'search-subagent' || requestKind === 'execution-subagent';
 }
 
+function getMainAgentBalanceKey(
+    sessionId: string,
+    messages: readonly LanguageModelChatMessage[],
+    requestKind: string
+): string {
+    if (requestKind !== 'main-agent') {
+        return `s:${sessionId}`;
+    }
+    const userText = SessionTitleService.extractLatestUserRequestText(messages);
+    if (!userText) {
+        return `s:${sessionId}`;
+    }
+    const digest = crypto.createHash('sha256').update(userText.replace(/\s+/g, ' ').trim()).digest('hex');
+    return `m:${sessionId}:${digest}`;
+}
+
 function shouldPublishResolvedCrossProviderTraceHint(requestKind?: string): boolean {
     return requestKind === 'main-agent' || requestKind === 'summarization' || isSubagentRequestKind(requestKind);
 }
@@ -406,7 +422,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             requestKind,
             sessionId,
             subSessionId,
-            balanceKey: subSessionId ? `a:${subSessionId}` : `s:${sessionId}`,
+            balanceKey: subSessionId ? `a:${subSessionId}` : getMainAgentBalanceKey(sessionId, messages, requestKind),
             sessionRecoverySource,
             sdkMode,
             totalInputTokens,
@@ -743,6 +759,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let returnedToInitial = false;
         let failoverFailureReported = false;
         let failoverFailureRequestId = crypto.randomUUID();
+        const balanceAllocationRequestId = crypto.randomUUID();
+        let balanceLeaseId: string | undefined;
 
         // 请求是否受过节流控制（限流等待/排队，跨 retry 累积）。
         let wasThrottled = false;
@@ -832,7 +850,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
                         }
-                        failoverAttempt = await ApiKeyFailoverManager.captureAttempt(effectiveProviderKey, balanceKey);
+                        failoverAttempt = await ApiKeyFailoverManager.captureAttempt(
+                            effectiveProviderKey,
+                            balanceKey,
+                            balanceAllocationRequestId
+                        );
+                        const nextBalanceLeaseId = failoverAttempt?.balanceLeaseId;
+                        if (balanceLeaseId && balanceLeaseId !== nextBalanceLeaseId) {
+                            ApiKeyFailoverManager.releaseBalanceLease(balanceLeaseId);
+                            balanceLeaseId = undefined;
+                        }
+                        if (nextBalanceLeaseId && failoverAttempt) {
+                            balanceLeaseId = nextBalanceLeaseId;
+                            ApiKeyFailoverManager.startBalanceLeaseHeartbeat(failoverAttempt);
+                        }
                         if (
                             failoverAttempt?.identity !== failoverFailureIdentity ||
                             failoverAttempt?.mode !== failoverFailureMode
@@ -995,6 +1026,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 balanceKey
                             );
                             if (decision.switched) {
+                                if (failoverAttempt.balanceLeaseId) {
+                                    ApiKeyFailoverManager.releaseBalanceLease(failoverAttempt.balanceLeaseId);
+                                    if (balanceLeaseId === failoverAttempt.balanceLeaseId) {
+                                        balanceLeaseId = undefined;
+                                    }
+                                }
                                 ApiKeyFailoverManager.resetFailureCount(effectiveProviderKey, failoverFailureRequestId);
                                 failoverFailureRequestId = crypto.randomUUID();
                                 failoverFailureReported = false;
@@ -1096,6 +1133,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 }
             }
         } finally {
+            if (balanceLeaseId) {
+                ApiKeyFailoverManager.releaseBalanceLease(balanceLeaseId);
+                balanceLeaseId = undefined;
+            }
             retryMessageDisposable?.dispose();
             retryMessageDisposable = undefined;
 

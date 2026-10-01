@@ -301,9 +301,9 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
             labelEn: 'Balance',
             labelZh: '负载均衡',
             titleEn:
-                'Distributes chat sessions and sub-agent sub-sessions across saved configurations by hash. A configuration that fails 3 times in a row is avoided by that unit for 5 minutes. Adding or removing configurations may re-map sessions to different keys.',
+                'A Leader assigns chat sessions and sub-agent sub-sessions across saved configurations. If no Leader is available, requests use the primary API Key. A credential that fails 3 times in a row is avoided for 5 minutes.',
             titleZh:
-                '按哈希把会话与子代理子会话分散到各套已保存配置；某单元连续失败 3 次的配置会被其回避 5 分钟后自动恢复；增删配置后会话可能重新映射到其他 Key。'
+                '由 Leader 将会话与子代理子会话分配到各套已保存配置；没有可用 Leader 时回退到主 API Key；凭据连续失败 3 次后隔离 5 分钟。'
         }
     ];
     for (const switchMode of switchModes) {
@@ -332,6 +332,24 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
         switchTabs.appendChild(tab);
     }
     slotActions.appendChild(switchTabs);
+
+    if (slotState.switchMode === 'balance') {
+        const status = el(
+            'span',
+            `csm-balance-status csm-balance-status-${slotState.balanceStatus ?? 'fallback'}`,
+            slotState.balanceStatus === 'available' ?
+                t('Leader available', 'Leader 可用')
+            :   t('Primary key fallback', '已回退主 Key')
+        );
+        status.title =
+            slotState.balanceStatus === 'available' ?
+                t('Cross-instance balance allocation is active.', '跨实例均衡分配已启用。')
+            :   t(
+                    'No active Leader is available; requests use the primary API Key.',
+                    '当前没有可用 Leader，请求将使用主 API Key。'
+                );
+        slotActions.appendChild(status);
+    }
 
     const addBtn = el(
         'button',

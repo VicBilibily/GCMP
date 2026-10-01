@@ -55,6 +55,11 @@ test('extractUserRequestText returns undefined when no userRequest tag exists', 
     assert.equal(SessionTitleService.extractUserRequestText(messages), undefined);
 });
 
+test('extractLatestUserRequestText picks the latest wrapped user input', () => {
+    const messages = [wrappedUserMessage('', '首个话题'), assistantMessage('回复'), wrappedUserMessage('', '当前话题')];
+    assert.equal(SessionTitleService.extractLatestUserRequestText(messages), '当前话题');
+});
+
 test('extractTitleGenerationRequestText extracts raw request from title prompt', () => {
     const messages = [userMessage('Please write a brief title for the following request:\n\n搜索vue3.6')];
     assert.equal(SessionTitleService.extractTitleGenerationRequestText(messages), '搜索vue3.6');

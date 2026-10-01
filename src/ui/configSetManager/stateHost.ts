@@ -20,7 +20,9 @@ import { CompatibleModelManager } from '../../utils/config/compatibleModelManage
 import { Logger } from '../../utils/runtime/logger';
 import { isQuotaSupportedSlot, getQuotaMetricType } from '../../quota/providerQuota';
 import { buildCliProviders as buildCliProvidersFromCliHost } from './cliHost';
-import type { PanelContext, ProviderOption, ProviderState } from './types';
+import type { PanelContext, ProviderOption, ProviderState, SlotState } from './types';
+import { InterInstanceBus } from '../../interInstance';
+import { LeaderElectionService } from '../../status/leaderElectionService';
 
 /** 全部受管槽位（内置主/变体 + 自定义 provider，不含 CLI 认证槽位），顺序即面板管理的默认排序 */
 export function collectManagedSlots(): Array<{ slot: string; displayName: string }> {
@@ -90,7 +92,7 @@ export class StateHost {
         for (const p of [...builtinProviders, ...customProviders]) {
             const slots =
                 p.custom ? [{ slot: p.provider, displayName: p.displayName, isMain: true }] : listSlots(p.provider);
-            const slotStates = [];
+            const slotStates: SlotState[] = [];
             const providerCurrentSite = p.custom ? undefined : readCurrentSite(p.provider);
             for (const slotInfo of slots) {
                 const currentSite = !p.custom && slotInfo.siteProvider ? providerCurrentSite : undefined;
@@ -132,6 +134,17 @@ export class StateHost {
                     switchMode: ConfigSetStore.getSwitchMode(slotInfo.slot),
                     hasUsage,
                     usageMetricType: hasUsage ? getQuotaMetricType(slotInfo.slot) : undefined,
+                    balanceStatus:
+                        (
+                            ConfigSetStore.getSwitchMode(slotInfo.slot) === 'balance' &&
+                            ((LeaderElectionService.isLeader() && !!LeaderElectionService.getOwnedAuthorityTerm()) ||
+                                (!!InterInstanceBus.getAuthorityTerm() &&
+                                    InterInstanceBus.hasActiveTransport() &&
+                                    !InterInstanceBus.isAuthorityTransitioning()))
+                        ) ?
+                            'available'
+                        : ConfigSetStore.getSwitchMode(slotInfo.slot) === 'balance' ? 'fallback'
+                        : undefined,
                     currentSiteLabel:
                         !p.custom && slotInfo.siteProvider ? siteLabel(slotInfo.siteProvider, currentSite) : undefined,
                     rows: items.map(item => ({

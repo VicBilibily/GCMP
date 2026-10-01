@@ -118,6 +118,78 @@ export interface ApiKeyFailoverResolvedEvent extends InterInstanceEventBase {
     };
 }
 
+export interface ApiKeyBalanceAssignmentRequestedEvent extends InterInstanceEventBase {
+    type: 'apiKeyBalanceAssignmentRequested';
+    payload: {
+        requestId: string;
+        requestedBy: string;
+        authorityTerm: string;
+        slot: string;
+        balanceKey: string;
+    };
+}
+
+export interface ApiKeyBalanceAssignmentResolvedEvent extends InterInstanceEventBase {
+    type: 'apiKeyBalanceAssignmentResolved';
+    payload: {
+        requestId: string;
+        targetInstanceId: string;
+        authorityTerm: string;
+        handled: boolean;
+        leaseId?: string;
+        configId?: string;
+        credentialId?: string;
+        site?: string;
+        apiKeyName?: string;
+        expiresAt?: number;
+    };
+}
+
+/**
+ * 向 Leader 上报负载均衡凭据连续失败，由 Leader 统一写入隔离状态。
+ */
+export interface ApiKeyBalanceFailureReportedEvent extends InterInstanceEventBase {
+    type: 'apiKeyBalanceFailureReported';
+    payload: {
+        requestId: string;
+        requestedBy: string;
+        authorityTerm: string;
+        slot: string;
+        balanceKey: string;
+        credentialId: string;
+        leaseId: string;
+        consecutiveFailureCount: number;
+    };
+}
+
+export interface ApiKeyBalanceFailureResolvedEvent extends InterInstanceEventBase {
+    type: 'apiKeyBalanceFailureResolved';
+    payload: {
+        requestId: string;
+        targetInstanceId: string;
+        authorityTerm: string;
+        handled: boolean;
+        shouldRetry: boolean;
+        switched: boolean;
+    };
+}
+
+export interface ApiKeyBalanceLeaseRenewedEvent extends InterInstanceEventBase {
+    type: 'apiKeyBalanceLeaseRenewed';
+    payload: {
+        leaseId: string;
+        authorityTerm: string;
+    };
+}
+
+export interface ApiKeyBalanceLeaseReleasedEvent extends InterInstanceEventBase {
+    type: 'apiKeyBalanceLeaseReleased';
+    payload: {
+        leaseId: string;
+        authorityTerm: string;
+    };
+}
+
 /**
  * GCMP 配置已变更
  */
@@ -485,6 +557,12 @@ export type InterInstanceEvent =
     | ApiKeyFailoverRequestedEvent
     | ApiKeyFailoverResetEvent
     | ApiKeyFailoverResolvedEvent
+    | ApiKeyBalanceAssignmentRequestedEvent
+    | ApiKeyBalanceAssignmentResolvedEvent
+    | ApiKeyBalanceFailureReportedEvent
+    | ApiKeyBalanceFailureResolvedEvent
+    | ApiKeyBalanceLeaseRenewedEvent
+    | ApiKeyBalanceLeaseReleasedEvent
     | ConfigChangedEvent
     | TokenUsageUpdatedEvent
     | RemoteMetadataUpdatedEvent
@@ -519,6 +597,12 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'apiKeyFailoverRequested',
     'apiKeyFailoverReset',
     'apiKeyFailoverResolved',
+    'apiKeyBalanceAssignmentRequested',
+    'apiKeyBalanceAssignmentResolved',
+    'apiKeyBalanceFailureReported',
+    'apiKeyBalanceFailureResolved',
+    'apiKeyBalanceLeaseRenewed',
+    'apiKeyBalanceLeaseReleased',
     'configChanged',
     'tokenUsageUpdated',
     'remoteMetadataUpdated',
@@ -550,6 +634,8 @@ const INTER_INSTANCE_EVENT_TYPE_SET = new Set<string>(INTER_INSTANCE_EVENT_TYPES
 
 const AUTHORITY_EVENT_TYPES = new Set<InterInstanceEventType>([
     'apiKeyFailoverResolved',
+    'apiKeyBalanceAssignmentResolved',
+    'apiKeyBalanceFailureResolved',
     'remoteMetadataUpdated',
     'leaderChanged',
     'leaderResigning',

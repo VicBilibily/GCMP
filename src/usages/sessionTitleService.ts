@@ -203,6 +203,20 @@ export class SessionTitleService {
         return undefined;
     }
 
+    static extractLatestUserRequestText(messages: readonly ChatMessageLike[]): string | undefined {
+        let latest: string | undefined;
+        for (const message of messages) {
+            if (message.role !== ROLE_USER) {
+                continue;
+            }
+            const match = USER_REQUEST_PATTERN.exec(extractTextFromContent(message.content));
+            if (match?.[1]) {
+                latest = match[1];
+            }
+        }
+        return latest;
+    }
+
     /** 从 chat-title 生成请求中提取待命名的原始请求文本 */
     static extractTitleGenerationRequestText(messages: readonly ChatMessageLike[]): string | undefined {
         for (const message of messages) {
