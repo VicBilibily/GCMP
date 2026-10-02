@@ -130,6 +130,15 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
             baseUrl: 'https://openrouter.ai/api'
         }
     },
+    requesty: {
+        displayName: 'Requesty',
+        openai: {
+            baseUrl: 'https://router.requesty.ai/v1'
+        },
+        anthropic: {
+            baseUrl: 'https://router.requesty.ai'
+        }
+    },
     siliconflow: {
         displayName: 'SiliconFlow',
         usage: {
