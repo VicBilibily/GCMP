@@ -18,6 +18,7 @@ export {
     type ApiKeyBalanceFailureResolvedEvent,
     type ApiKeyBalanceLeaseRenewedEvent,
     type ApiKeyBalanceLeaseReleasedEvent,
+    type ApiKeyBalanceLeaseHandoff,
     type ConfigChangedEvent,
     type TokenUsageUpdatedEvent,
     type RemoteMetadataUpdatedEvent,

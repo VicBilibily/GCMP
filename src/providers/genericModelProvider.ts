@@ -862,7 +862,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         }
                         if (nextBalanceLeaseId && failoverAttempt) {
                             balanceLeaseId = nextBalanceLeaseId;
-                            ApiKeyFailoverManager.startBalanceLeaseHeartbeat(failoverAttempt);
+                            ApiKeyFailoverManager.startBalanceLeaseHeartbeat(failoverAttempt, effectiveProviderKey);
                         }
                         if (
                             failoverAttempt?.identity !== failoverFailureIdentity ||

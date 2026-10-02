@@ -9,6 +9,7 @@ import * as path from 'node:path';
 const EXTENSION_SAFE_NAME = 'gcmp';
 const MAX_UNIX_IPC_PATH_LENGTH = 104; // macOS 实际限制为 104（含终止符），比 Linux 108 更严格
 let rateLimitHandoffFilePathOverride: string | undefined;
+let balanceHandoffDirectoryOverride: string | undefined;
 
 /**
  * 获取当前用户的唯一标识，用于隔离多用户场景下的 IPC 路径
@@ -56,6 +57,17 @@ export function resolveRateLimitHandoffFilePath(): string {
 
 export function setRateLimitHandoffFilePathOverride(filePath?: string): void {
     rateLimitHandoffFilePathOverride = filePath;
+}
+
+export function resolveBalanceHandoffDirectory(): string {
+    return (
+        balanceHandoffDirectoryOverride ??
+        path.join(getSharedTempDir(), `${EXTENSION_SAFE_NAME}-${getUserIdentifier()}-balance-handoff`)
+    );
+}
+
+export function setBalanceHandoffDirectoryOverride(directory?: string): void {
+    balanceHandoffDirectoryOverride = directory;
 }
 
 /**

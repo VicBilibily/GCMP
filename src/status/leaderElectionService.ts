@@ -4,6 +4,7 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus, type LeaderResigningEvent } from '../interInstance';
 import type { RateLimitStoreSnapshot } from '../rateLimit/rateLimitStore';
+import type { ApiKeyBalanceLeaseHandoff } from '../interInstance/eventProtocol';
 
 interface LeaderInfo {
     instanceId: string;
@@ -56,6 +57,9 @@ export class LeaderElectionService {
     private static lastLeaderIdentityKey: string | undefined;
     private static rateLimitSnapshotProvider:
         | (() => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>)
+        | undefined;
+    private static balanceLeaseSnapshotProvider:
+        | (() => ApiKeyBalanceLeaseHandoff | undefined | Promise<ApiKeyBalanceLeaseHandoff | undefined>)
         | undefined;
 
     /**
@@ -162,8 +166,26 @@ export class LeaderElectionService {
         // 优先从已连接的 Follower 中指定下一任 Leader（最长连接者），减少广播竞选。
         if (this._isLeader) {
             try {
+                const sourceAuthorityTerm = this.getOwnedAuthorityTerm();
                 const followers = InterInstanceBus.getConnectedFollowerIds();
                 const nextLeaderId = followers.length > 0 ? followers[0] : undefined;
+                let balanceLeaseSnapshotPromise: Promise<ApiKeyBalanceLeaseHandoff | undefined> | undefined;
+                try {
+                    balanceLeaseSnapshotPromise = Promise.resolve(this.balanceLeaseSnapshotProvider?.()).catch(
+                        error => {
+                            StatusLogger.warn(
+                                '[LeaderElectionService] Failed to export balance lease snapshot before resigning',
+                                error
+                            );
+                            return undefined;
+                        }
+                    );
+                } catch (error) {
+                    StatusLogger.warn(
+                        '[LeaderElectionService] Failed to export balance lease snapshot before resigning',
+                        error
+                    );
+                }
                 let rateLimitSnapshot: RateLimitStoreSnapshot | undefined;
                 try {
                     rateLimitSnapshot = await this.rateLimitSnapshotProvider?.();
@@ -173,9 +195,16 @@ export class LeaderElectionService {
                         error
                     );
                 }
+                const balanceLeaseSnapshot = await balanceLeaseSnapshotPromise;
                 InterInstanceBus.publishIpcOnly({
                     type: 'leaderResigning',
-                    payload: { leaderId: this.instanceId, nextLeaderId, rateLimitSnapshot }
+                    payload: {
+                        leaderId: this.instanceId,
+                        sourceAuthorityTerm,
+                        nextLeaderId,
+                        rateLimitSnapshot,
+                        balanceLeaseSnapshot
+                    }
                 });
                 StatusLogger.info(
                     `[LeaderElectionService] Broadcast leaderResigning before shutdown${
@@ -366,6 +395,14 @@ export class LeaderElectionService {
         provider: (() => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>) | undefined
     ): void {
         this.rateLimitSnapshotProvider = provider;
+    }
+
+    public static setBalanceLeaseSnapshotProvider(
+        provider:
+            | (() => ApiKeyBalanceLeaseHandoff | undefined | Promise<ApiKeyBalanceLeaseHandoff | undefined>)
+            | undefined
+    ): void {
+        this.balanceLeaseSnapshotProvider = provider;
     }
 
     private static async checkLeader(): Promise<void> {

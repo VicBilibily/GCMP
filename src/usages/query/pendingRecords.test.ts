@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import type { InterInstanceEvent, UsagesQueryCompletedEvent, UsagesQueryRequestedEvent } from '../../interInstance';
+import type { StatsRefreshRequestedEvent, TokenUsageUpdatedEvent } from '../../interInstance/eventProtocol';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { DateUtils } from '../fileLogger/dateUtils';
 import type { TokenRequestLog } from '../fileLogger/types';
@@ -25,6 +26,7 @@ test('remote usages queries preserve caller pending state without retaining full
     const liveListeners = new Set<(event: LiveStreamMetricEvent) => void>();
     const requests: UsagesQueryRequestedEvent[] = [];
     const responses: UsagesQueryCompletedEvent[] = [];
+    const statsRefreshRequests: Array<StatsRefreshRequestedEvent['payload']> = [];
     let beforeRemoteQuery: (() => Promise<void>) | undefined;
     let dispatchToLeader: (event: UsagesQueryRequestedEvent) => Promise<void>;
     let transportFailure = false;
@@ -41,6 +43,30 @@ test('remote usages queries preserve caller pending state without retaining full
         onAuthorityChanged: () => ({ dispose() {} }),
         hasCompatibleUsagesQueryTransport: () => true,
         getAuthorityTerm: () => 'leader:1',
+        publish(
+            event:
+                | Omit<StatsRefreshRequestedEvent, 'timestamp' | 'senderInstanceId'>
+                | Omit<TokenUsageUpdatedEvent, 'timestamp' | 'senderInstanceId'>
+        ) {
+            if (event.type === 'tokenUsageUpdated') {
+                return;
+            }
+            assert.equal(event.type, 'statsRefreshRequested');
+            assert.equal(event.payload.requestedBy, 'follower');
+            assert.equal(event.payload.regenerateAll, false);
+            statsRefreshRequests.push({ ...event.payload });
+            const onCompleted = subscriptions.get('follower')?.get('statsRefreshCompleted');
+            assert.ok(onCompleted);
+            onCompleted({
+                type: 'statsRefreshCompleted',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader',
+                payload: {
+                    requestId: event.payload.requestId,
+                    regeneratedDates: [event.payload.date ?? DateUtils.getTodayDateString()]
+                }
+            });
+        },
         publishIpcOnly(event: Omit<UsagesQueryRequestedEvent, 'timestamp' | 'senderInstanceId'>) {
             if (transportFailure) {
                 return false;
@@ -111,6 +137,7 @@ test('remote usages queries preserve caller pending state without retaining full
         async function fixture(context: TestContext) {
             requests.length = 0;
             responses.length = 0;
+            statsRefreshRequests.length = 0;
             beforeRemoteQuery = undefined;
             transportFailure = false;
             remoteExecutions = 0;
@@ -309,6 +336,53 @@ test('remote usages queries preserve caller pending state without retaining full
                 hydrateSessionTitles: false
             });
         });
+
+        for (const action of ['fire', 'dispose'] as const) {
+            await t.test(`stats refresh timer ${action} settles without leaking into other queries`, async context => {
+                const { follower, logger, addPending } = await fixture(context);
+                const { requestId } = await addPending(sessionA);
+                await logger.updateActualTokens({ requestId, status: 'completed' });
+                const internals = logger as unknown as {
+                    statsRefreshTimer: (NodeJS.Timeout & { _onTimeout: (() => void) | null }) | null;
+                    pendingStatsRefreshRequests: { size: number };
+                    doRefreshCurrentStats(): Promise<void>;
+                };
+                const timer = internals.statsRefreshTimer;
+                assert.ok(timer);
+                const clearTimer = context.mock.method(globalThis, 'clearTimeout');
+                if (action === 'dispose') {
+                    await follower.dispose();
+                    assert.ok(clearTimer.mock.calls.some(call => call.arguments[0] === timer));
+                    assert.equal(internals.statsRefreshTimer, null);
+                    assert.equal(internals.pendingStatsRefreshRequests.size, 0);
+                    assert.deepEqual(statsRefreshRequests, []);
+                    return;
+                }
+                const callback = timer._onTimeout;
+                assert.ok(callback);
+                clearTimeout(timer);
+                const refresh = internals.doRefreshCurrentStats.bind(internals);
+                let refreshing: Promise<void> | undefined;
+                context.mock.method(internals, 'doRefreshCurrentStats', () => {
+                    refreshing = refresh();
+                    return refreshing;
+                });
+                callback();
+                assert.ok(refreshing);
+                await refreshing;
+                assert.equal(internals.statsRefreshTimer, null);
+                assert.equal(internals.pendingStatsRefreshRequests.size, 0);
+                assert.equal(statsRefreshRequests.length, 1);
+                assert.ok(statsRefreshRequests[0].requestId);
+                assert.deepEqual(statsRefreshRequests[0], {
+                    requestId: statsRefreshRequests[0].requestId,
+                    date: today,
+                    regenerateAll: false,
+                    requestedBy: 'follower'
+                });
+                assert.equal((await follower.getRecentRecords(1))[0]?.status, 'completed');
+            });
+        }
 
         await t.test('date overview hydrates session titles beyond the initial records page', async context => {
             const { follower, logger, addPending } = await fixture(context);

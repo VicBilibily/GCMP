@@ -250,6 +250,7 @@ export class CrudHost {
                     return false;
                 }
                 await ConfigSetStore.setSwitchMode(slot, mode);
+                ApiKeyFailoverManager.handleBalanceModeChanged(slot);
                 return true;
             });
             if (!updated) {

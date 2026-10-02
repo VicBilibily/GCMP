@@ -55,6 +55,10 @@ export class ConfigSetStore {
         this.context = context;
     }
 
+    static isInitialized(): boolean {
+        return !!this.context;
+    }
+
     private static readonly INDEX_KEY = 'configSets';
     private static readonly ITEMS_KEY_PREFIX = 'configSets.items.';
 
@@ -82,7 +86,36 @@ export class ConfigSetStore {
         return `configSets.balanceExclusions.${slot}`;
     }
 
+    private static balanceExclusionTermPrefix(slot: string): string {
+        return `${this.balanceExclusionsKey(slot)}.term.`;
+    }
+
+    private static balanceExclusionTermKey(slot: string, authorityTerm: string): string {
+        return `${this.balanceExclusionTermPrefix(slot)}${crypto.createHash('sha256').update(authorityTerm).digest('hex')}`;
+    }
+
+    private static balanceExclusionStorageKeys(slot: string): string[] {
+        const legacyKey = this.balanceExclusionsKey(slot);
+        const termPrefix = this.balanceExclusionTermPrefix(slot);
+        return [legacyKey, ...this.context.globalState.keys().filter(key => key.startsWith(termPrefix))];
+    }
+
+    private static readBalanceExclusionsKey(key: string): BalanceKeyExclusion[] {
+        const value = this.context.globalState.get<BalanceKeyExclusion[]>(key);
+        return Array.isArray(value) ?
+                value.filter(
+                    entry =>
+                        typeof entry?.k === 'string' &&
+                        typeof entry?.credentialId === 'string' &&
+                        typeof entry?.at === 'number' &&
+                        Number.isFinite(entry.at) &&
+                        (entry.authorityTerm === undefined || typeof entry.authorityTerm === 'string')
+                )
+            :   [];
+    }
+
     private static readonly BALANCE_EXCLUSION_MAX = 500;
+    private static readonly BALANCE_EXCLUSION_TTL_MS = 5 * 60 * 1000;
 
     private static applyOperationKey(slot: string): string {
         return `configSets.applyOperation.${slot}`;
@@ -221,8 +254,15 @@ export class ConfigSetStore {
             await this.context.globalState.update(this.switchModeKey(slot), mode === 'off' ? undefined : mode);
             // 写入新模式即完成旧布尔键迁移，避免旧实例回读legacy值
             await this.context.globalState.update(this.autoSwitchKey(slot), undefined);
-            if (mode !== 'balance') {
+            if (mode === 'balance') {
+                await this.cleanupBalanceExclusionsUnlocked(slot, Date.now());
+            } else {
                 await this.context.globalState.update(this.balanceExclusionsKey(slot), undefined);
+                for (const key of this.balanceExclusionStorageKeys(slot)) {
+                    if (key !== this.balanceExclusionsKey(slot)) {
+                        await this.context.globalState.update(key, undefined);
+                    }
+                }
             }
         };
         if (operationToken) {
@@ -251,15 +291,11 @@ export class ConfigSetStore {
         if (!this.context) {
             return [];
         }
-        const value = this.context.globalState.get<BalanceKeyExclusion[]>(this.balanceExclusionsKey(slot));
-        // 旧记录只有配置 ID，无法还原失败时实际使用的凭据。
-        return Array.isArray(value) ?
-                value.filter(
-                    entry =>
-                        typeof entry?.credentialId === 'string' &&
-                        (entry.authorityTerm === undefined || typeof entry.authorityTerm === 'string')
-                )
-            :   [];
+        return this.balanceExclusionStorageKeys(slot).flatMap(key => this.readBalanceExclusionsKey(key));
+    }
+
+    static async cleanupBalanceExclusions(slot: string, now = Date.now()): Promise<void> {
+        await this.enqueue(() => this.cleanupBalanceExclusionsUnlocked(slot, now));
     }
 
     static async addBalanceExclusion(
@@ -269,16 +305,28 @@ export class ConfigSetStore {
         at: number,
         authorityTerm?: string
     ): Promise<void> {
+        const storageKey =
+            authorityTerm ? this.balanceExclusionTermKey(slot, authorityTerm) : this.balanceExclusionsKey(slot);
         await this.enqueue(async () => {
-            const next = this.getBalanceExclusions(slot).filter(
+            await this.cleanupBalanceExclusionsUnlocked(slot, Date.now());
+            const next = this.readBalanceExclusionsKey(storageKey).filter(
                 entry => !(entry.k === balanceKey && entry.credentialId === credentialId)
             );
             next.push({ k: balanceKey, credentialId, at, ...(authorityTerm ? { authorityTerm } : {}) });
             while (next.length > this.BALANCE_EXCLUSION_MAX) {
                 next.shift();
             }
-            await this.context.globalState.update(this.balanceExclusionsKey(slot), next.length > 0 ? next : undefined);
+            await this.context.globalState.update(storageKey, next.length > 0 ? next : undefined);
         });
+    }
+
+    private static async cleanupBalanceExclusionsUnlocked(slot: string, now: number): Promise<void> {
+        for (const key of this.balanceExclusionStorageKeys(slot)) {
+            const fresh = this.readBalanceExclusionsKey(key).filter(
+                entry => now - entry.at <= this.BALANCE_EXCLUSION_TTL_MS
+            );
+            await this.context.globalState.update(key, fresh.length > 0 ? fresh : undefined);
+        }
     }
 
     static getApplyOperationToken(slot: string): string | undefined {

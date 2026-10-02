@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { InterInstanceBus } from '../../src/interInstance';
+import { registerInterInstanceHandlers } from '../../src/interInstance/activation';
+import { setBalanceHandoffDirectoryOverride } from '../../src/interInstance/pathResolver';
 import { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import { LeaderElectionService } from '../../src/status/leaderElectionService';
 import type { ModelConfig } from '../../src/types/sharedTypes';
@@ -163,6 +168,7 @@ suite('config set balance mode regressions', () => {
 
     setup(() => {
         ApiKeyFailoverManager.handleBalanceAuthorityLost();
+        setBalanceHandoffDirectoryOverride(mkdtempSync(join(tmpdir(), 'gcmp-balance-suite-')));
         LeaderElectionService.isInitialized = () => true;
         LeaderElectionService.isLeader = () => true;
         LeaderElectionService.isAgentsWindow = () => false;
@@ -172,6 +178,7 @@ suite('config set balance mode regressions', () => {
 
     teardown(() => {
         ApiKeyFailoverManager.handleBalanceAuthorityLost();
+        setBalanceHandoffDirectoryOverride(undefined);
         LeaderElectionService.isInitialized = originalInitialized;
         LeaderElectionService.isLeader = originalLeader;
         LeaderElectionService.isAgentsWindow = originalAgents;
@@ -259,6 +266,170 @@ suite('config set balance mode regressions', () => {
         assert.equal(attempt?.apiKeyName, 'label-b');
     });
 
+    test('repeated remote assignment reuses the lease metadata', async () => {
+        initialize();
+        await seed('slot');
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        const payload = {
+            requestId: 'request-repeated-assignment',
+            requestedBy: 'follower-a',
+            authorityTerm,
+            slot: 'slot',
+            balanceKey: 's:repeated-assignment'
+        };
+
+        const first = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(payload, 'follower-a');
+        const second = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(payload, 'follower-a');
+
+        assert.equal(first?.handled, true);
+        assert.equal(second?.handled, true);
+        assert.equal(second?.leaseId, first?.leaseId);
+        assert.equal(second?.configId, first?.configId);
+        assert.equal(second?.apiKeyName, first?.apiKeyName);
+        assert.ok(second?.apiKeyName);
+    });
+
+    test('expired remote lease rejects a late renewal', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        const assigned = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+            {
+                requestId: 'request-expired-renewal',
+                requestedBy: 'follower-a',
+                authorityTerm,
+                slot: 'slot',
+                balanceKey: 's:expired-renewal'
+            },
+            'follower-a'
+        );
+        assert.ok(assigned?.leaseId);
+
+        const manager = ApiKeyFailoverManager as unknown as {
+            balanceLeases: Map<string, { expiresAt: number }>;
+        };
+        const lease = manager.balanceLeases.get(assigned.leaseId);
+        assert.ok(lease);
+        lease.expiresAt = Date.now() - 1;
+
+        ApiKeyFailoverManager.handleRemoteBalanceLeaseRenewal(
+            { leaseId: assigned.leaseId, authorityTerm },
+            'follower-a'
+        );
+
+        assert.equal(manager.balanceLeases.has(assigned.leaseId), false);
+    });
+
+    test('disconnect keeps an unexpired follower lease counted', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        const first = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+            {
+                requestId: 'request-disconnect-first',
+                requestedBy: 'follower-a',
+                authorityTerm,
+                slot: 'slot',
+                balanceKey: 's:disconnect-retain'
+            },
+            'follower-a'
+        );
+        assert.ok(first?.configId);
+
+        ApiKeyFailoverManager.handleBalanceInstanceDisconnected('follower-a');
+
+        const second = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+            {
+                requestId: 'request-disconnect-second',
+                requestedBy: 'follower-b',
+                authorityTerm,
+                slot: 'slot',
+                balanceKey: 's:disconnect-retain'
+            },
+            'follower-b'
+        );
+        assert.ok(second?.configId);
+        assert.notEqual(second.configId, first.configId);
+    });
+
+    test('disconnect reclaim removes follower leases after the grace period', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        const assigned = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+            {
+                requestId: 'request-disconnect-reclaim',
+                requestedBy: 'follower-a',
+                authorityTerm,
+                slot: 'slot',
+                balanceKey: 's:disconnect-reclaim'
+            },
+            'follower-a'
+        );
+        assert.ok(assigned?.leaseId);
+
+        ApiKeyFailoverManager.handleBalanceInstanceDisconnected('follower-a');
+        await new Promise(resolve => setTimeout(resolve, 3_100));
+
+        const manager = ApiKeyFailoverManager as unknown as {
+            balanceLeases: Map<string, unknown>;
+        };
+        assert.equal(manager.balanceLeases.has(assigned.leaseId), false);
+    });
+
+    test('reconnect cancels a pending balance lease reclaim', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        const assigned = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+            {
+                requestId: 'request-disconnect-reconnect',
+                requestedBy: 'follower-a',
+                authorityTerm,
+                slot: 'slot',
+                balanceKey: 's:disconnect-reconnect'
+            },
+            'follower-a'
+        );
+        assert.ok(assigned?.leaseId);
+
+        ApiKeyFailoverManager.handleBalanceInstanceDisconnected('follower-a');
+        ApiKeyFailoverManager.handleBalanceInstanceReconnected('follower-a');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        const manager = ApiKeyFailoverManager as unknown as {
+            balanceLeases: Map<string, unknown>;
+        };
+        assert.equal(manager.balanceLeases.has(assigned.leaseId), true);
+    });
+
+    test('mode change clears runtime balance state for the slot', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const attempt = await ApiKeyFailoverManager.captureAttempt('slot', 's:mode-cleanup', 'request-mode-cleanup');
+        assert.ok(attempt?.balanceLeaseId);
+
+        ApiKeyFailoverManager.handleBalanceModeChanged('slot');
+
+        const manager = ApiKeyFailoverManager as unknown as {
+            balanceLeases: Map<string, unknown>;
+            balanceAttemptSnapshots: Map<string, unknown>;
+        };
+        assert.equal(manager.balanceLeases.size, 0);
+        assert.equal(manager.balanceAttemptSnapshots.size, 0);
+    });
+
     test('Follower discards an assignment when its authority changes during secret lookup', async () => {
         initialize();
         await seed('slot', ['a', 'b']);
@@ -313,6 +484,49 @@ suite('config set balance mode regressions', () => {
         } finally {
             ConfigSetStore.getApiKey = originalGetApiKey;
         }
+    });
+
+    test('Follower does not reuse a balance snapshot after transport loss', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        LeaderElectionService.isInitialized = () => true;
+        LeaderElectionService.isLeader = () => false;
+        LeaderElectionService.getInstanceId = () => 'follower-a';
+        InterInstanceBus.getAuthorityTerm = () => 'leader-a:1';
+        InterInstanceBus.hasActiveTransport = () => true;
+        InterInstanceBus.publishIpcOnly = event => {
+            if (event.type !== 'apiKeyBalanceAssignmentRequested') {
+                return true;
+            }
+            const payload = event.payload as { requestId: string };
+            queueMicrotask(() => {
+                ApiKeyFailoverManager.resolveBalanceAssignment({
+                    requestId: payload.requestId,
+                    targetInstanceId: 'follower-a',
+                    authorityTerm: 'leader-a:1',
+                    handled: true,
+                    leaseId: 'lease-stale-transport',
+                    configId: 'b',
+                    credentialId: credentialId('key-slot-b'),
+                    expiresAt: Date.now() + 30_000
+                });
+            });
+            return true;
+        };
+
+        const first = await ApiKeyFailoverManager.captureAttempt(
+            'slot',
+            's:stale-transport',
+            'request-stale-transport'
+        );
+        assert.ok(first?.balanceLeaseId);
+        InterInstanceBus.hasActiveTransport = () => false;
+
+        assert.equal(
+            await ApiKeyFailoverManager.captureAttempt('slot', 's:stale-transport', 'request-stale-transport'),
+            undefined
+        );
     });
 
     test('Leader loss during balance capture falls back without throwing', async () => {
@@ -440,6 +654,271 @@ suite('config set balance mode regressions', () => {
         }
     });
 
+    test('late old-term exclusion write does not overwrite the current term', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        let authorityTerm = 'leader-a:1';
+        LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
+
+        const balanceKey = balanceKeyForBucket(0, 2);
+        const first = await ApiKeyFailoverManager.captureAttempt('slot', balanceKey);
+        assert.ok(first);
+
+        authorityTerm = 'leader-a:2';
+        await ConfigSetStore.addBalanceExclusion('slot', balanceKey, first.identity, Date.now(), authorityTerm);
+        await ConfigSetStore.addBalanceExclusion('slot', balanceKey, first.identity, Date.now(), 'leader-a:1');
+
+        const next = await ApiKeyFailoverManager.captureAttempt('slot', balanceKey);
+        assert.ok(next);
+        assert.notEqual(next.identity, first.identity);
+        assert.equal(ConfigSetStore.getBalanceExclusions('slot').filter(entry => entry.k === balanceKey).length, 2);
+    });
+
+    test('graceful handoff imports valid leases without restoring request state', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        let authorityTerm = 'leader-old:1';
+        LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
+        LeaderElectionService.getInstanceId = () => 'leader-new-instance';
+
+        const original = await ApiKeyFailoverManager.captureAttempt('slot', balanceKeyForBucket(0, 2), 'old-request');
+        assert.ok(original?.balanceLeaseId);
+        const handoff = ApiKeyFailoverManager.exportBalanceLeaseHandoff();
+        assert.equal(handoff?.leases.length, 1);
+        assert.equal(Object.hasOwn(handoff!.leases[0], 'requestId'), false);
+
+        authorityTerm = 'leader-new:2';
+        ApiKeyFailoverManager.handleBalanceAuthorityLost();
+        ApiKeyFailoverManager.stageBalanceLeaseHandoff(
+            handoff!,
+            'leader-old-instance',
+            undefined,
+            'leader-old:1',
+            Date.now()
+        );
+        await ApiKeyFailoverManager.becomeBalanceAuthority(authorityTerm);
+
+        const manager = ApiKeyFailoverManager as unknown as {
+            balanceLeases: Map<
+                string,
+                { authorityTerm: string; handoffSourceAuthorityTerm?: string; ownerInstanceId: string }
+            >;
+        };
+        const imported = manager.balanceLeases.get(original.balanceLeaseId);
+        assert.equal(imported?.authorityTerm, 'leader-new:2');
+        assert.equal(imported?.handoffSourceAuthorityTerm, 'leader-old:1');
+        assert.equal(imported?.ownerInstanceId, LeaderElectionService.getInstanceId());
+
+        const next = await ApiKeyFailoverManager.captureAttempt('slot', balanceKeyForBucket(0, 2), 'new-request');
+        assert.ok(next);
+        assert.notEqual(next.identity, original.identity);
+
+        ApiKeyFailoverManager.handleRemoteBalanceLeaseRelease(
+            { leaseId: original.balanceLeaseId, authorityTerm: 'leader-old:1' },
+            LeaderElectionService.getInstanceId()
+        );
+        assert.equal(manager.balanceLeases.has(original.balanceLeaseId), true);
+        ApiKeyFailoverManager.handleRemoteBalanceLeaseRelease(
+            { leaseId: original.balanceLeaseId, authorityTerm: 'leader-new:2' },
+            LeaderElectionService.getInstanceId()
+        );
+        assert.equal(manager.balanceLeases.has(original.balanceLeaseId), false);
+    });
+
+    test('handoff rejects stale source term and event timestamp', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const sourceAuthorityTerm = 'leader-old:stale';
+        const handoff = {
+            sourceAuthorityTerm,
+            capturedAt: Date.now(),
+            leases: [
+                {
+                    leaseId: 'handoff-stale-lease',
+                    slot: 'slot',
+                    balanceKey: 's:handoff-stale',
+                    configId: 'a',
+                    credentialId: credentialId('key-slot-a'),
+                    ownerInstanceId: 'follower-a',
+                    expiresAt: Date.now() + 30_000
+                }
+            ]
+        };
+
+        ApiKeyFailoverManager.stageBalanceLeaseHandoff(
+            handoff,
+            'leader-old-instance',
+            undefined,
+            'leader-other:1',
+            Date.now()
+        );
+        ApiKeyFailoverManager.stageBalanceLeaseHandoff(
+            handoff,
+            'leader-old-instance',
+            undefined,
+            sourceAuthorityTerm,
+            Date.now() - 10_001
+        );
+
+        const manager = ApiKeyFailoverManager as unknown as {
+            pendingBalanceLeaseHandoff: unknown;
+        };
+        assert.equal(manager.pendingBalanceLeaseHandoff, undefined);
+    });
+
+    test('leaderResigning handler stages only an authorized handoff', async () => {
+        initialize();
+        const context = createContext();
+        const sourceAuthorityTerm = 'leader-old:event';
+        const handoff = {
+            sourceAuthorityTerm,
+            capturedAt: Date.now(),
+            leases: [
+                {
+                    leaseId: 'handoff-event-lease',
+                    slot: 'slot',
+                    balanceKey: 's:handoff-event',
+                    configId: 'a',
+                    credentialId: credentialId('key-slot-a'),
+                    ownerInstanceId: 'follower-a',
+                    expiresAt: Date.now() + 30_000
+                }
+            ]
+        };
+        const handlers = InterInstanceBus as unknown as {
+            handlers: Map<string, Set<(event: unknown) => void>>;
+        };
+        const previousInstanceId = LeaderElectionService.getInstanceId;
+        const previousAuthorityTerm = InterInstanceBus.getAuthorityTerm;
+        LeaderElectionService.getInstanceId = () => 'leader-new-instance';
+        InterInstanceBus.getAuthorityTerm = () => sourceAuthorityTerm;
+        registerInterInstanceHandlers(context);
+
+        try {
+            const event = {
+                type: 'leaderResigning',
+                payload: {
+                    leaderId: 'leader-old-instance',
+                    sourceAuthorityTerm,
+                    nextLeaderId: 'leader-new-instance',
+                    balanceLeaseSnapshot: handoff
+                },
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-old-instance'
+            };
+            for (const handler of handlers.handlers.get('leaderResigning') ?? []) {
+                handler(event);
+            }
+
+            const manager = ApiKeyFailoverManager as unknown as {
+                pendingBalanceLeaseHandoff: { sourceLeaderId: string } | undefined;
+            };
+            assert.equal(manager.pendingBalanceLeaseHandoff?.sourceLeaderId, 'leader-old-instance');
+        } finally {
+            for (const disposable of context.subscriptions) {
+                disposable.dispose();
+            }
+            LeaderElectionService.getInstanceId = previousInstanceId;
+            InterInstanceBus.getAuthorityTerm = previousAuthorityTerm;
+        }
+    });
+
+    test('mode change in another slot does not discard an in-flight handoff import', async () => {
+        initialize();
+        await seed('slot', ['a', 'b']);
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const sourceAuthorityTerm = 'leader-old:cross-slot';
+        LeaderElectionService.getOwnedAuthorityTerm = () => sourceAuthorityTerm;
+        const first = await ApiKeyFailoverManager.captureAttempt('slot', 's:handoff-slot', 'handoff-slot-request');
+        assert.ok(first?.balanceLeaseId);
+        const handoff = {
+            sourceAuthorityTerm,
+            capturedAt: Date.now(),
+            leases: [
+                {
+                    leaseId: first.balanceLeaseId,
+                    slot: 'slot',
+                    balanceKey: 's:handoff-slot',
+                    configId: first.activeId,
+                    credentialId: first.identity,
+                    ownerInstanceId: 'follower-a',
+                    expiresAt: Date.now() + 30_000
+                }
+            ]
+        };
+
+        const originalGetApiKey = ConfigSetStore.getApiKey.bind(ConfigSetStore);
+        let unblock!: () => void;
+        let started!: () => void;
+        const gate = new Promise<void>(resolve => {
+            unblock = resolve;
+        });
+        const lookupStarted = new Promise<void>(resolve => {
+            started = resolve;
+        });
+        ConfigSetStore.getApiKey = async (...args) => {
+            if (args[0] === 'slot') {
+                started();
+                await gate;
+            }
+            return await originalGetApiKey(...args);
+        };
+
+        try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'leader-new:cross-slot';
+            ApiKeyFailoverManager.handleBalanceAuthorityLost();
+            ApiKeyFailoverManager.stageBalanceLeaseHandoff(
+                handoff!,
+                'leader-old-instance',
+                undefined,
+                sourceAuthorityTerm,
+                Date.now()
+            );
+            const staged = ApiKeyFailoverManager as unknown as {
+                pendingBalanceLeaseHandoff: unknown;
+            };
+            assert.ok(staged.pendingBalanceLeaseHandoff);
+            const becoming = ApiKeyFailoverManager.becomeBalanceAuthority('leader-new:cross-slot');
+            await lookupStarted;
+            ApiKeyFailoverManager.handleBalanceModeChanged('other');
+            unblock();
+            await becoming;
+
+            const manager = ApiKeyFailoverManager as unknown as {
+                balanceLeases: Map<string, { slot: string }>;
+            };
+            assert.equal(
+                [...manager.balanceLeases.values()].some(lease => lease.slot === 'slot'),
+                true
+            );
+        } finally {
+            ConfigSetStore.getApiKey = originalGetApiKey;
+            unblock();
+        }
+    });
+
+    test('expired balance exclusions are physically removed from term storage', async () => {
+        const context = initialize();
+        await ConfigSetStore.addBalanceExclusion(
+            'slot',
+            's:expired-storage',
+            credentialId('key-slot-a'),
+            Date.now() - 5 * 60 * 1000 - 1,
+            'leader-expired:1'
+        );
+        assert.equal(ConfigSetStore.getBalanceExclusions('slot').length, 1);
+
+        await ConfigSetStore.cleanupBalanceExclusions('slot');
+
+        assert.equal(ConfigSetStore.getBalanceExclusions('slot').length, 0);
+        assert.equal(
+            context.globalState.keys().some(key => key.includes('balanceExclusions.slot.term.')),
+            false
+        );
+    });
     test('authority loss invalidates a cached balance lease', async () => {
         initialize();
         await seed('slot');
@@ -511,6 +990,36 @@ suite('config set balance mode regressions', () => {
             }
         });
     }
+
+    test('queued balance capture rejects a mode and authority transition together', async () => {
+        initialize();
+        await seed('slot');
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        let authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        assert.ok(authorityTerm);
+        LeaderElectionService.getOwnedAuthorityTerm = () => authorityTerm;
+
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const blocked = enqueueConfigSetMutation(() => gate);
+        const changed = enqueueConfigSetMutation(async () => {
+            await ConfigSetStore.setSwitchMode('slot', 'off');
+            authorityTerm = 'leader-next:2';
+        });
+        const captured = ApiKeyFailoverManager.captureAttempt('slot', 's:mode-term-transition', 'request-transition');
+
+        release();
+        await Promise.all([blocked, changed]);
+        assert.equal(ConfigSetStore.getSwitchMode('slot'), 'off');
+        assert.equal(await captured, undefined);
+
+        await ConfigSetStore.setSwitchMode('slot', 'balance');
+        const next = await ApiKeyFailoverManager.captureAttempt('slot', 's:mode-term-transition', 'request-transition');
+        assert.ok(next?.balanceLeaseId);
+        assert.equal(next?.balanceAuthorityTerm, 'leader-next:2');
+    });
 
     test('balanced non-active duplicate credentials omit an ambiguous configuration name', async () => {
         initialize();

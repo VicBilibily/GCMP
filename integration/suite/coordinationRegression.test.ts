@@ -276,6 +276,94 @@ suite('Coordination regressions', () => {
         }
     });
 
+    test('balance coordination events preserve ordering over a real IPC socket', async () => {
+        const receivedEvents: InterInstanceEvent[] = [];
+        const events: InterInstanceEvent[] = [
+            {
+                type: 'remoteInstanceHello',
+                payload: {},
+                timestamp: Date.now(),
+                senderInstanceId: 'follower-a'
+            },
+            {
+                type: 'apiKeyBalanceAssignmentRequested',
+                payload: {
+                    requestId: 'balance-request-1',
+                    requestedBy: 'follower-a',
+                    authorityTerm: 'leader-a:1',
+                    slot: 'slot',
+                    balanceKey: 's:session-1'
+                },
+                timestamp: Date.now(),
+                senderInstanceId: 'follower-a'
+            },
+            {
+                type: 'apiKeyBalanceFailureReported',
+                payload: {
+                    requestId: 'balance-failure-1',
+                    requestedBy: 'follower-a',
+                    authorityTerm: 'leader-a:1',
+                    slot: 'slot',
+                    balanceKey: 's:session-1',
+                    credentialId: 'credential-a',
+                    leaseId: 'lease-a',
+                    consecutiveFailureCount: 3
+                },
+                timestamp: Date.now(),
+                senderInstanceId: 'follower-a'
+            },
+            {
+                type: 'apiKeyBalanceLeaseRenewed',
+                payload: { leaseId: 'lease-a', authorityTerm: 'leader-a:1' },
+                timestamp: Date.now(),
+                senderInstanceId: 'follower-a'
+            },
+            {
+                type: 'apiKeyBalanceLeaseReleased',
+                payload: { leaseId: 'lease-a', authorityTerm: 'leader-a:1' },
+                timestamp: Date.now(),
+                senderInstanceId: 'follower-a'
+            }
+        ];
+        let resolveEvents!: () => void;
+        let rejectEvents!: (error: Error) => void;
+        const eventsReceived = new Promise<void>((resolve, reject) => {
+            resolveEvents = resolve;
+            rejectEvents = reject;
+        });
+        const timeout = setTimeout(() => rejectEvents(new Error('balance IPC events were not received')), 2000);
+        const server = new IpcServer({
+            onMessage: event => {
+                receivedEvents.push(event);
+                if (receivedEvents.length === events.length) {
+                    clearTimeout(timeout);
+                    resolveEvents();
+                }
+            }
+        });
+        const client = new IpcClient({ onMessage: () => {} });
+        const ipcPath = resolveIpcPath(`balance-events-${crypto.randomUUID()}`);
+
+        try {
+            await server.start(ipcPath);
+            await client.connect(ipcPath);
+            for (const event of events) {
+                client.send(event);
+            }
+            await eventsReceived;
+
+            assert.deepEqual(
+                receivedEvents.map(event => event.type),
+                events.map(event => event.type)
+            );
+            assert.ok(receivedEvents.every(event => event.senderInstanceId === 'follower-a'));
+        } finally {
+            clearTimeout(timeout);
+            await client.disconnect();
+            await server.stop();
+        }
+    });
+
     test('failover request subscriptions validate sender, authority term, timestamp, and duplicates', async () => {
         const bus = InterInstanceBus as unknown as InterInstanceBusInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;

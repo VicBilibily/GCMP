@@ -19,6 +19,16 @@ import type {
     ApiKeyBalanceFailureReportedEvent,
     ApiKeyBalanceFailureResolvedEvent
 } from '../../../interInstance';
+import type { ApiKeyBalanceLeaseHandoff } from '../../../interInstance/eventProtocol';
+import {
+    BALANCE_HANDOFF_MAX_LEASES,
+    BALANCE_HANDOFF_TTL_MS,
+    BALANCE_LEASE_TTL_MS,
+    isBalanceLeaseHandoffNewer,
+    isValidBalanceLeaseHandoff,
+    readBalanceLeaseHandoff,
+    writeBalanceLeaseHandoff
+} from './balanceLeaseHandoffFile';
 
 export const API_KEY_FAILOVER_ERROR_THRESHOLD = 3;
 const FAILOVER_COORDINATION_TIMEOUT_MS = 10_000;
@@ -26,9 +36,9 @@ const FAILOVER_FAILURE_WINDOW_MS = 10_000;
 const FAILOVER_ROTATION_SETTLE_MS = 100;
 // 隔离只对当前平衡单元生效，全池被隔离时仍允许回退。
 const BALANCE_EXCLUSION_TTL_MS = 5 * 60_000;
-const BALANCE_LEASE_TTL_MS = 30_000;
 const BALANCE_COORDINATION_TIMEOUT_MS = 10_000;
 const BALANCE_LEASE_RENEW_INTERVAL_MS = 10_000;
+const BALANCE_INSTANCE_DISCONNECT_GRACE_MS = 3_000;
 
 export interface ApiKeyFailoverAttempt {
     mode: 'failover' | 'balance';
@@ -78,7 +88,13 @@ interface BalanceLease {
     site?: string;
     ownerInstanceId: string;
     authorityTerm: string;
+    handoffSourceAuthorityTerm?: string;
     expiresAt: number;
+}
+
+interface BalanceAttemptSnapshot {
+    slot: string;
+    attempt: ApiKeyFailoverAttempt;
 }
 
 const UNHANDLED_DECISION: ApiKeyFailoverDecision = {
@@ -118,16 +134,29 @@ export class ApiKeyFailoverManager {
     private static pendingBalanceAssignments = new Map<
         string,
         {
+            slot: string;
             resolve: (payload: ApiKeyBalanceAssignmentResolvedEvent['payload'] | undefined) => void;
             timer: NodeJS.Timeout;
         }
     >();
     private static pendingBalanceFailures = new Map<
         string,
-        { resolve: (decision: ApiKeyFailoverDecision) => void; timer: NodeJS.Timeout }
+        { slot: string; resolve: (decision: ApiKeyFailoverDecision) => void; timer: NodeJS.Timeout }
     >();
     private static balanceLeaseRenewalTimers = new Map<string, NodeJS.Timeout>();
-    private static balanceAttemptSnapshots = new Map<string, ApiKeyFailoverAttempt>();
+    private static activeBalanceLeaseSlots = new Map<string, string | undefined>();
+    private static pendingBalanceDisconnectReclaims = new Map<string, NodeJS.Timeout>();
+    private static balanceAttemptSnapshots = new Map<string, BalanceAttemptSnapshot>();
+    private static pendingBalanceLeaseHandoff:
+        | { sourceLeaderId: string; handoff: ApiKeyBalanceLeaseHandoff }
+        | undefined;
+    private static balanceAuthorityTerm: string | undefined;
+    private static balanceAuthorityReady: Promise<void> | undefined;
+    private static balancePersistenceTimer: NodeJS.Timeout | undefined;
+    private static balanceResigningTerm: string | undefined;
+    private static balanceAuthorityGeneration = 0;
+    private static balanceModeGenerations = new Map<string, number>();
+    private static balanceModeEventTimestamps = new Map<string, number>();
 
     static resolveLeaderDecision(requestId: string, decision: ApiKeyFailoverDecision): void {
         const pending = this.pendingLeaderDecisions.get(requestId);
@@ -162,6 +191,240 @@ export class ApiKeyFailoverManager {
             shouldRetry: payload.shouldRetry,
             switched: payload.switched
         });
+    }
+
+    static exportBalanceLeaseHandoff(includeEmpty = false): ApiKeyBalanceLeaseHandoff | undefined {
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (!authorityTerm) {
+            return undefined;
+        }
+        this.cleanupBalanceLeases();
+        const leases = [...this.balanceLeases.values()]
+            .filter(lease => lease.authorityTerm === authorityTerm && lease.expiresAt > Date.now())
+            .map(lease => ({
+                leaseId: lease.leaseId,
+                slot: lease.slot,
+                balanceKey: lease.balanceKey,
+                configId: lease.configId,
+                credentialId: lease.credentialId,
+                site: lease.site,
+                ownerInstanceId: lease.ownerInstanceId,
+                expiresAt: lease.expiresAt
+            }));
+        if ((!includeEmpty && leases.length === 0) || leases.length > BALANCE_HANDOFF_MAX_LEASES) {
+            return undefined;
+        }
+        return {
+            sourceAuthorityTerm: authorityTerm,
+            capturedAt: Date.now(),
+            leases
+        };
+    }
+
+    private static async persistBalanceLeases(expectedAuthorityTerm?: string): Promise<void> {
+        const snapshot = this.exportBalanceLeaseHandoff(true);
+        if (
+            snapshot &&
+            (expectedAuthorityTerm === undefined || snapshot.sourceAuthorityTerm === expectedAuthorityTerm)
+        ) {
+            try {
+                await writeBalanceLeaseHandoff(snapshot);
+            } catch (error) {
+                Logger.warn('[ApiKeyBalance] Failed to persist lease handoff', error);
+            }
+        }
+    }
+
+    private static scheduleBalanceLeasePersistence(): void {
+        if (
+            this.deferBalanceLeaseMutation(() => this.scheduleBalanceLeasePersistence()) ||
+            this.balancePersistenceTimer
+        ) {
+            return;
+        }
+        this.balancePersistenceTimer = setTimeout(() => {
+            this.balancePersistenceTimer = undefined;
+            void this.persistBalanceLeases();
+        }, 50);
+    }
+
+    static prepareBalanceLeaseHandoff(): Promise<ApiKeyBalanceLeaseHandoff | undefined> {
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (!authorityTerm) {
+            return Promise.resolve(undefined);
+        }
+        this.balanceResigningTerm = authorityTerm;
+        return enqueueConfigSetMutation(async () => {
+            if (LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm) {
+                return undefined;
+            }
+            await this.persistBalanceLeases();
+            return this.exportBalanceLeaseHandoff();
+        });
+    }
+
+    static stageBalanceLeaseHandoff(
+        handoff: ApiKeyBalanceLeaseHandoff,
+        senderInstanceId: string,
+        targetLeaderId: string | undefined,
+        expectedSourceAuthorityTerm: string | undefined,
+        eventTimestamp: number
+    ): void {
+        if (
+            !senderInstanceId ||
+            senderInstanceId.length > 128 ||
+            !isValidBalanceLeaseHandoff(handoff) ||
+            (targetLeaderId !== undefined &&
+                (typeof targetLeaderId !== 'string' || targetLeaderId.length === 0 || targetLeaderId.length > 128))
+        ) {
+            return;
+        }
+        const now = Date.now();
+        if (
+            !expectedSourceAuthorityTerm ||
+            expectedSourceAuthorityTerm !== handoff.sourceAuthorityTerm ||
+            !Number.isFinite(eventTimestamp) ||
+            now - eventTimestamp > 10_000 ||
+            eventTimestamp - now > 1_000 ||
+            now - handoff.capturedAt > BALANCE_HANDOFF_TTL_MS ||
+            handoff.capturedAt - now > 1_000
+        ) {
+            return;
+        }
+        const existing = this.pendingBalanceLeaseHandoff;
+        if (existing && isBalanceLeaseHandoffNewer(existing.handoff, handoff)) {
+            return;
+        }
+        this.pendingBalanceLeaseHandoff = {
+            sourceLeaderId: senderInstanceId,
+            handoff
+        };
+    }
+
+    static becomeBalanceAuthority(authorityTerm: string | undefined): Promise<void> {
+        if (
+            !authorityTerm ||
+            !LeaderElectionService.isLeader() ||
+            LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm ||
+            !ConfigSetStore.isInitialized()
+        ) {
+            return Promise.resolve();
+        }
+        if (this.balanceAuthorityTerm === authorityTerm) {
+            return this.balanceAuthorityReady ?? Promise.resolve();
+        }
+        this.handleBalanceAuthorityLost(true);
+        this.balanceAuthorityTerm = authorityTerm;
+        const authorityGeneration = this.balanceAuthorityGeneration;
+        const modeGenerations = new Map(this.balanceModeGenerations);
+        const ready = enqueueConfigSetMutation(async () => {
+            await this.importBalanceLeaseHandoff(authorityTerm, authorityGeneration, modeGenerations);
+            if (
+                this.balanceAuthorityGeneration === authorityGeneration &&
+                LeaderElectionService.getOwnedAuthorityTerm() === authorityTerm
+            ) {
+                await this.persistBalanceLeases();
+            }
+        }).catch(error => Logger.warn('[ApiKeyBalance] Failed to restore lease handoff', error));
+        this.balanceAuthorityReady = ready;
+        void ready.then(() => {
+            if (this.balanceAuthorityReady === ready) {
+                this.balanceAuthorityReady = undefined;
+            }
+        });
+        return ready;
+    }
+
+    private static async importBalanceLeaseHandoff(
+        authorityTerm: string,
+        authorityGeneration: number,
+        modeGenerations: ReadonlyMap<string, number>
+    ): Promise<void> {
+        let pending = this.pendingBalanceLeaseHandoff;
+        this.pendingBalanceLeaseHandoff = undefined;
+        const persisted = await readBalanceLeaseHandoff().catch(error => {
+            Logger.warn('[ApiKeyBalance] Failed to read persisted lease handoff', error);
+            return undefined;
+        });
+        if (persisted && (!pending || isBalanceLeaseHandoffNewer(persisted, pending.handoff))) {
+            const separator = persisted.sourceAuthorityTerm.lastIndexOf(':');
+            if (separator > 0) {
+                pending = { sourceLeaderId: persisted.sourceAuthorityTerm.slice(0, separator), handoff: persisted };
+            }
+        }
+        if (
+            this.balanceAuthorityGeneration !== authorityGeneration ||
+            LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm
+        ) {
+            return;
+        }
+        if (!pending || pending.handoff.sourceAuthorityTerm === authorityTerm) {
+            return;
+        }
+        const now = Date.now();
+        if (
+            !pending.sourceLeaderId ||
+            pending.sourceLeaderId.length > 128 ||
+            now - pending.handoff.capturedAt > BALANCE_HANDOFF_TTL_MS ||
+            pending.handoff.capturedAt - now > 1_000
+        ) {
+            return;
+        }
+
+        const operationTokens = new Map<string, string | undefined>();
+        for (const sourceLease of pending.handoff.leases) {
+            if (!operationTokens.has(sourceLease.slot)) {
+                operationTokens.set(sourceLease.slot, ConfigSetStore.getApplyOperationToken(sourceLease.slot));
+            }
+        }
+        const imported: BalanceLease[] = [];
+        for (const sourceLease of pending.handoff.leases) {
+            if (
+                sourceLease.expiresAt <= now ||
+                (modeGenerations.get(sourceLease.slot) ?? 0) !== this.getBalanceModeGeneration(sourceLease.slot) ||
+                ConfigSetStore.getSwitchMode(sourceLease.slot) !== 'balance'
+            ) {
+                continue;
+            }
+            const apiKey = await ConfigSetStore.getApiKey(sourceLease.slot, sourceLease.configId);
+            if (
+                !apiKey ||
+                sourceLease.expiresAt <= Date.now() ||
+                this.getCredentialIdentity(apiKey, sourceLease.site) !== sourceLease.credentialId ||
+                operationTokens.get(sourceLease.slot) !== ConfigSetStore.getApplyOperationToken(sourceLease.slot) ||
+                ConfigSetStore.getSwitchMode(sourceLease.slot) !== 'balance'
+            ) {
+                continue;
+            }
+            imported.push({
+                leaseId: sourceLease.leaseId,
+                slot: sourceLease.slot,
+                balanceKey: sourceLease.balanceKey,
+                configId: sourceLease.configId,
+                credentialId: sourceLease.credentialId,
+                site: sourceLease.site,
+                ownerInstanceId: sourceLease.ownerInstanceId,
+                authorityTerm,
+                handoffSourceAuthorityTerm: pending.handoff.sourceAuthorityTerm,
+                expiresAt: sourceLease.expiresAt
+            });
+        }
+        if (
+            LeaderElectionService.isLeader() &&
+            LeaderElectionService.getOwnedAuthorityTerm() === authorityTerm &&
+            this.balanceAuthorityGeneration === authorityGeneration
+        ) {
+            for (const lease of imported) {
+                if (
+                    lease.expiresAt > Date.now() &&
+                    (modeGenerations.get(lease.slot) ?? 0) === this.getBalanceModeGeneration(lease.slot) &&
+                    operationTokens.get(lease.slot) === ConfigSetStore.getApplyOperationToken(lease.slot) &&
+                    ConfigSetStore.getSwitchMode(lease.slot) === 'balance'
+                ) {
+                    this.balanceLeases.set(lease.leaseId, lease);
+                }
+            }
+        }
     }
 
     static async handleBalanceFailureReport(
@@ -213,13 +476,16 @@ export class ApiKeyFailoverManager {
             !senderInstanceId ||
             payload.requestedBy !== senderInstanceId ||
             payload.authorityTerm !== LeaderElectionService.getOwnedAuthorityTerm() ||
+            this.balanceResigningTerm === payload.authorityTerm ||
             ConfigSetStore.getSwitchMode(payload.slot) !== 'balance'
         ) {
             return undefined;
         }
+        await this.becomeBalanceAuthority(payload.authorityTerm);
         const allocation = await enqueueConfigSetMutation(async () =>
             (
                 ConfigSetStore.getSwitchMode(payload.slot) === 'balance' &&
+                this.balanceResigningTerm !== payload.authorityTerm &&
                 payload.authorityTerm === LeaderElectionService.getOwnedAuthorityTerm()
             ) ?
                 this.allocateBalanceLease(payload, senderInstanceId)
@@ -261,20 +527,12 @@ export class ApiKeyFailoverManager {
                 lease.balanceKey === payload.balanceKey &&
                 lease.expiresAt > Date.now()
             ) {
-                const apiKey = await ConfigSetStore.getApiKey(payload.slot, lease.configId);
-                if (!apiKey || this.getCredentialIdentity(apiKey, lease.site) !== lease.credentialId) {
+                const operationToken = ConfigSetStore.getApplyOperationToken(payload.slot);
+                const pool = await this.resolveConfigPool(payload.slot);
+                if (!pool) {
                     return undefined;
                 }
-                return {
-                    mode: 'balance',
-                    activeId: lease.configId,
-                    apiKey,
-                    identity: lease.credentialId,
-                    site: lease.site,
-                    balanceLeaseId: lease.leaseId,
-                    balanceLeaseExpiresAt: lease.expiresAt,
-                    balanceAuthorityTerm: lease.authorityTerm
-                };
+                return await this.balanceAttemptFromLease(lease, pool, operationToken);
             }
         }
         const attempt = await this.captureLeaderBalanceAttempt(
@@ -295,9 +553,19 @@ export class ApiKeyFailoverManager {
     }
 
     static renewBalanceLease(leaseId: string, authorityTerm: string): void {
+        if (this.deferBalanceLeaseMutation(() => this.renewBalanceLease(leaseId, authorityTerm))) {
+            return;
+        }
         const lease = this.balanceLeases.get(leaseId);
         if (lease && lease.authorityTerm === authorityTerm && this.isCurrentLeaderTerm(authorityTerm)) {
-            lease.expiresAt = Date.now() + BALANCE_LEASE_TTL_MS;
+            const now = Date.now();
+            if (lease.expiresAt <= now) {
+                this.balanceLeases.delete(leaseId);
+                this.stopBalanceLeaseHeartbeat(leaseId);
+                return;
+            }
+            lease.expiresAt = now + BALANCE_LEASE_TTL_MS;
+            this.scheduleBalanceLeasePersistence();
             return;
         }
         if (
@@ -311,13 +579,24 @@ export class ApiKeyFailoverManager {
         }
     }
 
-    static startBalanceLeaseHeartbeat(attempt: ApiKeyFailoverAttempt): void {
+    static startBalanceLeaseHeartbeat(attempt: ApiKeyFailoverAttempt, slot?: string): void {
         const leaseId = attempt.balanceLeaseId;
         if (!leaseId || this.balanceLeaseRenewalTimers.has(leaseId)) {
             return;
         }
+        slot ??= [...this.balanceAttemptSnapshots.values()].find(
+            snapshot => snapshot.attempt.balanceLeaseId === leaseId
+        )?.slot;
+        this.activeBalanceLeaseSlots.set(leaseId, slot);
         const timer = setInterval(() => {
-            this.renewBalanceLease(leaseId, attempt.balanceAuthorityTerm ?? '');
+            const authorityTerm =
+                LeaderElectionService.isLeader() ?
+                    LeaderElectionService.getOwnedAuthorityTerm()
+                :   InterInstanceBus.getAuthorityTerm();
+            if (authorityTerm) {
+                attempt.balanceAuthorityTerm = authorityTerm;
+                this.renewBalanceLease(leaseId, authorityTerm);
+            }
         }, BALANCE_LEASE_RENEW_INTERVAL_MS);
         this.balanceLeaseRenewalTimers.set(leaseId, timer);
     }
@@ -329,12 +608,25 @@ export class ApiKeyFailoverManager {
         }
         clearInterval(timer);
         this.balanceLeaseRenewalTimers.delete(leaseId);
+        this.activeBalanceLeaseSlots.delete(leaseId);
     }
 
     static releaseBalanceLease(leaseId: string, authorityTerm?: string): void {
+        const ownedAuthorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (
+            authorityTerm &&
+            LeaderElectionService.isLeader() &&
+            ownedAuthorityTerm &&
+            authorityTerm !== ownedAuthorityTerm
+        ) {
+            return;
+        }
         this.stopBalanceLeaseHeartbeat(leaseId);
+        if (this.deferBalanceLeaseMutation(() => this.releaseBalanceLease(leaseId, authorityTerm))) {
+            return;
+        }
         for (const [requestId, attempt] of this.balanceAttemptSnapshots) {
-            if (attempt.balanceLeaseId === leaseId) {
+            if (attempt.attempt.balanceLeaseId === leaseId) {
                 this.balanceAttemptSnapshots.delete(requestId);
             }
         }
@@ -344,6 +636,7 @@ export class ApiKeyFailoverManager {
         }
         if (LeaderElectionService.isLeader()) {
             this.balanceLeases.delete(leaseId);
+            void this.persistBalanceLeases();
             return;
         }
         const currentTerm = authorityTerm ?? InterInstanceBus.getAuthorityTerm();
@@ -363,47 +656,100 @@ export class ApiKeyFailoverManager {
         payload: { leaseId: string; authorityTerm: string },
         senderInstanceId: string
     ): void {
+        if (this.deferBalanceLeaseMutation(() => this.handleRemoteBalanceLeaseRenewal(payload, senderInstanceId))) {
+            return;
+        }
         const lease = this.balanceLeases.get(payload.leaseId);
         if (
             !LeaderElectionService.isLeader() ||
             !lease ||
+            !this.isCurrentLeaderTerm(lease.authorityTerm) ||
             lease.ownerInstanceId !== senderInstanceId ||
-            lease.authorityTerm !== payload.authorityTerm ||
-            !this.isCurrentLeaderTerm(payload.authorityTerm)
+            (lease.authorityTerm !== payload.authorityTerm &&
+                lease.handoffSourceAuthorityTerm !== payload.authorityTerm) ||
+            (lease.authorityTerm !== payload.authorityTerm && lease.expiresAt <= Date.now()) ||
+            (lease.authorityTerm === payload.authorityTerm && !this.isCurrentLeaderTerm(payload.authorityTerm))
         ) {
             return;
         }
-        lease.expiresAt = Date.now() + BALANCE_LEASE_TTL_MS;
+        const now = Date.now();
+        if (lease.expiresAt <= now) {
+            this.balanceLeases.delete(payload.leaseId);
+            return;
+        }
+        lease.expiresAt =
+            lease.authorityTerm === payload.authorityTerm ?
+                now + BALANCE_LEASE_TTL_MS
+            :   Math.min(lease.expiresAt, now + BALANCE_LEASE_TTL_MS);
+        this.scheduleBalanceLeasePersistence();
     }
 
     static handleRemoteBalanceLeaseRelease(
         payload: { leaseId: string; authorityTerm: string },
         senderInstanceId: string
     ): void {
+        if (this.deferBalanceLeaseMutation(() => this.handleRemoteBalanceLeaseRelease(payload, senderInstanceId))) {
+            return;
+        }
         const lease = this.balanceLeases.get(payload.leaseId);
         if (
             !LeaderElectionService.isLeader() ||
             !lease ||
+            !this.isCurrentLeaderTerm(lease.authorityTerm) ||
             lease.ownerInstanceId !== senderInstanceId ||
             lease.authorityTerm !== payload.authorityTerm
         ) {
             return;
         }
         this.balanceLeases.delete(payload.leaseId);
+        void this.persistBalanceLeases();
+    }
+
+    private static deferBalanceLeaseMutation(task: () => void): boolean {
+        const ready = this.balanceAuthorityReady;
+        if (!ready) {
+            return false;
+        }
+        const generation = this.balanceAuthorityGeneration;
+        void ready.then(() => {
+            if (this.balanceAuthorityGeneration === generation) {
+                task();
+            }
+        });
+        return true;
     }
 
     static handleBalanceInstanceDisconnected(instanceId: string): void {
         if (!LeaderElectionService.isLeader() || !instanceId) {
             return;
         }
-        for (const [leaseId, lease] of this.balanceLeases) {
-            if (lease.ownerInstanceId === instanceId) {
-                this.balanceLeases.delete(leaseId);
-            }
+        if (InterInstanceBus.getConnectedFollowerIds().includes(instanceId)) {
+            this.cancelPendingBalanceDisconnectReclaim(instanceId);
+            return;
         }
+        if (this.pendingBalanceDisconnectReclaims.has(instanceId)) {
+            return;
+        }
+        const timer = setTimeout(() => {
+            this.pendingBalanceDisconnectReclaims.delete(instanceId);
+            this.reclaimDisconnectedBalanceInstance(instanceId);
+        }, BALANCE_INSTANCE_DISCONNECT_GRACE_MS);
+        this.pendingBalanceDisconnectReclaims.set(instanceId, timer);
     }
 
-    static handleBalanceAuthorityLost(): void {
+    static handleBalanceInstanceReconnected(instanceId: string): void {
+        if (!instanceId) {
+            return;
+        }
+        this.cancelPendingBalanceDisconnectReclaim(instanceId);
+    }
+
+    static handleBalanceAuthorityLost(preserveActiveAttempts = false): void {
+        this.balanceAuthorityGeneration++;
+        if (this.balancePersistenceTimer) {
+            clearTimeout(this.balancePersistenceTimer);
+            this.balancePersistenceTimer = undefined;
+        }
         for (const [requestId, pending] of this.pendingBalanceAssignments) {
             clearTimeout(pending.timer);
             pending.resolve(undefined);
@@ -414,11 +760,70 @@ export class ApiKeyFailoverManager {
             pending.resolve(STOP_DECISION);
             this.pendingBalanceFailures.delete(requestId);
         }
-        for (const leaseId of this.balanceLeaseRenewalTimers.keys()) {
-            this.stopBalanceLeaseHeartbeat(leaseId);
+        if (!preserveActiveAttempts) {
+            this.pendingBalanceLeaseHandoff = undefined;
+            for (const leaseId of this.balanceLeaseRenewalTimers.keys()) {
+                this.stopBalanceLeaseHeartbeat(leaseId);
+            }
         }
+        this.clearPendingBalanceDisconnectReclaims();
         this.balanceLeases.clear();
         this.balanceAttemptSnapshots.clear();
+        this.balanceAuthorityTerm = undefined;
+        this.balanceAuthorityReady = undefined;
+        this.balanceResigningTerm = undefined;
+        this.balanceModeGenerations.clear();
+        this.balanceModeEventTimestamps.clear();
+    }
+
+    static handleBalanceModeChanged(slot: string, eventTimestamp?: number): void {
+        const timestamp = eventTimestamp ?? Date.now();
+        const previousTimestamp = this.balanceModeEventTimestamps.get(slot);
+        if (eventTimestamp !== undefined && previousTimestamp !== undefined && eventTimestamp <= previousTimestamp) {
+            return;
+        }
+        this.balanceModeEventTimestamps.set(slot, timestamp);
+        this.balanceModeGenerations.set(slot, this.getBalanceModeGeneration(slot) + 1);
+        for (const [leaseId, activeSlot] of this.activeBalanceLeaseSlots) {
+            if (activeSlot === slot) {
+                this.stopBalanceLeaseHeartbeat(leaseId);
+            }
+        }
+        for (const [requestId, pending] of this.pendingBalanceAssignments) {
+            if (pending.slot !== slot) {
+                continue;
+            }
+            clearTimeout(pending.timer);
+            pending.resolve(undefined);
+            this.pendingBalanceAssignments.delete(requestId);
+        }
+        for (const [requestId, pending] of this.pendingBalanceFailures) {
+            if (pending.slot !== slot) {
+                continue;
+            }
+            clearTimeout(pending.timer);
+            pending.resolve(STOP_DECISION);
+            this.pendingBalanceFailures.delete(requestId);
+        }
+        for (const [leaseId, lease] of this.balanceLeases) {
+            if (lease.slot !== slot) {
+                continue;
+            }
+            this.stopBalanceLeaseHeartbeat(leaseId);
+            this.balanceLeases.delete(leaseId);
+        }
+        for (const [requestId, snapshot] of this.balanceAttemptSnapshots) {
+            if (snapshot.slot === slot) {
+                this.balanceAttemptSnapshots.delete(requestId);
+            }
+        }
+        const pendingHandoff = this.pendingBalanceLeaseHandoff;
+        if (pendingHandoff) {
+            const leases = pendingHandoff.handoff.leases.filter(lease => lease.slot !== slot);
+            this.pendingBalanceLeaseHandoff =
+                leases.length > 0 ? { ...pendingHandoff, handoff: { ...pendingHandoff.handoff, leases } } : undefined;
+        }
+        this.scheduleBalanceLeasePersistence();
     }
 
     static resetFailureCount(slot: string, failureRequestId: string): void {
@@ -750,7 +1155,7 @@ export class ApiKeyFailoverManager {
                 this.pendingBalanceFailures.delete(requestId);
                 resolve(STOP_DECISION);
             }, BALANCE_COORDINATION_TIMEOUT_MS);
-            this.pendingBalanceFailures.set(requestId, { resolve, timer });
+            this.pendingBalanceFailures.set(requestId, { slot, resolve, timer });
         });
         const published = InterInstanceBus.publishIpcOnly({
             type: 'apiKeyBalanceFailureReported',
@@ -849,6 +1254,7 @@ export class ApiKeyFailoverManager {
                 return false;
             }
             await ConfigSetStore.setAutoSwitchEnabled(slot, false);
+            this.handleBalanceModeChanged(slot);
             return true;
         });
     }
@@ -860,22 +1266,32 @@ export class ApiKeyFailoverManager {
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         const mode = ConfigSetStore.getSwitchMode(slot);
         if (mode === 'balance' && balanceKey) {
+            const ownedAuthorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+            if (ownedAuthorityTerm && this.balanceResigningTerm === ownedAuthorityTerm) {
+                return undefined;
+            }
+            if (LeaderElectionService.isLeader()) {
+                await this.becomeBalanceAuthority(ownedAuthorityTerm);
+            }
             this.cleanupBalanceAttemptSnapshots();
             if (allocationRequestId) {
                 const snapshot = this.balanceAttemptSnapshots.get(allocationRequestId);
                 if (
-                    snapshot?.balanceLeaseExpiresAt &&
-                    snapshot.balanceLeaseExpiresAt > Date.now() &&
-                    snapshot.balanceAuthorityTerm === this.getRequestAuthorityTerm()
+                    snapshot?.slot === slot &&
+                    snapshot.attempt.balanceLeaseExpiresAt &&
+                    snapshot.attempt.balanceLeaseExpiresAt > Date.now() &&
+                    snapshot.attempt.balanceAuthorityTerm === this.getRequestAuthorityTerm() &&
+                    (LeaderElectionService.isLeader() ||
+                        (!InterInstanceBus.isAuthorityTransitioning() && InterInstanceBus.hasActiveTransport()))
                 ) {
-                    return snapshot;
+                    return snapshot.attempt;
                 }
                 this.balanceAttemptSnapshots.delete(allocationRequestId);
             }
             if (LeaderElectionService.isInitialized() && !LeaderElectionService.isLeader()) {
                 const attempt = await this.captureBalanceAttempt(slot, balanceKey, allocationRequestId);
                 if (attempt && allocationRequestId) {
-                    this.balanceAttemptSnapshots.set(allocationRequestId, attempt);
+                    this.balanceAttemptSnapshots.set(allocationRequestId, { slot, attempt });
                 }
                 return attempt;
             }
@@ -883,7 +1299,7 @@ export class ApiKeyFailoverManager {
                 this.captureBalanceAttempt(slot, balanceKey, allocationRequestId)
             );
             if (attempt && allocationRequestId) {
-                this.balanceAttemptSnapshots.set(allocationRequestId, attempt);
+                this.balanceAttemptSnapshots.set(allocationRequestId, { slot, attempt });
             }
             return attempt;
         }
@@ -942,11 +1358,19 @@ export class ApiKeyFailoverManager {
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         const operationToken = ConfigSetStore.getApplyOperationToken(slot);
         const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
-        if (!authorityTerm || ConfigSetStore.getSwitchMode(slot) !== 'balance') {
+        if (
+            !authorityTerm ||
+            this.balanceResigningTerm === authorityTerm ||
+            ConfigSetStore.getSwitchMode(slot) !== 'balance'
+        ) {
             return undefined;
         }
         const pool = await this.resolveConfigPool(slot);
-        if (!LeaderElectionService.isLeader() || LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm) {
+        if (
+            !LeaderElectionService.isLeader() ||
+            this.balanceResigningTerm === authorityTerm ||
+            LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm
+        ) {
             return undefined;
         }
         if (
@@ -1012,7 +1436,7 @@ export class ApiKeyFailoverManager {
                     lease.expiresAt > Date.now()
             );
             if (existingLease) {
-                return this.balanceAttemptFromLease(existingLease, pool);
+                return this.balanceAttemptFromLease(existingLease, pool, operationToken);
             }
         }
         const lease: BalanceLease = {
@@ -1029,6 +1453,21 @@ export class ApiKeyFailoverManager {
         };
         this.cleanupBalanceLeases();
         this.balanceLeases.set(lease.leaseId, lease);
+        await this.persistBalanceLeases(authorityTerm);
+        if (
+            !this.isCurrentLeaderTerm(authorityTerm) ||
+            this.balanceResigningTerm === authorityTerm ||
+            ConfigSetStore.getApplyOperationToken(slot) !== operationToken ||
+            lease.expiresAt <= Date.now() ||
+            this.balanceLeases.get(lease.leaseId) !== lease ||
+            ConfigSetStore.getSwitchMode(slot) !== 'balance'
+        ) {
+            if (this.balanceLeases.get(lease.leaseId) === lease) {
+                this.balanceLeases.delete(lease.leaseId);
+                await this.persistBalanceLeases(authorityTerm);
+            }
+            return undefined;
+        }
         return {
             mode: 'balance',
             activeId: target.item.id,
@@ -1051,13 +1490,16 @@ export class ApiKeyFailoverManager {
         if (!authorityTerm || !InterInstanceBus.hasActiveTransport()) {
             return undefined;
         }
+        const authorityGeneration = this.balanceAuthorityGeneration;
+        const modeGeneration = this.getBalanceModeGeneration(slot);
+        const operationToken = ConfigSetStore.getApplyOperationToken(slot);
         const requestId = allocationRequestId ?? crypto.randomUUID();
         const response = new Promise<ApiKeyBalanceAssignmentResolvedEvent['payload'] | undefined>(resolve => {
             const timer = setTimeout(() => {
                 this.pendingBalanceAssignments.delete(requestId);
                 resolve(undefined);
             }, BALANCE_COORDINATION_TIMEOUT_MS);
-            this.pendingBalanceAssignments.set(requestId, { resolve, timer });
+            this.pendingBalanceAssignments.set(requestId, { slot, resolve, timer });
         });
         const published = InterInstanceBus.publishIpcOnly({
             type: 'apiKeyBalanceAssignmentRequested',
@@ -1083,6 +1525,9 @@ export class ApiKeyFailoverManager {
             !assigned.configId ||
             !assigned.credentialId ||
             !assigned.leaseId ||
+            authorityGeneration !== this.balanceAuthorityGeneration ||
+            modeGeneration !== this.getBalanceModeGeneration(slot) ||
+            operationToken !== ConfigSetStore.getApplyOperationToken(slot) ||
             assigned.authorityTerm !== InterInstanceBus.getAuthorityTerm() ||
             ConfigSetStore.getSwitchMode(slot) !== 'balance' ||
             !InterInstanceBus.hasActiveTransport() ||
@@ -1098,6 +1543,9 @@ export class ApiKeyFailoverManager {
         const apiKey = await ConfigSetStore.getApiKey(slot, assigned.configId);
         const site = assigned.site;
         if (
+            authorityGeneration !== this.balanceAuthorityGeneration ||
+            modeGeneration !== this.getBalanceModeGeneration(slot) ||
+            operationToken !== ConfigSetStore.getApplyOperationToken(slot) ||
             ConfigSetStore.getSwitchMode(slot) !== 'balance' ||
             assigned.authorityTerm !== InterInstanceBus.getAuthorityTerm() ||
             !InterInstanceBus.hasActiveTransport() ||
@@ -1125,10 +1573,20 @@ export class ApiKeyFailoverManager {
 
     private static async balanceAttemptFromLease(
         lease: BalanceLease,
-        pool: ResolvedConfigPool
-    ): Promise<ApiKeyFailoverAttempt | undefined> {
+        pool: ResolvedConfigPool,
+        operationToken: string | undefined
+    ): Promise<(ApiKeyFailoverAttempt & { balanceLeaseId: string }) | undefined> {
         const apiKey = await ConfigSetStore.getApiKey(lease.slot, lease.configId);
-        if (!apiKey || this.getCredentialIdentity(apiKey, lease.site) !== lease.credentialId) {
+        if (
+            !this.isCurrentLeaderTerm(lease.authorityTerm) ||
+            this.balanceResigningTerm === lease.authorityTerm ||
+            ConfigSetStore.getApplyOperationToken(lease.slot) !== operationToken ||
+            ConfigSetStore.getSwitchMode(lease.slot) !== 'balance' ||
+            lease.expiresAt <= Date.now() ||
+            this.balanceLeases.get(lease.leaseId) !== lease ||
+            !apiKey ||
+            this.getCredentialIdentity(apiKey, lease.site) !== lease.credentialId
+        ) {
             return undefined;
         }
         const target = pool.keyedItems.find(candidate => candidate.item.id === lease.configId);
@@ -1182,10 +1640,56 @@ export class ApiKeyFailoverManager {
         }
     }
 
+    private static getBalanceModeGeneration(slot: string): number {
+        return this.balanceModeGenerations.get(slot) ?? 0;
+    }
+
+    private static reclaimDisconnectedBalanceInstance(instanceId: string): void {
+        if (this.deferBalanceLeaseMutation(() => this.reclaimDisconnectedBalanceInstance(instanceId))) {
+            return;
+        }
+        if (
+            !LeaderElectionService.isLeader() ||
+            !instanceId ||
+            InterInstanceBus.getConnectedFollowerIds().includes(instanceId)
+        ) {
+            return;
+        }
+        for (const [leaseId, lease] of this.balanceLeases) {
+            if (lease.ownerInstanceId !== instanceId) {
+                continue;
+            }
+            this.stopBalanceLeaseHeartbeat(leaseId);
+            this.balanceLeases.delete(leaseId);
+            for (const [requestId, snapshot] of this.balanceAttemptSnapshots) {
+                if (snapshot.attempt.balanceLeaseId === leaseId) {
+                    this.balanceAttemptSnapshots.delete(requestId);
+                }
+            }
+        }
+        void this.persistBalanceLeases();
+    }
+
+    private static cancelPendingBalanceDisconnectReclaim(instanceId: string): void {
+        const timer = this.pendingBalanceDisconnectReclaims.get(instanceId);
+        if (!timer) {
+            return;
+        }
+        clearTimeout(timer);
+        this.pendingBalanceDisconnectReclaims.delete(instanceId);
+    }
+
+    private static clearPendingBalanceDisconnectReclaims(): void {
+        for (const timer of this.pendingBalanceDisconnectReclaims.values()) {
+            clearTimeout(timer);
+        }
+        this.pendingBalanceDisconnectReclaims.clear();
+    }
+
     private static cleanupBalanceAttemptSnapshots(): void {
         const now = Date.now();
         for (const [requestId, attempt] of this.balanceAttemptSnapshots) {
-            if (!attempt.balanceLeaseExpiresAt || attempt.balanceLeaseExpiresAt <= now) {
+            if (!attempt.attempt.balanceLeaseExpiresAt || attempt.attempt.balanceLeaseExpiresAt <= now) {
                 this.balanceAttemptSnapshots.delete(requestId);
             }
         }

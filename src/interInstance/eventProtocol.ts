@@ -243,6 +243,21 @@ export interface LeaderChangedEvent extends InterInstanceEventBase {
     };
 }
 
+export interface ApiKeyBalanceLeaseHandoff {
+    sourceAuthorityTerm: string;
+    capturedAt: number;
+    leases: Array<{
+        leaseId: string;
+        slot: string;
+        balanceKey: string;
+        configId: string;
+        credentialId: string;
+        site?: string;
+        ownerInstanceId: string;
+        expiresAt: number;
+    }>;
+}
+
 /**
  * Leader 即将卸任
  * Leader 实例关闭前广播此事件，提示 Follower 立即开始新 Leader 竞选，
@@ -255,10 +270,14 @@ export interface LeaderResigningEvent extends InterInstanceEventBase {
     payload: {
         /** 卸任 Leader 的实例 ID */
         leaderId: string;
+        /** 卸任 Leader 当前 authority term */
+        sourceAuthorityTerm?: string;
         /** 建议的下一任 Leader 实例 ID（可选） */
         nextLeaderId?: string;
         /** 平滑切主用的限流权威桶快照（可选） */
         rateLimitSnapshot?: RateLimitStoreSnapshot;
+        /** 平滑切主用的 API Key balance 租约快照（可选） */
+        balanceLeaseSnapshot?: ApiKeyBalanceLeaseHandoff;
     };
 }
 

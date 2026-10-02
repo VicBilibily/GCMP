@@ -4,6 +4,7 @@ import type {
     ApiKeyFailoverRequestedEvent,
     ApiKeyFailoverResetEvent,
     ApiKeyFailoverResolvedEvent,
+    ApiKeyFailoverToggledEvent,
     ApiKeyBalanceAssignmentRequestedEvent,
     ApiKeyBalanceAssignmentResolvedEvent,
     ApiKeyBalanceFailureReportedEvent,
@@ -284,16 +285,40 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
             Logger.warn(message, error);
         });
     };
+    const isApiKeyFailoverToggledPayload = (value: unknown): value is ApiKeyFailoverToggledEvent['payload'] => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return false;
+        }
+        const payload = value as Record<string, unknown>;
+        return (
+            typeof payload.slot === 'string' &&
+            payload.slot.length > 0 &&
+            payload.slot.length <= 128 &&
+            typeof payload.enabled === 'boolean' &&
+            (payload.mode === undefined ||
+                payload.mode === 'off' ||
+                payload.mode === 'failover' ||
+                payload.mode === 'balance') &&
+            (payload.mode === undefined || payload.enabled === (payload.mode !== 'off'))
+        );
+    };
+    LeaderElectionService.setBalanceLeaseSnapshotProvider(() => ApiKeyFailoverManager.prepareBalanceLeaseHandoff());
 
     context.subscriptions.push(
         InterInstanceBus.onAuthorityChanged(authorityTerm => {
-            ApiKeyFailoverManager.handleBalanceAuthorityLost();
+            if (LeaderElectionService.isLeader()) {
+                void ApiKeyFailoverManager.becomeBalanceAuthority(authorityTerm);
+            } else {
+                ApiKeyFailoverManager.handleBalanceAuthorityLost(true);
+            }
             requestLiveMetricsSnapshot(authorityTerm);
             refreshConfigSetManager('[ConfigSetManager] Failed to refresh after authority change');
         }),
         LeaderElectionService.onLeaderChanged(isLeader => {
             if (!isLeader) {
-                ApiKeyFailoverManager.handleBalanceAuthorityLost();
+                ApiKeyFailoverManager.handleBalanceAuthorityLost(true);
+            } else {
+                void ApiKeyFailoverManager.becomeBalanceAuthority(LeaderElectionService.getOwnedAuthorityTerm());
             }
             refreshConfigSetManager('[ConfigSetManager] Failed to refresh after Leader change');
         }),
@@ -328,13 +353,54 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
             syncRemoteLiveMetricsSnapshot(payload.entries, event.senderInstanceId);
         }),
         InterInstanceBus.subscribe('leaderResigning', event => {
-            clearRemoteLiveMetrics((event.payload as LeaderResigningEvent['payload']).leaderId);
+            const payload = event.payload as LeaderResigningEvent['payload'];
+            const now = Date.now();
+            if (
+                !payload ||
+                typeof payload.leaderId !== 'string' ||
+                payload.leaderId.length === 0 ||
+                payload.leaderId.length > 128 ||
+                payload.leaderId !== event.senderInstanceId ||
+                (payload.nextLeaderId !== undefined &&
+                    (typeof payload.nextLeaderId !== 'string' ||
+                        payload.nextLeaderId.length === 0 ||
+                        payload.nextLeaderId.length > 128)) ||
+                !Number.isFinite(event.timestamp) ||
+                now - event.timestamp > 10_000 ||
+                event.timestamp - now > 1_000
+            ) {
+                return;
+            }
+            clearRemoteLiveMetrics(event.senderInstanceId);
+            const knownAuthorityTerm = InterInstanceBus.getAuthorityTerm();
+            if (
+                payload.balanceLeaseSnapshot &&
+                payload.leaderId === event.senderInstanceId &&
+                typeof payload.sourceAuthorityTerm === 'string' &&
+                knownAuthorityTerm === payload.sourceAuthorityTerm &&
+                payload.sourceAuthorityTerm === payload.balanceLeaseSnapshot.sourceAuthorityTerm &&
+                Number.isFinite(event.timestamp) &&
+                now - event.timestamp <= 10_000 &&
+                event.timestamp - now <= 1_000
+            ) {
+                ApiKeyFailoverManager.stageBalanceLeaseHandoff(
+                    payload.balanceLeaseSnapshot,
+                    payload.leaderId,
+                    payload.nextLeaderId,
+                    payload.sourceAuthorityTerm,
+                    event.timestamp
+                );
+            }
         }),
         InterInstanceBus.subscribe('remoteInstanceHello', event => {
             RateLimiter.handleInstanceReconnected(event.senderInstanceId);
+            ApiKeyFailoverManager.handleBalanceInstanceReconnected(event.senderInstanceId);
         }),
         InterInstanceBus.subscribe('remoteInstanceDisconnected', event => {
             const instanceId = (event.payload as { instanceId: string }).instanceId;
+            if (typeof instanceId !== 'string' || instanceId.length === 0 || instanceId.length > 128) {
+                return;
+            }
             clearRemoteLiveMetrics(instanceId);
             RateLimiter.handleInstanceDisconnected(instanceId);
             ApiKeyFailoverManager.handleBalanceInstanceDisconnected(instanceId);
@@ -364,7 +430,17 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
                 event.senderInstanceId
             );
         }),
-        InterInstanceBus.subscribe('apiKeyFailoverToggled', () => {
+        InterInstanceBus.subscribe('apiKeyFailoverToggled', event => {
+            const now = Date.now();
+            if (
+                !isApiKeyFailoverToggledPayload(event.payload) ||
+                !Number.isFinite(event.timestamp) ||
+                now - event.timestamp > 10_000 ||
+                event.timestamp - now > 1_000
+            ) {
+                return;
+            }
+            ApiKeyFailoverManager.handleBalanceModeChanged(event.payload.slot, event.timestamp);
             refreshConfigSetManager('[InterInstanceBus] Failed to refresh API key configuration panel');
         }),
         ApiKeyManager.onDidChangeApiKey(() => {
@@ -553,13 +629,25 @@ export function registerInterInstanceHandlers(context: vscode.ExtensionContext):
             if (!LeaderElectionService.isLeader() || !isApiKeyBalanceLeasePayload(event.payload)) {
                 return;
             }
+            const now = Date.now();
+            if (!Number.isFinite(event.timestamp) || now - event.timestamp > 10_000 || event.timestamp - now > 1_000) {
+                return;
+            }
             ApiKeyFailoverManager.handleRemoteBalanceLeaseRenewal(event.payload, event.senderInstanceId);
         }),
         InterInstanceBus.subscribe('apiKeyBalanceLeaseReleased', event => {
             if (!LeaderElectionService.isLeader() || !isApiKeyBalanceLeasePayload(event.payload)) {
                 return;
             }
+            const now = Date.now();
+            if (!Number.isFinite(event.timestamp) || now - event.timestamp > 10_000 || event.timestamp - now > 1_000) {
+                return;
+            }
             ApiKeyFailoverManager.handleRemoteBalanceLeaseRelease(event.payload, event.senderInstanceId);
+        }),
+        new vscode.Disposable(() => {
+            LeaderElectionService.setBalanceLeaseSnapshotProvider(undefined);
+            ApiKeyFailoverManager.handleBalanceAuthorityLost();
         })
     );
 

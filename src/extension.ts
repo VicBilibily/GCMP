@@ -14,6 +14,7 @@ import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerConfigSetCommands } from './ui/configSetManager';
 import { ConfigSetStore } from './utils/config/configSetStore';
+import { ApiKeyFailoverManager } from './utils/config/failover/apiKeyFailoverManager';
 import { GistSyncService } from './sync/gistSyncService';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { registerUsageRefreshHandlers } from './usages/usageActivation';
@@ -162,6 +163,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 配置集存储需早于状态栏初始化，避免 tooltip 首次渲染时访问未初始化上下文
         ConfigSetStore.initialize(context);
+        void ApiKeyFailoverManager.becomeBalanceAuthority(LeaderElectionService.getOwnedAuthorityTerm());
 
         // 步骤3.2: 初始化所有状态栏（包含创建和注册）
         stepStartTime = Date.now();
