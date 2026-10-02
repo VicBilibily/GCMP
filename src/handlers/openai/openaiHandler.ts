@@ -9,7 +9,7 @@ import { Logger } from '../../utils/runtime/logger';
 import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
-import { createOpenCodeHeaders, replaceSessionIdInBody } from '../../utils/text/formatUtils';
+import { createOpenCodeHeaders, removeNullExtraBodyParams, replaceSessionIdInBody } from '../../utils/text/formatUtils';
 import { redactHeaders } from '../../utils/net/proxyAgent';
 import {
     canonicalizeUserAgentHeader,
@@ -846,8 +846,9 @@ export class OpenAIHandler {
         }
 
         // 合并 extraBody 参数（如果有），过滤掉不可修改的核心参数
+        let filteredExtraBody: Record<string, unknown> | undefined;
         if (modelConfig.extraBody) {
-            const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(
+            filteredExtraBody = OpenAIHandler.filterExtraBodyParams(
                 replaceSessionIdInBody(modelConfig.extraBody, sessionId ?? '')
             );
             Object.assign(createParams, filteredExtraBody);
@@ -1011,6 +1012,8 @@ export class OpenAIHandler {
             createParams.messages as unknown as { tool_calls?: { function?: { arguments?: unknown } }[] }[],
             createParams.tools as unknown as { function?: { parameters?: unknown } }[] | undefined
         );
+
+        removeNullExtraBodyParams(createParams, filteredExtraBody);
 
         return createParams;
     }

@@ -10,7 +10,7 @@ import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConvert
 import { preprocessOpenAIResponsesInputItems } from './openaiResponsesInputPreprocessor';
 import { ENCRYPTED_REASONING_INCLUDE, isEncryptedReasoningEnabled } from './encryptedReasoning';
 import { applyOpenAIServiceTier } from './serviceTier';
-import { replaceSessionIdInBody } from '../../utils/text/formatUtils';
+import { removeNullExtraBodyParams, replaceSessionIdInBody } from '../../utils/text/formatUtils';
 
 interface OpenAIResponsesRequestBuilderParams {
     model: vscode.LanguageModelChatInformation;
@@ -124,9 +124,10 @@ export class OpenAIResponsesRequestBuilder {
         if (!requestKind || !isSubRequest(requestKind)) {
             this.applyNativeTools(requestBody, modelConfig);
         }
-        this.applyExtraBody(requestBody, modelConfig, sessionId);
+        const filteredExtraBody = this.applyExtraBody(requestBody, modelConfig, sessionId);
         this.applyModelSettings(requestBody, modelConfig, modelId, options, requestKind);
         this.preprocessInputAndTools(requestBody);
+        removeNullExtraBodyParams(requestBody, filteredExtraBody);
 
         return { requestBody };
     }
@@ -194,7 +195,11 @@ export class OpenAIResponsesRequestBuilder {
         return entry;
     }
 
-    private applyExtraBody(requestBody: Record<string, unknown>, modelConfig: ModelConfig, sessionId = ''): void {
+    private applyExtraBody(
+        requestBody: Record<string, unknown>,
+        modelConfig: ModelConfig,
+        sessionId = ''
+    ): Record<string, unknown> | undefined {
         if (!modelConfig?.extraBody) {
             return;
         }
@@ -203,6 +208,7 @@ export class OpenAIResponsesRequestBuilder {
             replaceSessionIdInBody(modelConfig.extraBody, sessionId)
         );
         Object.assign(requestBody, filteredExtraBody);
+        return filteredExtraBody;
     }
 
     private applyModelSettings(

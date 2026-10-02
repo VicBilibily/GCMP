@@ -4,7 +4,6 @@ import test from 'node:test';
 import type * as vscode from 'vscode';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
-import type { OpenAIResponsesMessageConverter } from './openai/openaiResponsesMessageConverter';
 import type { RequestKind } from './requestClassifier';
 
 const require = createRequire(import.meta.url);
@@ -22,6 +21,7 @@ interface RequestModules {
     classifier: typeof import('./requestClassifier');
     OpenAIHandler: typeof import('./openai/openaiHandler').OpenAIHandler;
     AnthropicHandler: typeof import('./anthropic/anthropicHandler').AnthropicHandler;
+    OpenAIResponsesMessageConverter: typeof import('./openai/openaiResponsesMessageConverter').OpenAIResponsesMessageConverter;
     OpenAIResponsesRequestBuilder: typeof import('./openai/openaiResponsesRequestBuilder').OpenAIResponsesRequestBuilder;
 }
 
@@ -73,12 +73,14 @@ async function getModules(): Promise<RequestModules> {
         import('./requestClassifier'),
         import('./openai/openaiHandler'),
         import('./anthropic/anthropicHandler'),
+        import('./openai/openaiResponsesMessageConverter'),
         import('./openai/openaiResponsesRequestBuilder')
     ])
-        .then(([classifier, openai, anthropic, responses]) => ({
+        .then(([classifier, openai, anthropic, converter, responses]) => ({
             classifier,
             OpenAIHandler: openai.OpenAIHandler,
             AnthropicHandler: anthropic.AnthropicHandler,
+            OpenAIResponsesMessageConverter: converter.OpenAIResponsesMessageConverter,
             OpenAIResponsesRequestBuilder: responses.OpenAIResponsesRequestBuilder
         }))
         .finally(() => {
@@ -105,7 +107,8 @@ async function buildRequest(
     settings?: ModelChatResponseOptions,
     overrides?: Partial<ModelConfig>
 ): Promise<ThinkingRequest> {
-    const { OpenAIHandler, AnthropicHandler, OpenAIResponsesRequestBuilder } = await getModules();
+    const { OpenAIHandler, AnthropicHandler, OpenAIResponsesMessageConverter, OpenAIResponsesRequestBuilder } =
+        await getModules();
     const modelConfig: ModelConfig = {
         id: 'reasoning-model',
         name: 'Reasoning Model',
@@ -141,11 +144,7 @@ async function buildRequest(
         ) as unknown as ThinkingRequest;
     }
     if (protocol === 'openai-responses') {
-        const converter = {
-            convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
-            convertToolsToResponses: () => [],
-            filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
-        } as unknown as OpenAIResponsesMessageConverter;
+        const converter = new OpenAIResponsesMessageConverter(new OpenAIHandler(provider), 'Test');
         return new OpenAIResponsesRequestBuilder('Test', converter).build({
             model,
             modelConfig,
@@ -440,3 +439,100 @@ for (const { protocol } of protocols) {
         assert.equal(getEffort(request), protocol === 'openai-responses' ? 'none' : undefined);
     });
 }
+
+for (const { protocol } of protocols) {
+    for (const requestKind of ['main-agent', 'summarization', 'git-commit-message'] as const) {
+        for (const settings of [{ thinking: 'enabled' }, { reasoningEffort: 'high' }] as const) {
+            test(`${protocol} ${requestKind} extraBody.thinking=null 清除 ${JSON.stringify(settings)} 生成的字段`, async () => {
+                const request = await buildRequest(protocol, requestKind, settings, { extraBody: { thinking: null } });
+
+                assert.equal(Object.hasOwn(request, 'thinking'), false);
+            });
+        }
+    }
+
+    const effortField =
+        protocol === 'openai' ? 'reasoning_effort'
+        : protocol === 'openai-responses' ? 'reasoning'
+        : 'output_config';
+    test(`${protocol} extraBody.${effortField}=null 清除 UI 生成的推理字段`, async () => {
+        const request = await buildRequest(
+            protocol,
+            'main-agent',
+            { reasoningEffort: 'high' },
+            { extraBody: { [effortField]: null } }
+        );
+
+        assert.equal(Object.hasOwn(request, effortField), false);
+        assert.deepEqual(request.thinking, { type: 'enabled' });
+    });
+
+    test(`${protocol} 未传 UI 配置时 null 仍删除默认字段，但保留核心参数`, async () => {
+        const request = await buildRequest(protocol, 'main-agent', undefined, {
+            extraBody: {
+                model: null,
+                messages: null,
+                input: null,
+                stream: null,
+                tools: null,
+                max_tokens: null,
+                metadata: null,
+                prompt_cache_key: null
+            }
+        });
+
+        assert.equal(request.model, 'reasoning-model');
+        assert.equal(Object.hasOwn(request, protocol === 'openai-responses' ? 'input' : 'messages'), true);
+        assert.equal(Object.hasOwn(request, 'stream'), true);
+        for (const key of ['max_tokens', 'metadata', 'prompt_cache_key']) {
+            assert.equal(Object.hasOwn(request, key), false, key);
+        }
+    });
+
+    test(`${protocol} null 清理不改变 false、0、空字符串或嵌套值`, async () => {
+        const extraBody = {
+            parallel_tool_calls: false,
+            temperature: 0,
+            user: '',
+            custom: { value: null },
+            tags: [null, 'tag']
+        };
+        const snapshot = structuredClone(extraBody);
+        const request = await buildRequest(protocol, 'main-agent', undefined, { extraBody });
+
+        for (const [key, value] of Object.entries(extraBody)) {
+            assert.deepEqual(Reflect.get(request, key), value);
+        }
+        assert.deepEqual(extraBody, snapshot);
+    });
+}
+
+for (const thinkingFormat of ['boolean', 'boolean-none'] as const) {
+    for (const requestKind of ['main-agent', 'summarization', 'git-commit-message'] as const) {
+        test(`OpenAI ${requestKind} ${thinkingFormat} extraBody.enable_thinking=null 清除自动生成的开关`, async () => {
+            const request = await buildRequest(
+                'openai',
+                requestKind,
+                { thinking: 'enabled', reasoningEffort: 'high' },
+                { thinkingFormat, extraBody: { enable_thinking: null } }
+            );
+
+            assert.equal(Object.hasOwn(request, 'enable_thinking'), false);
+        });
+    }
+}
+
+test('Responses extraBody.include=null 在最终请求中不存在且不恢复自动 include', async () => {
+    const request = await buildRequest(
+        'openai-responses',
+        'main-agent',
+        { reasoningEffort: 'high' },
+        {
+            id: 'gpt-5.4',
+            extraBody: { include: null }
+        }
+    );
+
+    assert.equal(Object.hasOwn(request, 'include'), false);
+    assert.equal(request.reasoning?.effort, 'high');
+});

@@ -41,3 +41,12 @@ export function replaceSessionIdInBody(value: Record<string, unknown>, sessionId
     };
     return replace(value) as Record<string, unknown>;
 }
+
+// 过滤后的 null 已归一为 undefined，删除意图须在自动参数注入后落实。
+export function removeNullExtraBodyParams(params: object, extraBody?: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(extraBody ?? {})) {
+        if (value == null) {
+            Reflect.deleteProperty(params, key);
+        }
+    }
+}
