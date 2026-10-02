@@ -149,7 +149,7 @@ test('useInstructions=false 时将 system message 注入首条 user input', asyn
     });
 });
 
-test('子请求关闭思考时不注入 nativeTools，但保留显式声明 tools', async () => {
+test('子代理保留思考时不注入 nativeTools，但保留显式声明 tools', async () => {
     const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
     const declaredTool = {
         type: 'function',
@@ -168,28 +168,33 @@ test('子请求关闭思考时不注入 nativeTools，但保留显式声明 tool
         filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
     } as never);
 
-    const { requestBody } = builder.build({
-        model: { id: 'gpt-5', name: 'GPT-5' } as never,
-        modelConfig: {
-            id: 'gpt-5',
-            name: 'GPT-5',
-            tooltip: 'GPT-5',
-            maxInputTokens: 1000,
-            maxOutputTokens: 1000,
-            capabilities: { toolCalling: true, imageInput: false },
-            sdkMode: 'openai-responses',
-            webSearchTool: true,
-            nativeTools: [{ type: 'web_extractor' }]
-        } as never,
-        messages: [],
-        options: {
-            tools: [{ name: 'declared_tool' }],
-            modelOptions: { requestKind: 'search-subagent' }
-        } as never,
-        sessionId: 'session-123'
-    });
+    for (const requestKind of ['search-subagent', 'execution-subagent']) {
+        const { requestBody } = builder.build({
+            model: { id: 'gpt-5', name: 'GPT-5' } as never,
+            modelConfig: {
+                id: 'gpt-5',
+                name: 'GPT-5',
+                tooltip: 'GPT-5',
+                maxInputTokens: 1000,
+                maxOutputTokens: 1000,
+                capabilities: { toolCalling: true, imageInput: false },
+                sdkMode: 'openai-responses',
+                reasoningEffort: ['high', 'none'],
+                webSearchTool: true,
+                nativeTools: [{ type: 'web_extractor' }]
+            } as never,
+            messages: [],
+            options: {
+                tools: [{ name: 'declared_tool' }],
+                modelConfiguration: { reasoningEffort: 'high' },
+                modelOptions: { requestKind }
+            } as never,
+            sessionId: 'session-123'
+        });
 
-    assert.deepEqual(requestBody.tools, [declaredTool]);
+        assert.deepEqual(requestBody.tools, [declaredTool]);
+        assert.deepEqual(requestBody.reasoning, { effort: 'high' });
+    }
 });
 
 test('模型不支持关闭思考时子请求省略 thinking/reasoning', async () => {

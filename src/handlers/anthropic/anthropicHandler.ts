@@ -41,7 +41,7 @@ import { StreamReporter } from '../streamReporter';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import * as liveMetrics from '../liveMetrics';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
-import { isSubRequest, type RequestKind } from '../requestClassifier';
+import { shouldDisableThinkingForRequest, type RequestKind } from '../requestClassifier';
 import { applyAnthropicThinkingConfiguration } from './anthropicThinkingConfig';
 import { applyAnthropicServiceTier } from './serviceTier';
 
@@ -295,9 +295,8 @@ export class AnthropicHandler {
             // 根据模型配置设置思考模式和推理长度
             const settings = options.modelConfiguration as ModelChatResponseOptions;
             applyAnthropicThinkingConfiguration(createParams, settings, modelConfig);
-            // 子请求（提交、标题生成、终端解释等）关闭思考
             const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
-            if (requestKind && isSubRequest(requestKind)) {
+            if (shouldDisableThinkingForRequest(requestKind)) {
                 applyAnthropicThinkingConfiguration(createParams, undefined, modelConfig, { disableThinking: true });
             }
 

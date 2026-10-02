@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 
 import { ModelChatResponseOptions, ModelConfig, NativeToolConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
-import { isSubRequest, type RequestKind } from '../requestClassifier';
+import { isSubRequest, shouldDisableThinkingForRequest, type RequestKind } from '../requestClassifier';
 import { canDisableThinking } from '../thinkingSupport';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
@@ -91,7 +91,6 @@ export class OpenAIResponsesRequestBuilder {
         const requestKind = (options.modelOptions as { requestKind?: string } | undefined)?.requestKind as
             | RequestKind
             | undefined;
-        const disableThinkingByRequestKind = requestKind !== undefined && isSubRequest(requestKind);
         const { systemMessage, messages: responsesMessages } = this.messageConverter.convertMessagesToOpenAIResponses(
             messages,
             modelConfig,
@@ -122,11 +121,11 @@ export class OpenAIResponsesRequestBuilder {
             );
         }
         this.applyDeclaredTools(requestBody, options);
-        if (!disableThinkingByRequestKind) {
+        if (!requestKind || !isSubRequest(requestKind)) {
             this.applyNativeTools(requestBody, modelConfig);
         }
         this.applyExtraBody(requestBody, modelConfig, sessionId);
-        this.applyModelSettings(requestBody, model, modelConfig, modelId, options, requestKind);
+        this.applyModelSettings(requestBody, modelConfig, modelId, options, requestKind);
         this.preprocessInputAndTools(requestBody);
 
         return { requestBody };
@@ -208,7 +207,6 @@ export class OpenAIResponsesRequestBuilder {
 
     private applyModelSettings(
         requestBody: Record<string, unknown>,
-        model: vscode.LanguageModelChatInformation,
         modelConfig: ModelConfig,
         modelId: string,
         options: vscode.ProvideLanguageModelChatResponseOptions,
@@ -255,14 +253,14 @@ export class OpenAIResponsesRequestBuilder {
                     }
                     customParams.thinking = thinking;
                     customParams.reasoning = reasoning;
-                    if (model.id.toLowerCase().includes('gpt')) {
+                    if (modelId.includes('gpt')) {
                         customParams.thinking = undefined;
                     }
                 }
             }
         }
 
-        if (effortOnly || !requestKind || !isSubRequest(requestKind)) {
+        if (effortOnly || !shouldDisableThinkingForRequest(requestKind)) {
             return;
         }
 

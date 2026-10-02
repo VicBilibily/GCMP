@@ -51,7 +51,6 @@ export type RequestKind =
     | 'background' // 后台/工具请求（有内容但无法识别具体类型）
     | 'unknown'; // 无法识别（空请求）
 
-/** 无需深度推理的子请求——可强制关闭思考模式 */
 const SUB_REQUEST_TYPES = new Set<RequestKind>([
     'summarization',
     'terminal-command',
@@ -225,11 +224,12 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     ['You are an expert AI programming assistant', 'main-agent']
 ];
 
-/**
- * 判断是否为无需深度推理的子请求
- */
 export function isSubRequest(kind: RequestKind): boolean {
     return SUB_REQUEST_TYPES.has(kind);
+}
+
+export function shouldDisableThinkingForRequest(kind: RequestKind | undefined): boolean {
+    return kind !== undefined && isSubRequest(kind) && kind !== 'search-subagent' && kind !== 'execution-subagent';
 }
 
 /**
@@ -318,18 +318,14 @@ export function classifyRequest(
     return 'unknown';
 }
 
-/**
- * 根据请求类型返回建议的 reasoningEffort 覆盖值
- * 子请求强制 none，主请求返回 undefined（让用户配置生效）
- */
 export function getRecommendedReasoningEffort(
     kind: RequestKind,
     configuredEffort: string | undefined
 ): string | undefined {
-    if (isSubRequest(kind)) {
-        return 'none'; // 子请求强制关闭思考
+    if (shouldDisableThinkingForRequest(kind)) {
+        return 'none';
     }
-    return configuredEffort; // 主请求使用用户配置
+    return configuredEffort;
 }
 
 /**
