@@ -434,7 +434,7 @@ describe('compatible quota panel rendering', () => {
             displayName: 'Test',
             isMain: true,
             hasSite: false,
-            autoSwitchEnabled: false,
+            switchMode: 'off',
             hasUsage: true,
             usageMetricType: 'balance',
             rows: [row]

@@ -1278,13 +1278,39 @@ export class ApiKeyFailoverManager {
                 const snapshot = this.balanceAttemptSnapshots.get(allocationRequestId);
                 if (
                     snapshot?.slot === slot &&
+                    snapshot.attempt.balanceLeaseId &&
                     snapshot.attempt.balanceLeaseExpiresAt &&
                     snapshot.attempt.balanceLeaseExpiresAt > Date.now() &&
                     snapshot.attempt.balanceAuthorityTerm === this.getRequestAuthorityTerm() &&
                     (LeaderElectionService.isLeader() ||
                         (!InterInstanceBus.isAuthorityTransitioning() && InterInstanceBus.hasActiveTransport()))
                 ) {
-                    return snapshot.attempt;
+                    const authorityGeneration = this.balanceAuthorityGeneration;
+                    const modeGeneration = this.getBalanceModeGeneration(slot);
+                    const operationToken = ConfigSetStore.getApplyOperationToken(slot);
+                    const apiKey = await ConfigSetStore.getApiKey(slot, snapshot.attempt.activeId);
+                    if (
+                        authorityGeneration !== this.balanceAuthorityGeneration ||
+                        modeGeneration !== this.getBalanceModeGeneration(slot) ||
+                        operationToken !== ConfigSetStore.getApplyOperationToken(slot) ||
+                        this.balanceAttemptSnapshots.get(allocationRequestId) !== snapshot ||
+                        ConfigSetStore.getSwitchMode(slot) !== 'balance' ||
+                        !LeaderElectionService.isInitialized() ||
+                        snapshot.attempt.balanceLeaseExpiresAt <= Date.now() ||
+                        snapshot.attempt.balanceAuthorityTerm !== this.getRequestAuthorityTerm() ||
+                        snapshot.attempt.balanceAuthorityTerm === this.balanceResigningTerm ||
+                        (!LeaderElectionService.isLeader() &&
+                            (InterInstanceBus.isAuthorityTransitioning() || !InterInstanceBus.hasActiveTransport()))
+                    ) {
+                        return undefined;
+                    }
+                    const item = ConfigSetStore.list(slot).find(item => item.id === snapshot.attempt.activeId);
+                    const siteProvider = getSiteOwnerProvider(slot);
+                    const site = item?.site ?? (siteProvider ? readCurrentSite(siteProvider) : undefined);
+                    if (item && apiKey && this.getCredentialIdentity(apiKey, site) === snapshot.attempt.identity) {
+                        return snapshot.attempt;
+                    }
+                    this.releaseBalanceLease(snapshot.attempt.balanceLeaseId, snapshot.attempt.balanceAuthorityTerm);
                 }
                 this.balanceAttemptSnapshots.delete(allocationRequestId);
             }
