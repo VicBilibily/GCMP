@@ -1,6 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import { APIError } from 'openai';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -614,6 +615,34 @@ test('consume：response.failed 带 usage 时保留终态 usage', async () => {
     assert.deepEqual(processor.getFinalUsage(), usage);
     assert.ok(typeof processor.getStreamEndTime() === 'number');
 });
+
+for (const type of ['response.failed', 'response.incomplete', 'error']) {
+    test(`consume：${type} 保留结构化错误，不伪造 HTTP 状态`, async () => {
+        const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+        const { processor } = createProcessor(OpenAIResponsesStreamProcessor);
+        const detail = { message: 'Service Unavailable', code: 'usage_limit_reached', current_balance: 0 };
+        const event =
+            type === 'error' ?
+                { type, ...detail, param: null, sequence_number: 0 }
+            :   {
+                    type,
+                    response: {
+                        id: 'failed',
+                        error: detail,
+                        output: [],
+                        incomplete_details: { reason: 'content_filter' }
+                    }
+                };
+        await assert.rejects(processor.consume(eventsFrom([event]) as never), (error: unknown) => {
+            assert.ok(error instanceof APIError);
+            assert.equal(error.status, undefined);
+            assert.equal(error.code, detail.code);
+            assert.equal(error.message, detail.message);
+            assert.deepEqual(error.error, type === 'error' ? event : detail);
+            return true;
+        });
+    });
+}
 
 test('consume：正常事件流完整分发并结束', async () => {
     const { OpenAIResponsesStreamProcessor } = await getProcessorModule();

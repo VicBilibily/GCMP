@@ -46,7 +46,7 @@ interface PendingGeneratedTitle {
 const ROLE_USER = 1;
 
 /** Copilot 封装用户输入的标签 */
-const USER_REQUEST_PATTERN = /<userRequest>\s*([\s\S]*?)\s*<\/userRequest>/;
+const USER_REQUEST_PATTERN = /<(userRequest|user_query)>\s*([\s\S]*?)\s*<\/\1>/;
 
 /** Copilot 标题生成请求的用户提示前缀（见 microsoft/vscode extensions/copilot title.tsx） */
 const TITLE_REQUEST_PREFIX = 'Please write a brief title for the following request:';
@@ -196,8 +196,8 @@ export class SessionTitleService {
                 continue;
             }
             const match = USER_REQUEST_PATTERN.exec(extractTextFromContent(message.content));
-            if (match?.[1]) {
-                return match[1];
+            if (match?.[2]) {
+                return match[2];
             }
         }
         return undefined;
@@ -210,8 +210,8 @@ export class SessionTitleService {
                 continue;
             }
             const match = USER_REQUEST_PATTERN.exec(extractTextFromContent(message.content));
-            if (match?.[1]) {
-                latest = match[1];
+            if (match?.[2]) {
+                latest = match[2];
             }
         }
         return latest;

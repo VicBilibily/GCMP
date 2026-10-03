@@ -645,7 +645,16 @@ suite('genericModelProvider retry gating', () => {
                 );
                 assert.deepEqual(usedKeys, ['key-a', 'key-a', 'key-a', 'key-b']);
                 assert.equal(sdkErrors.length, 3);
-                assert.ok(sdkErrors.every(error => error instanceof OpenAI.APIConnectionError));
+                for (const error of sdkErrors) {
+                    assert.ok(error instanceof OpenAI.APIError);
+                    assert.equal(error.status, status);
+                    assert.deepEqual(error.error, { message: '令牌额度不足' });
+                    if (status === 400) {
+                        assert.ok(error instanceof OpenAI.BadRequestError);
+                    } else {
+                        assert.ok(!(error instanceof OpenAI.APIConnectionError));
+                    }
+                }
                 assert.deepEqual(eventTypes, ['response.completed']);
                 assert.deepEqual(outputs, ['recovered']);
                 assert.equal(ConfigSetStore.getActiveId(slot), 'b');

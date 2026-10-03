@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ClientOptions } from 'openai';
+import { APIError, ClientOptions } from 'openai';
 import type { ResponseCreateParamsStreaming } from 'openai/resources/responses/responses';
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../../cli/auth/codexCliAuth';
@@ -401,6 +401,11 @@ export class OpenAIResponsesHandler {
     }
 
     private rethrowResponsesError(error: unknown, modelName: string): never {
+        if (error instanceof APIError && (error.status !== undefined || error.error !== undefined)) {
+            Logger.error(`${modelName} ${this.displayName} Responses API request failed: ${error.message}`);
+            throw error;
+        }
+
         if (error instanceof Error) {
             let errorMessage = error.message || t('Unknown error', '未知错误');
 

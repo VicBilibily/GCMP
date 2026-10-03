@@ -686,7 +686,12 @@ export class OpenAIResponsesStreamProcessor {
                 }
                 const errorMessage = event.response.error?.message || t('Response generation failed', '响应生成失败');
                 Logger.warn(`${this.modelName} Responses API response.failed: ${errorMessage}`);
-                this.streamError ??= new Error(errorMessage);
+                this.streamError ??= new OpenAI.APIError(
+                    undefined,
+                    { ...event.response.error, message: errorMessage },
+                    errorMessage,
+                    undefined
+                );
             })
             .on('response.incomplete', event => {
                 const reason =
@@ -709,7 +714,12 @@ export class OpenAIResponsesStreamProcessor {
                         t('Response blocked by content filter', '响应被内容过滤器拦截')
                     :   t('Response generation incomplete', '响应生成未完成'));
                 Logger.warn(`${this.modelName} Responses API response.incomplete: ${errorMessage}`);
-                this.streamError ??= new Error(errorMessage);
+                this.streamError ??= new OpenAI.APIError(
+                    undefined,
+                    { ...event.response.error, message: errorMessage },
+                    errorMessage,
+                    undefined
+                );
             })
             .on('response.completed', event => {
                 this.finalizeResponse(event.response);
@@ -721,7 +731,12 @@ export class OpenAIResponsesStreamProcessor {
                 } else {
                     // ResponseErrorEvent 不是 Error 类型，需要转换
                     const errorMsg = 'message' in error ? (error as { message: string }).message : String(error);
-                    this.streamError = new Error(errorMsg);
+                    this.streamError = new OpenAI.APIError(
+                        undefined,
+                        { ...error, message: errorMsg },
+                        errorMsg,
+                        undefined
+                    );
                 }
                 this.abortController.abort();
             });

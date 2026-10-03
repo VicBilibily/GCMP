@@ -60,6 +60,34 @@ test('extractLatestUserRequestText picks the latest wrapped user input', () => {
     assert.equal(SessionTitleService.extractLatestUserRequestText(messages), '当前话题');
 });
 
+test('user_query is recognized consistently for the first and latest request', () => {
+    const messages = [
+        userMessage('<user_query> 首个话题 </user_query>'),
+        userMessage('<user_query>当前话题</user_query>')
+    ];
+    assert.equal(SessionTitleService.extractUserRequestText(messages), '首个话题');
+    assert.equal(SessionTitleService.extractLatestUserRequestText(messages), '当前话题');
+});
+
+test('mixed Copilot user tags retain message ordering and ignore assistant text', () => {
+    const messages = [
+        userMessage('<user_query>第一个话题</user_query>'),
+        userMessage('<userRequest>当前话题</userRequest>'),
+        assistantMessage('<user_query>不是用户输入</user_query>')
+    ];
+    assert.equal(SessionTitleService.extractUserRequestText(messages), '第一个话题');
+    assert.equal(SessionTitleService.extractLatestUserRequestText(messages), '当前话题');
+    messages.push(userMessage('<user_query>新话题</user_query>'));
+    assert.equal(SessionTitleService.extractLatestUserRequestText(messages), '新话题');
+});
+
+for (const text of ['<userRequest>不匹配</user_query>', '<user_query>不匹配</userRequest>']) {
+    test(`mismatched user tag names are rejected: ${text}`, () => {
+        assert.equal(SessionTitleService.extractUserRequestText([userMessage(text)]), undefined);
+        assert.equal(SessionTitleService.extractLatestUserRequestText([userMessage(text)]), undefined);
+    });
+}
+
 test('extractTitleGenerationRequestText extracts raw request from title prompt', () => {
     const messages = [userMessage('Please write a brief title for the following request:\n\n搜索vue3.6')];
     assert.equal(SessionTitleService.extractTitleGenerationRequestText(messages), '搜索vue3.6');

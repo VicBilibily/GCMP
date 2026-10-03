@@ -251,7 +251,8 @@ export class OpenAIHandler {
             apiKey: currentApiKey,
             baseURL: baseURL,
             defaultHeaders: defaultHeaders,
-            fetch: customFetch
+            fetch: customFetch,
+            maxRetries: 0
         });
         Logger.trace(`${this.displayName} OpenAI SDK client created with baseURL: ${baseURL}`);
         return client;
@@ -356,6 +357,51 @@ export class OpenAIHandler {
         return { text: output, changed };
     }
 
+    private createErrorResponse(response: Response, text: string): Response {
+        let payload: unknown = text;
+        try {
+            payload = JSON.parse(text);
+        } catch {
+            // 非 JSON 错误保留原始文本。
+        }
+
+        const record =
+            payload && typeof payload === 'object' && !Array.isArray(payload) ?
+                (payload as Record<string, unknown>)
+            :   {};
+        const { error: nestedError, ...outerDetails } = record;
+        const nestedDetails =
+            nestedError && typeof nestedError === 'object' && !Array.isArray(nestedError) ?
+                (nestedError as Record<string, unknown>)
+            :   {};
+        const message = [
+            typeof nestedError === 'string' ? nestedError : undefined,
+            nestedDetails.message,
+            outerDetails.message,
+            typeof payload === 'string' ? payload : undefined,
+            text
+        ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+        const error = {
+            ...outerDetails,
+            ...nestedDetails,
+            message: message ?? `HTTP ${response.status} ${response.statusText}`
+        };
+        const init = { status: response.status, statusText: response.statusText, headers: response.headers };
+        if (!response.ok) {
+            return new Response(JSON.stringify({ error }), init);
+        }
+
+        const apiError = OpenAI.APIError.generate(response.status, { error }, undefined, response.headers);
+        return new Response(
+            new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.error(apiError);
+                }
+            }),
+            init
+        );
+    }
+
     /**
      * 预处理 SSE 响应，修复非标准格式
      * 修复部分模型输出 "data:" 后不带空格的问题
@@ -363,62 +409,17 @@ export class OpenAIHandler {
     private async preprocessSSEResponse(response: Response): Promise<Response> {
         let contentType = response.headers.get('Content-Type');
 
-        // 对于非 200 状态码的响应，尝试读取错误信息
+        // HTTP 错误交由 SDK 解析，避免被 fetch 异常路径误判为连接超时。
         if (!response.ok && response.status >= 400) {
-            const text = await response.text();
-            let errorMessage = text || `HTTP ${response.status} ${response.statusText}`;
-
-            // 尝试解析 JSON 格式的错误
-            if (text && text.trim().startsWith('{')) {
-                try {
-                    const errorJson = JSON.parse(text);
-                    if (errorJson.error) {
-                        if (typeof errorJson.error === 'string') {
-                            errorMessage = errorJson.error;
-                        } else if (errorJson.error.message) {
-                            errorMessage = errorJson.error.message;
-                        }
-                    }
-                } catch {
-                    // 如果解析失败，使用原始文本
-                }
-            }
-
-            // 抛出包含详细错误信息的 Error
-            const error = new Error(errorMessage);
-            (error as APIErrorWithError).status = response.status;
-            (error as APIErrorWithError).headers = response.headers;
-            throw error;
+            return this.createErrorResponse(response, await response.text());
         }
 
-        // 如果返回 application/json，读取 body 并直接抛出 Error，让上层 chat 接收到异常
-        if (contentType && contentType.includes('application/json')) {
-            const text = await response.text();
-            // 直接抛出 Error（上层会捕获并显示），不要自己吞掉或构造假 Response
-            // 尝试解析错误消息，提取有用的信息
-            let errorMessage = text || `HTTP ${response.status} ${response.statusText}`;
-            try {
-                const errorJson = JSON.parse(text);
-                if (errorJson.error) {
-                    if (typeof errorJson.error === 'string') {
-                        errorMessage = errorJson.error;
-                    } else if (errorJson.error.message) {
-                        errorMessage = errorJson.error.message;
-                    }
-                }
-            } catch {
-                // 如果解析失败，使用原始文本
-            }
-            throw new Error(errorMessage);
+        // 如果返回 application/json，业务错误不能进入 SDK 的 fetch 超时判定。
+        if (contentType && contentType.includes('application/json') && response.body) {
+            return this.createErrorResponse(response, await response.text());
         }
         if (response?.url?.endsWith('/responses') && !contentType && response.body) {
-            // 兼容 /responses 端点缺少 Content-Type 的情况。
-            // 整体流程：
-            // 1. 只读取少量前缀字节进行类型探测，避免像 response.text() 那样一次性吞掉整条流。
-            // 2. 若前缀像 JSON（常见于直接返回 {"error": ...}），则把剩余 body 继续读完，尽量拿到完整错误信息后抛出。
-            // 3. 若前缀像 SSE（data:/event:/id:/retry:/: 注释），则把已读前缀缓存回放到新流，再继续读取剩余内容，保持后续仍是流式处理。
-            // 4. 若前缀不是标准 SSE 字段而是裸 JSON，则直接视为异常响应并抛出，不兼容非标准 SSE。
-            // 5. 若探测阶段连接已结束且内容仍无法判定，则保留原样返回，由后续通用分支决定如何处理。
+            // 缺少 Content-Type 时先探测前缀，避免将正常 SSE 整体缓冲。
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             const bufferedChunks: Uint8Array[] = [];
@@ -477,7 +478,7 @@ export class OpenAIHandler {
                     }
                 }
 
-                throw new Error(sniffedText || `HTTP ${response.status} ${response.statusText}`);
+                return this.createErrorResponse(response, sniffedText);
             }
 
             const clonedHeaders = new Headers(response.headers);
@@ -1301,6 +1302,11 @@ export class OpenAIHandler {
             // 内层流 catch 已通过 updateActualTokens 记录为 cancelled，这里规范化为 CancellationError 后抛出
             if (token.isCancellationRequested || isCancellationError(error)) {
                 throw new vscode.CancellationError();
+            }
+
+            if (error instanceof OpenAI.APIError && (error.status !== undefined || error.error !== undefined)) {
+                Logger.error(`${model.name} ${this.displayName} request failed: ${error.message}`);
+                throw error;
             }
 
             if (error instanceof Error) {

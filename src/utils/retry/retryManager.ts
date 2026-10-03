@@ -3,6 +3,8 @@
  *  提供累加延迟重试机制，专门处理可重试的限流错误
  *--------------------------------------------------------------------------------------------*/
 
+import { APIConnectionTimeoutError } from 'openai';
+
 import { Logger } from '../runtime/logger';
 import { t } from '../runtime/l10n';
 import { hasPermanentErrorSignal, isRateLimitLikeError, type RateLimitClassifyOptions } from './retryClassifier';
@@ -36,7 +38,7 @@ export interface RetryExecutionOptions {
 export type RetryableError = Error & {
     status?: number;
     statusCode?: number;
-    code?: string | number;
+    code?: string | number | null;
     message?: string;
     headers?: { get(name: string): string | null };
 };
@@ -214,6 +216,9 @@ export class RetryManager {
         // 与 isServerError 同理：永久错误不进入任何可重试分支
         if (hasPermanentErrorSignal(error as unknown as Record<string, unknown>)) {
             return false;
+        }
+        if (error instanceof APIConnectionTimeoutError) {
+            return true;
         }
         if (!error.message || typeof error.message !== 'string') {
             return false;
