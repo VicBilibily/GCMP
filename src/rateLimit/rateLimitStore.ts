@@ -187,6 +187,7 @@ export class RateLimitStore {
     private readonly buckets = new Map<string, BucketState>();
     private readonly grants = new Map<string, GrantRecord>();
     private grantSeq = 0;
+    private grantingPaused = false;
     /** 实例级随机后缀：Leader 切换后旧 grantId 不会误命中新 grant */
     private readonly instanceTag: string;
     private readonly defaultLeaseMs: number;
@@ -194,6 +195,10 @@ export class RateLimitStore {
     constructor(instanceTag?: string, defaultLeaseMs = DEFAULT_RATE_LIMIT_LEASE_MS) {
         this.instanceTag = instanceTag ?? Math.random().toString(36).slice(2, 10);
         this.defaultLeaseMs = defaultLeaseMs;
+    }
+
+    setGrantingPaused(paused: boolean): void {
+        this.grantingPaused = paused;
     }
 
     /**
@@ -213,7 +218,11 @@ export class RateLimitStore {
         this.reclaimExpiredLeases(now);
 
         const parallel = this.effectiveParallel(bucket);
-        if (bucket.pending.length > 0 || (parallel !== undefined && bucket.inflight >= parallel)) {
+        if (
+            this.grantingPaused ||
+            bucket.pending.length > 0 ||
+            (parallel !== undefined && bucket.inflight >= parallel)
+        ) {
             // 已有队列必须优先，避免容量变化时新请求插队
             bucket.pending.push({
                 requestId,
@@ -298,20 +307,22 @@ export class RateLimitStore {
             leaseMs: grant.leaseMs,
             ownerInstanceId: grant.ownerInstanceId
         }));
-        const grantIds = new Set(grants.map(grant => grant.grantId));
         const grantBucketKeys = new Set(grants.map(grant => grant.bucketKey));
         return {
             buckets: Array.from(this.buckets.entries()).flatMap(([bucketKey, bucket]) => {
-                if (!grantBucketKeys.has(bucketKey)) {
+                const paceRpm = this.exportPaceState(bucket.paceRpm, now);
+                const paceRps = this.exportPaceState(bucket.paceRps, now);
+                const paceTpm = this.exportPaceState(bucket.paceTpm, now);
+                if (!grantBucketKeys.has(bucketKey) && !paceRpm && !paceRps && !paceTpm) {
                     return [];
                 }
                 return [
                     {
                         bucketKey,
                         dims: { ...bucket.dims },
-                        paceRpm: this.exportPaceState(bucket.paceRpm, now, grantIds),
-                        paceRps: this.exportPaceState(bucket.paceRps, now, grantIds),
-                        paceTpm: this.exportPaceState(bucket.paceTpm, now, grantIds),
+                        paceRpm,
+                        paceRps,
+                        paceTpm,
                         pending: []
                     }
                 ];
@@ -377,7 +388,6 @@ export class RateLimitStore {
                 });
             }
 
-            const survivingGrantIds = new Set<string>();
             for (const grantSnapshot of snapshot.grants) {
                 const expiresAt =
                     grantSnapshot.ownerInstanceId === undefined && options?.ownerlessGrantGraceMs !== undefined ?
@@ -398,14 +408,7 @@ export class RateLimitStore {
                     leaseMs: grantSnapshot.leaseMs,
                     ownerInstanceId: grantSnapshot.ownerInstanceId ?? options?.ownerlessGrantOwnerInstanceId
                 });
-                survivingGrantIds.add(grantSnapshot.grantId);
                 bucket.inflight += 1;
-            }
-
-            for (const bucket of this.buckets.values()) {
-                this.retainPaceReservations(bucket.paceRpm, survivingGrantIds);
-                this.retainPaceReservations(bucket.paceRps, survivingGrantIds);
-                this.retainPaceReservations(bucket.paceTpm, survivingGrantIds);
             }
         } catch (error) {
             this.buckets.clear();
@@ -565,6 +568,9 @@ export class RateLimitStore {
 
     /** 槽位释放后按 FIFO 授予 pending（授予时点重算 waitMs 并扣 GCRA） */
     private flushPending(bucketKey: string, bucket: BucketState, now: number): PendingGrant[] {
+        if (this.grantingPaused) {
+            return [];
+        }
         const granted: PendingGrant[] = [];
         const parallel = this.effectiveParallel(bucket);
         while (bucket.pending.length > 0 && (parallel === undefined || bucket.inflight < parallel)) {
@@ -646,16 +652,12 @@ export class RateLimitStore {
         }
     }
 
-    private exportPaceState(
-        state: PaceState | undefined,
-        now: number,
-        allowedGrantIds: ReadonlySet<string>
-    ): RateLimitPaceStateSnapshot | undefined {
+    private exportPaceState(state: PaceState | undefined, now: number): RateLimitPaceStateSnapshot | undefined {
         if (!state) {
             return undefined;
         }
         this.pruneExpiredReservations(state, now);
-        const reservations = state.reservations.filter(reservation => allowedGrantIds.has(reservation.grantId));
+        const reservations = state.reservations.filter(reservation => reservation.endAt > now);
         if (reservations.length === 0) {
             return undefined;
         }
@@ -689,13 +691,6 @@ export class RateLimitStore {
                         :   0
                 }))
         };
-    }
-
-    private retainPaceReservations(state: PaceState | undefined, allowedGrantIds: ReadonlySet<string>): void {
-        if (!state) {
-            return;
-        }
-        state.reservations = state.reservations.filter(reservation => allowedGrantIds.has(reservation.grantId));
     }
 }
 

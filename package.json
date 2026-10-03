@@ -318,6 +318,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.instance.resignLeader",
+                "title": "%command.instance.resignLeader%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.commit.generateMessage",
                 "title": "%command.commit.generateMessage%",
                 "category": "GCMP",

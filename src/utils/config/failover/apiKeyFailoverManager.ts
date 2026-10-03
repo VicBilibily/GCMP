@@ -244,7 +244,7 @@ export class ApiKeyFailoverManager {
         pending.resolve(decision);
     }
 
-    static exportBalanceLeaseHandoff(includeEmpty = false): ApiKeyBalanceLeaseHandoff | undefined {
+    static exportBalanceLeaseHandoff(includeEmpty = false, strict = false): ApiKeyBalanceLeaseHandoff | undefined {
         const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
         if (!authorityTerm) {
             return undefined;
@@ -262,7 +262,15 @@ export class ApiKeyFailoverManager {
                 ownerInstanceId: lease.ownerInstanceId,
                 expiresAt: lease.expiresAt
             }));
-        if ((!includeEmpty && leases.length === 0) || leases.length > BALANCE_HANDOFF_MAX_LEASES) {
+        if (leases.length > BALANCE_HANDOFF_MAX_LEASES) {
+            if (strict) {
+                throw new Error(
+                    `Balance lease handoff exceeds capacity: ${leases.length} active leases (limit ${BALANCE_HANDOFF_MAX_LEASES})`
+                );
+            }
+            return undefined;
+        }
+        if (!includeEmpty && leases.length === 0) {
             return undefined;
         }
         return {
@@ -272,8 +280,16 @@ export class ApiKeyFailoverManager {
         };
     }
 
-    private static async persistBalanceLeases(expectedAuthorityTerm?: string): Promise<void> {
-        const snapshot = this.exportBalanceLeaseHandoff(true);
+    static isBalanceLeaseHandoffCurrent(snapshot: ApiKeyBalanceLeaseHandoff | undefined): boolean {
+        const current = this.exportBalanceLeaseHandoff();
+        return (
+            snapshot?.sourceAuthorityTerm === current?.sourceAuthorityTerm &&
+            JSON.stringify(snapshot?.leases) === JSON.stringify(current?.leases)
+        );
+    }
+
+    private static async persistBalanceLeases(expectedAuthorityTerm?: string, strict = false): Promise<void> {
+        const snapshot = this.exportBalanceLeaseHandoff(true, strict);
         if (
             snapshot &&
             (expectedAuthorityTerm === undefined || snapshot.sourceAuthorityTerm === expectedAuthorityTerm)
@@ -281,6 +297,9 @@ export class ApiKeyFailoverManager {
             try {
                 await writeBalanceLeaseHandoff(snapshot);
             } catch (error) {
+                if (strict) {
+                    throw error;
+                }
                 Logger.warn('[ApiKeyBalance] Failed to persist lease handoff', error);
             }
         }
@@ -299,7 +318,7 @@ export class ApiKeyFailoverManager {
         }, 50);
     }
 
-    static prepareBalanceLeaseHandoff(): Promise<ApiKeyBalanceLeaseHandoff | undefined> {
+    static prepareBalanceLeaseHandoff(strict = false): Promise<ApiKeyBalanceLeaseHandoff | undefined> {
         const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
         if (!authorityTerm) {
             return Promise.resolve(undefined);
@@ -309,9 +328,17 @@ export class ApiKeyFailoverManager {
             if (LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm) {
                 return undefined;
             }
-            await this.persistBalanceLeases();
-            return this.exportBalanceLeaseHandoff();
+            const snapshot = this.exportBalanceLeaseHandoff(false, strict);
+            await this.persistBalanceLeases(authorityTerm, strict);
+            return snapshot;
         });
+    }
+
+    static cancelBalanceLeaseHandoff(): void {
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (authorityTerm && this.balanceResigningTerm === authorityTerm) {
+            this.balanceResigningTerm = undefined;
+        }
     }
 
     static stageBalanceLeaseHandoff(

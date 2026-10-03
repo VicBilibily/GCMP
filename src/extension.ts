@@ -91,6 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // 步骤0: 初始化主实例竞选服务
         let stepStartTime = Date.now();
         LeaderElectionService.initialize(context);
+        LeaderElectionService.registerCommands(context);
         Logger.trace(`Leader election service initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤0.1: 初始化跨实例总线（Leader/Follower IPC + 轮询回退）

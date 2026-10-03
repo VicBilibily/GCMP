@@ -50,6 +50,7 @@
     "command.tokenUsage.showDetails": "查看今日 Token 消耗统计详情",
     "command.cli.auth": "CLI 认证管理",
     "command.metadata.refresh": "刷新远程元数据",
+    "command.instance.resignLeader": "手动卸任主实例",
     "command.commit.generateMessage": "生成提交消息",
     "command.commit.generateMessageStaged": "生成提交消息 - 暂存的更改",
     "command.commit.generateMessageWorkingTree": "生成提交消息 - 未暂存的更改",

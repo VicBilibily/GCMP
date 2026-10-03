@@ -24,6 +24,7 @@ interface RateLimiterInternals {
     handleRemoteRelease: typeof RateLimiter.handleRemoteRelease;
     handleRemoteAcquireCancelled: typeof RateLimiter.handleRemoteAcquireCancelled;
     leaderStore: RateLimitStore;
+    leaderRestoreReady: Promise<void> | undefined;
     clientCore:
         | {
               settlePendingAsDegraded?: () => void;
@@ -422,8 +423,10 @@ suite('RateLimiter authority change', () => {
         }
     });
 
-    test('graceful leader handoff restores authoritative bucket instead of empty start', () => {
+    test('graceful leader handoff restores authoritative bucket instead of empty start', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const handoffFilePath = makeTempHandoffFilePath('memory-restore');
         const source = new RateLimitStore('leader-a');
         const now = Date.now();
         const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
@@ -442,10 +445,15 @@ suite('RateLimiter authority change', () => {
         const originalClientCore = rateLimiter.clientCore;
         const originalDegraded = rateLimiter.degraded;
         const originalDegradedNotified = rateLimiter.degradedNotified;
+        const originalInitialized = rateLimiter.initialized;
+        const originalIsLeader = patchedLeaderElection.isLeader;
 
         let settledPending = 0;
 
         try {
+            rateLimiter.initialized = true;
+            patchedLeaderElection.isLeader = () => true;
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
             rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.clientCore = {
@@ -468,6 +476,7 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
+            await rateLimiter.leaderRestoreReady;
 
             assert.equal(settledPending, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
@@ -476,6 +485,11 @@ suite('RateLimiter authority change', () => {
             const released = rateLimiter.leaderStore.release(granted.grantId, undefined, now + 100);
             assert.equal(released.length, 0);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
@@ -484,9 +498,10 @@ suite('RateLimiter authority change', () => {
         }
     });
 
-    test('graceful leader handoff accepts previous-term release for imported grant', () => {
+    test('graceful leader handoff accepts previous-term release for imported grant', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const handoffFilePath = makeTempHandoffFilePath('memory-release');
         const source = new RateLimitStore('leader-a');
         const now = Date.now();
         const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
@@ -501,8 +516,11 @@ suite('RateLimiter authority change', () => {
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
         const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalInitialized = rateLimiter.initialized;
 
         try {
+            rateLimiter.initialized = true;
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
             rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.clientCore = undefined;
@@ -519,10 +537,15 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
+            await rateLimiter.leaderRestoreReady;
             rateLimiter.handleRemoteRelease({ authorityTerm: 'leader-a:1', grantId: granted.grantId }, 'follower-a');
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
@@ -530,9 +553,10 @@ suite('RateLimiter authority change', () => {
         }
     });
 
-    test('graceful leader handoff preserves old leader local grants until previous-term release', () => {
+    test('graceful leader handoff preserves old leader local grants until previous-term release', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const handoffFilePath = makeTempHandoffFilePath('memory-local-release');
         const source = new RateLimitStore('leader-a');
         const now = Date.now();
         const localGranted = source.acquire(
@@ -551,8 +575,11 @@ suite('RateLimiter authority change', () => {
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
         const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalInitialized = rateLimiter.initialized;
 
         try {
+            rateLimiter.initialized = true;
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
             rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.clientCore = undefined;
@@ -569,6 +596,7 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
+            await rateLimiter.leaderRestoreReady;
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
 
@@ -582,6 +610,10 @@ suite('RateLimiter authority change', () => {
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
@@ -589,8 +621,10 @@ suite('RateLimiter authority change', () => {
         }
     });
 
-    test('graceful leader handoff eventually drops old leader local grants without release', () => {
+    test('graceful leader handoff eventually drops old leader local grants without release', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const handoffFilePath = makeTempHandoffFilePath('memory-local-expiry');
         const source = new RateLimitStore('leader-a');
         const now = Date.now();
         const localGranted = source.acquire(
@@ -608,8 +642,13 @@ suite('RateLimiter authority change', () => {
         const originalLeaderStore = rateLimiter.leaderStore;
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
+        const originalInitialized = rateLimiter.initialized;
+        const originalIsLeader = patchedLeaderElection.isLeader;
 
         try {
+            rateLimiter.initialized = true;
+            patchedLeaderElection.isLeader = () => true;
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
             rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.clientCore = undefined;
@@ -625,20 +664,27 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
+            await rateLimiter.leaderRestoreReady;
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
             rateLimiter.leaderStore.sweep(now + 6_000);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight ?? 0, 0);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
         }
     });
 
-    test('graceful leader handoff binds local grant renewal to the previous leader', () => {
+    test('graceful leader handoff binds local grant renewal to the previous leader', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const handoffFilePath = makeTempHandoffFilePath('memory-local-renewal');
         const source = new RateLimitStore('leader-a');
         const now = Date.now();
         const localGranted = source.acquire(
@@ -657,8 +703,11 @@ suite('RateLimiter authority change', () => {
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
         const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalInitialized = rateLimiter.initialized;
 
         try {
+            rateLimiter.initialized = true;
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
             rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.clientCore = undefined;
@@ -675,6 +724,7 @@ suite('RateLimiter authority change', () => {
                 }
             });
             rateLimiter.becomeLeaderWithFreshState();
+            await rateLimiter.leaderRestoreReady;
             assert.equal(rateLimiter.leaderStore.getGrantOwnerInstanceId(localGranted.grantId), 'leader-a');
             const before = rateLimiter.leaderStore.exportSnapshot(now);
             rateLimiter.handleRemoteLeaseRenewal(
@@ -690,6 +740,10 @@ suite('RateLimiter authority change', () => {
             rateLimiter.leaderStore.sweep(now + 6_000);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight, 1);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
@@ -796,6 +850,7 @@ suite('RateLimiter authority change', () => {
 
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const originalLeaderStore = rateLimiter.leaderStore;
+        const originalInitialized = rateLimiter.initialized;
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
         const originalIsLeader = patchedLeaderElection.isLeader;
@@ -803,6 +858,7 @@ suite('RateLimiter authority change', () => {
         let settledPending = 0;
 
         try {
+            rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             await writeRateLimitLeaderHandoff({
                 leaderId: 'leader-a',
@@ -821,15 +877,14 @@ suite('RateLimiter authority change', () => {
             patchedLeaderElection.isLeader = () => true;
 
             rateLimiter.becomeLeaderWithFreshState();
-            const deadline = Date.now() + 1_000;
-            while (Date.now() < deadline && rateLimiter.leaderStore.stats('bucket', now)?.inflight !== 1) {
-                await new Promise(resolve => setTimeout(resolve, 10));
-            }
+            await rateLimiter.leaderRestoreReady;
 
             assert.equal(settledPending, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
             await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
@@ -854,11 +909,13 @@ suite('RateLimiter authority change', () => {
 
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const originalLeaderStore = rateLimiter.leaderStore;
+        const originalInitialized = rateLimiter.initialized;
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
         const originalIsLeader = patchedLeaderElection.isLeader;
 
         try {
+            rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             await writeRateLimitLeaderHandoff({
                 leaderId: 'leader-b',
@@ -879,14 +936,13 @@ suite('RateLimiter authority change', () => {
             patchedLeaderElection.isLeader = () => true;
 
             rateLimiter.becomeLeaderWithFreshState();
-            const deadline = Date.now() + 1_000;
-            while (Date.now() < deadline && rateLimiter.leaderStore.stats('bucket', now)?.inflight !== 1) {
-                await new Promise(resolve => setTimeout(resolve, 10));
-            }
+            await rateLimiter.leaderRestoreReady;
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
         } finally {
+            await rateLimiter.leaderRestoreReady?.catch(() => {});
+            rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
             await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;

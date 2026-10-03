@@ -50,6 +50,7 @@
     "command.tokenUsage.showDetails": "View Today's Token Usage Details",
     "command.cli.auth": "CLI Authentication Management",
     "command.metadata.refresh": "Refresh Remote Metadata",
+    "command.instance.resignLeader": "Manually Resign Leader Instance",
     "command.commit.generateMessage": "Generate Commit Message",
     "command.commit.generateMessageStaged": "Generate Commit Message - Staged Changes",
     "command.commit.generateMessageWorkingTree": "Generate Commit Message - Unstaged Changes",

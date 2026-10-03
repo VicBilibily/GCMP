@@ -271,6 +271,7 @@ export interface LeaderResigningEvent extends InterInstanceEventBase {
     payload: {
         /** 卸任 Leader 的实例 ID */
         leaderId: string;
+        reason?: 'manual' | 'shutdown';
         /** 卸任 Leader 当前 authority term */
         sourceAuthorityTerm?: string;
         /** 建议的下一任 Leader 实例 ID（可选） */
@@ -325,7 +326,7 @@ export interface LiveMetricsSnapshotSyncEvent extends InterInstanceEventBase {
  */
 export interface RemoteInstanceHelloEvent extends InterInstanceEventBase {
     type: 'remoteInstanceHello';
-    payload: Record<string, never>;
+    payload: { leaderEligible?: boolean };
 }
 
 /**

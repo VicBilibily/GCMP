@@ -227,7 +227,10 @@ export class InterInstanceBus {
      * 用于高频实时事件（如 liveMetrics），避免 fallback 文件 I/O 开销。
      * IPC 未连接时直接丢弃。
      */
-    static publishIpcOnly(event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>): boolean {
+    static publishIpcOnly(
+        event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>,
+        requiredRecipientId?: string
+    ): boolean {
         if (!this.initialized || !this.context) {
             return false;
         }
@@ -240,9 +243,16 @@ export class InterInstanceBus {
 
         // 设计意图：高频实时状态只走 IPC，IPC 不可用时直接降级为“当前 session 内可见”。
         if (this.server) {
-            this.server.broadcast(fullEvent);
+            if (
+                requiredRecipientId !== undefined &&
+                (!this.server.getEligibleFollowerIds().includes(requiredRecipientId) ||
+                    this.server.sendToInstance(requiredRecipientId, fullEvent) !== 'sent')
+            ) {
+                return false;
+            }
+            this.server.broadcast(fullEvent, undefined, requiredRecipientId);
             return true;
-        } else if (this.client?.isConnected()) {
+        } else if (requiredRecipientId === undefined && this.client?.isConnected()) {
             this.client.send(fullEvent);
             return true;
         }
@@ -323,6 +333,10 @@ export class InterInstanceBus {
      */
     static getConnectedFollowerIds(): string[] {
         return this.server?.getConnectedFollowerIds() ?? [];
+    }
+
+    static getEligibleFollowerIds(): string[] {
+        return this.server?.getEligibleFollowerIds() ?? [];
     }
 
     static getAuthorityTerm(): string | undefined {
@@ -517,7 +531,7 @@ export class InterInstanceBus {
             // 任期监听器可能同步发送业务消息，hello 必须先入队。
             this.client.send({
                 type: 'remoteInstanceHello',
-                payload: {},
+                payload: { leaderEligible: !LeaderElectionService.isAgentsWindow() },
                 timestamp: Date.now(),
                 senderInstanceId: this.instanceId ?? 'unknown'
             });

@@ -28,6 +28,7 @@ export class IpcServer {
     private currentPath: string | undefined;
     private options: IpcServerOptions;
     private socketInstanceIds = new Map<net.Socket, string>();
+    private leaderEligibleInstanceIds = new Set<string>();
     private backpressuredSockets = new Map<net.Socket, { timer: ReturnType<typeof setTimeout>; onDrain: () => void }>();
     /** 单连接接收缓冲区上限，防止异常对端持续发送无换行数据导致内存无限增长 */
     private static readonly MAX_BUFFER_BYTES = 1024 * 1024; // 1MB
@@ -52,6 +53,10 @@ export class IpcServer {
             }
         }
         return ids;
+    }
+
+    getEligibleFollowerIds(): string[] {
+        return this.getConnectedFollowerIds().filter(id => this.leaderEligibleInstanceIds.has(id));
     }
 
     /**
@@ -141,7 +146,7 @@ export class IpcServer {
      * @param event 事件对象
      * @param excludeSocket 可选：需要排除的 socket（避免把 Follower 发来的消息原路返回）
      */
-    broadcast(event: InterInstanceEvent, excludeSocket?: net.Socket): void {
+    broadcast(event: InterInstanceEvent, excludeSocket?: net.Socket, excludeInstanceId?: string): void {
         if (this.sockets.size === 0) {
             return;
         }
@@ -149,7 +154,11 @@ export class IpcServer {
 
         const payload = serializeEvent(event);
         for (const socket of this.sockets) {
-            if (socket === excludeSocket || !this.socketInstanceIds.has(socket)) {
+            if (
+                socket === excludeSocket ||
+                !this.socketInstanceIds.has(socket) ||
+                (excludeInstanceId !== undefined && this.socketInstanceIds.get(socket) === excludeInstanceId)
+            ) {
                 continue;
             }
             if (this.backpressuredSockets.has(socket)) {
@@ -250,7 +259,19 @@ export class IpcServer {
             return false;
         }
 
+        if (
+            !firstEvent.payload ||
+            typeof firstEvent.payload !== 'object' ||
+            Array.isArray(firstEvent.payload) ||
+            (firstEvent.payload.leaderEligible !== undefined && typeof firstEvent.payload.leaderEligible !== 'boolean')
+        ) {
+            return false;
+        }
+
         this.socketInstanceIds.set(socket, senderInstanceId);
+        if (firstEvent.payload.leaderEligible === true) {
+            this.leaderEligibleInstanceIds.add(senderInstanceId);
+        }
         return true;
     }
 
@@ -277,6 +298,7 @@ export class IpcServer {
         this.sockets.delete(socket);
         this.socketInstanceIds.delete(socket);
         if (instanceId && !this.hasConnectedInstance(instanceId)) {
+            this.leaderEligibleInstanceIds.delete(instanceId);
             this.options.onClientDisconnected?.(instanceId);
         }
     }
@@ -330,6 +352,7 @@ export class IpcServer {
         }
         this.sockets.clear();
         this.socketInstanceIds.clear();
+        this.leaderEligibleInstanceIds.clear();
         this.backpressuredSockets.clear();
 
         if (this.server) {

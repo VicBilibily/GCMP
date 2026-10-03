@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { StatusLogger } from '../utils/runtime/statusLogger';
+import { t } from '../utils/runtime/l10n';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus, type LeaderResigningEvent } from '../interInstance';
 import type { RateLimitStoreSnapshot } from '../rateLimit/rateLimitStore';
@@ -18,6 +19,8 @@ export interface LeaderIdentity {
     authorityTerm: string;
 }
 
+type ResignationResult = 'resigned' | 'not-leader' | 'no-follower';
+
 /**
  * 主实例竞选服务（纯静态类）
  * 确保在多 VS Code 实例中只有一个主实例负责执行周期性任务
@@ -26,6 +29,7 @@ export class LeaderElectionService {
     private static readonly LEADER_KEY = 'gcmp.leader.info.v2';
     private static readonly HEARTBEAT_INTERVAL = 5000; // 5秒心跳
     private static readonly LEADER_TIMEOUT = 15000; // 15秒超时
+    private static readonly SNAPSHOT_HANDOFF_TIMEOUT_MS = 30_000;
     private static readonly TASK_INTERVAL = 60 * 1000; // 默认任务执行间隔（1分钟）
 
     // 静态成员变量
@@ -39,6 +43,8 @@ export class LeaderElectionService {
      * 否则双 Leader 期间会继承对方的 electedAt，污染 authorityTerm 判定 */
     private static ownElectedAt = 0;
     private static initialized = false;
+    private static electionPausedUntil = 0;
+    private static resignationPromise: Promise<ResignationResult> | undefined;
     /**
      * 当前是否运行在 Agents 窗体中。
      * Agents 窗体与普通编辑器窗口的 globalState 互相隔离，基于 globalState 的选举
@@ -52,14 +58,20 @@ export class LeaderElectionService {
     // Leader 状态变更事件
     private static leaderChangedEmitter = new vscode.EventEmitter<boolean>();
     static readonly onLeaderChanged = LeaderElectionService.leaderChangedEmitter.event;
+    private static handoffStateEmitter = new vscode.EventEmitter<boolean>();
+    static readonly onHandoffStateChanged = LeaderElectionService.handoffStateEmitter.event;
     private static leaderIdentityChangedEmitter = new vscode.EventEmitter<LeaderIdentity | undefined>();
     static readonly onLeaderIdentityChanged = LeaderElectionService.leaderIdentityChangedEmitter.event;
     private static lastLeaderIdentityKey: string | undefined;
     private static rateLimitSnapshotProvider:
-        | (() => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>)
+        | ((strict?: boolean) => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>)
         | undefined;
+    private static rateLimitSnapshotValidator: ((snapshot: RateLimitStoreSnapshot | undefined) => boolean) | undefined;
     private static balanceLeaseSnapshotProvider:
-        | (() => ApiKeyBalanceLeaseHandoff | undefined | Promise<ApiKeyBalanceLeaseHandoff | undefined>)
+        | ((strict?: boolean) => ApiKeyBalanceLeaseHandoff | undefined | Promise<ApiKeyBalanceLeaseHandoff | undefined>)
+        | undefined;
+    private static balanceLeaseSnapshotValidator:
+        | ((snapshot: ApiKeyBalanceLeaseHandoff | undefined) => boolean)
         | undefined;
 
     /**
@@ -78,6 +90,7 @@ export class LeaderElectionService {
         }
 
         this.periodicTasks = [];
+        this.electionPausedUntil = 0;
 
         this.registerPeriodicTask(async () => {
             StatusLogger.trace('[LeaderElectionService] Leader periodic task: recording alive log');
@@ -133,10 +146,69 @@ export class LeaderElectionService {
 
         // 启动周期性任务检查
         this.taskTimer = setInterval(() => {
-            if (this._isLeader) {
+            if (this._isLeader && Date.now() >= this.electionPausedUntil) {
                 this.executePeriodicTasks();
             }
         }, this.TASK_INTERVAL);
+    }
+
+    public static registerCommands(context: vscode.ExtensionContext): void {
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.instance.resignLeader', async () => {
+                try {
+                    const result = await this.resignLeadership();
+                    if (result === 'not-leader') {
+                        void vscode.window.showInformationMessage(
+                            t('This window is not the leader instance.', '当前窗口不是主实例，无需卸任。')
+                        );
+                    } else if (result === 'no-follower') {
+                        void vscode.window.showWarningMessage(
+                            t(
+                                'No connected follower instance is available. Leadership was not resigned.',
+                                '没有已连接的从实例可接班，已保留当前主实例。'
+                            )
+                        );
+                    } else {
+                        void vscode.window.showInformationMessage(
+                            t(
+                                'Leadership resigned. This window can participate in future elections.',
+                                '已卸任主实例并通知接班实例，当前窗口后续仍可正常参与竞选。'
+                            )
+                        );
+                    }
+                } catch (error) {
+                    StatusLogger.error('[LeaderElectionService] Manual leader resignation failed', error);
+                    void vscode.window.showErrorMessage(
+                        t(
+                            'Failed to resign leadership. Check the output log for details.',
+                            '卸任主实例失败，请查看输出日志。'
+                        )
+                    );
+                }
+            })
+        );
+    }
+
+    public static async resignLeadership(): Promise<ResignationResult> {
+        if (this.resignationPromise) {
+            return this.resignationPromise;
+        }
+        if (!this.getOwnedAuthorityTerm()) {
+            return 'not-leader';
+        }
+        const nextLeaderId = InterInstanceBus.getEligibleFollowerIds()[0];
+        if (!nextLeaderId) {
+            return 'no-follower';
+        }
+
+        this.electionPausedUntil = Number.POSITIVE_INFINITY;
+        this.resignationPromise = this.handoffLeadership(nextLeaderId);
+        try {
+            return await this.resignationPromise;
+        } finally {
+            this.electionPausedUntil = this._isLeader ? 0 : Date.now() + this.HEARTBEAT_INTERVAL;
+            this.resignationPromise = undefined;
+        }
     }
 
     /**
@@ -161,69 +233,122 @@ export class LeaderElectionService {
         // 停止用户活跃检测服务
         UserActivityService.stop();
 
-        // 如果是 Leader，先通过 IPC 通知其他实例即将卸任，让它们立即开始竞选。
-        // 该通知只用于优化停机切换速度；IPC 不可用时允许退化回 session 级心跳选举。
-        // 优先从已连接的 Follower 中指定下一任 Leader（最长连接者），减少广播竞选。
-        if (this._isLeader) {
-            try {
-                const sourceAuthorityTerm = this.getOwnedAuthorityTerm();
-                const followers = InterInstanceBus.getConnectedFollowerIds();
-                const nextLeaderId = followers.length > 0 ? followers[0] : undefined;
-                let balanceLeaseSnapshotPromise: Promise<ApiKeyBalanceLeaseHandoff | undefined> | undefined;
-                try {
-                    balanceLeaseSnapshotPromise = Promise.resolve(this.balanceLeaseSnapshotProvider?.()).catch(
-                        error => {
-                            StatusLogger.warn(
-                                '[LeaderElectionService] Failed to export balance lease snapshot before resigning',
-                                error
-                            );
-                            return undefined;
-                        }
-                    );
-                } catch (error) {
-                    StatusLogger.warn(
-                        '[LeaderElectionService] Failed to export balance lease snapshot before resigning',
-                        error
-                    );
-                }
-                let rateLimitSnapshot: RateLimitStoreSnapshot | undefined;
-                try {
-                    rateLimitSnapshot = await this.rateLimitSnapshotProvider?.();
-                } catch (error) {
-                    StatusLogger.warn(
-                        '[LeaderElectionService] Failed to export rate-limit snapshot before resigning',
-                        error
-                    );
-                }
-                const balanceLeaseSnapshot = await balanceLeaseSnapshotPromise;
-                InterInstanceBus.publishIpcOnly({
-                    type: 'leaderResigning',
-                    payload: {
-                        leaderId: this.instanceId,
-                        sourceAuthorityTerm,
-                        nextLeaderId,
-                        rateLimitSnapshot,
-                        balanceLeaseSnapshot
-                    }
-                });
-                StatusLogger.info(
-                    `[LeaderElectionService] Broadcast leaderResigning before shutdown${
-                        nextLeaderId ? `, nominated next leader: ${nextLeaderId}` : ''
-                    }`
-                );
-            } catch (error) {
-                StatusLogger.warn('[LeaderElectionService] Failed to broadcast leaderResigning', error);
-            }
-        }
-
-        // 如果是 Leader，必须 await 释放流程，确保 globalState 清除完成
         try {
-            await this.resignLeader();
+            if (this.resignationPromise) {
+                await this.resignationPromise.catch(error =>
+                    StatusLogger.warn('[LeaderElectionService] Pending manual handoff failed during stop', error)
+                );
+            }
+            await this.handoffLeadership();
         } catch (error) {
             StatusLogger.warn('[LeaderElectionService] Failed to release leader identity during stop', error);
         }
         this.periodicTasks = [];
         this.initialized = false;
+    }
+
+    private static async handoffLeadership(nominatedLeaderId?: string): Promise<ResignationResult> {
+        if (!this._isLeader) {
+            return 'not-leader';
+        }
+        const manual = nominatedLeaderId !== undefined;
+        const sourceAuthorityTerm = this.getOwnedAuthorityTerm();
+        this.handoffStateEmitter.fire(true);
+        try {
+            try {
+                const deadline = Date.now() + this.SNAPSHOT_HANDOFF_TIMEOUT_MS;
+                for (;;) {
+                    let snapshotFailed = false;
+                    let balanceLeaseSnapshot: ApiKeyBalanceLeaseHandoff | undefined;
+                    try {
+                        balanceLeaseSnapshot = await this.balanceLeaseSnapshotProvider?.(manual);
+                    } catch (error) {
+                        if (manual) {
+                            throw error;
+                        }
+                        snapshotFailed = true;
+                        StatusLogger.warn(
+                            '[LeaderElectionService] Failed to export balance lease snapshot before resigning',
+                            error
+                        );
+                    }
+                    let rateLimitSnapshot: RateLimitStoreSnapshot | undefined;
+                    try {
+                        rateLimitSnapshot = await this.rateLimitSnapshotProvider?.(manual);
+                    } catch (error) {
+                        if (manual) {
+                            throw error;
+                        }
+                        snapshotFailed = true;
+                        StatusLogger.warn(
+                            '[LeaderElectionService] Failed to export rate-limit snapshot before resigning',
+                            error
+                        );
+                    }
+                    const eligibleFollowers = InterInstanceBus.getEligibleFollowerIds();
+                    const nextLeaderId =
+                        nominatedLeaderId && eligibleFollowers.includes(nominatedLeaderId) ?
+                            nominatedLeaderId
+                        :   eligibleFollowers[0];
+                    if (manual) {
+                        if (!sourceAuthorityTerm || this.getOwnedAuthorityTerm() !== sourceAuthorityTerm) {
+                            return 'not-leader';
+                        }
+                        if (!nextLeaderId) {
+                            return 'no-follower';
+                        }
+                    }
+                    // 最终核验与发布之间必须保持同步，避免微任务再次修改租约。
+                    if (
+                        !snapshotFailed &&
+                        (this.balanceLeaseSnapshotValidator?.(balanceLeaseSnapshot) === false ||
+                            this.rateLimitSnapshotValidator?.(rateLimitSnapshot) === false)
+                    ) {
+                        if (Date.now() >= deadline) {
+                            throw new Error('Leadership handoff state did not stabilize before the deadline');
+                        }
+                        continue;
+                    }
+                    const sent = InterInstanceBus.publishIpcOnly(
+                        {
+                            type: 'leaderResigning',
+                            payload: {
+                                leaderId: this.instanceId,
+                                reason: manual ? 'manual' : 'shutdown',
+                                sourceAuthorityTerm,
+                                nextLeaderId,
+                                rateLimitSnapshot,
+                                balanceLeaseSnapshot
+                            }
+                        },
+                        manual ? nextLeaderId : undefined
+                    );
+                    if (manual && !sent) {
+                        throw new Error('Failed to publish leadership handoff to the nominated instance');
+                    }
+                    StatusLogger.info(
+                        `[LeaderElectionService] Broadcast leaderResigning before handoff${
+                            nextLeaderId ? `, nominated next leader: ${nextLeaderId}` : ''
+                        }`
+                    );
+                    break;
+                }
+            } catch (error) {
+                if (manual) {
+                    throw error;
+                }
+                StatusLogger.warn('[LeaderElectionService] Failed to broadcast leaderResigning', error);
+            }
+            const releasing = this.resignLeader();
+            this.setLeaderState(false);
+            await releasing;
+            return 'resigned';
+        } finally {
+            if (sourceAuthorityTerm && sourceAuthorityTerm !== this.getOwnedAuthorityTerm()) {
+                this.setLeaderState(false);
+            }
+            this.handoffStateEmitter.fire(false);
+        }
     }
 
     /**
@@ -238,6 +363,9 @@ export class LeaderElectionService {
      * 设置 Leader 状态并触发事件
      */
     private static setLeaderState(value: boolean): void {
+        if (value && Date.now() < this.electionPausedUntil) {
+            return;
+        }
         if (this._isLeader === value) {
             return;
         }
@@ -392,17 +520,25 @@ export class LeaderElectionService {
     }
 
     public static setRateLimitSnapshotProvider(
-        provider: (() => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>) | undefined
+        provider:
+            | ((strict?: boolean) => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>)
+            | undefined,
+        validator?: (snapshot: RateLimitStoreSnapshot | undefined) => boolean
     ): void {
         this.rateLimitSnapshotProvider = provider;
+        this.rateLimitSnapshotValidator = validator;
     }
 
     public static setBalanceLeaseSnapshotProvider(
         provider:
-            | (() => ApiKeyBalanceLeaseHandoff | undefined | Promise<ApiKeyBalanceLeaseHandoff | undefined>)
-            | undefined
+            | ((
+                  strict?: boolean
+              ) => ApiKeyBalanceLeaseHandoff | undefined | Promise<ApiKeyBalanceLeaseHandoff | undefined>)
+            | undefined,
+        validator?: (snapshot: ApiKeyBalanceLeaseHandoff | undefined) => boolean
     ): void {
         this.balanceLeaseSnapshotProvider = provider;
+        this.balanceLeaseSnapshotValidator = validator;
     }
 
     private static async checkLeader(): Promise<void> {
@@ -413,6 +549,9 @@ export class LeaderElectionService {
         const now = Date.now();
         const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
         this.emitLeaderIdentityChanged();
+        if (now < this.electionPausedUntil) {
+            return;
+        }
         StatusLogger.trace(
             `[LeaderElectionService] Heartbeat check: leaderInfo=${leaderInfo ? `instanceId=${leaderInfo.instanceId}, lastHeartbeat=${leaderInfo.lastHeartbeat}` : 'null'}`
         );
@@ -558,7 +697,7 @@ export class LeaderElectionService {
     }
 
     private static async becomeLeader(force: boolean = false): Promise<void> {
-        if (!this.context) {
+        if (!this.context || Date.now() < this.electionPausedUntil) {
             return;
         }
 
@@ -632,7 +771,7 @@ export class LeaderElectionService {
     }
 
     private static async updateHeartbeat(): Promise<void> {
-        if (!this._isLeader || !this.context) {
+        if (!this._isLeader || !this.context || Date.now() < this.electionPausedUntil) {
             return;
         }
 
@@ -679,6 +818,9 @@ export class LeaderElectionService {
             `[LeaderElectionService] Starting execution of ${this.periodicTasks.length} periodic tasks...`
         );
         for (const task of this.periodicTasks) {
+            if (!this._isLeader || Date.now() < this.electionPausedUntil) {
+                return;
+            }
             try {
                 await task();
             } catch (error) {

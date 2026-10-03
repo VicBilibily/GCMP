@@ -16,6 +16,63 @@ test('无配置维度时立即授予', () => {
     }
 });
 
+test('交接冻结期间即使不限并发也只排队', () => {
+    const s = store();
+    s.setGrantingPaused(true);
+    assert.deepEqual(s.acquire('r1', 'k', {}, { requests: 1, tokens: 0 }, 0), {
+        kind: 'queued',
+        queuePosition: 1
+    });
+    assert.deepEqual(s.sweep(100), []);
+    assert.equal(s.exportSnapshot(100).grants.length, 0);
+    s.setGrantingPaused(false);
+    assert.equal(s.sweep(100)[0]?.requestId, 'r1');
+});
+
+test('交接冻结允许释放和取消，但 release/sweep 不再授予旧队列', () => {
+    const s = store();
+    const costs = { requests: 1, tokens: 0 };
+    const first = s.acquire('r1', 'k', { parallel: 1 }, costs, 0);
+    assert.equal(first.kind, 'granted');
+    if (first.kind !== 'granted') {
+        return;
+    }
+    s.acquire('r2', 'k', { parallel: 1 }, costs, 0);
+    s.acquire('r3', 'k', { parallel: 1 }, costs, 0);
+    s.setGrantingPaused(true);
+    assert.deepEqual(s.release(first.grantId, undefined, 10), []);
+    assert.deepEqual(s.sweep(10), []);
+    assert.equal(s.cancelPending('k', 'r2'), true);
+    assert.equal(s.exportSnapshot(10).grants.length, 0);
+    s.setGrantingPaused(false);
+    assert.equal(s.sweep(10)[0]?.requestId, 'r3');
+});
+
+test('交接冻结仍允许合法续租和租约过期，不把过期槽位授予等待者', () => {
+    const s = store(100);
+    const first = s.acquire('r1', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0);
+    assert.equal(first.kind, 'granted');
+    if (first.kind !== 'granted') {
+        return;
+    }
+    s.setGrantingPaused(true);
+    s.acquire('r2', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 10);
+    assert.equal(s.renew(first.grantId, 50), true);
+    assert.deepEqual(s.sweep(151), []);
+    assert.deepEqual(s.exportSnapshot(151).grants, []);
+    assert.equal(s.stats('k', 151)?.pending, 1);
+});
+
+test('交接冻结期间断线回收不会授予其它实例等待请求', () => {
+    const s = store();
+    s.acquire('r1', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'a' });
+    s.acquire('r2', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'b' });
+    s.setGrantingPaused(true);
+    assert.deepEqual(s.reclaimInstance('a', 10).granted, []);
+    assert.equal(s.stats('k', 10)?.pending, 1);
+    assert.deepEqual(s.exportSnapshot(10).grants, []);
+});
+
 test('rpm 维度：waitMs 按 60000/rpm 递增', () => {
     const s = store();
     const dims = { rpm: 60 }; // 1/s
@@ -551,7 +608,7 @@ test('snapshot round-trip 保留 inflight 与 pacing 状态，但不继承 pendi
     assert.equal(released.length, 0);
 });
 
-test('snapshot export 仅保留旧 Leader grants，排除全部 pending', () => {
+test('snapshot export 保留旧 Leader 活跃 grants，排除全部 pending', () => {
     const source = store();
     source.acquire('local-grant', 'local', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0);
     source.acquire('local-pending', 'local', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0);
@@ -581,6 +638,97 @@ test('snapshot export 仅保留旧 Leader grants，排除全部 pending', () => 
     assert.equal(restored.stats('remote', 0)?.inflight, 1);
     assert.equal(restored.stats('remote', 0)?.pending, 0);
 });
+
+for (const { name, dims, waitMs } of [
+    { name: 'RPM', dims: { rpm: 1 }, waitMs: 59_990 },
+    { name: 'RPS', dims: { rps: 1 }, waitMs: 990 },
+    { name: 'TPM', dims: { tpm: 1 }, waitMs: 59_990 }
+] as const) {
+    test(`snapshot 保留已释放 grant 的未到期 ${name} 占用，多次交接不重置或重复扣费`, () => {
+        const source = store();
+        const costs = { requests: 1, tokens: 1 };
+        const dimensions = { parallel: 1, ...dims };
+        const grant = source.acquire('completed', 'k', dimensions, costs, 0);
+        assert.equal(grant.kind, 'granted');
+        if (grant.kind !== 'granted') {
+            return;
+        }
+        source.release(grant.grantId, undefined, 10);
+        source.setGrantingPaused(true);
+        source.acquire('pending', 'k', dimensions, costs, 10);
+        assert.equal(source.stats('k', 10)?.waitMs, waitMs);
+        const snapshot = source.exportSnapshot(10);
+        assert.deepEqual(snapshot.grants, []);
+        assert.equal(snapshot.buckets.length, 1);
+        assert.deepEqual(snapshot.buckets[0]?.pending, []);
+        const successor = new RateLimitStore('successor');
+        successor.importSnapshot(structuredClone(snapshot), 10);
+        const nextSuccessor = new RateLimitStore('next-successor');
+        nextSuccessor.importSnapshot(successor.exportSnapshot(10), 10);
+        assert.equal(nextSuccessor.stats('k', 10)?.inflight, 0);
+        const next = nextSuccessor.acquire('next', 'k', dimensions, costs, 10);
+        assert.equal(next.kind, 'granted');
+        if (next.kind === 'granted') {
+            assert.equal(next.waitMs, waitMs);
+        }
+    });
+}
+
+for (const action of ['full-refund', 'expiry', 'pending-only'] as const) {
+    test(`snapshot 不保留没有活跃 grant 或未到期占用的桶：${action}`, () => {
+        const source = store();
+        const dims = { rpm: 60, rps: 1, tpm: 6000 };
+        const costs = { requests: 1, tokens: 100 };
+        if (action === 'pending-only') {
+            source.setGrantingPaused(true);
+        }
+        const grant = source.acquire('r1', 'k', dims, costs, 0);
+        if (grant.kind === 'granted') {
+            source.release(grant.grantId, action === 'full-refund' ? costs : undefined, 0);
+        }
+        const at = action === 'expiry' ? 1000 : 0;
+        assert.deepEqual(source.exportSnapshot(at), { buckets: [], grants: [] });
+        const successor = new RateLimitStore('successor');
+        successor.importSnapshot(source.exportSnapshot(at), at);
+        const next = successor.acquire('next', 'k', dims, costs, at);
+        assert.equal(next.kind, 'granted');
+        if (next.kind === 'granted') {
+            assert.equal(next.waitMs, 0);
+        }
+    });
+}
+
+test('snapshot 只继承部分退款后仍然消耗的 TPM 占用', () => {
+    const source = store();
+    const grant = source.acquire('r1', 'k', { tpm: 6000 }, { requests: 0, tokens: 100 }, 0);
+    assert.equal(grant.kind, 'granted');
+    if (grant.kind !== 'granted') {
+        return;
+    }
+    source.release(grant.grantId, { tokens: 40 }, 10);
+    const snapshot = source.exportSnapshot(10);
+    assert.deepEqual(snapshot.grants, []);
+    assert.equal(snapshot.buckets[0]?.paceTpm?.reservations[0]?.cost, 60);
+    const successor = new RateLimitStore('successor');
+    successor.importSnapshot(snapshot, 10);
+    assert.equal(successor.stats('k', 10)?.waitMs, 590);
+});
+
+for (const action of ['lease-expiry', 'disconnect'] as const) {
+    test(`snapshot 不因 grant ${action} 丢弃已消耗的 pacing`, () => {
+        const source = store(1);
+        source.acquire('r1', 'k', { parallel: 1, rpm: 1 }, { requests: 1, tokens: 0 }, 0, {
+            ownerInstanceId: 'follower-a'
+        });
+        if (action === 'disconnect') {
+            source.reclaimInstance('follower-a', 10);
+        }
+        const successor = new RateLimitStore('successor');
+        successor.importSnapshot(source.exportSnapshot(action === 'lease-expiry' ? 0 : 10), 10);
+        assert.equal(successor.stats('k', 10)?.inflight, 0);
+        assert.equal(successor.stats('k', 10)?.waitMs, 59_990);
+    });
+}
 
 test('snapshot import 可为 ownerless grants 施加短宽限期', () => {
     const source = store();

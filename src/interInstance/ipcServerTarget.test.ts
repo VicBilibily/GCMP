@@ -73,6 +73,7 @@ test('IPC server sends bounded responses only to the requested instance', async 
         const server = Object.create(IpcServer.prototype) as InstanceType<typeof IpcServer>;
         Object.assign(server, {
             sockets: new Set([followerA, followerB]),
+            leaderEligibleInstanceIds: new Set<string>(),
             socketInstanceIds: new Map([
                 [followerA, 'follower-a'],
                 [followerB, 'follower-b']
@@ -428,7 +429,13 @@ test('usage query transport requires a matching leader capability', async t => {
             };
         }
         if (id.endsWith('/leaderElectionService')) {
-            return { LeaderElectionService: { isLeader: () => false, getInstanceId: () => 'follower' } };
+            return {
+                LeaderElectionService: {
+                    isLeader: () => false,
+                    isAgentsWindow: () => false,
+                    getInstanceId: () => 'follower'
+                }
+            };
         }
         if (id.endsWith('/statusLogger')) {
             return { StatusLogger: { debug() {}, error() {}, info() {}, warn() {} } };
@@ -591,6 +598,8 @@ test('usage query transport requires a matching leader capability', async t => {
                         receivedEvents.slice(0, 2).map(event => event.type),
                         ['remoteInstanceHello', 'liveMetricsSnapshotRequested']
                     );
+                    const hello = receivedEvents.find(event => event.type === 'remoteInstanceHello');
+                    assert.equal(hello?.payload.leaderEligible, true);
                     const timestamp = Date.now();
                     const pending: UsagesPendingRecord = {
                         requestId: 'pending-over-socket',
@@ -627,5 +636,117 @@ test('usage query transport requires a matching leader capability', async t => {
         }
     } finally {
         NodeModule.prototype.require = originalRequire;
+    }
+});
+
+test('IPC distinguishes explicit leader candidates from Agents and unknown clients', async () => {
+    const originalRequire = NodeModule.prototype.require;
+    NodeModule.prototype.require = function (id: string): unknown {
+        if (id.endsWith('/statusLogger')) {
+            return { StatusLogger: { debug() {}, error() {}, info() {}, warn() {} } };
+        }
+        return originalRequire.call(this, id);
+    };
+    try {
+        const { IpcServer } = await import('./ipcServer');
+        const server = new IpcServer();
+        const internals = server as unknown as {
+            acceptSocketEvents: (socket: Socket, events: InterInstanceEvent[]) => boolean;
+            removeSocket: (socket: Socket) => void;
+        };
+        const sockets = ['normal', 'agents', 'legacy', 'invalid'].map(() => new EventEmitter() as Socket);
+        const hello = (instanceId: string, payload: unknown): InterInstanceEvent =>
+            ({
+                type: 'remoteInstanceHello',
+                payload,
+                timestamp: 1,
+                senderInstanceId: instanceId
+            }) as InterInstanceEvent;
+        assert.equal(internals.acceptSocketEvents(sockets[0], [hello('normal', { leaderEligible: true })]), true);
+        assert.equal(internals.acceptSocketEvents(sockets[1], [hello('agents', { leaderEligible: false })]), true);
+        assert.equal(internals.acceptSocketEvents(sockets[2], [hello('legacy', {})]), true);
+        assert.equal(internals.acceptSocketEvents(sockets[3], [hello('invalid', { leaderEligible: 'true' })]), false);
+        assert.deepEqual(server.getConnectedFollowerIds(), ['normal', 'agents', 'legacy']);
+        assert.deepEqual(server.getEligibleFollowerIds(), ['normal']);
+        assert.equal(internals.acceptSocketEvents(sockets[1], [hello('agents', { leaderEligible: true })]), true);
+        assert.deepEqual(server.getEligibleFollowerIds(), ['normal']);
+        internals.removeSocket(sockets[0]);
+        assert.deepEqual(server.getEligibleFollowerIds(), []);
+        await server.stop();
+        assert.deepEqual(server.getConnectedFollowerIds(), []);
+    } finally {
+        NodeModule.prototype.require = originalRequire;
+    }
+});
+
+test('IPC handoff requires the nominated socket before notifying other followers', async () => {
+    const { IpcServer } = await import('./ipcServer');
+    const { InterInstanceBus } = await import('./interInstanceBus');
+    const bus = InterInstanceBus as unknown as {
+        server: InstanceType<typeof IpcServer> | undefined;
+        initialized: boolean;
+        context: unknown;
+        instanceId: string | undefined;
+    };
+    const previous = {
+        server: bus.server,
+        initialized: bus.initialized,
+        context: bus.context,
+        instanceId: bus.instanceId
+    };
+    for (const outcome of ['sent', 'missing', 'write-error'] as const) {
+        const writes: string[] = [];
+        const server = new IpcServer();
+        const internals = server as unknown as {
+            sockets: Set<Socket>;
+            acceptSocketEvents: (socket: Socket, events: InterInstanceEvent[]) => boolean;
+        };
+        const connectFake = (instanceId: string): Socket => {
+            const socket = new EventEmitter() as Socket;
+            Object.assign(socket, {
+                write: () => {
+                    if (instanceId === 'nominee' && outcome === 'write-error') {
+                        throw new Error('write failed');
+                    }
+                    writes.push(instanceId);
+                    return true;
+                },
+                destroy: () => socket
+            });
+            internals.sockets.add(socket);
+            assert.equal(
+                internals.acceptSocketEvents(socket, [
+                    {
+                        type: 'remoteInstanceHello',
+                        payload: { leaderEligible: true },
+                        timestamp: 1,
+                        senderInstanceId: instanceId
+                    }
+                ]),
+                true
+            );
+            return socket;
+        };
+        connectFake('observer');
+        if (outcome !== 'missing') {
+            connectFake('nominee');
+        }
+        Object.assign(bus, { server, initialized: true, context: {}, instanceId: 'leader' });
+        try {
+            assert.equal(
+                InterInstanceBus.publishIpcOnly(
+                    {
+                        type: 'leaderResigning',
+                        payload: { leaderId: 'leader', nextLeaderId: 'nominee', reason: 'manual' }
+                    },
+                    'nominee'
+                ),
+                outcome === 'sent'
+            );
+            assert.deepEqual(writes, outcome === 'sent' ? ['nominee', 'observer'] : []);
+        } finally {
+            await server.stop();
+            Object.assign(bus, previous);
+        }
     }
 });
