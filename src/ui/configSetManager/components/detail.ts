@@ -283,7 +283,7 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
         {
             mode: 'off',
             labelEn: 'Off',
-            labelZh: '关闭',
+            labelZh: '手动切换',
             titleEn: 'Switch configurations manually.',
             titleZh: '仅手动切换配置。'
         },
@@ -332,24 +332,6 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
         switchTabs.appendChild(tab);
     }
     slotActions.appendChild(switchTabs);
-
-    if (slotState.switchMode === 'balance') {
-        const status = el(
-            'span',
-            `csm-balance-status csm-balance-status-${slotState.balanceStatus ?? 'fallback'}`,
-            slotState.balanceStatus === 'available' ?
-                t('Leader available', 'Leader 可用')
-            :   t('Primary key fallback', '已回退主 Key')
-        );
-        status.title =
-            slotState.balanceStatus === 'available' ?
-                t('Cross-instance balance allocation is active.', '跨实例均衡分配已启用。')
-            :   t(
-                    'No active Leader is available; requests use the primary API Key.',
-                    '当前没有可用 Leader，请求将使用主 API Key。'
-                );
-        slotActions.appendChild(status);
-    }
 
     const addBtn = el(
         'button',

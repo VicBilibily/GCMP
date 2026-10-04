@@ -21,8 +21,8 @@ export interface ZhipuStatusData {
 }
 
 export const zhipuStatusAdapter: QuotaStatusAdapter<ZhipuStatusData> = {
-    async query(apiKey) {
-        const site = resolveQuotaSite('zhipu', undefined) === 'api.z.ai' ? 'api.z.ai' : undefined;
+    async query(apiKey, context) {
+        const site = resolveQuotaSite('zhipu', context?.site) === 'api.z.ai' ? 'api.z.ai' : undefined;
         const { limits, account } = await fetchZhipuUsage(apiKey, site);
 
         const resetTimes = limits.filter(l => l.nextResetTime !== undefined).map(l => l.nextResetTime as number);

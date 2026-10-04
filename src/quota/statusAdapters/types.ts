@@ -8,10 +8,15 @@
 import { t } from '../../utils/runtime/l10n';
 import type { QuotaTable } from '../types';
 
+/** 状态查询上下文：多 key 模式按配置项查询时携带该配置的站点 */
+export interface QuotaQueryContext {
+    site?: string;
+}
+
 /** 状态栏适配器：数据查询与展示决策，UI 渲染在 status 层通用类 */
 export interface QuotaStatusAdapter<TRaw> {
-    /** 查询状态数据（站点等上下文在此读取） */
-    query(apiKey: string): Promise<TRaw>;
+    /** 查询状态数据（站点等上下文在此读取；多 key 模式传入配置项站点） */
+    query(apiKey: string, context?: QuotaQueryContext): Promise<TRaw>;
     /** 状态栏摘要文本（不含图标） */
     summary(data: TRaw): string;
     /** tooltip 表格（对齐/加粗元数据与重构前一致） */

@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { createHash } from 'node:crypto';
 import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { InterInstanceBus, ApiKeyChangedEvent } from '../interInstance';
@@ -13,6 +14,13 @@ import { t } from '../utils/runtime/l10n';
 
 // 重新导出 StatusBarItemConfig 以便子类使用
 export { StatusBarItemConfig } from './baseStatusBarItem';
+
+export interface ProviderApiQueryResult<T> {
+    success: boolean;
+    data?: T;
+    error?: string;
+    keyHash?: string;
+}
 
 /**
  * 单提供商状态栏项基类
@@ -74,9 +82,10 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
     /**
      * 执行 API 查询模板：统一 API Key 检查与异常包装，子类只实现 performQuery
      */
-    protected async performApiQuery(): Promise<{ success: boolean; data?: T; error?: string }> {
+    protected async performApiQuery(): Promise<ProviderApiQueryResult<T>> {
         const provider = this.config.apiKeyProvider;
         const displayName = this.config.keyDisplayName ?? provider;
+        const generation = this.queryGeneration;
 
         try {
             if (!(await ApiKeyManager.hasValidApiKey(provider))) {
@@ -98,12 +107,39 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
                 };
             }
 
-            return { success: true, data: await this.performQuery(apiKey) };
+            let queryKey = apiKey;
+            let data = await this.performQuery(queryKey);
+            if (generation !== this.queryGeneration) {
+                return { success: false };
+            }
+            // 身份校验：查询期间 key 被切换（故障切换/手动激活）时，旧结果已过期，用新 key 重查一次
+            const currentKey = await ApiKeyManager.getApiKey(provider);
+            if (currentKey && currentKey !== apiKey) {
+                queryKey = currentKey;
+                data = await this.performQuery(queryKey);
+            }
+            const finalKey = await ApiKeyManager.getApiKey(provider);
+            if (generation !== this.queryGeneration) {
+                return { success: false };
+            }
+            if (!finalKey || finalKey !== queryKey) {
+                this.onApiKeyChangeDetected();
+                return { success: false };
+            }
+            return { success: true, data, keyHash: createHash('sha256').update(queryKey).digest('hex').slice(0, 16) };
         } catch (error) {
             const message = error instanceof Error ? error.message : t('Unknown error', '未知错误');
             Logger.error(`[${this.config.logPrefix}] Query exception: ${message}`);
             return { success: false, error: t('Query failed: {0}', '查询失败: {0}', message) };
         }
+    }
+
+    /**
+     * key 变化后旧缓存不再可信（5 秒缓存会跳过刷新），清空强制重查
+     */
+    protected override onApiKeyChangeDetected(): void {
+        super.onApiKeyChangeDetected();
+        this.lastStatusData = null;
     }
 
     /**
@@ -120,6 +156,7 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
         }
 
         // API Key 变更后刷新状态栏显示状态
+        this.onApiKeyChangeDetected();
         this.checkAndShowStatus().catch(error =>
             console.error(`[${this.config.logPrefix}] Failed to refresh after API key change`, error)
         );

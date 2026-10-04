@@ -117,6 +117,9 @@ export async function activate(context: vscode.ExtensionContext) {
         // 步骤1: 初始化API密钥管理器
         stepStartTime = Date.now();
         ApiKeyManager.initialize(context);
+        ApiKeyManager.setApiKeyConsumerRefresher(
+            provider => StatusBarManager.getStatusBar(provider)?.checkAndShowStatus() ?? Promise.resolve()
+        );
         Logger.trace(`API key manager initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤2: 初始化配置管理器
@@ -266,6 +269,8 @@ export async function deactivate() {
 
     try {
         Logger.info('Starting GCMP extension deactivation...');
+
+        ApiKeyManager.setApiKeyConsumerRefresher(undefined);
 
         // 清理所有状态栏
         StatusBarManager.disposeAll();

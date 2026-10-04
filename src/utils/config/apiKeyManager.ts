@@ -7,7 +7,6 @@ import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import { ApiKeyValidation, CustomHeaders } from '../../types/sharedTypes';
 import { Logger } from '../runtime/logger';
-import { StatusBarManager } from '../../status';
 import { InterInstanceBus } from '../../interInstance';
 import { configProviders } from '../../providers/config';
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
@@ -22,6 +21,7 @@ export class ApiKeyManager {
     private static builtinProviders: Set<string> | null = null;
     private static requestApiKeySnapshots = new WeakMap<object, string>();
     private static requestApiKeyHashes = new WeakMap<object, string>();
+    private static apiKeyConsumerRefresher: ((provider: string) => Promise<void>) | undefined;
 
     /** 本实例内 API Key 变更事件（跨实例事件走 InterInstanceBus.publish） */
     private static _onDidChangeApiKey = new vscode.EventEmitter<{
@@ -35,6 +35,10 @@ export class ApiKeyManager {
      */
     static initialize(context: vscode.ExtensionContext): void {
         this.context = context;
+    }
+
+    static setApiKeyConsumerRefresher(refresher: ((provider: string) => Promise<void>) | undefined): void {
+        this.apiKeyConsumerRefresher = refresher;
     }
 
     /**
@@ -70,6 +74,18 @@ export class ApiKeyManager {
         }
     }
 
+    private static async refreshApiKeyConsumers(provider: string): Promise<void> {
+        const refresher = this.apiKeyConsumerRefresher;
+        if (!refresher) {
+            return;
+        }
+        try {
+            await refresher(provider);
+        } catch (error) {
+            Logger.warn(`[ApiKeyManager] Failed to refresh API key consumers for ${provider}:`, error);
+        }
+    }
+
     private static publishApiKeyChanged(provider: string, action: 'set' | 'delete' | 'sync'): void {
         try {
             InterInstanceBus.publish({
@@ -81,18 +97,13 @@ export class ApiKeyManager {
         }
     }
 
-    private static async refreshApiKeyConsumers(provider: string): Promise<void> {
-        await StatusBarManager.getStatusBar(provider)
-            ?.checkAndShowStatus()
-            .catch(error => {
-                Logger.warn(`[ApiKeyManager] Failed to refresh status bar for ${provider}:`, error);
-            });
-    }
-
     /**
      * 检查是否有API密钥
      */
     static async hasValidApiKey(provider: string): Promise<boolean> {
+        if (!this.context) {
+            return false;
+        }
         const secretKey = this.getSecretKey(provider);
         const apiKey = await this.context.secrets.get(secretKey);
         return apiKey !== undefined && apiKey.trim().length > 0;
@@ -104,6 +115,9 @@ export class ApiKeyManager {
      * 自定义提供商：使用 provider 作为键名
      */
     static async getApiKey(provider: string): Promise<string | undefined> {
+        if (!this.context) {
+            return undefined;
+        }
         const secretKey = this.getSecretKey(provider);
         return await this.context.secrets.get(secretKey);
     }

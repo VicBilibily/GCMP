@@ -92,6 +92,10 @@ export abstract class BaseStatusBarItem<T> {
     // 标志位
     protected isLoading = false;
     protected manualRefreshPending = false;
+    protected queryGeneration = 0;
+    private automaticRefreshPending = false;
+    private automaticRefreshRetryCount = 0;
+    private readonly MAX_AUTOMATIC_REFRESH_RETRIES = 3;
     protected initialized = false;
     protected statusBarEligible = false;
     protected statusBarErrorDisplayed = false;
@@ -256,6 +260,21 @@ export abstract class BaseStatusBarItem<T> {
         // 默认为空实现
     }
 
+    /**
+     * 检测到本槽位 API Key 可能已变化（本地设置或跨实例事件）时的钩子
+     * 子类可清理缓存以强制刷新，避免 key 变化后仍显示旧 key 数据
+     */
+    protected onApiKeyChangeDetected(): void {
+        this.queryGeneration++;
+        this.lastStatusData = null;
+        if (this.isLoading) {
+            this.automaticRefreshPending = true;
+        }
+    }
+
+    /** 主缓存未更新时，子类仍可同步独立的附加缓存。 */
+    protected onCachePolled(): void {}
+
     // ==================== 公共方法 ====================
 
     /**
@@ -337,6 +356,7 @@ export abstract class BaseStatusBarItem<T> {
         if (apiKeyProvider) {
             this.apiKeyChangeSubscription = ApiKeyManager.onDidChangeApiKey(({ provider }) => {
                 if (provider === apiKeyProvider) {
+                    this.onApiKeyChangeDetected();
                     this.checkAndShowStatus().catch(error =>
                         StatusLogger.error(
                             `[${this.config.logPrefix}] Failed to refresh after local API key change`,
@@ -426,6 +446,7 @@ export abstract class BaseStatusBarItem<T> {
      * 销毁状态栏项
      */
     dispose(): void {
+        this.queryGeneration++;
         // 调用销毁钩子
         this.onDispose();
 
@@ -455,6 +476,8 @@ export abstract class BaseStatusBarItem<T> {
         this.lastDelayedUpdateTime = 0;
         this.isLoading = false;
         this.manualRefreshPending = false;
+        this.automaticRefreshPending = false;
+        this.automaticRefreshRetryCount = 0;
         this.statusBarEligible = false;
         this.statusBarErrorDisplayed = false;
         this.context = undefined;
@@ -554,6 +577,10 @@ export abstract class BaseStatusBarItem<T> {
             return;
         }
 
+        if (isManualRefresh) {
+            this.automaticRefreshRetryCount = 0;
+        }
+
         // 非手动刷新时，检查缓存是否在 5 秒内有效，有效则跳过本次加载
         if (!isManualRefresh && this.lastStatusData) {
             try {
@@ -573,11 +600,17 @@ export abstract class BaseStatusBarItem<T> {
         }
 
         this.isLoading = true;
+        const generation = this.queryGeneration;
+        const context = this.context;
+        const statusBarItem = this.statusBarItem;
 
         try {
             StatusLogger.debug(`[${this.config.logPrefix}] Starting usage query...`);
 
             const result = await this.performApiQuery();
+            if (generation !== this.queryGeneration || context !== this.context) {
+                return;
+            }
 
             if (result.success && result.data) {
                 if (this.statusBarItem) {
@@ -588,6 +621,7 @@ export abstract class BaseStatusBarItem<T> {
                         data: data,
                         timestamp: Date.now()
                     };
+                    this.automaticRefreshRetryCount = 0;
 
                     // 保存到全局状态
                     if (this.context) {
@@ -623,6 +657,9 @@ export abstract class BaseStatusBarItem<T> {
                 StatusLogger.warn(`[${this.config.logPrefix}] Usage query failed: ${errorMsg}`);
             }
         } catch (error) {
+            if (generation !== this.queryGeneration || context !== this.context) {
+                return;
+            }
             StatusLogger.error(`[${this.config.logPrefix}] Failed to update status bar`, error);
 
             // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
@@ -636,9 +673,26 @@ export abstract class BaseStatusBarItem<T> {
                 this.statusBarErrorDisplayed = true;
             }
         } finally {
-            // 一定要在最后重置加载状态
-            this.isLoading = false;
-            this.flushPendingManualRefresh();
+            if (context === this.context && statusBarItem === this.statusBarItem) {
+                this.isLoading = false;
+                const automaticRefreshPending = this.automaticRefreshPending;
+                this.automaticRefreshPending = false;
+                if (this.flushPendingManualRefresh()) {
+                    this.automaticRefreshRetryCount = 0;
+                } else if (automaticRefreshPending && this.statusBarItem) {
+                    if (this.automaticRefreshRetryCount < this.MAX_AUTOMATIC_REFRESH_RETRIES) {
+                        this.automaticRefreshRetryCount++;
+                        await this.executeApiQuery(false);
+                    } else {
+                        this.automaticRefreshRetryCount = 0;
+                        StatusLogger.warn(
+                            `[${this.config.logPrefix}] Automatic refresh retry limit reached after key changes`
+                        );
+                    }
+                } else {
+                    this.automaticRefreshRetryCount = 0;
+                }
+            }
         }
     }
 
@@ -726,6 +780,7 @@ export abstract class BaseStatusBarItem<T> {
 
         this.cacheUpdateTimer = setInterval(() => {
             this.updateFromCache();
+            this.onCachePolled();
         }, this.CACHE_UPDATE_INTERVAL);
 
         StatusLogger.debug(`[${this.config.logPrefix}] Cache update timer started (${this.CACHE_UPDATE_INTERVAL}ms)`);

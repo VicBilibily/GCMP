@@ -12,8 +12,8 @@ export interface MiniMaxStatusData {
 }
 
 export const minimaxStatusAdapter: QuotaStatusAdapter<MiniMaxStatusData> = {
-    async query(apiKey) {
-        const site = resolveQuotaSite('minimax-token', undefined) === 'minimax.io' ? 'minimax.io' : undefined;
+    async query(apiKey, context) {
+        const site = resolveQuotaSite('minimax-token', context?.site) === 'minimax.io' ? 'minimax.io' : undefined;
         return { limits: await fetchMiniMaxLimits(apiKey, site) };
     },
     summary: data => formatMiniMaxQuotaSummary(data.limits),
