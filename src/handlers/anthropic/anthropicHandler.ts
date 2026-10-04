@@ -709,6 +709,12 @@ export class AnthropicHandler {
             throw new vscode.CancellationError();
         }
 
+        if (streamEndTime === undefined && !reporter.hasContent) {
+            throw new Error(
+                t('Anthropic stream ended without receiving any output', 'Anthropic 流在收到任何内容前提前结束')
+            );
+        }
+
         // 记录流处理的结束时间
         streamEndTime ??= Date.now();
 

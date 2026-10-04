@@ -70,14 +70,31 @@ async function withHandoffLock<TResult>(filePath: string, action: () => Promise<
                         throw error;
                     }
                 }
-                let raw: string;
-                try {
-                    raw = await fs.readFile(join(lockPath, candidate), 'utf8');
-                } catch (error) {
-                    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                        continue;
+                let raw: string | undefined;
+                for (let attempt = 0; ; attempt++) {
+                    try {
+                        raw = await fs.readFile(join(lockPath, candidate), 'utf8');
+                        break;
+                    } catch (error) {
+                        const code = (error as NodeJS.ErrnoException).code;
+                        if (code === 'ENOENT') {
+                            break;
+                        }
+                        const remaining = deadline - performance.now();
+                        // 读取失败不代表票据缺席；仅在原等待期限内重试可能短暂的访问错误。
+                        if (!['EPERM', 'EBUSY', 'EACCES'].includes(code ?? '') || attempt >= 5 || remaining <= 0) {
+                            throw error;
+                        }
+                        await new Promise<void>(resolve =>
+                            setTimeout(resolve, Math.min(30 * (attempt + 1), remaining))
+                        );
+                        if (performance.now() >= deadline) {
+                            throw error;
+                        }
                     }
-                    throw error;
+                }
+                if (raw === undefined) {
+                    continue;
                 }
                 let ticket: unknown;
                 try {

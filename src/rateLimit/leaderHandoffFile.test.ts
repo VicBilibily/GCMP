@@ -1,8 +1,10 @@
 ﻿import assert from 'node:assert/strict';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { AtomicJsonFile } from '../usages/atomicJsonFile';
@@ -304,3 +306,186 @@ test('old tickets owned by a live process are not stolen based on age', async ()
         await writing?.catch(() => {});
     }
 });
+
+for (const operation of ['write', 'preserve', 'consume', 'clear'] as const) {
+    for (const phase of ['choosing', 'waiting'] as const) {
+        for (const code of ['EPERM', 'EACCES', 'EBUSY', 'EIO', 'ENOTDIR', 'EINVAL'] as const) {
+            const retryable = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
+            const scenarios = retryable ? ['once', 'last-attempt', 'gone', 'persistent'] : ['permanent'];
+            if (code === 'EPERM') {
+                scenarios.push('deadline', 'deadline-after-wait');
+            }
+            for (const scenario of scenarios) {
+                test(`票据读取有界重试：${operation}, ${phase}, ${code}, ${scenario}`, async context => {
+                    const filePath = tempFilePath();
+                    const lockPath = `${filePath}.lock`;
+                    const liveName = `${process.pid}-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.json`;
+                    const livePath = path.join(lockPath, liveName);
+                    const before = payload();
+                    await writeRateLimitLeaderHandoff(before, filePath, { strict: true });
+                    fs.writeFileSync(livePath, JSON.stringify({ choosing: false, number: 1 }));
+                    const originalRead = fsPromises.readFile;
+                    const originalWrite = AtomicJsonFile.writeJsonAtomically;
+                    const error = Object.assign(new Error('ticket read unavailable'), { code });
+                    const warnings = context.mock.method(console, 'warn', () => {});
+                    let published = false;
+                    let failedReads = 0;
+                    let observedLiveTicket = false;
+                    let protectedReads = 0;
+                    let protectedWrites = 0;
+                    let result: RateLimitLeaderHandoffPayload | undefined;
+                    let clock = 0;
+                    if (scenario === 'deadline') {
+                        context.mock.method(performance, 'now', () => clock);
+                    }
+                    if (scenario === 'deadline-after-wait') {
+                        context.mock.method(performance, 'now', () =>
+                            failedReads === 0 ? 0
+                            : clock++ === 0 ? 9990
+                            : 10_000
+                        );
+                    }
+                    context.mock.method(
+                        AtomicJsonFile,
+                        'writeJsonAtomically',
+                        async (...args: Parameters<typeof originalWrite>) => {
+                            if (args[0] === filePath) {
+                                assert.equal(fs.existsSync(livePath), false, 'a live ticket must still exclude writes');
+                                protectedWrites++;
+                            }
+                            await originalWrite.apply(AtomicJsonFile, args);
+                            if (path.dirname(args[0]) === lockPath) {
+                                published = true;
+                            }
+                        }
+                    );
+                    context.mock.method(fsPromises, 'readFile', async (...args: Parameters<typeof originalRead>) => {
+                        if (args[0] === filePath) {
+                            assert.equal(fs.existsSync(livePath), false, 'an unreadable ticket must not be ignored');
+                            protectedReads++;
+                        }
+                        if (args[0] === livePath) {
+                            const failingPhase = phase === 'choosing' || published;
+                            const failureLimit = scenario === 'last-attempt' ? 5 : 1;
+                            if (
+                                failingPhase &&
+                                (failedReads < failureLimit ||
+                                    scenario === 'persistent' ||
+                                    scenario === 'permanent' ||
+                                    scenario === 'deadline' ||
+                                    scenario === 'deadline-after-wait')
+                            ) {
+                                failedReads++;
+                                assert.equal(protectedReads, 0);
+                                assert.equal(protectedWrites, 0);
+                                if (scenario === 'gone') {
+                                    fs.unlinkSync(livePath);
+                                }
+                                if (scenario === 'deadline') {
+                                    clock = 10_000;
+                                }
+                                throw error;
+                            }
+                            const raw = await originalRead(...args);
+                            if (published) {
+                                assert.equal(protectedReads, 0);
+                                assert.equal(protectedWrites, 0);
+                                assert.equal(fs.existsSync(livePath), true);
+                                observedLiveTicket = true;
+                                fs.unlinkSync(livePath);
+                            }
+                            return raw;
+                        }
+                        return originalRead(...args);
+                    });
+                    const run = async () => {
+                        if (operation === 'write') {
+                            await writeRateLimitLeaderHandoff(payload({ receivedAt: 200 }), filePath, { strict: true });
+                        } else if (operation === 'clear') {
+                            await clearRateLimitLeaderHandoff(filePath);
+                        } else {
+                            result = await consumeRateLimitLeaderHandoff(filePath, {
+                                strict: true,
+                                preserve: operation === 'preserve'
+                            });
+                        }
+                    };
+                    const succeeds = ['once', 'last-attempt', 'gone'].includes(scenario);
+                    try {
+                        if (succeeds || operation === 'clear') {
+                            await run();
+                        } else {
+                            await assert.rejects(run(), caught => caught === error);
+                        }
+                        assert.equal(
+                            failedReads,
+                            scenario === 'persistent' ? 6
+                            : scenario === 'last-attempt' ? 5
+                            : 1
+                        );
+                        assert.equal(warnings.mock.callCount(), !succeeds && operation === 'clear' ? 1 : 0);
+                        if (succeeds) {
+                            assert.equal(observedLiveTicket, scenario !== 'gone');
+                            assert.equal(protectedReads, operation === 'clear' ? 0 : 1);
+                            assert.equal(protectedWrites, operation === 'write' ? 1 : 0);
+                            assert.deepEqual(fs.readdirSync(lockPath), []);
+                            if (operation === 'write' || operation === 'preserve') {
+                                assert.deepEqual(
+                                    JSON.parse(fs.readFileSync(filePath, 'utf8')),
+                                    operation === 'write' ? payload({ receivedAt: 200 }) : before
+                                );
+                            } else {
+                                assert.equal(fs.existsSync(filePath), false);
+                            }
+                            if (operation === 'preserve' || operation === 'consume') {
+                                assert.deepEqual(result, before);
+                            }
+                        } else {
+                            assert.equal(protectedReads, 0);
+                            assert.equal(protectedWrites, 0);
+                            assert.deepEqual(fs.readdirSync(lockPath), [liveName]);
+                            assert.deepEqual(JSON.parse(fs.readFileSync(filePath, 'utf8')), before);
+                            if (operation === 'clear') {
+                                assert.strictEqual(warnings.mock.calls[0].arguments[1], error);
+                            }
+                        }
+                    } finally {
+                        fs.rmSync(livePath, { force: true });
+                    }
+                    context.mock.restoreAll();
+                    await writeRateLimitLeaderHandoff(payload({ receivedAt: 300 }), filePath, { strict: true });
+                    assert.deepEqual(
+                        await consumeRateLimitLeaderHandoff(filePath, { strict: true }),
+                        payload({ receivedAt: 300 })
+                    );
+                });
+            }
+        }
+    }
+}
+
+for (const operation of ['write', 'preserve', 'consume'] as const) {
+    test(`快照正文读取错误不套用票据重试：${operation}`, async context => {
+        const filePath = tempFilePath();
+        const before = payload();
+        await writeRateLimitLeaderHandoff(before, filePath, { strict: true });
+        const originalRead = fsPromises.readFile;
+        const error = Object.assign(new Error('snapshot read denied'), { code: 'EPERM' });
+        let reads = 0;
+        context.mock.method(fsPromises, 'readFile', (...args: Parameters<typeof originalRead>) => {
+            if (args[0] === filePath) {
+                reads++;
+                return Promise.reject(error);
+            }
+            return originalRead(...args);
+        });
+        const running =
+            operation === 'write' ?
+                writeRateLimitLeaderHandoff(payload({ receivedAt: 200 }), filePath, { strict: true })
+            :   consumeRateLimitLeaderHandoff(filePath, { strict: true, preserve: operation === 'preserve' });
+        await assert.rejects(running, caught => caught === error);
+        assert.equal(reads, 1);
+        assert.deepEqual(fs.readdirSync(`${filePath}.lock`), []);
+        assert.deepEqual(JSON.parse(fs.readFileSync(filePath, 'utf8')), before);
+    });
+}

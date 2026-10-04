@@ -204,6 +204,71 @@ function createFailoverContext(): vscode.ExtensionContext {
 }
 
 suite('genericModelProvider retry gating', () => {
+    for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
+        for (const cancelled of [false, true]) {
+            test(`handler rejection cancellation fallback: ${sdkMode}, ${cancelled}`, async () => {
+                const context = createFailoverContext();
+                ApiKeyManager.initialize(context);
+                ConfigSetStore.initialize(context);
+                const source = new vscode.CancellationTokenSource();
+                const failure = new Error('initialization failed');
+                let calls = 0;
+                const provider = createTestProvider({
+                    async handleRequest() {
+                        calls++;
+                        await Promise.resolve();
+                        if (cancelled) {
+                            source.cancel();
+                        }
+                        throw failure;
+                    }
+                });
+                provider.shouldRetryRequest = () => false;
+                const grant: RateLimitHandle = {
+                    grantId: 'handler-initialization',
+                    leaseMs: 10_000,
+                    costs: { requests: 1, tokens: 100 },
+                    authoritative: false
+                };
+                provider.acquireRateLimit = async () => grant;
+                const originalRelease = RateLimiter.release;
+                const releases: Parameters<typeof RateLimiter.release>[] = [];
+                RateLimiter.release = (...args) => {
+                    releases.push(args);
+                };
+                try {
+                    await assert.rejects(
+                        provider.executeModelRequest(
+                            model,
+                            { ...modelConfig, sdkMode, baseUrl: 'https://initialization.test/v1' },
+                            [],
+                            {
+                                modelOptions: { requestKind: 'main-agent' }
+                            } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                            createProgress([]),
+                            '',
+                            'initialization',
+                            source.token
+                        ),
+                        error => {
+                            if (cancelled) {
+                                assert.ok(error instanceof vscode.CancellationError);
+                            } else {
+                                assert.equal(error, failure);
+                            }
+                            return true;
+                        }
+                    );
+                    assert.equal(calls, 1);
+                    assert.deepEqual(releases, [[grant, { tokens: 100 }]]);
+                } finally {
+                    RateLimiter.release = originalRelease;
+                    source.dispose();
+                }
+            });
+        }
+    }
+
     for (const failure of ['snapshot', 'endpoint', 'cancelled'] as const) {
         test(`request preparation ${failure} failure releases the grant without dispatch`, async () => {
             const context = createFailoverContext();

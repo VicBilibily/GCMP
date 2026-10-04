@@ -20,6 +20,7 @@ export function isValidBalanceLeaseHandoff(value: unknown): value is ApiKeyBalan
         handoff.sourceAuthorityTerm.length === 0 ||
         handoff.sourceAuthorityTerm.length > 256 ||
         !Number.isFinite(handoff.capturedAt) ||
+        (handoff.revision !== undefined && (!Number.isSafeInteger(handoff.revision) || handoff.revision <= 0)) ||
         !Array.isArray(handoff.leases) ||
         handoff.leases.length > BALANCE_HANDOFF_MAX_LEASES
     ) {
@@ -94,6 +95,13 @@ export function isBalanceLeaseHandoffNewer(
     previous: ApiKeyBalanceLeaseHandoff
 ): boolean {
     if (candidate.sourceAuthorityTerm === previous.sourceAuthorityTerm) {
+        if (
+            candidate.revision !== undefined &&
+            previous.revision !== undefined &&
+            candidate.revision !== previous.revision
+        ) {
+            return candidate.revision > previous.revision;
+        }
         return candidate.capturedAt > previous.capturedAt;
     }
     const candidateTime = electedAt(candidate);
@@ -114,6 +122,7 @@ export async function writeBalanceLeaseHandoff(
     const serialized = JSON.stringify({
         sourceAuthorityTerm: handoff.sourceAuthorityTerm,
         capturedAt: handoff.capturedAt,
+        revision: handoff.revision,
         leases: handoff.leases.map(lease => ({
             leaseId: lease.leaseId,
             slot: lease.slot,
@@ -131,7 +140,7 @@ export async function writeBalanceLeaseHandoff(
     const filePath = join(directory, fileName(handoff.sourceAuthorityTerm));
     await AtomicJsonFile.runExclusive(filePath, async () => {
         const existing = await readSnapshot(filePath);
-        if (existing && existing.capturedAt > handoff.capturedAt) {
+        if (existing && isBalanceLeaseHandoffNewer(existing, handoff)) {
             return;
         }
         await fs.mkdir(directory, { recursive: true, mode: 0o700 });
@@ -141,7 +150,8 @@ export async function writeBalanceLeaseHandoff(
 
 export async function readBalanceLeaseHandoff(
     directory = resolveBalanceHandoffDirectory(),
-    now = Date.now()
+    now?: number,
+    recoveryStartedAt = now ?? Date.now()
 ): Promise<ApiKeyBalanceLeaseHandoff | undefined> {
     let entries: string[];
     try {
@@ -171,13 +181,14 @@ export async function readBalanceLeaseHandoff(
         ) {
             continue;
         }
-        if (snapshot.capturedAt - now > 1_000) {
+        const observedAt = now ?? Date.now();
+        if (snapshot.capturedAt - observedAt > 1_000) {
             continue;
         }
         if (!latest || isBalanceLeaseHandoffNewer(snapshot, latest)) {
             latest = snapshot;
         }
-        if (now - snapshot.capturedAt > BALANCE_HANDOFF_TTL_MS) {
+        if (observedAt - snapshot.capturedAt > BALANCE_HANDOFF_TTL_MS) {
             expiredFiles.push({ filePath, authorityTerm: snapshot.sourceAuthorityTerm });
         }
     }
@@ -188,5 +199,5 @@ export async function readBalanceLeaseHandoff(
         }
     }
     // 读取不消费快照，未完成接管的实例不能让后续当选者丢失交接数据。
-    return latest && now - latest.capturedAt <= BALANCE_HANDOFF_TTL_MS ? latest : undefined;
+    return latest && recoveryStartedAt - latest.capturedAt <= BALANCE_HANDOFF_TTL_MS ? latest : undefined;
 }

@@ -110,9 +110,6 @@ export class OpenAIResponsesHandler {
         let requestMetricStartTime = requestStartTime;
 
         try {
-            const client = await this.handler.createOpenAIClient(modelConfig, sessionId);
-            Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
-
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
@@ -124,6 +121,15 @@ export class OpenAIResponsesHandler {
             let streamProcessor: OpenAIResponsesStreamProcessor | undefined;
 
             try {
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
+                }
+                const client = await this.handler.createOpenAIClient(modelConfig, sessionId);
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
+                }
+                Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
+
                 const { requestBody } = this.requestBuilder.build({
                     model,
                     modelConfig,
@@ -133,6 +139,9 @@ export class OpenAIResponsesHandler {
                 });
 
                 await this.configureClientHeaders(client, requestId, sessionId);
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
+                }
 
                 Logger.info(`🎯 ${model.name} Using session_id: ${sessionId}`);
 

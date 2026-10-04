@@ -1,9 +1,11 @@
 ﻿import assert from 'node:assert/strict';
 
 import type Anthropic from '@anthropic-ai/sdk';
+import * as vscode from 'vscode';
 
 import { AnthropicHandler } from '../../src/handlers/anthropic/anthropicHandler';
 import { OpenAIHandler } from '../../src/handlers/openai/openaiHandler';
+import { StreamReporter } from '../../src/handlers/streamReporter';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import type { ModelConfig } from '../../src/types/sharedTypes';
 import { ConfigManager } from '../../src/utils/config/configManager';
@@ -22,6 +24,9 @@ suite('Anthropic cancellation', () => {
         const handler = new AnthropicHandler({} as GenericModelProvider) as unknown as AnthropicHandlerTestAccess;
         const calls: unknown[] = [];
         const reporter = {
+            get hasContent() {
+                return calls.length > 0;
+            },
             heartbeat() {},
             reportToolArgDelta() {},
             flushSignature() {},
@@ -66,6 +71,90 @@ suite('Anthropic cancellation', () => {
         await handler.handleAnthropicStream(stream(), reporter, { isCancellationRequested: false });
         assert.deepEqual(calls, [{ a: 1 }, { b: 2 }, {}]);
     });
+
+    for (const ending of [
+        'empty',
+        'heartbeat',
+        'created',
+        'pending-tool',
+        'completed-empty',
+        'text',
+        'tool',
+        'thinking',
+        'cancelled'
+    ]) {
+        test(`空结果与终态判定：${ending}`, async () => {
+            const handler = new AnthropicHandler({} as GenericModelProvider) as unknown as AnthropicHandlerTestAccess;
+            const cancellation = new vscode.CancellationTokenSource();
+            const parts: vscode.LanguageModelResponsePart2[] = [];
+            const reporter = new StreamReporter({
+                modelName: 'test',
+                modelId: 'test',
+                provider: 'anthropic-test',
+                sdkMode: 'anthropic',
+                progress: { report: part => parts.push(part) }
+            });
+            async function* stream() {
+                if (ending === 'heartbeat') {
+                    yield { type: 'ping' };
+                } else if (ending === 'created') {
+                    yield {
+                        type: 'message_start',
+                        message: { id: 'empty', usage: { input_tokens: 1, output_tokens: 0 } }
+                    };
+                } else if (ending === 'pending-tool' || ending === 'tool') {
+                    yield {
+                        type: 'content_block_start',
+                        index: 0,
+                        content_block: {
+                            type: 'tool_use',
+                            id: 'call-empty',
+                            name: 'read_file',
+                            input: {}
+                        }
+                    };
+                    if (ending === 'tool') {
+                        yield { type: 'content_block_stop', index: 0 };
+                    }
+                } else if (ending === 'completed-empty') {
+                    yield { type: 'message_stop' };
+                } else if (ending === 'text') {
+                    yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'partial' } };
+                } else if (ending === 'thinking') {
+                    yield {
+                        type: 'content_block_delta',
+                        index: 0,
+                        delta: { type: 'thinking_delta', thinking: 'partial' }
+                    };
+                } else if (ending === 'cancelled') {
+                    cancellation.cancel();
+                }
+            }
+            try {
+                const request = handler.handleAnthropicStream(stream(), reporter, cancellation.token);
+                if (['completed-empty', 'text', 'tool', 'thinking'].includes(ending)) {
+                    await request;
+                    assert.equal(reporter.hasContent, ending !== 'completed-empty');
+                    assert.equal(
+                        parts.filter(part => part instanceof vscode.LanguageModelToolCallPart).length,
+                        ending === 'tool' ? 1 : 0
+                    );
+                } else {
+                    await assert.rejects(request, (error: unknown) => {
+                        assert.ok(error instanceof Error);
+                        assert.equal(error instanceof vscode.CancellationError, ending === 'cancelled');
+                        return true;
+                    });
+                    assert.equal(reporter.hasContent, false);
+                    assert.deepEqual(parts, []);
+                }
+            } finally {
+                reporter.finishMetrics();
+                cancellation.dispose();
+            }
+        });
+    }
+
     test('禁用 SDK 内部重试，由外层重试链统一处理', async () => {
         const originalGetApiKey = ApiKeyManager.getApiKey;
         ApiKeyManager.getApiKey = async () => 'test-api-key';

@@ -225,6 +225,106 @@ for (const source of ['leader', 'follower'] as const) {
             });
         }
 
+        if (source === 'leader') {
+            for (const origin of ['local', 'remote'] as const) {
+                for (const action of [
+                    'unchanged',
+                    'other-slot',
+                    'same-key',
+                    'rename-label',
+                    'alias',
+                    'replace-key',
+                    'remove-config',
+                    'remove-with-orphan-key',
+                    'replace-site'
+                ] as const) {
+                    test(`renewed lease validates current credentials: ${origin}, ${action}`, async () => {
+                        const capture = async () => {
+                            if (origin === 'local') {
+                                return ApiKeyFailoverManager.captureAttempt('slot', balanceKey, 'request-renewed');
+                            }
+                            const assigned = await ApiKeyFailoverManager.handleBalanceAssignmentRequest(
+                                {
+                                    requestId: 'request-renewed',
+                                    requestedBy: 'cache-follower',
+                                    authorityTerm,
+                                    slot: 'slot',
+                                    balanceKey
+                                },
+                                'cache-follower'
+                            );
+                            return assigned?.handled ?
+                                    {
+                                        activeId: assigned.configId,
+                                        identity: assigned.credentialId,
+                                        site: assigned.site,
+                                        balanceLeaseId: assigned.leaseId
+                                    }
+                                :   undefined;
+                        };
+                        const before = await capture();
+                        assert.ok(before?.balanceLeaseId);
+                        assert.equal(before.activeId, 'b');
+                        now += 20_000;
+                        if (origin === 'local') {
+                            ApiKeyFailoverManager.renewBalanceLease(before.balanceLeaseId, authorityTerm);
+                        } else {
+                            ApiKeyFailoverManager.handleRemoteBalanceLeaseRenewal(
+                                { leaseId: before.balanceLeaseId, authorityTerm },
+                                'cache-follower'
+                            );
+                        }
+                        now += 11_000;
+                        if (action === 'other-slot') {
+                            await ConfigSetStore.setApiKey('other', 'x', 'unrelated');
+                        } else if (action === 'same-key' || action === 'replace-key') {
+                            await ConfigSetStore.setApiKey('slot', 'b', action === 'same-key' ? 'key-b' : 'new-key');
+                        } else if (action === 'rename-label') {
+                            await ConfigSetStore.updateMeta('slot', 'b', { label: 'renamed' });
+                        } else if (action === 'alias') {
+                            await ConfigSetStore.add('slot', { id: 'alias-b', label: 'alias' }, 'key-b');
+                        } else if (action === 'remove-config' || action === 'remove-with-orphan-key') {
+                            await ConfigSetStore.remove('slot', 'b');
+                            if (action === 'remove-with-orphan-key') {
+                                await context.secrets.store('configSet.slot.b', 'key-b');
+                            }
+                        } else if (action === 'replace-site') {
+                            await ConfigSetStore.remove('slot', 'b');
+                            await ConfigSetStore.add(
+                                'slot',
+                                { id: 'b', label: 'b', site: 'replacement-site' },
+                                'key-b'
+                            );
+                        }
+                        const after = await capture();
+                        assert.ok(
+                            after?.balanceLeaseId,
+                            'an invalid lease must be replaced, not cause primary fallback'
+                        );
+                        const target = ConfigSetStore.list('slot').find(item => item.id === after.activeId);
+                        assert.ok(target, 'the selected configuration must still exist');
+                        assert.equal(after.site, target.site);
+                        const apiKey = await originalGetApiKey.call(ConfigSetStore, 'slot', target.id);
+                        assert.ok(apiKey);
+                        assert.equal(
+                            after.identity,
+                            createHash('sha256')
+                                .update(`${apiKey}\u0000${target.site ?? ''}`)
+                                .digest('hex')
+                        );
+                        if (action.startsWith('replace-') || action.startsWith('remove-')) {
+                            assert.notEqual(after.balanceLeaseId, before.balanceLeaseId);
+                            assert.equal(manager.balanceLeases.has(before.balanceLeaseId), false);
+                            assert.equal(manager.balanceLeaseRenewalTimers.has(before.balanceLeaseId), false);
+                        } else {
+                            assert.equal(after.balanceLeaseId, before.balanceLeaseId);
+                        }
+                        assert.equal(manager.balanceLeases.size, 1);
+                    });
+                }
+            }
+        }
+
         for (const action of [
             'unchanged',
             'other-slot',

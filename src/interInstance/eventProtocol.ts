@@ -247,6 +247,7 @@ export interface LeaderChangedEvent extends InterInstanceEventBase {
 export interface ApiKeyBalanceLeaseHandoff {
     sourceAuthorityTerm: string;
     capturedAt: number;
+    revision?: number;
     leases: Array<{
         leaseId: string;
         slot: string;

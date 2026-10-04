@@ -771,7 +771,16 @@ export class OpenAIResponsesStreamProcessor {
             throw this.streamError;
         }
         if (!this.hasFinalizedResponse) {
+            this.flushPendingToolCalls();
+            if (!this.streamReporter.hasContent) {
+                throw new Error(
+                    t('Responses stream ended without receiving any output', 'Responses 流在收到任何内容前提前结束')
+                );
+            }
             this.finalizeResponse({});
+            if (this.token.isCancellationRequested) {
+                throw new APIUserAbortError();
+            }
         }
     }
 

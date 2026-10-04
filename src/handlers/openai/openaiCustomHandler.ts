@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import OpenAI from 'openai';
+import OpenAI, { type APIError } from 'openai';
 import { Logger } from '../../utils/runtime/logger';
 import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
 import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
@@ -15,7 +15,6 @@ import {
     toNanoAiu,
     toCostBreakdownLog
 } from '../../utils/pricing/costCalculator';
-import { RetryableError } from '../../utils/retry/retryManager';
 import { ConfigManager } from '../../utils/config/configManager';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import {
@@ -145,41 +144,6 @@ export class OpenAICustomHandler {
         onRequestDispatched?: (requestMetricStartTime: number) => void,
         wasThrottled = false
     ): Promise<void> {
-        const provider = modelConfig.provider || this.provider;
-        const apiKey = await ApiKeyManager.getApiKeyForRequest(provider, modelConfig);
-        if (!apiKey) {
-            throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', provider));
-        }
-
-        const baseURL = (modelConfig.baseUrl || this.providerConfig?.baseUrl || 'https://api.openai.com/v1').replace(
-            /\/$/,
-            ''
-        );
-        const customEndpoint = modelConfig.endpoint;
-        const url =
-            customEndpoint ?
-                customEndpoint.startsWith('http://') || customEndpoint.startsWith('https://') ?
-                    customEndpoint
-                :   `${baseURL}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`
-            :   `${baseURL}/chat/completions`;
-
-        Logger.info(`[${model.name}] Processing ${messages.length} messages with custom SSE handler`);
-
-        if (!this.openaiHandler) {
-            throw new Error(t('OpenAI handler is not initialized', 'OpenAI 处理器未初始化'));
-        }
-
-        // 构建请求参数（复用 OpenAIHandler 的共享方法）
-        const requestBody = this.openaiHandler.buildChatCompletionParams(
-            model,
-            modelConfig,
-            messages,
-            options,
-            sessionId
-        );
-
-        Logger.debug(`[${model.name}] Sending API request`);
-
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
         let reporter: StreamReporter | undefined;
@@ -187,6 +151,47 @@ export class OpenAICustomHandler {
         let partialStreamStartTime: number | undefined;
 
         try {
+            if (token.isCancellationRequested) {
+                throw new vscode.CancellationError();
+            }
+            const provider = modelConfig.provider || this.provider;
+            const apiKey = await ApiKeyManager.getApiKeyForRequest(provider, modelConfig);
+            if (token.isCancellationRequested) {
+                throw new vscode.CancellationError();
+            }
+            if (!apiKey) {
+                throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', provider));
+            }
+
+            const baseURL = (
+                modelConfig.baseUrl ||
+                this.providerConfig?.baseUrl ||
+                'https://api.openai.com/v1'
+            ).replace(/\/$/, '');
+            const customEndpoint = modelConfig.endpoint;
+            const url =
+                customEndpoint ?
+                    customEndpoint.startsWith('http://') || customEndpoint.startsWith('https://') ?
+                        customEndpoint
+                    :   `${baseURL}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`
+                :   `${baseURL}/chat/completions`;
+
+            Logger.info(`[${model.name}] Processing ${messages.length} messages with custom SSE handler`);
+
+            if (!this.openaiHandler) {
+                throw new Error(t('OpenAI handler is not initialized', 'OpenAI 处理器未初始化'));
+            }
+
+            const requestBody = this.openaiHandler.buildChatCompletionParams(
+                model,
+                modelConfig,
+                messages,
+                options,
+                sessionId
+            );
+
+            Logger.debug(`[${model.name}] Sending API request`);
+
             // 合并提供商级别和模型级别的 customHeader
             // 模型级别的 customHeader 会覆盖提供商级别的同名头部
             const mergedCustomHeader = mergeCustomHeaders(this.providerConfig?.customHeader, modelConfig?.customHeader);
@@ -238,43 +243,13 @@ export class OpenAICustomHandler {
                 { modelConfig, providerKey: this.provider }
             );
 
-            if (!response.ok) {
+            const contentType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+            if (!response.ok || contentType === 'application/json' || contentType?.endsWith('+json')) {
                 const errorText = await response.text();
-                let errorMessage = t(
-                    'API request failed: {0} {1}',
-                    'API 请求失败: {0} {1}',
-                    response.status,
-                    response.statusText
-                );
-
-                // 尝试解析错误响应，提取详细的错误信息
-                let errorCode: string | number | undefined;
-                try {
-                    const errorJson = JSON.parse(errorText);
-                    if (errorJson.error) {
-                        if (typeof errorJson.error === 'string') {
-                            errorMessage = errorJson.error;
-                        } else {
-                            if (errorJson.error.message) {
-                                errorMessage = errorJson.error.message;
-                            }
-                            if (errorJson.error.code !== undefined) {
-                                errorCode = errorJson.error.code;
-                            }
-                        }
-                    }
-                } catch {
-                    // 如果解析失败，使用原始错误文本
-                    if (errorText) {
-                        errorMessage = `${errorMessage} - ${errorText}`;
-                    }
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
                 }
-
-                // 保留 HTTP status 与后端 error.code，便于上层基于状态码/错误码判断是否可重试
-                const error = new Error(errorMessage) as RetryableError;
-                error.status = response.status;
-                error.code = errorCode;
-                throw error;
+                throw this.createResponseError(response, errorText);
             }
 
             if (!response.body) {
@@ -290,13 +265,14 @@ export class OpenAICustomHandler {
                 modelConfig.tokenPricing,
                 requestMetricStartTime,
                 (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier,
-                wasThrottled
+                wasThrottled,
+                contentType === 'text/event-stream' ? undefined : response
             );
             partialStreamStartTime = reporter.getMetricStreamStartTime();
 
             Logger.debug(`[${model.name}] API request completed`);
         } catch (error) {
-            if (isCancellationError(error)) {
+            if (token.isCancellationRequested || isCancellationError(error)) {
                 Logger.warn(`[${model.name}] Request was cancelled by the user`);
                 // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
                 TokenUsagesManager.instance.updateActualTokens({
@@ -328,9 +304,43 @@ export class OpenAICustomHandler {
             }
             throw error;
         } finally {
+            abortController.abort();
             reporter?.finishMetrics();
             cancellationListener.dispose();
         }
+    }
+
+    private createResponseError(response: Response, errorText: string): APIError {
+        let payload: unknown = errorText;
+        try {
+            payload = JSON.parse(errorText);
+        } catch {
+            // 非 JSON 错误保留原文。
+        }
+        const record =
+            payload && typeof payload === 'object' && !Array.isArray(payload) ?
+                (payload as Record<string, unknown>)
+            :   {};
+        const { error: nestedError, ...outerDetails } = record;
+        const nestedDetails =
+            nestedError && typeof nestedError === 'object' && !Array.isArray(nestedError) ?
+                (nestedError as Record<string, unknown>)
+            :   {};
+        const message = [
+            typeof nestedError === 'string' ? nestedError : undefined,
+            nestedDetails.message,
+            outerDetails.message,
+            typeof payload === 'string' ? payload : undefined,
+            errorText
+        ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+        const error = {
+            ...outerDetails,
+            ...nestedDetails,
+            message:
+                message ??
+                t('API request failed: {0} {1}', 'API 请求失败: {0} {1}', response.status, response.statusText)
+        };
+        return new OpenAI.APIError(response.status, error, error.message, response.headers);
     }
 
     /**
@@ -345,12 +355,20 @@ export class OpenAICustomHandler {
         tokenPricing: ModelTokenPricing | undefined,
         requestStartTime?: number,
         requestServiceTier?: string,
-        wasThrottled = false
+        wasThrottled = false,
+        responseToProbe?: Response
     ): Promise<void> {
         const reader = body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let skipLineFeed = false;
+        let eventData: string[] = [];
         let chunkCount = 0;
+        const completedChoices = new Map<number, boolean>();
+        const probeDecoder = responseToProbe ? new TextDecoder() : undefined;
+        let responseKind: 'probe' | 'json' | 'sse' = responseToProbe ? 'probe' : 'sse';
+        let probeBytes = 0;
+        let probeText = '';
 
         // Token 统计: 收集 usage 信息
         let finalUsage: ExtendedCompletionUsage | undefined;
@@ -376,22 +394,45 @@ export class OpenAICustomHandler {
                 reporter.heartbeat();
 
                 buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
+                if (responseKind === 'probe' && probeDecoder) {
+                    const prefix = value.subarray(0, 512 - probeBytes);
+                    probeBytes += prefix.byteLength;
+                    probeText += probeDecoder.decode(prefix, { stream: true });
+                    const trimmed = probeText.trimStart();
+                    if (trimmed) {
+                        responseKind = trimmed.startsWith('{') || trimmed.startsWith('[') ? 'json' : 'sse';
+                    } else if (probeBytes >= 512) {
+                        responseKind = 'sse';
+                    }
+                }
+                if (responseKind !== 'sse') {
+                    continue;
+                }
+                if (!buffer) {
+                    continue;
+                }
+                if (skipLineFeed && buffer.startsWith('\n')) {
+                    buffer = buffer.slice(1);
+                }
+                skipLineFeed = buffer.endsWith('\r');
+                const lines = buffer.split(/\r\n|\r|\n/);
                 buffer = lines.pop() || '';
 
                 for (const line of lines) {
                     if (token.isCancellationRequested) {
                         throw new vscode.CancellationError();
                     }
-                    if (!line.trim() || line.trim() === '') {
+                    if (line === 'data' || line.startsWith('data:')) {
+                        const value = line.slice(5);
+                        eventData.push(value.startsWith(' ') ? value.slice(1) : value);
                         continue;
                     }
 
-                    // 处理 SSE 数据行
-                    if (line.startsWith('data:')) {
-                        const data = line.substring(5).trim();
+                    if (line === '' && eventData.length > 0) {
+                        const data = eventData.join('\n');
+                        eventData = [];
 
-                        if (data === '[DONE]') {
+                        if (data.trim() === '[DONE]') {
                             Logger.debug(`[${model.name}] Received stream end marker`);
                             continue;
                         }
@@ -416,7 +457,12 @@ export class OpenAICustomHandler {
                                 : typeof error === 'object' && 'message' in error && typeof error.message === 'string' ?
                                     error.message
                                 :   'SSE response error';
-                            throw new Error(message);
+                            throw new OpenAI.APIError(
+                                undefined,
+                                typeof error === 'object' ? { ...error, message } : { message },
+                                message,
+                                undefined
+                            );
                         }
                         chunkCount++;
 
@@ -439,6 +485,11 @@ export class OpenAICustomHandler {
 
                         // 处理正常的 choices
                         for (const choice of chunk.choices || []) {
+                            const choiceIndex = choice.index ?? 0;
+                            completedChoices.set(
+                                choiceIndex,
+                                Boolean(choice.finish_reason) || completedChoices.get(choiceIndex) === true
+                            );
                             const delta = choice.delta as ExtendedDelta | undefined;
 
                             // 处理思考内容（reasoning_content / reasoning）
@@ -467,16 +518,16 @@ export class OpenAICustomHandler {
                                         toolCall.id,
                                         toolCall.function?.name,
                                         toolCall.function?.arguments,
-                                        choice.index ?? 0
+                                        choiceIndex
                                     );
                                 }
                             }
 
                             if (choice.finish_reason) {
                                 if (choice.finish_reason === 'content_filter' || choice.finish_reason === 'length') {
-                                    reporter.discardToolCalls(choice.index ?? 0);
+                                    reporter.discardToolCalls(choiceIndex);
                                 } else {
-                                    reporter.flushToolCalls(choice.index ?? 0);
+                                    reporter.flushToolCalls(choiceIndex);
                                 }
                             }
                         }
@@ -485,6 +536,17 @@ export class OpenAICustomHandler {
             }
             if (token.isCancellationRequested) {
                 throw new vscode.CancellationError();
+            }
+            if (responseKind === 'json' && responseToProbe) {
+                throw this.createResponseError(responseToProbe, buffer + decoder.decode());
+            }
+            if (completedChoices.size === 0) {
+                throw new Error('request ended without sending any choices');
+            }
+            for (const [index, completed] of completedChoices) {
+                if (!completed) {
+                    throw new Error(`missing finish_reason for choice ${index}`);
+                }
             }
         } catch (error) {
             reporter.discardToolCalls();

@@ -528,54 +528,73 @@ suite('API key automatic failover', () => {
         assert.equal(await ApiKeyManager.getApiKey(slot), 'key-c');
     });
 
-    test('aborts an in-flight failover when another instance disables automatic switching', async () => {
-        const context = createExtensionContext();
-        ApiKeyManager.initialize(context);
-        ConfigSetStore.initialize(context);
-        const slot = 'failover-disabled-in-flight';
-        await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
-        await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
-        await ConfigSetStore.setActive(slot, 'a');
-        await ApiKeyManager.setApiKey(slot, 'key-a');
-        await ConfigSetStore.setAutoSwitchEnabled(slot, true);
-        const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
-        assert.ok(attempt);
+    for (const phase of ['target-read', 'key-written'] as const) {
+        for (const mode of ['off', 'balance', 'failover'] as const) {
+            test(`in-flight failover respects mode ${mode} during ${phase}`, async () => {
+                const context = createExtensionContext();
+                ApiKeyManager.initialize(context);
+                ConfigSetStore.initialize(context);
+                const slot = 'failover-disabled-in-flight';
+                await ConfigSetStore.add(slot, { id: 'a', label: 'Account A' }, 'key-a');
+                await ConfigSetStore.add(slot, { id: 'b', label: 'Account B' }, 'key-b');
+                await ConfigSetStore.setActive(slot, 'a');
+                await ApiKeyManager.setApiKey(slot, 'key-a');
+                await ConfigSetStore.setSwitchMode(slot, 'failover');
+                const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
+                assert.ok(attempt);
 
-        const mutableStore = ConfigSetStore as unknown as {
-            getApiKey: typeof ConfigSetStore.getApiKey;
-        };
-        const originalGetApiKey = mutableStore.getApiKey;
-        let targetReads = 0;
-        let releaseTargetRead: (() => void) | undefined;
-        let reportTargetRead: (() => void) | undefined;
-        const targetReadStarted = new Promise<void>(resolve => {
-            reportTargetRead = resolve;
-        });
-        const targetReadGate = new Promise<void>(resolve => {
-            releaseTargetRead = resolve;
-        });
-
-        try {
-            mutableStore.getApiKey = async (targetSlot, id) => {
-                if (targetSlot === slot && id === 'b' && ++targetReads === 2) {
-                    reportTargetRead?.();
-                    await targetReadGate;
+                const originalGetApiKey = ConfigSetStore.getApiKey;
+                const originalSetApiKey = ApiKeyManager.setApiKey;
+                let targetReads = 0;
+                let release!: () => void;
+                let started!: () => void;
+                const boundaryStarted = new Promise<void>(resolve => {
+                    started = resolve;
+                });
+                const gate = new Promise<void>(resolve => {
+                    release = resolve;
+                });
+                ConfigSetStore.getApiKey = async (targetSlot, id) => {
+                    if (phase === 'target-read' && targetSlot === slot && id === 'b' && ++targetReads === 2) {
+                        started();
+                        await gate;
+                    }
+                    return originalGetApiKey.call(ConfigSetStore, targetSlot, id);
+                };
+                ApiKeyManager.setApiKey = async (provider, apiKey, operationToken) => {
+                    await originalSetApiKey.call(ApiKeyManager, provider, apiKey, operationToken);
+                    if (phase === 'key-written' && provider === slot && apiKey === 'key-b') {
+                        started();
+                        await gate;
+                    }
+                };
+                const failover = ApiKeyFailoverManager.handleFailure(slot, { status: 429 }, attempt, new Set(), 3);
+                try {
+                    await Promise.race([
+                        boundaryStarted,
+                        failover.then(() => {
+                            throw new Error('Failover did not reach the blocked boundary');
+                        })
+                    ]);
+                    await ConfigSetStore.setSwitchMode(slot, mode);
+                    release();
+                    const switched = mode === 'failover';
+                    assert.deepEqual(await failover, { handled: true, shouldRetry: switched, switched });
+                    assert.equal(ConfigSetStore.getActiveId(slot), switched ? 'b' : 'a');
+                    assert.equal(await ApiKeyManager.getApiKey(slot), switched ? 'key-b' : 'key-a');
+                    assert.equal(ConfigSetStore.getSwitchMode(slot), mode);
+                } finally {
+                    release();
+                    await failover;
+                    ConfigSetStore.getApiKey = originalGetApiKey;
+                    ApiKeyManager.setApiKey = originalSetApiKey;
+                    for (const disposable of context.subscriptions) {
+                        disposable.dispose();
+                    }
                 }
-                return await originalGetApiKey.call(ConfigSetStore, targetSlot, id);
-            };
-
-            const failover = ApiKeyFailoverManager.handleFailure(slot, { status: 429 }, attempt, new Set(), 3);
-            await targetReadStarted;
-            await ConfigSetStore.setAutoSwitchEnabled(slot, false);
-            releaseTargetRead?.();
-
-            assert.deepEqual(await failover, { handled: true, shouldRetry: false, switched: false });
-            assert.equal(ConfigSetStore.getActiveId(slot), 'a');
-            assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
-        } finally {
-            mutableStore.getApiKey = originalGetApiKey;
+            });
         }
-    });
+    }
 
     test('does not enable failover for duplicate credential identities', async () => {
         const context = createExtensionContext();

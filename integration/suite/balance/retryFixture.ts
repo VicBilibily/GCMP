@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 import * as vscode from 'vscode';
+import { AnthropicHandler } from '../../../src/handlers/anthropic/anthropicHandler';
+import { GeminiHandler } from '../../../src/handlers/gemini/geminiHandler';
+import { OpenAICustomHandler } from '../../../src/handlers/openai/openaiCustomHandler';
 import { OpenAIHandler } from '../../../src/handlers/openai/openaiHandler';
 import { OpenAIResponsesHandler } from '../../../src/handlers/openai/openaiResponsesHandler';
 import { GenericModelProvider } from '../../../src/providers/genericModelProvider';
@@ -152,12 +155,13 @@ export class RetryProvider extends GenericModelProvider {
     private observed!: { grants: number; handle?: RateLimitHandle };
 
     static async run(
-        sdkMode: 'openai' | 'openai-responses',
+        sdkMode: 'openai' | 'openai-responses' | 'openai-sse' | 'anthropic' | 'gemini-sse',
         retry: RetryConfig,
         observed: { grants: number; handle?: RateLimitHandle },
         token: vscode.CancellationToken,
         parts: vscode.LanguageModelResponsePart[] = [],
-        requestId = ''
+        requestId = '',
+        historyOverride?: readonly vscode.LanguageModelChatMessage[]
     ): Promise<void> {
         const config: ModelConfig = {
             id: 'retry-model',
@@ -179,13 +183,18 @@ export class RetryProvider extends GenericModelProvider {
         });
         const handler = new OpenAIHandler(provider);
         Object.assign(provider, {
+            anthropicHandler: new AnthropicHandler(provider),
+            geminiHandler: new GeminiHandler(provider),
             openaiHandler: handler,
+            openaiCustomHandler: new OpenAICustomHandler(provider, handler),
             openaiResponsesHandler: new OpenAIResponsesHandler(provider, handler)
         });
         await provider.executeModelRequest(
             { id: config.id, name: config.name } as vscode.LanguageModelChatInformation,
             config,
-            [vscode.LanguageModelChatMessage.User('<userRequest>retry test</userRequest>')],
+            historyOverride ?
+                [...historyOverride]
+            :   [vscode.LanguageModelChatMessage.User('<userRequest>retry test</userRequest>')],
             {
                 modelOptions: { requestKind: 'main-agent', _telemetryTurn: 1 }
             } as unknown as vscode.ProvideLanguageModelChatResponseOptions,

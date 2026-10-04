@@ -94,16 +94,49 @@ export function convertMessagesToGemini(
     const inputMessages = markerIdentity ? sanitizeGeminiHistory(messages, markerIdentity) : messages;
 
     const toolCallByLocalId = new Map<string, GeminiToolCallReference>();
+    const responseLocalIds = new WeakMap<GeminiPart, string>();
+    let activeCallOrder: readonly GeminiToolCallReference[] = [];
     const pushContent = (role: GeminiContent['role'], parts: GeminiPart[]): void => {
         if (parts.length === 0) {
             return;
         }
         const previous = contents[contents.length - 1];
-        if (previous?.role === role) {
-            previous.parts.push(...parts);
+        const current: GeminiContent = previous?.role === role ? previous : { role, parts: [] };
+        current.parts.push(...parts);
+        if (current !== previous) {
+            contents.push(current);
+        }
+        if (role !== 'user' || activeCallOrder.length === 0) {
             return;
         }
-        contents.push({ role, parts });
+        const responsesByLocalId = new Map<string, GeminiPart>();
+        const responsePositions: number[] = [];
+        for (let index = 0; index < current.parts.length; index++) {
+            const part = current.parts[index];
+            const localId = responseLocalIds.get(part);
+            if (!localId) {
+                continue;
+            }
+            if (responsesByLocalId.has(localId)) {
+                throw new Error(
+                    t(
+                        'Gemini function responses must not contain duplicate call IDs',
+                        'Gemini 工具结果不能包含重复的调用 ID'
+                    )
+                );
+            }
+            responsesByLocalId.set(localId, part);
+            responsePositions.push(index);
+        }
+        const orderedResponses = activeCallOrder.flatMap(call => {
+            const response = responsesByLocalId.get(call.localCallId);
+            return response ? [response] : [];
+        });
+        if (orderedResponses.length === responsePositions.length) {
+            responsePositions.forEach((position, index) => {
+                current.parts[position] = orderedResponses[index];
+            });
+        }
     };
 
     const collectText = (m: vscode.LanguageModelChatMessage): string => {
@@ -199,7 +232,7 @@ export function convertMessagesToGemini(
                     inlineData: { mimeType: p.mimeType, data: Buffer.from(p.data).toString('base64') }
                 }))
             :   undefined;
-        return {
+        const responsePart: GeminiPart = {
             functionResponse: {
                 ...(call.upstreamCallId ? { id: call.upstreamCallId } : {}),
                 name: call.name,
@@ -207,6 +240,8 @@ export function convertMessagesToGemini(
                 ...(parts ? { parts } : {})
             }
         };
+        responseLocalIds.set(responsePart, callId);
+        return responsePart;
     };
 
     const appendFollowingToolResults = (
@@ -214,6 +249,9 @@ export function convertMessagesToGemini(
         callOrder: readonly GeminiToolCallReference[],
         embeddedResults: ReturnType<typeof extract>['toolResults']
     ): number => {
+        if (callOrder.length > 0) {
+            activeCallOrder = callOrder;
+        }
         const responsesByLocalId = new Map<string, GeminiPart>();
         const toolResults = [...embeddedResults];
         let nextIndex = startIndex + 1;
@@ -617,12 +655,19 @@ function sanitizeGeminiHistory(
     identity: GeminiMarkerIdentity
 ): readonly vscode.LanguageModelChatMessage[] {
     const droppedCallIds = new Set<string>();
-    const sanitized = messages.map(message => {
+    return messages.flatMap(message => {
         if (message.role !== vscode.LanguageModelChatMessageRole.Assistant) {
-            return message;
+            if (message.role !== vscode.LanguageModelChatMessageRole.User || droppedCallIds.size === 0) {
+                return [message];
+            }
+            const content = (message.content ?? []).filter(
+                part => !(part instanceof vscode.LanguageModelToolResultPart) || !droppedCallIds.has(part.callId ?? '')
+            );
+            return content.length > 0 ? [{ ...message, content }] : [];
         }
+        droppedCallIds.clear();
         if (getGeminiMarker(message.content ?? [], identity)) {
-            return message;
+            return [message];
         }
 
         const toolCalls = (message.content ?? []).filter(
@@ -634,27 +679,14 @@ function sanitizeGeminiHistory(
                     droppedCallIds.add(toolCall.callId);
                 }
             }
-            return undefined;
+            return [];
         }
 
         const portableContent = (message.content ?? []).filter(
             (part): part is vscode.LanguageModelTextPart =>
                 part instanceof vscode.LanguageModelTextPart && part.value.length > 0
         );
-        return portableContent.length > 0 ? { ...message, content: portableContent } : undefined;
-    });
-
-    return sanitized.flatMap(message => {
-        if (!message) {
-            return [];
-        }
-        if (message.role !== vscode.LanguageModelChatMessageRole.User || droppedCallIds.size === 0) {
-            return [message];
-        }
-        const content = (message.content ?? []).filter(
-            part => !(part instanceof vscode.LanguageModelToolResultPart) || !droppedCallIds.has(part.callId ?? '')
-        );
-        return content.length > 0 ? [{ ...message, content }] : [];
+        return portableContent.length > 0 ? [{ ...message, content: portableContent }] : [];
     });
 }
 

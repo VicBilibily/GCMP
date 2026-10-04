@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import type { ApiKeyBalanceLeaseHandoff } from '../../../interInstance/eventProtocol';
 import { AtomicJsonFile } from '../../../usages/atomicJsonFile';
 import {
+    isBalanceLeaseHandoffNewer,
     isValidBalanceLeaseHandoff,
     readBalanceLeaseHandoff,
     writeBalanceLeaseHandoff
@@ -89,6 +90,74 @@ test('expired active-term snapshots are ignored without consuming the producer f
     assert.equal(await readBalanceLeaseHandoff(dir, now), undefined);
     assert.deepEqual(await fs.readdir(dir), [fileName('leader-a:1')]);
 });
+
+for (const sample of [
+    { name: 'aged during recovery', capturedOffset: -25_000, accepted: true },
+    { name: 'captured while recovery was queued', capturedOffset: 2_500, accepted: true },
+    { name: 'exact admission expiry boundary', capturedOffset: -30_000, accepted: true },
+    { name: 'expired before admission', capturedOffset: -30_001, accepted: false },
+    { name: 'future relative to the read clock', capturedOffset: 6_501, accepted: false }
+]) {
+    test(`recovery admission preserves freshness rules: ${sample.name}`, async t => {
+        const dir = await directory(t);
+        const startedAt = Date.now();
+        const handoff = snapshot(startedAt + sample.capturedOffset);
+        await writeBalanceLeaseHandoff(handoff, dir);
+        assert.deepEqual(
+            await readBalanceLeaseHandoff(dir, startedAt + 5_500, startedAt),
+            sample.accepted ? handoff : undefined
+        );
+        assert.deepEqual(await fs.readdir(dir), [fileName(handoff.sourceAuthorityTerm)]);
+    });
+}
+
+for (const expired of [false, true]) {
+    test(`admission never restores an older lease over a newer empty term: expired=${expired}`, async t => {
+        const dir = await directory(t);
+        const startedAt = Date.now();
+        await writeBalanceLeaseHandoff(snapshot(startedAt - 25_000), dir);
+        const empty = {
+            ...snapshot(startedAt - (expired ? 30_001 : 25_000), 'leader-b:2'),
+            leases: []
+        };
+        await writeBalanceLeaseHandoff(empty, dir);
+        assert.deepEqual(await readBalanceLeaseHandoff(dir, startedAt + 5_500, startedAt), expired ? undefined : empty);
+    });
+}
+
+for (const clock of ['live', 'fixed'] as const) {
+    for (const capturedOffset of [2_500, 6_500, 6_501, -31_001]) {
+        test(`observation clock: ${clock}, capture offset ${capturedOffset}`, async t => {
+            const dir = await directory(t);
+            const startedAt = Date.now();
+            let now = startedAt;
+            t.mock.method(Date, 'now', () => now);
+            await writeBalanceLeaseHandoff(snapshot(startedAt - 40_000), dir);
+            const replacement = snapshot(startedAt + capturedOffset);
+            const original = AtomicJsonFile.runExclusive;
+            let refresh = true;
+            t.mock.method(
+                AtomicJsonFile,
+                'runExclusive',
+                async <T>(path: string, operation: () => Promise<T>): Promise<T> => {
+                    if (refresh) {
+                        refresh = false;
+                        now = startedAt + 2_500;
+                        await writeBalanceLeaseHandoff(replacement, dir);
+                        now = startedAt + 5_500;
+                    }
+                    return (original<T>).call(AtomicJsonFile, path, operation);
+                }
+            );
+            const expected = clock === 'live' && (capturedOffset === 2_500 || capturedOffset === 6_500);
+            assert.deepEqual(
+                await readBalanceLeaseHandoff(dir, clock === 'fixed' ? startedAt : undefined, startedAt),
+                expected ? replacement : undefined
+            );
+            assert.deepEqual(await fs.readdir(dir), [fileName(replacement.sourceAuthorityTerm)]);
+        });
+    }
+}
 
 test('a producer refresh after an expired read is not deleted by the reader', async t => {
     const dir = await directory(t);
@@ -199,3 +268,74 @@ test('separate Node processes persist different authority terms without overwrit
     assert.equal((await fs.readdir(dir)).length, 2);
     assert.deepEqual(await readBalanceLeaseHandoff(dir), newer);
 });
+
+for (const revision of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '1', null]) {
+    test(`快照序号拒绝非法值：${String(revision)}`, async t => {
+        const dir = await directory(t);
+        const invalid = { ...snapshot(), revision };
+        assert.equal(isValidBalanceLeaseHandoff(invalid), false);
+        await fs.writeFile(join(dir, fileName(invalid.sourceAuthorityTerm)), JSON.stringify(invalid));
+        assert.equal(await readBalanceLeaseHandoff(dir), undefined);
+        if (typeof revision === 'number') {
+            const invalidNumber = { ...snapshot(), revision };
+            await assert.rejects(writeBalanceLeaseHandoff(invalidNumber, dir), /Invalid/);
+        }
+    });
+}
+
+for (const revision of [undefined, 1, Number.MAX_SAFE_INTEGER]) {
+    test(`快照序号持久化兼容：${revision}`, async t => {
+        const dir = await directory(t);
+        const value = revision === undefined ? snapshot() : { ...snapshot(), revision };
+        assert.equal(isValidBalanceLeaseHandoff(value), true);
+        await writeBalanceLeaseHandoff(value, dir);
+        assert.deepEqual(await readBalanceLeaseHandoff(dir), value);
+    });
+}
+
+for (const legacy of [false, true]) {
+    for (const offset of [-500, 0, 500]) {
+        for (const lateOlderWrite of [false, true]) {
+            test(`同任期序号与旧格式时钟兼容：${legacy}, ${offset}, ${lateOlderWrite}`, async t => {
+                const dir = await directory(t);
+                const now = Date.now();
+                const older = legacy ? snapshot(now) : { ...snapshot(now), revision: 7 };
+                const newer = { ...snapshot(now + offset), revision: 8, leases: [] };
+                assert.equal(isBalanceLeaseHandoffNewer(newer, older), !legacy || offset > 0);
+                assert.equal(isBalanceLeaseHandoffNewer(older, newer), legacy && offset < 0);
+                for (const value of lateOlderWrite ? [newer, older] : [older, newer]) {
+                    await writeBalanceLeaseHandoff(value, dir);
+                }
+                const expected =
+                    !legacy || offset > 0 ? newer
+                    : offset < 0 || lateOlderWrite ? older
+                    : newer;
+                assert.deepEqual(await readBalanceLeaseHandoff(dir, now + 500), expected);
+            });
+        }
+    }
+}
+
+for (const revised of [false, true]) {
+    test(`较旧任期的高序号不能覆盖新任期：${revised}`, async t => {
+        const dir = await directory(t);
+        const now = Date.now();
+        const older = { ...snapshot(now + 500), revision: Number.MAX_SAFE_INTEGER };
+        const successor = snapshot(now, 'leader-b:2');
+        const newer = revised ? { ...successor, revision: 1 } : successor;
+        assert.equal(isBalanceLeaseHandoffNewer(newer, older), true);
+        await writeBalanceLeaseHandoff(newer, dir);
+        await writeBalanceLeaseHandoff(older, dir);
+        assert.deepEqual(await readBalanceLeaseHandoff(dir, now + 500), newer);
+    });
+}
+
+for (const offset of [-30_001, 1_001]) {
+    test(`高序号不能绕过快照时效：${offset}`, async t => {
+        const dir = await directory(t);
+        const now = Date.now();
+        const expired = { ...snapshot(now + offset), revision: 10 };
+        await writeBalanceLeaseHandoff(expired, dir);
+        assert.equal(await readBalanceLeaseHandoff(dir, now), undefined);
+    });
+}

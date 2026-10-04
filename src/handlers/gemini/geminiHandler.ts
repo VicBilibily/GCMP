@@ -425,11 +425,12 @@ export class GeminiHandler {
             partialStreamStartTime = streamStartTime;
             partialStreamEndTime = streamEndTime;
 
+            const { costNanoAiu, estimatedCost, breakdown } = calculateUsageCost(finalUsage);
+            reporter.reportUsage(finalUsage, costNanoAiu);
+
             // 取消时保留已收集的部分 usage（对齐 vscode-copilot-chat 取消口径）
-            if (cancelled) {
+            if (cancelled || token.isCancellationRequested) {
                 const cancelError = new vscode.CancellationError();
-                const partialCost = calculateUsageCost(finalUsage);
-                reporter.reportUsage(finalUsage, partialCost.costNanoAiu);
                 if (requestId) {
                     TokenUsagesManager.instance.updateActualTokens({
                         requestId,
@@ -440,16 +441,13 @@ export class GeminiHandler {
                         wasThrottled,
                         streamStartTime,
                         streamEndTime,
-                        estimatedCost: partialCost.estimatedCost,
-                        costBreakdown: partialCost.breakdown ? toCostBreakdownLog(partialCost.breakdown) : undefined
+                        estimatedCost,
+                        costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
                     });
                     markFinalStatusRecorded(cancelError);
                 }
                 throw cancelError;
             }
-
-            const { costNanoAiu, estimatedCost, breakdown } = calculateUsageCost(finalUsage);
-            reporter.reportUsage(finalUsage, costNanoAiu);
 
             if (terminalError) {
                 if (requestId) {
@@ -716,6 +714,9 @@ export class GeminiHandler {
                 reporter.discardToolCalls();
             } else {
                 for (const call of streamState.toolCalls) {
+                    if (token.isCancellationRequested) {
+                        break;
+                    }
                     if (call.signature) {
                         reporter.setThoughtSignature(call.signature);
                     }
@@ -725,14 +726,16 @@ export class GeminiHandler {
                     reporter.setThoughtSignature(streamState.pendingSignature);
                 }
             }
+            // 不完整的签名轮次必须整体退出回放，不能裁剪原始 Part。
+            const persistReplay = !token.isCancellationRequested;
             reporter.flushAll(
                 finishReason ?? null,
                 {
                     sessionId: reporter.getSessionId(),
                     responseId: reporter.getResponseId() ?? '',
-                    geminiRequestIdentity: markerRequestIdentity,
+                    geminiRequestIdentity: persistReplay ? markerRequestIdentity : undefined,
                     geminiToolCalls:
-                        !terminalError && streamState.toolCalls.length > 0 ?
+                        persistReplay && !terminalError && streamState.toolCalls.length > 0 ?
                             streamState.toolCalls.map(call => ({
                                 localCallId: call.callId,
                                 ...(call.upstreamCallId ? { upstreamCallId: call.upstreamCallId } : {}),
@@ -740,7 +743,7 @@ export class GeminiHandler {
                             }))
                         :   undefined,
                     geminiContents:
-                        !terminalError && streamState.historyParts.length > 0 ?
+                        persistReplay && !terminalError && streamState.historyParts.length > 0 ?
                             [{ role: 'model', parts: streamState.historyParts }]
                         :   undefined
                 },
@@ -748,7 +751,14 @@ export class GeminiHandler {
             );
         }
 
-        return { finalUsage, streamStartTime, streamEndTime, cancelled, finishReason, terminalError };
+        return {
+            finalUsage,
+            streamStartTime,
+            streamEndTime,
+            cancelled: cancelled || token.isCancellationRequested,
+            finishReason,
+            terminalError
+        };
     }
 
     private async readStreamChunk(

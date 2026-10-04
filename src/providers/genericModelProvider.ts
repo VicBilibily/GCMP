@@ -887,6 +887,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 包装 progress：首次 report 时清除重试消息
             const wrappedProgress: Progress<vscode.LanguageModelResponsePart> = {
                 report: (value: vscode.LanguageModelResponsePart) => {
+                    if (token.isCancellationRequested && value instanceof vscode.LanguageModelToolCallPart) {
+                        return;
+                    }
                     retryMessageDisposable?.dispose();
                     retryMessageDisposable = undefined;
                     hasReportedProgress = true;
@@ -1113,6 +1116,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 wasThrottled
                             );
                         }
+                        if (token.isCancellationRequested) {
+                            throw new vscode.CancellationError();
+                        }
                         // 成功：释放并发槽位但不退款（v1 不做结算）
                         if (limitHandle) {
                             RateLimiter.release(limitHandle);
@@ -1135,10 +1141,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 attemptDispatched ? { tokens: limitHandle.costs.tokens } : limitHandle.costs
                             );
                         }
-                        if (!attemptDispatched && token.isCancellationRequested) {
+                        if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
                         }
-                        if (!attemptDispatched || token.isCancellationRequested || !isApiKeyFailoverError(error)) {
+                        if (!attemptDispatched || !isApiKeyFailoverError(error)) {
                             throw error;
                         }
                         const hasRetryBudget = retryConfig.maxAttempts === -1 || retryAttempt < retryConfig.maxAttempts;
@@ -1265,6 +1271,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     Logger.debug('Failed to resolve generated session title:', err);
                 }
             }
+        } catch (error) {
+            if (token.isCancellationRequested) {
+                throw new vscode.CancellationError();
+            }
+            throw error;
         } finally {
             if (balanceLeaseId) {
                 ApiKeyFailoverManager.releaseBalanceLease(balanceLeaseId);
