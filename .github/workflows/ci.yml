@@ -37,15 +37,16 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Download VS Code 1.138.0 test host
-        run: >-
-          node --input-type=module -e "import { appendFileSync } from 'node:fs';
-          import { downloadAndUnzipVSCode } from '@vscode/test-electron';
-          const executablePath = await downloadAndUnzipVSCode('1.138.0');
-          appendFileSync(process.env.GITHUB_ENV, 'VSCODE_EXECUTABLE_PATH=' + executablePath + '\n');"
+      # vscode-test 仅在本地环境运行
+      # - name: Download VS Code 1.138.0 test host
+      #   run: >-
+      #     node --input-type=module -e "import { appendFileSync } from 'node:fs';
+      #     import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+      #     const executablePath = await downloadAndUnzipVSCode('1.138.0');
+      #     appendFileSync(process.env.GITHUB_ENV, 'VSCODE_EXECUTABLE_PATH=' + executablePath + '\n');"
 
-      - name: Run VS Code integration tests
-        run: xvfb-run -a npm run test:vscode
+      # - name: Run VS Code integration tests
+      #   run: xvfb-run -a npm run test:vscode
 
       - name: Run remote-extra generator tests
         run: node --test website/scripts/generate-config-index.test.mjs

@@ -113,6 +113,20 @@ export interface GenericUsageData {
  */
 export type RawUsageData = Anthropic.Messages.Usage | OpenAI.Completions.CompletionUsage | GenericUsageData;
 
+export function sanitizeRawUsage(rawUsage: GenericUsageData | null | undefined): GenericUsageData | null | undefined {
+    if (!rawUsage || typeof rawUsage !== 'object') {
+        return rawUsage;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(rawUsage, 'attribution')) {
+        return rawUsage;
+    }
+
+    const sanitized = { ...rawUsage };
+    delete sanitized.attribution;
+    return sanitized;
+}
+
 export interface OTelTraceContextLog {
     traceId: string;
     spanId: string;

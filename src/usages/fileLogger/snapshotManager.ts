@@ -25,7 +25,7 @@ import {
 import { LogPathManager } from './logPathManager';
 import { StatsCalculator } from './statsCalculator';
 import { UsageParser, type ExtendedTokenRequestLog } from './usageParser';
-import type { TokenRequestLog } from './types';
+import { sanitizeRawUsage, type TokenRequestLog } from './types';
 
 export class SnapshotManager {
     private static readonly MAX_RECORD_CACHE_ENTRIES = 2;
@@ -84,7 +84,7 @@ export class SnapshotManager {
         try {
             const rawFiles = await this.listRawFiles(dateFolder);
             if (rawFiles.length > 0) {
-                store = mergeSnapshotFiles(await this.readRawStore(dateFolder, rawFiles), store);
+                store = mergeSnapshotFiles((await this.readRawStore(dateFolder, rawFiles)).store, store);
             }
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -263,14 +263,32 @@ export class SnapshotManager {
      * 之后删除原始 .jsonl，释放磁盘空间
      */
     async compactHistoricalDates(daysThreshold: number): Promise<number> {
+        let compactedCount = 0;
+        for (let pass = 0; pass < 2; pass++) {
+            const result = await this.compactHistoricalDatesPass(daysThreshold);
+            compactedCount += result.compactedCount;
+            if (!result.foundAttribution) {
+                break;
+            }
+            if (pass === 0) {
+                StatusLogger.debug('[SnapshotManager] Attribution found during compaction; rescanning historical logs');
+            }
+        }
+        return compactedCount;
+    }
+
+    private async compactHistoricalDatesPass(
+        daysThreshold: number
+    ): Promise<{ compactedCount: number; foundAttribution: boolean }> {
         const baseDir = this.pathManager.getBaseDir();
         if (!fsSync.existsSync(baseDir)) {
-            return 0;
+            return { compactedCount: 0, foundAttribution: false };
         }
 
         const now = Date.now();
         const thresholdMs = daysThreshold * 86400_000;
         let compactedCount = 0;
+        let foundAttribution = false;
 
         try {
             const entries = await fs.readdir(baseDir, { withFileTypes: true });
@@ -296,7 +314,9 @@ export class SnapshotManager {
                         const sourceSignature = await this.getRawSourceSignature(dateFolder);
 
                         // 读所有 hourly .jsonl（保留原始 TokenRequestLog，先合并再转 requests.jsonl 快照）
-                        let store = await this.readRawStore(dateFolder, jsonlFiles);
+                        const rawStore = await this.readRawStore(dateFolder, jsonlFiles);
+                        foundAttribution ||= rawStore.hasAttribution;
+                        let store = rawStore.store;
 
                         // 防御：合并已有快照中 hourly jsonl 不涵盖的独有记录。
                         const existingSnapshotPath = this.getExistingSnapshotPath(dateStr);
@@ -338,7 +358,76 @@ export class SnapshotManager {
             StatusLogger.warn('[SnapshotManager] Failed to scan historical dates for compaction', err);
         }
 
-        return compactedCount;
+        return { compactedCount, foundAttribution };
+    }
+
+    async sanitizeHistoricalSnapshots(versionTimestamp: number): Promise<number> {
+        const baseDir = this.pathManager.getBaseDir();
+        if (!fsSync.existsSync(baseDir)) {
+            return 0;
+        }
+
+        let sanitizedCount = 0;
+        const entries = await fs.readdir(baseDir, { withFileTypes: true });
+        const dateDirs = entries
+            .filter(entry => entry.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(entry.name))
+            .map(entry => entry.name);
+
+        for (const dateStr of dateDirs) {
+            const snapshotPath = this.getExistingSnapshotPath(dateStr);
+            if (!snapshotPath) {
+                continue;
+            }
+
+            try {
+                const sanitized = await this.withSnapshotLock(dateStr, async () => {
+                    const latestSnapshotPath = this.getExistingSnapshotPath(dateStr);
+                    if (!latestSnapshotPath) {
+                        return false;
+                    }
+                    const snapshotStats = await fs.stat(latestSnapshotPath);
+                    if (snapshotStats.mtimeMs >= versionTimestamp) {
+                        return false;
+                    }
+                    const store = await this.readFile(latestSnapshotPath);
+                    const { store: sanitizedStore, changed } = this.sanitizeSnapshotStore(store);
+                    if (!changed) {
+                        await fs.utimes(
+                            latestSnapshotPath,
+                            new Date(snapshotStats.atimeMs),
+                            new Date(versionTimestamp)
+                        );
+                        return false;
+                    }
+                    await this.atomicWriteStore(latestSnapshotPath, sanitizedStore);
+                    this.invalidateCache(dateStr);
+                    return true;
+                });
+                if (sanitized) {
+                    sanitizedCount++;
+                }
+            } catch (error) {
+                StatusLogger.warn(`[SnapshotManager] Failed to sanitize historical snapshot ${dateStr}`, error);
+            }
+        }
+
+        return sanitizedCount;
+    }
+
+    private sanitizeSnapshotStore(store: SnapshotFile): { store: SnapshotFile; changed: boolean } {
+        let changed = false;
+        const sanitizedStore: SnapshotFile = {};
+        for (const [requestId, record] of Object.entries(store)) {
+            const rawUsage = sanitizeRawUsage(record.rawUsage as TokenRequestLog['rawUsage']) as Record<
+                string,
+                unknown
+            > | null;
+            if (rawUsage !== record.rawUsage) {
+                changed = true;
+            }
+            sanitizedStore[requestId] = rawUsage === record.rawUsage ? record : { ...record, rawUsage };
+        }
+        return { store: sanitizedStore, changed };
     }
 
     /**
@@ -362,7 +451,10 @@ export class SnapshotManager {
 
     private async writeSnapshotStoreLocked(dateStr: string, store: SnapshotFile): Promise<void> {
         const mergedStore = await this.mergeWithLatestSnapshot(dateStr, store);
-        await this.atomicWriteStore(this.pathManager.getSnapshotFilePath(dateStr), mergedStore);
+        await this.atomicWriteStore(
+            this.pathManager.getSnapshotFilePath(dateStr),
+            this.sanitizeSnapshotStore(mergedStore).store
+        );
         this.invalidateCache(dateStr);
     }
 
@@ -524,8 +616,12 @@ export class SnapshotManager {
         return (await fs.readdir(dateFolder)).filter(file => /^\d{2}\.jsonl$/.test(file)).sort();
     }
 
-    private async readRawStore(dateFolder: string, files: readonly string[]): Promise<SnapshotFile> {
+    private async readRawStore(
+        dateFolder: string,
+        files: readonly string[]
+    ): Promise<{ store: SnapshotFile; hasAttribution: boolean }> {
         const allLogs: TokenRequestLog[] = [];
+        let hasAttribution = false;
         for (const file of files) {
             const content = await fs.readFile(path.join(dateFolder, file), 'utf-8');
             for (const line of content.split('\n')) {
@@ -535,6 +631,13 @@ export class SnapshotManager {
                 try {
                     const log = JSON.parse(line) as TokenRequestLog;
                     if (log.requestId) {
+                        if (
+                            log.rawUsage &&
+                            typeof log.rawUsage === 'object' &&
+                            Object.prototype.hasOwnProperty.call(log.rawUsage, 'attribution')
+                        ) {
+                            hasAttribution = true;
+                        }
                         allLogs.push(log);
                     }
                 } catch {
@@ -547,7 +650,7 @@ export class SnapshotManager {
         for (const log of StatsCalculator.mergeLogsByRequestId(allLogs).values()) {
             store[log.requestId] = this.toSnapshotRecord(log);
         }
-        return store;
+        return { store, hasAttribution };
     }
 
     private async mergeWithLatestSnapshot(dateStr: string, incomingStore: SnapshotFile): Promise<SnapshotFile> {
@@ -670,7 +773,7 @@ export class SnapshotManager {
             modelId: log.modelId,
             modelName: log.modelName,
             estimatedInput: log.estimatedInput,
-            rawUsage: log.rawUsage as Record<string, unknown> | null,
+            rawUsage: sanitizeRawUsage(log.rawUsage) as Record<string, unknown> | null,
             status: log.status,
             maxInputTokens: log.maxInputTokens,
             requestKind: log.requestKind,

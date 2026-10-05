@@ -16,7 +16,7 @@ import {
     type SnapshotFile,
     type SnapshotRequestRecord
 } from './snapshotMerge';
-import type { TokenRequestLog } from './types';
+import { sanitizeRawUsage, type TokenRequestLog } from './types';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -448,6 +448,96 @@ test('snapshot JSONL stringify marks ordered files and writes one final request 
         ['req-1', 'req-2']
     );
     assert.deepEqual(Object.keys(parseSnapshotFileContent(content)), ['req-1', 'req-2']);
+});
+
+test('persistent usage sanitization removes attribution while retaining token fields', () => {
+    const rawUsage = {
+        input_tokens: 10,
+        output_tokens: 2,
+        attribution: { items: { large: { input_tokens: 999 } } }
+    };
+
+    assert.deepEqual(sanitizeRawUsage(rawUsage), { input_tokens: 10, output_tokens: 2 });
+    assert.deepEqual(sanitizeRawUsage({ input_tokens: 10 }), { input_tokens: 10 });
+});
+
+test('historical snapshot cleanup removes attribution from existing requests.jsonl records', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-sanitize-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const record = {
+            ...createRequestLog('legacy-attribution'),
+            rawUsage: {
+                input_tokens: 10,
+                output_tokens: 2,
+                attribution: { items: { large: { input_tokens: 999 } } }
+            }
+        };
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        const snapshotPath = paths.getSnapshotFilePath(date);
+        await writeFile(snapshotPath, stringifySnapshotFile({ [record.requestId]: record }));
+        const oldTime = new Date(Date.now() - 60_000);
+        await utimes(snapshotPath, oldTime, oldTime);
+
+        const versionTimestamp = Date.now();
+        assert.equal(await snapshot.sanitizeHistoricalSnapshots(versionTimestamp), 1);
+        const content = await readFile(snapshotPath, 'utf8');
+        assert.equal(content.includes('"attribution"'), false);
+        assert.deepEqual((await snapshot.readRecord(date, record.requestId))?.rawUsage, {
+            input_tokens: 10,
+            output_tokens: 2
+        });
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('historical snapshot cleanup marks clean snapshots by mtime', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-sanitize-clean-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const record = createRequestLog('clean-snapshot');
+        const snapshotPath = paths.getSnapshotFilePath(date);
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(snapshotPath, stringifySnapshotFile({ [record.requestId]: record }));
+        const originalContent = await readFile(snapshotPath, 'utf8');
+        const oldTime = new Date(Date.now() - 60_000);
+        await utimes(snapshotPath, oldTime, oldTime);
+
+        const internals = snapshot as unknown as {
+            readFile: (filePath: string) => Promise<SnapshotFile>;
+        };
+        const readSnapshotFile = internals.readFile.bind(snapshot);
+        let fullReads = 0;
+        internals.readFile = async filePath => {
+            fullReads++;
+            return readSnapshotFile(filePath);
+        };
+        const versionTimestamp = Date.now();
+
+        assert.equal(await snapshot.sanitizeHistoricalSnapshots(versionTimestamp), 0);
+        assert.equal(fullReads, 1);
+        assert.equal(await readFile(snapshotPath, 'utf8'), originalContent);
+        assert.ok((await stat(snapshotPath)).mtimeMs >= versionTimestamp);
+
+        fullReads = 0;
+        assert.equal(await snapshot.sanitizeHistoricalSnapshots(versionTimestamp), 0);
+        assert.equal(fullReads, 0);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
 });
 
 test('UsageParser reparses historical snapshot rawUsage with unified OpenAI-compatible semantics', () => {
@@ -994,6 +1084,60 @@ test('historical compaction keeps raw logs when their source changes during the 
             'before-compaction',
             'during-compaction'
         ]);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('historical compaction rescans after finding attribution in raw logs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-compaction-attribution-rescan-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const folder = paths.getDateFolderPath(date);
+        const rawFile = paths.getHourFilePath(date, 0);
+        const concurrentRawFile = paths.getHourFilePath(date, 1);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const first = {
+            ...createRequestLog('attribution-before'),
+            rawUsage: { prompt_tokens: 10, attribution: { items: { first: true } } }
+        };
+        const second = {
+            ...createRequestLog('attribution-during'),
+            rawUsage: { prompt_tokens: 20, attribution: { items: { second: true } } }
+        };
+        await mkdir(folder, { recursive: true });
+        await writeFile(rawFile, `${JSON.stringify(first)}\n`);
+
+        const internals = snapshot as unknown as {
+            atomicWriteStore: (filePath: string, store: SnapshotFile) => Promise<void>;
+        };
+        const atomicWriteStore = internals.atomicWriteStore.bind(snapshot);
+        let writes = 0;
+        internals.atomicWriteStore = async (filePath, store) => {
+            writes++;
+            if (writes === 1) {
+                await writeFile(concurrentRawFile, `${JSON.stringify(second)}\n`);
+            }
+            await atomicWriteStore(filePath, store);
+        };
+
+        assert.equal(await snapshot.compactHistoricalDates(2), 1);
+        assert.equal(writes, 2);
+        await assert.rejects(readFile(rawFile, 'utf8'));
+        await assert.rejects(readFile(concurrentRawFile, 'utf8'));
+        const records = await snapshot.read(date);
+        assert.equal(records?.length, 2);
+        assert.equal(
+            records?.some(
+                record => record.rawUsage && Object.prototype.hasOwnProperty.call(record.rawUsage, 'attribution')
+            ),
+            false
+        );
     } finally {
         restoreHost();
         await rm(dir, { recursive: true, force: true });

@@ -144,10 +144,12 @@ export class TokenFileLogger {
         // 今天/昨天只读原始 hourly .jsonl，不生成 requests.jsonl。
         void this.snapshotManager
             .compactHistoricalDates(this.startupHistoricalCompactionDaysThreshold)
-            .then(compactedCount => {
-                if (compactedCount > 0) {
+            .then(async compactedCount => {
+                const sanitizedCount =
+                    await this.snapshotManager.sanitizeHistoricalSnapshots(USAGES_CACHE_VERSION_TIMESTAMP);
+                if (compactedCount > 0 || sanitizedCount > 0) {
                     StatusLogger.info(
-                        `[TokenFileLogger] Startup historical snapshot compaction cleaned ${compactedCount} date folders`
+                        `[TokenFileLogger] Startup usage history cleanup compacted ${compactedCount} date folders and sanitized ${sanitizedCount} snapshots`
                     );
                 }
             })

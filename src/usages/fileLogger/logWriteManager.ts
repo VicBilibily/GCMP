@@ -8,7 +8,7 @@ import * as fs from 'fs/promises';
 import { t } from '../../utils/runtime/l10n';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogPathManager } from './logPathManager';
-import type { TokenRequestLog } from './types';
+import { sanitizeRawUsage, type TokenRequestLog } from './types';
 
 /**
  * 写入任务
@@ -95,7 +95,7 @@ export class LogWriteManager {
 
             // 将日志对象转换为JSONL格式(一行一个JSON)
             // 每次调用都追加新行,同一requestId可能有多条记录(预估→完成/失败)
-            const line = JSON.stringify(log) + '\n';
+            const line = JSON.stringify({ ...log, rawUsage: sanitizeRawUsage(log.rawUsage) }) + '\n';
 
             // 追加到文件(使用 appendFile 自动处理并发)
             await fs.appendFile(logPath.fullPath, line, 'utf-8');
