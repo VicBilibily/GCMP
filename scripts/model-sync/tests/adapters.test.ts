@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseCommandCodeModels } from '../adapters/commandcode';
 import { parseHyperModels } from '../adapters/hyper';
+import { parseModelsDevProviderModels } from '../adapters/models-dev';
 import { parseOpenAiModelList } from '../adapters/openai-model-list';
+import type { SourcePolicy } from '../types';
 
 test('hyper 适配器解析完整元数据', () => {
     const raw = {
@@ -102,4 +104,84 @@ test('commandcode 适配器解析名称与上下文', () => {
         { id: 'moonshotai/Kimi-K3', displayName: 'Kimi K3', contextWindow: 1000000 },
         { id: 'xai/grok-4.6', displayName: 'Grok 4.6', contextWindow: 500000 }
     ]);
+});
+
+function devPolicy(provider?: string): SourcePolicy {
+    return {
+        adapter: 'models-dev',
+        endpoint: 'https://models.dev/api.json',
+        target: 'src/providers/config/clinepass.json',
+        modelsDevProvider: provider
+    };
+}
+
+test('models-dev 适配器按提供商键解析完整元数据', () => {
+    const raw = {
+        'cline-pass': {
+            api: 'https://api.cline.bot/api/v1',
+            models: {
+                'cline-pass/glm-5.3-flash': {
+                    id: 'cline-pass/glm-5.3-flash',
+                    name: 'cline-pass/glm-5.3-flash',
+                    reasoning: true,
+                    reasoning_options: [
+                        { type: 'effort', values: ['low', 'high', 'max'] },
+                        { type: 'budget_tokens', values: ['ignored'] }
+                    ],
+                    tool_call: true,
+                    modalities: { input: ['text', 'image', 'video'], output: ['text'] },
+                    limit: { context: 1000000, output: 131072 },
+                    cost: { input: 0.15, output: 0.5, cache_read: 0.03 }
+                },
+                'cline-pass/mimo-v2.5': {
+                    id: 'cline-pass/mimo-v2.5',
+                    name: 'MiMo V2.5',
+                    reasoning: true,
+                    reasoning_options: [],
+                    modalities: { input: ['text'], output: ['text'] },
+                    limit: { context: 1048576, output: 131072 }
+                }
+            }
+        },
+        'other-provider': { models: { x: {} } }
+    };
+    const models = parseModelsDevProviderModels(raw, 'clinepass', devPolicy('cline-pass'));
+    assert.equal(models.length, 2);
+    const flash = models[0];
+    assert.equal(flash.id, 'cline-pass/glm-5.3-flash');
+    assert.equal(flash.displayName, undefined);
+    assert.equal(flash.contextWindow, 1000000);
+    assert.equal(flash.maxOutputTokens, 131072);
+    assert.deepEqual(flash.capabilities, { imageInput: true });
+    assert.deepEqual(flash.reasoning, { efforts: ['low', 'high', 'max'] });
+    assert.equal(flash.pricing?.input, 0.15);
+    assert.equal(flash.pricing?.output, 0.5);
+    assert.equal(flash.pricing?.cacheRead, 0.03);
+    assert.equal(flash.pricing?.cacheWrite, undefined);
+    // 名称与 id 不同才作为显示名；空档位视为未声明；缺 cost 不产生定价
+    const mimo = models[1];
+    assert.equal(mimo.displayName, 'MiMo V2.5');
+    assert.equal(mimo.reasoning, undefined);
+    assert.equal(mimo.pricing, undefined);
+});
+
+test('models-dev 适配器缺少提供商键或载荷时拒绝', () => {
+    assert.throws(() => parseModelsDevProviderModels({}, 'clinepass', devPolicy()), /缺少 modelsDevProvider/);
+    assert.throws(
+        () => parseModelsDevProviderModels({ 'cline-pass': {} }, 'clinepass', devPolicy('cline-pass')),
+        /缺少 models 对象/
+    );
+    assert.throws(
+        () => parseModelsDevProviderModels({ 'cline-pass': { models: {} } }, 'clinepass', devPolicy('cline-pass')),
+        /空模型列表/
+    );
+});
+
+test('models-dev 适配器拒绝不支持的推理档位', () => {
+    const raw = {
+        'cline-pass': {
+            models: { m: { reasoning_options: [{ type: 'effort', values: ['ultra'] }] } }
+        }
+    };
+    assert.throws(() => parseModelsDevProviderModels(raw, 'clinepass', devPolicy('cline-pass')), /不支持的推理档位/);
 });

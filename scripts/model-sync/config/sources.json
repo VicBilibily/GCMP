@@ -154,5 +154,41 @@
             "z-ai/glm-5.3-flashx": { "ref": "zhipu/glm-5.3-flashx", "localId": "glm-5.3-flashx" },
             "stepfun/Step-5-Preview": { "ref": "stepfun/step-5-preview", "localId": "step-5-preview" }
         }
+    },
+    // ClinePass：成员与规格均取自 models.dev 的 cline-pass 目录（端点与 provider baseUrl 不同源，用 localBaseUrl 归属）；
+    // 官方推荐清单已移除的模型保留在 excludedModelIds 以防回流。
+    // models.dev 声明了推理档位，但模型选择器默认档取决于本地顺序，故 reasoningEffort 一律人工维护，
+    // 档位差异以“保留本地配置，请人工确认”提示；reasoningFormat 与官方参考价不符的定价在此用 overrides 钉住。
+    "clinepass": {
+        "adapter": "models-dev",
+        "endpoint": "https://models.dev/api.json",
+        "modelsDevProvider": "cline-pass",
+        "localBaseUrl": "https://api.cline.bot/api/v1",
+        "target": "src/providers/config/clinepass.json",
+        "nameSuffix": "(ClinePass)",
+        "tooltipPrefix": "ClinePass",
+        "excludedModelIds": [
+            "cline-pass/glm-5.2",
+            "cline-pass/kimi-k2.6",
+            "cline-pass/kimi-k2.7-code",
+            "cline-pass/deepseek-v4-flash"
+        ],
+        "defaults": {
+            "sdkMode": "openai-sse"
+        },
+        "models": {
+            "cline-pass/deepseek-v4-pro": {
+                "overrides": {
+                    "tokenPricing": {
+                        "pricing": [0.66, 1.98, 0.022],
+                        "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+                    }
+                }
+            },
+            // ClinePass 是仓库内唯一使用 nested 推理请求格式的提供方（其余提供方均为 flat 缺省），
+            // 故新增推理模型一律按该约定钉住 reasoningFormat
+            "cline-pass/mimo-v2.6-flash": { "overrides": { "reasoningFormat": "nested" } },
+            "cline-pass/mimo-v2.6-pro": { "overrides": { "reasoningFormat": "nested" } }
+        }
     }
 }

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { EnvHttpProxyAgent, ProxyAgent, fetch as undiciFetch } from 'undici';
 import { parseCommandCodeModels } from './adapters/commandcode';
 import { parseHyperModels } from './adapters/hyper';
+import { parseModelsDevProviderModels } from './adapters/models-dev';
 import { parseOpenAiModelList } from './adapters/openai-model-list';
 import { buildExtraEdit, planExtra } from './extra';
 import { parseJsonc } from './jsonc';
@@ -25,10 +26,14 @@ const configDir = path.join(repoRoot, 'scripts', 'model-sync', 'config');
 const providerConfigDir = path.join(repoRoot, 'src', 'providers', 'config');
 const FETCH_TIMEOUT_MS = 30_000;
 
-const adapters: Record<SourcePolicy['adapter'], (raw: unknown, label: string) => RemoteModelMetadata[]> = {
+const adapters: Record<
+    SourcePolicy['adapter'],
+    (raw: unknown, label: string, policy: SourcePolicy) => RemoteModelMetadata[]
+> = {
     hyper: raw => parseHyperModels(raw),
     'openai-model-list': (raw, label) => parseOpenAiModelList(raw, label),
-    commandcode: raw => parseCommandCodeModels(raw)
+    commandcode: raw => parseCommandCodeModels(raw),
+    'models-dev': (raw, label, policy) => parseModelsDevProviderModels(raw, label, policy)
 };
 
 async function main(): Promise<number> {
@@ -254,7 +259,7 @@ async function fetchModels(sourceId: string, policy: SourcePolicy): Promise<Remo
         throw new Error(`HTTP ${response.status}`);
     }
     const raw: unknown = await response.json();
-    return adapters[policy.adapter](raw, sourceId);
+    return adapters[policy.adapter](raw, sourceId, policy);
 }
 
 function validateSources(sources: SourcesFile): void {
@@ -271,6 +276,20 @@ function validateSources(sources: SourcesFile): void {
         }
         if (policy.nameSuffix && policy.nameSuffix !== policy.nameSuffix.trim()) {
             throw new Error(`${sourceId}: nameSuffix 不允许首尾空白，拼接时自动添加空格`);
+        }
+        if (
+            policy.adapter === 'models-dev' &&
+            (!policy.modelsDevProvider || policy.modelsDevProvider.trim().length === 0)
+        ) {
+            throw new Error(`${sourceId}: models-dev 适配器必须提供 modelsDevProvider`);
+        }
+        if (
+            policy.localBaseUrl !== undefined &&
+            (!/^https:\/\//.test(policy.localBaseUrl) ||
+                policy.localBaseUrl === '' ||
+                policy.localBaseUrl !== policy.localBaseUrl.trim().replace(/\/+$/, ''))
+        ) {
+            throw new Error(`${sourceId}: localBaseUrl 必须是无末尾斜杠的 HTTPS 地址`);
         }
         for (const prefix of policy.excludedModelIdPrefixes ?? []) {
             if (typeof prefix !== 'string' || prefix.length <= Number(prefix.endsWith('$'))) {

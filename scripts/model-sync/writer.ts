@@ -27,6 +27,7 @@ const FIELD_ORDER = [
     'maxInputTokens',
     'maxOutputTokens',
     'reasoningEffort',
+    'reasoningFormat',
     'reasoningDefault',
     'thinking',
     'thinkingFormat',

@@ -60,12 +60,16 @@ export interface ExtraModelPolicy {
 
 /** 一个远端模型列表接口的同步策略。 */
 export interface SourcePolicy {
-    adapter: 'hyper' | 'openai-model-list' | 'commandcode';
+    adapter: 'hyper' | 'openai-model-list' | 'commandcode' | 'models-dev';
     endpoint: string;
     target: string;
     nameSuffix?: string;
     tooltipPrefix?: string;
     localIdSuffix?: string;
+    /** models-dev 适配器读取的 models.dev 提供商键（如 "cline-pass"）。 */
+    modelsDevProvider?: string;
+    /** 本地模型归属匹配基准；远端清单端点与 provider baseUrl 不同源时必须显式给出（如 models.dev）。缺省取 endpoint 去掉末尾 /models。 */
+    localBaseUrl?: string;
     excludedModelIds?: string[];
     /** 按 ID 前缀默认跳过新增（仅阻止 onboarding，不移除也不警告既有本地条目）；以 $ 结尾表示精确匹配。 */
     excludedModelIdPrefixes?: string[];

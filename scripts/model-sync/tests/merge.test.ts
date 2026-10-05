@@ -43,6 +43,46 @@ test('sourceBaseUrl 去除末尾 models 与斜杠', () => {
     assert.equal(sourceBaseUrl('https://a.com/v1/models/'), 'https://a.com/v1');
 });
 
+test('localBaseUrl 让端点与 provider baseUrl 不同源的来源仍能匹配本地模型', () => {
+    const policy = makePolicy({
+        adapter: 'models-dev',
+        endpoint: 'https://models.dev/api.json',
+        localBaseUrl: 'https://api.cline.bot/api/v1'
+    });
+    const config = makeConfig(
+        [{ id: 'cline-pass/glm-5.3', name: 'GLM-5.3 (ClinePass)' }],
+        'https://api.cline.bot/api/v1'
+    );
+    const plan = planSource({
+        sourceId: 'clinepass',
+        policy,
+        remote: [{ id: 'cline-pass/glm-5.3', pricing: { input: 0.15, output: 0.5 } }, { id: 'cline-pass/glm-5.4' }],
+        config,
+        defaults: {}
+    });
+    assert.deepEqual(
+        plan.entries.map(entry => `${entry.action}:${entry.localId}`),
+        ['update:cline-pass/glm-5.3']
+    );
+    assert.ok(!plan.warnings.some(warning => warning.includes('远端缺失保留')));
+    assert.ok(!plan.warnings.some(warning => warning.includes('待配置：cline-pass/glm-5.3')));
+    assert.ok(plan.warnings.some(warning => warning.includes('待配置：cline-pass/glm-5.4')));
+});
+
+test('缺少 localBaseUrl 时端点 base 与本地不一致，既有模型会被当作新增', () => {
+    const policy = makePolicy({ adapter: 'models-dev', endpoint: 'https://models.dev/api.json' });
+    const config = makeConfig([{ id: 'cline-pass/glm-5.3' }], 'https://api.cline.bot/api/v1');
+    const plan = planSource({
+        sourceId: 'clinepass',
+        policy,
+        remote: [{ id: 'cline-pass/glm-5.3' }],
+        config,
+        defaults: {}
+    });
+    assert.equal(plan.entries.length, 0);
+    assert.ok(plan.warnings.some(warning => warning.includes('待配置：cline-pass/glm-5.3')));
+});
+
 test('resolveRef 按作者与模型精确解析', () => {
     assert.equal(resolveRef(defaults, 'moonshotai/kimi-k3')?.name, 'Kimi-K3');
     assert.equal(resolveRef(defaults, 'moonshotai/kimi-k4'), undefined);

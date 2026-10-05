@@ -37,6 +37,11 @@ export function sourceBaseUrl(endpoint: string): string {
     return endpoint.replace(/\/+$/, '').replace(/\/models$/, '');
 }
 
+/** 本地归属匹配基准：显式 localBaseUrl 优先（远端清单端点与 provider baseUrl 不同源，如 models.dev 目录），否则按 endpoint 推导。 */
+export function resolveSourceBase(policy: Pick<SourcePolicy, 'endpoint' | 'localBaseUrl'>): string {
+    return policy.localBaseUrl ? policy.localBaseUrl.replace(/\/+$/, '') : sourceBaseUrl(policy.endpoint);
+}
+
 /** 条目参与来源匹配的归一化 base：anthropic 模式运行时由 SDK 自行拼接 /v1，对齐为 OpenAI 形态。 */
 export function effectiveEntryBase(model: ProviderModelEntry, config: ProviderConfigFile): string {
     const rawBase = (model.baseUrl ?? config.baseUrl ?? '').replace(/\/+$/, '');
@@ -144,7 +149,8 @@ export function planSource(input: {
 }): SourcePlan {
     const { sourceId, policy, remote, config, defaults } = input;
     const plan: SourcePlan = { sourceId, targetPath: policy.target, entries: [], warnings: [], errors: [] };
-    const base = sourceBaseUrl(policy.endpoint);
+    // 远端清单端点与 provider baseUrl 不同源（如 models.dev 目录）时，用 localBaseUrl 决定本地归属
+    const base = resolveSourceBase(policy);
     const excluded = new Set(policy.excludedModelIds ?? []);
     const excludedPrefixes = policy.excludedModelIdPrefixes ?? [];
     // 以 $ 结尾表示精确匹配（避免 "glm-5" 误伤 "glm-5.3"）

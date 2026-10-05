@@ -1,5 +1,5 @@
 /** remote-extra（仅远端发布）目标的纯函数计划：归属判定 + 条目生成，不写文件。 */
-import { diffOps, effectiveEntryBase, planAdd, planUpdate, sourceBaseUrl, valuesEqual } from './merge';
+import { diffOps, effectiveEntryBase, planAdd, planUpdate, resolveSourceBase, valuesEqual } from './merge';
 import type {
     ExtraModelPolicy,
     ExtraPlan,
@@ -39,7 +39,7 @@ export function planExtra(input: {
     const excluded = new Set(policy.excludedModelIds ?? []);
     const remoteById = new Map(remote.map(item => [item.id, item]));
     const extraById = new Map(extraConfig.models.map(model => [model.id, model]));
-    const base = sourceBaseUrl(policy.endpoint);
+    const base = resolveSourceBase(policy);
     const presetByRequestId = new Map<string, ProviderModelEntry>();
     for (const model of presetConfig.models) {
         const effectiveBase = effectiveEntryBase(model, presetConfig);
