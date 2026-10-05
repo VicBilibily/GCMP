@@ -13,7 +13,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "xhigh", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.3, 1.2, 0.03]
+            "tokenPricing": [0.33, 1.31, 0.03]
         },
         {
             "id": "deepseek-v4-flash",
@@ -130,7 +130,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["none", "minimal", "low", "medium", "high", "xhigh"],
+            "reasoningEffort": ["low", "medium", "high"],
             "thinkingFormat": "effort-none",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [1.0888, 4.40964, 0.185096]

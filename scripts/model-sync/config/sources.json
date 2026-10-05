@@ -88,13 +88,16 @@
             "glm-5$",
             "glm-5.1$"
         ],
+        // 免费模型不入预置，-free 后缀一律过滤（与 zen 一致）
+        "excludedModelIdSuffixes": ["-free"],
         "defaults": {
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1"
         },
         "models": {
             "mimo-v2.6-pro": { "ref": "xiaomi/mimo-v2.6-pro" },
-            "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" }
+            "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" },
+            "gpt-6-luna": { "ref": "openai/gpt-6-luna" }
         }
     },
     "commandcode": {
@@ -152,7 +155,9 @@
             "xiaomi/mimo-v2.6-flash": { "localId": "mimo-v2.6-flash" },
             "xiaomi/mimo-v2.6-pro-ultraspeed": { "localId": "mimo-v2.6-pro-ultraspeed" },
             "z-ai/glm-5.3-flashx": { "ref": "zhipu/glm-5.3-flashx", "localId": "glm-5.3-flashx" },
-            "stepfun/Step-5-Preview": { "ref": "stepfun/step-5-preview", "localId": "step-5-preview" }
+            "stepfun/Step-5-Preview": { "ref": "stepfun/step-5-preview", "localId": "step-5-preview" },
+            // 规格继承 deepseek-v4.1-flash 变体；价格按官方 off-peak 价目，高峰（01–04 & 06–10 UTC 工作日）2×
+            "deepseek/deepseek-v4.1-flash-fast": { "localId": "deepseek-v4.1-flash-fast" }
         }
     },
     // ClinePass：成员与规格均取自 models.dev 的 cline-pass 目录（端点与 provider baseUrl 不同源，用 localBaseUrl 归属）；

@@ -407,11 +407,14 @@ export function planUpdate(
     validateBudget(sourceId, target, remote, plan);
 
     if (remote.reasoning) {
-        const localSorted = Array.isArray(local.reasoningEffort) ? [...local.reasoningEffort].sort().join(',') : '';
-        const remoteSorted = [...remote.reasoning.efforts].sort().join(',');
+        const comparableLocalEfforts =
+            Array.isArray(local.reasoningEffort) ? local.reasoningEffort.filter(effort => effort !== 'none') : [];
+        const comparableRemoteEfforts = remote.reasoning.efforts.filter(effort => effort !== 'none');
+        const localSorted = [...comparableLocalEfforts].sort().join(',');
+        const remoteSorted = [...comparableRemoteEfforts].sort().join(',');
         if (localSorted !== remoteSorted) {
-            const localEfforts = Array.isArray(local.reasoningEffort) ? local.reasoningEffort.join(',') : '(未配置)';
-            const remoteEfforts = remote.reasoning.efforts.join(',');
+            const localEfforts = comparableLocalEfforts.length > 0 ? comparableLocalEfforts.join(',') : '(未配置)';
+            const remoteEfforts = comparableRemoteEfforts.join(',');
             plan.warnings.push(
                 `${sourceId}/${local.id}: 远端推理档位 [${remoteEfforts}] 与本地 [${localEfforts}] 不一致，保留本地配置，请人工确认`
             );

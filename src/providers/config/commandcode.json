@@ -4,6 +4,22 @@
     "apiKeyTemplate": "user_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "deepseek-v4.1-flash-fast",
+            "name": "DeepSeek-V4.1-Flash-Fast (CmdC)",
+            "model": "deepseek/deepseek-v4.1-flash-fast",
+            "tooltip": "CommandCode GOAT Plan — DeepSeek-V4.1-Flash-Fast。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [0.16, 0.58, 0.016],
+                "tiers": [{ "cron": "* 9-12,14-18 * * 1-5", "pricing": 2 }]
+            }
+        },
+        {
             "id": "deepseek-v4.1-flash",
             "name": "DeepSeek V4.1 Flash (CmdC)",
             "model": "deepseek/deepseek-v4.1-flash",
@@ -570,11 +586,10 @@
             "model": "stepfun/Step-3.5-Flash",
             "tooltip": "CommandCode GOAT Plan - Step 3.5 Flash。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
+            "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1, 0.3, 0.02]
+            "tokenPricing": [0.09, 0.3, 0.02]
         },
         {
             "id": "step-3.7-flash",

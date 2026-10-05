@@ -69,6 +69,41 @@ test('localBaseUrl 让端点与 provider baseUrl 不同源的来源仍能匹配�
     assert.ok(plan.warnings.some(warning => warning.includes('待配置：cline-pass/glm-5.4')));
 });
 
+test('所有 provider 的推理档位比对均忽略 none，但仍报告其他差异', () => {
+    for (const sourceId of ['hyper', 'opencode-zen', 'opencode-go', 'commandcode', 'clinepass']) {
+        const isClinePass = sourceId === 'clinepass';
+        const baseUrl = isClinePass ? 'https://api.cline.bot/api/v1' : 'https://example.com/v1';
+        const noneMissingId = isClinePass ? 'cline-pass/none-missing' : 'none-missing';
+        const otherMissingId = isClinePass ? 'cline-pass/other-missing' : 'other-missing';
+        const config = makeConfig(
+            [
+                { id: noneMissingId, reasoningEffort: ['low', 'high'] },
+                { id: otherMissingId, reasoningEffort: ['high'] }
+            ],
+            baseUrl
+        );
+        const plan = planSource({
+            sourceId,
+            policy: makePolicy({
+                adapter: isClinePass ? 'models-dev' : 'openai-model-list',
+                endpoint: isClinePass ? 'https://models.dev/api.json' : 'https://example.com/v1/models',
+                localBaseUrl: isClinePass ? baseUrl : undefined
+            }),
+            remote: [
+                { id: noneMissingId, reasoning: { efforts: ['none', 'low', 'high'] } },
+                { id: otherMissingId, reasoning: { efforts: ['none', 'low', 'high'] } }
+            ],
+            config,
+            defaults: {}
+        });
+        assert.equal(plan.warnings.filter(warning => warning.includes('远端推理档位')).length, 1, sourceId);
+        assert.ok(
+            plan.warnings.some(warning => warning.includes('other-missing')),
+            sourceId
+        );
+    }
+});
+
 test('缺少 localBaseUrl 时端点 base 与本地不一致，既有模型会被当作新增', () => {
     const policy = makePolicy({ adapter: 'models-dev', endpoint: 'https://models.dev/api.json' });
     const config = makeConfig([{ id: 'cline-pass/glm-5.3' }], 'https://api.cline.bot/api/v1');

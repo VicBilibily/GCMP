@@ -477,6 +477,33 @@
             "tokenPricing": [0.14, 0.58, 0.035]
         },
         {
+            "id": "gpt-6-luna-go",
+            "name": "GPT-6-Luna (Go)",
+            "model": "gpt-6-luna",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 — GPT-6-Luna。",
+            "sdkMode": "openai-responses",
+            "contextSize": [400000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh", "max"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": { "effort": "medium", "summary": "auto" }
+            },
+            "tokenPricing": {
+                "pricing": [0.1, 0.5, 0.01, 0.125],
+                "tiers": [
+                    {
+                        "contextSizeMin": 272001,
+                        "pricing": [0.2, 0.75, 0.02, 0.25]
+                    }
+                ]
+            }
+        },
+        {
             "id": "deepseek-v4.1-flash-zen",
             "name": "DeepSeek-V4.1-Flash (Zen)",
             "model": "deepseek-v4.1-flash",
