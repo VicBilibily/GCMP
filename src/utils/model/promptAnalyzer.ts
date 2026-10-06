@@ -23,6 +23,27 @@ export interface PromptAnalysis {
 }
 
 /**
+ * 从请求选项读取运行时注入的 requestKind（handler 消费的同一字段）。
+ * 该值由 provider 在 prepareTrackedRequestContext 中写入 options.modelOptions。
+ */
+function getRuntimeRequestKind(options?: ProvideLanguageModelChatResponseOptions): string | undefined {
+    return (options as { modelOptions?: { requestKind?: string } } | undefined)?.modelOptions?.requestKind;
+}
+
+/**
+ * 粗略 token 估算（UTF-8 字节数 / 4）。
+ * 仅用于辅助/子代理请求的展示型用量统计，避免在扩展宿主主线程对整段消息做真实 tokenize。
+ */
+function estimateQuickTokens(value: unknown): number {
+    try {
+        const text = typeof value === 'string' ? value : (JSON.stringify(value) ?? '');
+        return Math.max(1, Math.ceil(Buffer.byteLength(text, 'utf8') / 4));
+    } catch {
+        return 1;
+    }
+}
+
+/**
  * 提示词分析器
  * 用于计算当前请求的输入 token 总量，支持全量计算和基于上一轮 API usage 的增量预估。
  */
@@ -41,6 +62,10 @@ export class PromptAnalyzer {
 
         try {
             const tokenCounter = TokenCounter.getInstance();
+            const requestKind = getRuntimeRequestKind(options);
+            // 子代理/辅助请求没有 usage 基线，全量真实 tokenize 会在主线程串行 encode 整段消息，
+            // 一波并行子代理会拖慢所有在飞流。这里改用字节数/4 的粗略估算，仅服务展示用量。
+            const useQuickEstimate = requestKind === 'search-subagent' || requestKind === 'execution-subagent';
             Logger.debug(`[${providerKey}] analyzePromptParts started, message count: ${messages.length}`);
 
             // ===== 1. 检测 stateful marker 中的 usage（增量基线） =====
@@ -100,7 +125,9 @@ export class PromptAnalyzer {
                             }
                         }
                         if (text) {
-                            systemTokens += await tokenCounter.countTokens(model, text);
+                            systemTokens += useQuickEstimate ?
+                                estimateQuickTokens(text)
+                            :   await tokenCounter.countTokens(model, text);
                         }
                     }
                 }
@@ -117,14 +144,20 @@ export class PromptAnalyzer {
                 for (const tool of options.tools) {
                     toolsTokens += 8; // 每个工具的基础开销
                     if ('name' in tool && typeof tool.name === 'string') {
-                        toolsTokens += await tokenCounter.countTokens(model, tool.name);
+                        toolsTokens += useQuickEstimate ?
+                            estimateQuickTokens(tool.name)
+                        :   await tokenCounter.countTokens(model, tool.name);
                     }
                     if ('description' in tool && typeof tool.description === 'string') {
-                        toolsTokens += await tokenCounter.countTokens(model, tool.description);
+                        toolsTokens += useQuickEstimate ?
+                            estimateQuickTokens(tool.description)
+                        :   await tokenCounter.countTokens(model, tool.description);
                     }
                     if ('inputSchema' in tool && tool.inputSchema) {
                         const schemaJson = JSON.stringify(sanitizeToolSchema(tool.inputSchema));
-                        toolsTokens += await tokenCounter.countTokens(model, schemaJson);
+                        toolsTokens += useQuickEstimate ?
+                            estimateQuickTokens(schemaJson)
+                        :   await tokenCounter.countTokens(model, schemaJson);
                     }
                 }
                 toolsTokens = Math.floor(toolsTokens * 1.1); // 官方安全系数
@@ -138,15 +171,13 @@ export class PromptAnalyzer {
                 const message = messages[i];
 
                 // 跳过系统消息（已单独计算）
-                if (message.role === vscode.LanguageModelChatMessageRole.System) {
-                    continue;
-                }
-
-                // 计算消息 token
-                const messageTokens = await tokenCounter.countTokens(
-                    model,
-                    message as unknown as string | vscode.LanguageModelChatMessage
-                );
+                // 计算消息 token（辅助/子代理请求走粗略估算，避免主线程真实 tokenize）
+                const messageTokens = useQuickEstimate ?
+                    estimateQuickTokens(message)
+                :   await tokenCounter.countTokens(
+                        model,
+                        message as unknown as string | vscode.LanguageModelChatMessage
+                    );
 
                 // 增量模式：所有遍历的消息都属于 delta
                 if (usageBaseline !== undefined) {
