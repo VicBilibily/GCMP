@@ -498,6 +498,39 @@ test('historical snapshot cleanup removes attribution from existing requests.jso
     }
 });
 
+test('historical snapshot cleanup reruns after a snapshot changed after the previous marker', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-sanitize-snapshot-version-marker-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const paths = new LogPathManager(dir);
+        const snapshot = new SnapshotManager(paths, () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const record = {
+            ...createRequestLog('late-attribution'),
+            rawUsage: { input_tokens: 10, attribution: { items: { late: true } } }
+        };
+        const snapshotPath = paths.getSnapshotFilePath(date);
+        await mkdir(paths.getDateFolderPath(date), { recursive: true });
+        await writeFile(snapshotPath, stringifySnapshotFile({ [record.requestId]: record }));
+
+        const previousMarker = new Date('2026-09-29T00:00:00+08:00').getTime();
+        const snapshotModifiedAt = new Date('2026-10-01T00:00:00+08:00');
+        const currentMarker = new Date('2026-10-06T00:00:00+08:00').getTime();
+        await utimes(snapshotPath, snapshotModifiedAt, snapshotModifiedAt);
+
+        assert.equal(await snapshot.sanitizeHistoricalSnapshots(previousMarker), 0);
+        assert.equal((await readFile(snapshotPath, 'utf8')).includes('"attribution"'), true);
+
+        assert.equal(await snapshot.sanitizeHistoricalSnapshots(currentMarker), 1);
+        assert.equal((await readFile(snapshotPath, 'utf8')).includes('"attribution"'), false);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
 test('historical snapshot cleanup marks clean snapshots by mtime', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-sanitize-clean-snapshot-'));
     const restoreHost = mockLoggerHost();

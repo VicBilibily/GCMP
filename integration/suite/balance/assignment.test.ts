@@ -160,8 +160,8 @@ suite('balance initial assignment cancellation', () => {
         return tracked;
     }
 
-    function capture(token?: vscode.CancellationToken, requestId = randomUUID()) {
-        return ApiKeyFailoverManager.captureAttempt(slot, balanceKey, requestId, undefined, token);
+    function capture(requestId = randomUUID(), token?: vscode.CancellationToken) {
+        return ApiKeyFailoverManager.captureAttempt(slot, balanceKey, requestId, undefined, undefined, token);
     }
 
     function assignment(index = 0): Assignment {
@@ -200,7 +200,7 @@ suite('balance initial assignment cancellation', () => {
             if (action === 'pre-cancel') {
                 tracked.cancel();
             }
-            const pending = capture(tracked.token);
+            const pending = capture(undefined, tracked.token);
             if (action === 'cancel') {
                 tracked.cancel();
             }
@@ -251,7 +251,7 @@ suite('balance initial assignment cancellation', () => {
                 return true;
             };
             const tracked = cancellation();
-            const pending = capture(tracked.token);
+            const pending = capture(undefined, tracked.token);
             if (action === 'throw') {
                 await assert.rejects(pending, /assignment publication failed/);
             } else {
@@ -272,7 +272,7 @@ suite('balance initial assignment cancellation', () => {
             return originalGetApiKey.apply(ConfigSetStore, args);
         };
         const requestId = randomUUID();
-        const pending = capture(tracked.token, requestId);
+        const pending = capture(requestId, tracked.token);
         const payload = assignment();
         ApiKeyFailoverManager.resolveBalanceAssignment(payload);
         try {
@@ -307,7 +307,7 @@ suite('balance initial assignment cancellation', () => {
                 }
                 return originalGetApiKey.apply(ConfigSetStore, args);
             };
-            const pending = capture(tracked.token);
+            const pending = capture(undefined, tracked.token);
             const payload = assignment();
             ApiKeyFailoverManager.resolveBalanceAssignment(payload);
             await started.promise;
@@ -327,7 +327,7 @@ suite('balance initial assignment cancellation', () => {
 
     test('cancellation during cached secret lookup cannot restore the snapshot', async () => {
         const requestId = randomUUID();
-        const initial = capture(undefined, requestId);
+        const initial = capture(requestId);
         const payload = assignment();
         ApiKeyFailoverManager.resolveBalanceAssignment(payload);
         assert.ok(await initial);
@@ -339,7 +339,7 @@ suite('balance initial assignment cancellation', () => {
             return originalGetApiKey.apply(ConfigSetStore, args);
         };
         const tracked = cancellation();
-        const pending = capture(tracked.token, requestId);
+        const pending = capture(requestId, tracked.token);
         await started.promise;
         tracked.cancel();
         gate.resolve();
@@ -350,7 +350,7 @@ suite('balance initial assignment cancellation', () => {
 
     test('mode changes in another slot do not interrupt an assignment', async () => {
         const tracked = cancellation();
-        const pending = capture(tracked.token);
+        const pending = capture(undefined, tracked.token);
         ApiKeyFailoverManager.handleBalanceModeChanged('other-slot');
         assert.equal(manager.pendingBalanceAssignments.size, 1);
         const payload = assignment();
@@ -363,11 +363,11 @@ suite('balance initial assignment cancellation', () => {
     test('a new assignment with the same request id is not released by its old cancellation record', async () => {
         const requestId = randomUUID();
         const tracked = cancellation();
-        const abandoned = capture(tracked.token, requestId);
+        const abandoned = capture(requestId, tracked.token);
         const payload = assignment();
         tracked.cancel();
         assert.deepEqual(await observe(abandoned), { state: 'resolved', value: undefined });
-        const pending = capture(undefined, requestId);
+        const pending = capture(requestId);
         ApiKeyFailoverManager.resolveBalanceAssignment(payload);
         assert.equal((await pending)?.balanceLeaseId, payload.leaseId);
         ApiKeyFailoverManager.resolveBalanceAssignment(payload);
@@ -377,7 +377,7 @@ suite('balance initial assignment cancellation', () => {
 
     test('late assignment tracking is bounded and ignores expired cancellation records', async () => {
         const tracked = cancellation();
-        const first = capture(tracked.token);
+        const first = capture(undefined, tracked.token);
         const payload = assignment();
         tracked.cancel();
         assert.deepEqual(await observe(first), { state: 'resolved', value: undefined });

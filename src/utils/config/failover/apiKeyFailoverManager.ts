@@ -657,7 +657,8 @@ export class ApiKeyFailoverManager {
             payload.balanceKey,
             payload.requestId,
             ownerInstanceId,
-            payload.preferredCredentialId
+            payload.preferredCredentialId,
+            payload.previousCredentialId
         );
         if (!attempt?.balanceLeaseId) {
             return undefined;
@@ -1400,6 +1401,7 @@ export class ApiKeyFailoverManager {
         balanceKey?: string,
         allocationRequestId?: string,
         preferredCredentialId?: string,
+        previousCredentialId?: string,
         token?: vscode.CancellationToken
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         if (token?.isCancellationRequested) {
@@ -1472,10 +1474,18 @@ export class ApiKeyFailoverManager {
                         balanceKey,
                         allocationRequestId,
                         preferredCredentialId,
+                        previousCredentialId,
                         token
                     )
                 :   await enqueueConfigSetMutation(async () =>
-                        this.captureBalanceAttempt(slot, balanceKey, allocationRequestId, preferredCredentialId, token)
+                        this.captureBalanceAttempt(
+                            slot,
+                            balanceKey,
+                            allocationRequestId,
+                            preferredCredentialId,
+                            previousCredentialId,
+                            token
+                        )
                     );
             if (token?.isCancellationRequested) {
                 if (attempt?.balanceLeaseId) {
@@ -1522,6 +1532,7 @@ export class ApiKeyFailoverManager {
         balanceKey: string,
         allocationRequestId?: string,
         preferredCredentialId?: string,
+        previousCredentialId?: string,
         token?: vscode.CancellationToken
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         if (token?.isCancellationRequested || ConfigSetStore.getSwitchMode(slot) !== 'balance') {
@@ -1537,6 +1548,7 @@ export class ApiKeyFailoverManager {
                 balanceKey,
                 allocationRequestId,
                 preferredCredentialId,
+                previousCredentialId,
                 token
             );
         }
@@ -1545,7 +1557,8 @@ export class ApiKeyFailoverManager {
             balanceKey,
             allocationRequestId,
             undefined,
-            preferredCredentialId
+            preferredCredentialId,
+            previousCredentialId
         );
     }
 
@@ -1554,7 +1567,8 @@ export class ApiKeyFailoverManager {
         balanceKey: string,
         allocationRequestId?: string,
         ownerInstanceId = LeaderElectionService.getInstanceId(),
-        preferredCredentialId?: string
+        preferredCredentialId?: string,
+        previousCredentialId?: string
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         const operationToken = ConfigSetStore.getApplyOperationToken(slot);
         const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
@@ -1610,12 +1624,23 @@ export class ApiKeyFailoverManager {
             // 全部候选被隔离时回退完整池，隔离仅为 Advisory，不造成可用性空洞
             candidates = [...balanceCandidates.values()];
         }
+        const nextTurnCandidates = candidates.filter(
+            candidate =>
+                this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite) !==
+                previousCredentialId
+        );
         const target =
             candidates.find(
                 candidate =>
                     this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite) ===
                     preferredCredentialId
-            ) ?? this.selectLeastLoadedBalanceCandidate(slot, balanceKey, candidates, pool.currentSite);
+            ) ??
+            this.selectLeastLoadedBalanceCandidate(
+                slot,
+                balanceKey,
+                nextTurnCandidates.length > 0 ? nextTurnCandidates : candidates,
+                pool.currentSite
+            );
         if (!target) {
             return undefined;
         }
@@ -1691,6 +1716,7 @@ export class ApiKeyFailoverManager {
         balanceKey: string,
         allocationRequestId?: string,
         preferredCredentialId?: string,
+        previousCredentialId?: string,
         token?: vscode.CancellationToken
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         const authorityTerm = InterInstanceBus.getAuthorityTerm();
@@ -1730,7 +1756,8 @@ export class ApiKeyFailoverManager {
                     authorityTerm,
                     slot,
                     balanceKey,
-                    ...(preferredCredentialId ? { preferredCredentialId } : {})
+                    ...(preferredCredentialId ? { preferredCredentialId } : {}),
+                    ...(previousCredentialId ? { previousCredentialId } : {})
                 }
             });
             if (!published) {
@@ -1965,8 +1992,8 @@ export class ApiKeyFailoverManager {
         authorityTerm?: string,
         failureRequestId?: string,
         canContinue?: () => boolean,
-        token?: vscode.CancellationToken,
-        balanceKey?: string
+        balanceKey?: string,
+        token?: vscode.CancellationToken
     ): Promise<ApiKeyFailoverDecision> {
         if (!attempt || !isApiKeyFailoverError(error)) {
             return UNHANDLED_DECISION;

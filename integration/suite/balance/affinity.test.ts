@@ -391,6 +391,106 @@ suite('balance turn affinity', () => {
         });
     }
 
+    for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
+        for (const source of ['marker', 'cache', 'summary'] as const) {
+            test(`${sdkMode}: adjacent idle turns avoid a hash collision via ${source}`, async () => {
+                const seed = new vscode.LanguageModelDataPart(
+                    encodeStatefulMarker('affinity-model', {
+                        provider: 'slot',
+                        modelId: 'affinity-model',
+                        sdkMode: 'openai',
+                        sessionId: 'session',
+                        responseId: 'seed'
+                    }),
+                    CustomDataPartMimeTypes.StatefulMarker
+                );
+                const messages = [vscode.LanguageModelChatMessage.Assistant([seed]), userMessage()];
+                const traceId = randomUUID();
+                const first = await AffinityProvider.run(messages, {
+                    sdkMode,
+                    copilotOptions: turnOptions(4, traceId)
+                });
+                const bucket = (key: string) =>
+                    parseInt(createHash('sha256').update(key).digest('hex').slice(0, 8), 16) % 3;
+                assert.equal(bucket(first.balanceKey), bucket('m:session:turn:5'));
+                assert.equal(manager.balanceLeases.size, 0);
+                if (source === 'marker') {
+                    BalanceAffinityCache.instance.clear();
+                }
+                const history =
+                    source === 'marker' ? continuation(messages, first.parts)
+                    : source === 'cache' ? continuationWithoutMarker(messages, first.parts)
+                    : [
+                            vscode.LanguageModelChatMessage.User(
+                                '<conversation-summary>Continue the task.</conversation-summary>'
+                            )
+                        ];
+                history.push(userMessage());
+                const nextOptions = turnOptions(5, traceId);
+                let dispatched = 0;
+                const next = await AffinityProvider.run(history, {
+                    sdkMode,
+                    copilotOptions: nextOptions,
+                    onDispatch() {
+                        if (dispatched++ === 0) {
+                            throw new Error('temporary network failure');
+                        }
+                    }
+                });
+                assert.equal(next.sessionId, first.sessionId);
+                assert.notEqual(next.balanceKey, first.balanceKey);
+                assert.notEqual(next.usedKeys[0], first.usedKeys[0]);
+                assert.deepEqual(next.usedKeys, [next.usedKeys[0], next.usedKeys[0]]);
+                const resumed = await AffinityProvider.run(continuation(history, next.parts), {
+                    sdkMode,
+                    copilotOptions: nextOptions
+                });
+                assert.deepEqual(resumed.usedKeys, [next.usedKeys[0]]);
+                assert.equal(resumed.marker.balanceAffinity?.credentialId, identity(next.usedKeys[0]));
+                assert.equal(manager.balanceLeases.size, 0);
+            });
+        }
+    }
+
+    for (const scope of ['wrong-slot', 'wrong-session', 'child', 'older-turn', 'invalid'] as const) {
+        test(`previous-turn avoidance ignores unrelated marker affinity: ${scope}`, async () => {
+            const marker: StatefulMarkerContainer = {
+                extension: 'vicanent.gcmp',
+                provider: 'slot',
+                modelId: 'affinity-model',
+                sdkMode: 'openai',
+                sessionId: 'session',
+                responseId: 'previous',
+                balanceAffinity: {
+                    slot: scope === 'wrong-slot' ? 'other' : 'slot',
+                    balanceKey: scope === 'older-turn' ? 'm:session:turn:3' : 'm:session:turn:4',
+                    credentialId: scope === 'invalid' ? 'invalid' : identity('fake-key-b')
+                }
+            };
+            if (scope === 'wrong-session') {
+                marker.sessionId = 'other';
+            }
+            if (scope === 'child') {
+                marker.subSessionId = 'sub_' + 'a'.repeat(32);
+            }
+            const history = [
+                marker,
+                { ...marker, sessionId: 'session', subSessionId: undefined, balanceAffinity: undefined }
+            ].map(value =>
+                vscode.LanguageModelChatMessage.Assistant([
+                    new vscode.LanguageModelDataPart(
+                        encodeStatefulMarker('affinity-model', value),
+                        CustomDataPartMimeTypes.StatefulMarker
+                    )
+                ])
+            );
+            history.push(userMessage());
+            const next = await AffinityProvider.run(history, { copilotOptions: turnOptions(5) });
+            assert.equal(next.balanceKey, 'm:session:turn:5');
+            assert.deepEqual(next.usedKeys, ['fake-key-b']);
+        });
+    }
+
     test('a replacement credential remains bound after fault isolation and marker removal', async () => {
         const messages = [userMessage()];
         const copilotOptions = turnOptions(1);
@@ -744,7 +844,7 @@ suite('balance turn affinity', () => {
         assert.equal(manager.balanceLeases.size, 1);
     });
 
-    test('Follower sends the preferred credential in its assignment request', async () => {
+    test('Follower sends current and previous credential fingerprints in its assignment request', async () => {
         LeaderElectionService.isLeader = () => false;
         LeaderElectionService.getOwnedAuthorityTerm = () => undefined;
         LeaderElectionService.getInstanceId = () => 'affinity-follower';
@@ -772,11 +872,14 @@ suite('balance turn affinity', () => {
             'slot',
             'm:turn',
             'follower-request',
-            identity('fake-key-b')
+            identity('fake-key-b'),
+            identity('fake-key-a')
         );
         assert.equal(attempt?.identity, identity('fake-key-b'));
         assert.equal(received?.preferredCredentialId, identity('fake-key-b'));
+        assert.equal(received?.previousCredentialId, identity('fake-key-a'));
         assert.equal(JSON.stringify(received).includes('fake-key-b'), false);
+        assert.equal(JSON.stringify(received).includes('fake-key-a'), false);
     });
 
     test('Leader honors a Follower preference without sharing the request lease', async () => {
@@ -789,7 +892,8 @@ suite('balance turn affinity', () => {
                 authorityTerm,
                 slot: 'slot',
                 balanceKey: 'm:turn',
-                preferredCredentialId: first.identity
+                preferredCredentialId: first.identity,
+                previousCredentialId: first.identity
             },
             'affinity-follower'
         );
@@ -814,17 +918,11 @@ suite('balance turn affinity', () => {
             return undefined;
         };
         try {
-            for (const preferredCredentialId of [
-                undefined,
-                identity('fake-key-b'),
-                '',
-                null,
-                1,
-                [],
-                {},
-                'g'.repeat(64),
-                'a'.repeat(65)
-            ]) {
+            for (const [field, value] of ['preferredCredentialId', 'previousCredentialId'].flatMap(field =>
+                [undefined, identity('fake-key-b'), '', null, 1, [], {}, 'g'.repeat(64), 'a'.repeat(65)].map(
+                    value => [field, value] as const
+                )
+            )) {
                 const before = received.length;
                 const event = {
                     type: 'apiKeyBalanceAssignmentRequested',
@@ -836,14 +934,13 @@ suite('balance turn affinity', () => {
                         authorityTerm,
                         slot: 'slot',
                         balanceKey: 'm:turn',
-                        preferredCredentialId
+                        [field]: value
                     }
                 };
                 for (const handler of bus.handlers.get(event.type) ?? []) {
                     handler(event);
                 }
-                const expected =
-                    preferredCredentialId === undefined || preferredCredentialId === identity('fake-key-b');
+                const expected = value === undefined || value === identity('fake-key-b');
                 assert.equal(received.length - before, expected ? 1 : 0);
             }
         } finally {

@@ -150,7 +150,6 @@ async function isolateAttempt(balanceKey: string, attempt: ApiKeyFailoverAttempt
         undefined,
         undefined,
         undefined,
-        undefined,
         balanceKey
     );
     assert.deepEqual(decision, { handled: true, shouldRetry: true, switched: true });
@@ -589,7 +588,6 @@ suite('config set balance mode regressions', () => {
             undefined,
             undefined,
             undefined,
-            undefined,
             's:session-1'
         );
 
@@ -632,7 +630,6 @@ suite('config set balance mode regressions', () => {
                 3,
                 undefined,
                 false,
-                undefined,
                 undefined,
                 undefined,
                 undefined,
@@ -1316,7 +1313,6 @@ suite('config set balance mode regressions', () => {
                 undefined,
                 undefined,
                 undefined,
-                undefined,
                 balanceKey
             );
 
@@ -1375,7 +1371,6 @@ suite('config set balance mode regressions', () => {
             undefined,
             undefined,
             undefined,
-            undefined,
             's:session-1'
         );
         assert.deepEqual(below, { handled: true, shouldRetry: true, switched: false });
@@ -1389,7 +1384,6 @@ suite('config set balance mode regressions', () => {
             3,
             undefined,
             false,
-            undefined,
             undefined,
             undefined,
             undefined,
@@ -1456,7 +1450,6 @@ suite('config set balance mode regressions', () => {
             undefined,
             undefined,
             undefined,
-            undefined,
             's:session-1'
         );
         assert.equal(reported, true);
@@ -1484,7 +1477,6 @@ suite('config set balance mode regressions', () => {
                 undefined,
                 undefined,
                 undefined,
-                undefined,
                 's:session-1'
             ),
             { handled: false, shouldRetry: false, switched: false }
@@ -1502,7 +1494,6 @@ suite('config set balance mode regressions', () => {
                 3,
                 undefined,
                 false,
-                undefined,
                 undefined,
                 undefined,
                 undefined,
@@ -1533,7 +1524,6 @@ suite('config set balance mode regressions', () => {
                     3,
                     undefined,
                     false,
-                    undefined,
                     undefined,
                     undefined,
                     undefined,

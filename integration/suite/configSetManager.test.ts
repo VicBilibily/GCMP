@@ -314,6 +314,7 @@ suite('API key automatic failover', () => {
                     undefined,
                     undefined,
                     undefined,
+                    undefined,
                     cancellation.token
                 ),
                 { handled: true, shouldRetry: false, switched: false }

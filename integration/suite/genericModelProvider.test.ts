@@ -904,6 +904,7 @@ suite('genericModelProvider retry gating', () => {
                 undefined,
                 undefined,
                 undefined,
+                undefined,
                 cts.token
             );
             await new Promise(resolve => setImmediate(resolve));
@@ -970,6 +971,7 @@ suite('genericModelProvider retry gating', () => {
                 false,
                 undefined,
                 'leader-cancelled-request-source',
+                undefined,
                 undefined,
                 cts.token
             );

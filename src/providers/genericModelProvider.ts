@@ -804,13 +804,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         const requestKind = this.ensureRequestKind(messages, options);
 
+        const telemetryTurn = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn;
         const canRecoverAffinity =
-            requestKind === 'main-agent' &&
-            balanceKey ===
-                getBalanceTurnKey(
-                    sessionId,
-                    (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn
-                );
+            requestKind === 'main-agent' && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
+        const previousTurnKey =
+            canRecoverAffinity && telemetryTurn !== undefined && telemetryTurn > 0 ?
+                getBalanceTurnKey(sessionId, telemetryTurn - 1)
+            :   undefined;
         let turnStartIndex = -1;
         if (requestKind === 'main-agent') {
             for (let index = messages.length - 1; index >= 0; index--) {
@@ -855,6 +855,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance'
         ) {
             preferredBalanceCredentialId = BalanceAffinityCache.instance.get(effectiveProviderKey, balanceKey);
+        }
+
+        let previousBalanceCredentialId: string | undefined;
+        if (previousTurnKey && ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance') {
+            for (const { statefulMarker } of getAllStatefulMarkersAndIndicies(messages)) {
+                const marker = statefulMarker.marker;
+                const affinity = marker?.balanceAffinity;
+                if (
+                    marker?.extension === 'vicanent.gcmp' &&
+                    marker.sessionId === sessionId &&
+                    marker.subSessionId === undefined &&
+                    affinity?.slot === effectiveProviderKey &&
+                    affinity.balanceKey === previousTurnKey &&
+                    typeof affinity.credentialId === 'string' &&
+                    /^[a-f0-9]{64}$/.test(affinity.credentialId)
+                ) {
+                    previousBalanceCredentialId = affinity.credentialId;
+                    break;
+                }
+            }
+            previousBalanceCredentialId ??= BalanceAffinityCache.instance.get(effectiveProviderKey, previousTurnKey);
         }
 
         // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
@@ -945,6 +966,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             balanceKey,
                             balanceAllocationRequestId,
                             preferredBalanceCredentialId,
+                            previousBalanceCredentialId,
                             token
                         );
                         const nextBalanceLeaseId = failoverAttempt?.balanceLeaseId;
@@ -1161,8 +1183,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 undefined,
                                 failoverFailureRequestId,
                                 undefined,
-                                token,
-                                balanceKey
+                                balanceKey,
+                                token
                             );
                             if (decision.switched) {
                                 if (failoverAttempt.balanceLeaseId) {

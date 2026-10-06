@@ -139,7 +139,7 @@ suite('balance retry and coordination', () => {
         };
     }
 
-    function reportFailure(token?: vscode.CancellationToken, requestSlot = slot): Promise<ApiKeyFailoverDecision> {
+    function reportFailure(requestSlot = slot, token?: vscode.CancellationToken): Promise<ApiKeyFailoverDecision> {
         LeaderElectionService.isLeader = () => false;
         const attempt: ApiKeyFailoverAttempt = {
             mode: 'balance',
@@ -161,8 +161,8 @@ suite('balance retry and coordination', () => {
             undefined,
             undefined,
             undefined,
-            token,
-            balanceKey
+            balanceKey,
+            token
         );
     }
 
@@ -668,7 +668,7 @@ suite('balance retry and coordination', () => {
                     return false;
                 };
             }
-            const decision = reportFailure(tracked.token);
+            const decision = reportFailure(undefined, tracked.token);
             assert.equal(published.length, 1);
             if (boundary === 'reply') {
                 reply();
@@ -700,7 +700,7 @@ suite('balance retry and coordination', () => {
             originalPublish(event);
             throw error;
         };
-        await assert.rejects(reportFailure(tracked.token), caught => caught === error);
+        await assert.rejects(reportFailure(undefined, tracked.token), caught => caught === error);
         assertClean(tracked);
         reply();
         assertClean(tracked);
@@ -708,7 +708,7 @@ suite('balance retry and coordination', () => {
 
     test('cancellation ends an already-published failure wait without its timeout', async () => {
         const tracked = cancellation();
-        const decision = reportFailure(tracked.token);
+        const decision = reportFailure(undefined, tracked.token);
         tracked.cancel();
         assert.equal(
             await Promise.race([
@@ -726,7 +726,7 @@ suite('balance retry and coordination', () => {
     test('already-cancelled failure does not publish or subscribe', async () => {
         const tracked = cancellation();
         tracked.cancel();
-        assert.deepEqual(await reportFailure(tracked.token), stopped);
+        assert.deepEqual(await reportFailure(undefined, tracked.token), stopped);
         assert.equal(published.length, 0);
         assert.equal(tracked.subscriptions, 0);
         assert.equal(managerState.pendingBalanceFailures.size, 0);
@@ -734,7 +734,7 @@ suite('balance retry and coordination', () => {
 
     test('cancellation during listener registration disposes the subscription without publication', async () => {
         const tracked = cancellation(true);
-        const decision = reportFailure(tracked.token);
+        const decision = reportFailure(undefined, tracked.token);
         assert.equal(published.length, 0);
         assert.deepEqual(await decision, stopped);
         assertClean(tracked);
@@ -749,13 +749,13 @@ suite('balance retry and coordination', () => {
             reply();
             return true;
         };
-        assert.deepEqual(await reportFailure(tracked.token), stopped);
+        assert.deepEqual(await reportFailure(undefined, tracked.token), stopped);
         assertClean(tracked);
     });
 
     test('a reply received before cancellation keeps its decision and disposes only once', async () => {
         const tracked = cancellation();
-        const decision = reportFailure(tracked.token);
+        const decision = reportFailure(undefined, tracked.token);
         reply();
         tracked.cancel();
         assert.deepEqual(await decision, switched);
@@ -766,8 +766,8 @@ suite('balance retry and coordination', () => {
         await ConfigSetStore.setSwitchMode('other-slot', 'balance');
         const first = cancellation();
         const second = cancellation();
-        const firstDecision = reportFailure(first.token);
-        const secondDecision = reportFailure(second.token, 'other-slot');
+        const firstDecision = reportFailure(undefined, first.token);
+        const secondDecision = reportFailure('other-slot', second.token);
         ApiKeyFailoverManager.handleBalanceModeChanged(slot);
         assert.deepEqual(await firstDecision, stopped);
         assert.equal(first.disposals, 1);
@@ -782,7 +782,11 @@ suite('balance retry and coordination', () => {
     test('an off-mode failure does not publish or register a cancellation listener', async () => {
         await ConfigSetStore.setSwitchMode(slot, 'off');
         const tracked = cancellation();
-        assert.deepEqual(await reportFailure(tracked.token), { handled: false, shouldRetry: false, switched: false });
+        assert.deepEqual(await reportFailure(undefined, tracked.token), {
+            handled: false,
+            shouldRetry: false,
+            switched: false
+        });
         assert.equal(published.length, 0);
         assert.equal(tracked.subscriptions, 0);
     });

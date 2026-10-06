@@ -127,6 +127,7 @@ export interface ApiKeyBalanceAssignmentRequestedEvent extends InterInstanceEven
         slot: string;
         balanceKey: string;
         preferredCredentialId?: string;
+        previousCredentialId?: string;
     };
 }
 

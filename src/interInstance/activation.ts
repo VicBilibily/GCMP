@@ -129,7 +129,9 @@ function isApiKeyBalanceAssignmentRequestedPayload(
         value.balanceKey.length > 0 &&
         value.balanceKey.length <= 512 &&
         (value.preferredCredentialId === undefined ||
-            (typeof value.preferredCredentialId === 'string' && /^[a-f0-9]{64}$/.test(value.preferredCredentialId)))
+            (typeof value.preferredCredentialId === 'string' && /^[a-f0-9]{64}$/.test(value.preferredCredentialId))) &&
+        (value.previousCredentialId === undefined ||
+            (typeof value.previousCredentialId === 'string' && /^[a-f0-9]{64}$/.test(value.previousCredentialId)))
     );
 }
 
