@@ -247,18 +247,18 @@
             "tokenPricing": { "RMB": [2.5, 10] }
         },
         {
-            "id": "token-xsparkx2",
-            "model": "xsparkx2",
-            "name": "Spark X2 (TokenPlan)",
+            "id": "token-spark-x2.5",
+            "model": "spark-x2.5",
+            "name": "Spark-X2.5 (TokenPlan)",
             "sdkMode": "openai-sse",
             "provider": "xfyun-token",
             "baseUrl": "https://maas-token-api.cn-huabei-1.xf-yun.com/v2",
-            "tooltip": "星火X2旗舰模型。",
-            "maxInputTokens": 160000,
+            "tooltip": "星火X2.5旗舰模型，256K上下文窗口。",
+            "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [3, 3] }
+            "tokenPricing": { "RMB": [3.2, 12, 0.48] }
         },
         {
             "id": "token-xsparkx2flash",
