@@ -42,21 +42,25 @@ function addBreakdownCosts(target: BaseStats, log: TokenRequestLog): void {
         return;
     }
 
-    target.inputCost = addCost(target.inputCost, breakdown.cost[0]);
-    target.outputCost = addCost(target.outputCost, breakdown.cost[1]);
-    target.cacheReadCost = addCost(target.cacheReadCost, breakdown.cost[2] ?? 0);
-    target.cacheWriteCost = addCost(target.cacheWriteCost, breakdown.cost[3] ?? 0);
+    // 兼容无成本明细的日志（例如仅写 costBreakdown.contextWindow 的直连 provider 行）：
+    // 缺少 cost 向量时不做逐项累加，避免读取 .cost[0] 抛错导致整天统计归零。
+    if (breakdown.cost) {
+        target.inputCost = addCost(target.inputCost, breakdown.cost[0]);
+        target.outputCost = addCost(target.outputCost, breakdown.cost[1]);
+        target.cacheReadCost = addCost(target.cacheReadCost, breakdown.cost[2] ?? 0);
+        target.cacheWriteCost = addCost(target.cacheWriteCost, breakdown.cost[3] ?? 0);
 
-    target.inputCostRmb = addCost(target.inputCostRmb, exactRmb?.cost[0] ?? convertUsdToRmb(breakdown.cost[0]));
-    target.outputCostRmb = addCost(target.outputCostRmb, exactRmb?.cost[1] ?? convertUsdToRmb(breakdown.cost[1]));
-    target.cacheReadCostRmb = addCost(
-        target.cacheReadCostRmb,
-        exactRmb?.cost[2] ?? convertUsdToRmb(breakdown.cost[2] ?? 0)
-    );
-    target.cacheWriteCostRmb = addCost(
-        target.cacheWriteCostRmb,
-        exactRmb?.cost[3] ?? convertUsdToRmb(breakdown.cost[3] ?? 0)
-    );
+        target.inputCostRmb = addCost(target.inputCostRmb, exactRmb?.cost?.[0] ?? convertUsdToRmb(breakdown.cost[0]));
+        target.outputCostRmb = addCost(target.outputCostRmb, exactRmb?.cost?.[1] ?? convertUsdToRmb(breakdown.cost[1]));
+        target.cacheReadCostRmb = addCost(
+            target.cacheReadCostRmb,
+            exactRmb?.cost?.[2] ?? convertUsdToRmb(breakdown.cost[2] ?? 0)
+        );
+        target.cacheWriteCostRmb = addCost(
+            target.cacheWriteCostRmb,
+            exactRmb?.cost?.[3] ?? convertUsdToRmb(breakdown.cost[3] ?? 0)
+        );
+    }
 }
 
 function createEmptyModelStats(modelName: string): FileLoggerModelStats {

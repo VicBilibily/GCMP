@@ -139,21 +139,8 @@ export class TokenFileLogger {
         // 启动 pendingLogs 清理任务
         this.startPendingLogsCleanup();
 
-        // 启动后后台清理历史日志。
-        // 不 await，避免拖慢扩展初始化；阈值为 2，只处理 2 天前及更早的日期，
-        // 今天/昨天只读原始 hourly .jsonl，不生成 requests.jsonl。
-        void this.snapshotManager
-            .compactHistoricalDates(this.startupHistoricalCompactionDaysThreshold)
-            .then(async compactedCount => {
-                const sanitizedCount =
-                    await this.snapshotManager.sanitizeHistoricalSnapshots(USAGES_CACHE_VERSION_TIMESTAMP);
-                if (compactedCount > 0 || sanitizedCount > 0) {
-                    StatusLogger.info(
-                        `[TokenFileLogger] Startup usage history cleanup compacted ${compactedCount} date folders and sanitized ${sanitizedCount} snapshots`
-                    );
-                }
-            })
-            .catch(err => StatusLogger.warn('[TokenFileLogger] Startup historical snapshot compaction failed:', err));
+        // 每日 context 只读：启动时不再后台压缩历史日期（compactHistoricalDates + 快照清洗），
+        // 避免在“每次只读今日 context”的路径上触碰历史目录；显式历史浏览仍可单独压缩。
 
         const elapsed = Date.now() - startTime;
         StatusLogger.info(`[TokenFileLogger] File logging system initialization completed (elapsed: ${elapsed}ms)`);
@@ -1043,6 +1030,11 @@ export class TokenFileLogger {
         try {
             // 等待写入队列完成
             await this.writeManager.flush();
+
+            // 每日 context 只读：刷新统计只对今日执行，历史日期不在自动路径上重算。
+            if (dateStr !== DateUtils.getTodayDateString()) {
+                return;
+            }
 
             // 计算并保存统计（getDateStats 会自动处理增量更新和保存）
             await this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.getDateStats(dateStr));
