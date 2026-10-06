@@ -359,6 +359,16 @@
                 "command": "gcmp.configSet.manage",
                 "title": "%command.configSet.manage%",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.devin.configWizard",
+                "title": "Devin: Sign in / verify (GCMP bridge)",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.devin.login",
+                "title": "Devin: Sign in with OAuth (browser)",
+                "category": "GCMP"
             }
         ],
         "configuration": {
@@ -1048,6 +1058,11 @@
                 "vendor": "gcmp.compatible",
                 "displayName": "GCMP · Compatible",
                 "managementCommand": "gcmp.compatible.manageModels"
+            },
+            {
+                "vendor": "gcmp.devin",
+                "displayName": "GCMP · Devin",
+                "managementCommand": "gcmp.devin.configWizard"
             }
         ],
         "languageModelTools": [
@@ -1562,6 +1577,13 @@
                 "default": {
                     "fontPath": "./fonts/tokens.ttf",
                     "fontCharacter": "\\e67d"
+                }
+            },
+            "gcmp-devin": {
+                "description": "Devin",
+                "default": {
+                    "fontPath": "./fonts/devin.ttf",
+                    "fontCharacter": "\\e8a2"
                 }
             },
             "gcmp-token5": {
