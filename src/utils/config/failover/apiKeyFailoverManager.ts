@@ -1,7 +1,8 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import { ApiKeyManager } from '../apiKeyManager';
-import { ConfigSetStore, type ConfigSetItem } from '../configSetStore';
+import { ConfigSetStore, type ConfigSetItem, type ConfigSetSwitchMode } from '../configSetStore';
+import { getBalanceWeight } from '../balanceWeight';
 import {
     applyConfigSetUnlocked,
     enqueueConfigSetMutation,
@@ -39,6 +40,7 @@ const FAILOVER_ROTATION_SETTLE_MS = 100;
 const BALANCE_EXCLUSION_TTL_MS = 5 * 60_000;
 const BALANCE_COORDINATION_TIMEOUT_MS = 10_000;
 const BALANCE_ABANDONED_ASSIGNMENTS_LIMIT = 1000;
+const BALANCE_RELEASED_LEASES_LIMIT = 1000;
 const BALANCE_LEASE_RENEW_INTERVAL_MS = 10_000;
 const BALANCE_INSTANCE_DISCONNECT_GRACE_MS = 3_000;
 
@@ -54,6 +56,13 @@ export interface ApiKeyFailoverAttempt {
     balanceAuthorityTerm?: string;
 }
 
+export interface BalanceFallbackSnapshot {
+    apiKey: string | undefined;
+    site?: string;
+}
+
+type BalanceCaptureResult = ApiKeyFailoverAttempt | 'fallback' | undefined;
+
 export interface ApiKeyFailoverDecision {
     handled: boolean;
     shouldRetry: boolean;
@@ -64,6 +73,20 @@ export interface ApiKeyFailoverDecision {
 interface KeyedConfigSetItem {
     item: ConfigSetItem;
     apiKey: string;
+}
+
+interface BalanceCandidate {
+    config: KeyedConfigSetItem;
+    credentialId: string;
+    weight: number;
+}
+
+class BalanceWeightUnavailableError extends Error {
+    constructor() {
+        super(
+            t('No positive-weight API key could be assigned for load balancing.', '无法为负载均衡分配正权重 API Key。')
+        );
+    }
 }
 
 interface ResolvedConfigPool {
@@ -151,6 +174,7 @@ export class ApiKeyFailoverManager {
         }
     >();
     private static abandonedBalanceAssignments = new Map<string, number>();
+    private static releasedBalanceLeases = new Set<string>();
     private static pendingBalanceFailures = new Map<
         string,
         {
@@ -177,6 +201,7 @@ export class ApiKeyFailoverManager {
         | undefined;
     private static balanceAuthorityGeneration = 0;
     private static balanceModeGenerations = new Map<string, number>();
+    private static switchModeGenerations = new Map<string, number>();
     private static balanceModeEventTimestamps = new Map<string, number>();
 
     static resolveLeaderDecision(requestId: string, decision: ApiKeyFailoverDecision): void {
@@ -599,22 +624,39 @@ export class ApiKeyFailoverManager {
             return undefined;
         }
         await this.becomeBalanceAuthority(payload.authorityTerm);
-        const allocation = await enqueueConfigSetMutation(async () =>
-            (
-                ConfigSetStore.getSwitchMode(payload.slot) === 'balance' &&
-                this.balanceResigningTerm !== payload.authorityTerm &&
-                payload.authorityTerm === LeaderElectionService.getOwnedAuthorityTerm()
-            ) ?
-                this.allocateBalanceLease(payload, senderInstanceId)
-            :   undefined
-        );
-        const lease = allocation?.balanceLeaseId ? this.balanceLeases.get(allocation.balanceLeaseId) : undefined;
-        if (!allocation || !lease) {
+        let allocation: BalanceCaptureResult;
+        try {
+            allocation = await enqueueConfigSetMutation(async () =>
+                (
+                    ConfigSetStore.getSwitchMode(payload.slot) === 'balance' &&
+                    this.balanceResigningTerm !== payload.authorityTerm &&
+                    payload.authorityTerm === LeaderElectionService.getOwnedAuthorityTerm()
+                ) ?
+                    this.allocateBalanceLease(payload, senderInstanceId)
+                :   undefined
+            );
+        } catch (error) {
+            const weightBlocked = error instanceof BalanceWeightUnavailableError;
+            if (!weightBlocked) {
+                Logger.warn('[ApiKeyBalance] Failed to capture assigned configuration:', error);
+            }
             return {
                 requestId: payload.requestId,
                 targetInstanceId: senderInstanceId,
                 authorityTerm: payload.authorityTerm,
-                handled: false
+                handled: false,
+                ...(weightBlocked ? { weightBlocked: true } : { assignmentInvalidated: true })
+            };
+        }
+        const attempt = allocation === 'fallback' ? undefined : allocation;
+        const lease = attempt?.balanceLeaseId ? this.balanceLeases.get(attempt.balanceLeaseId) : undefined;
+        if (!attempt || !lease) {
+            return {
+                requestId: payload.requestId,
+                targetInstanceId: senderInstanceId,
+                authorityTerm: payload.authorityTerm,
+                handled: false,
+                ...(allocation === 'fallback' ? {} : { assignmentInvalidated: true })
             };
         }
         return {
@@ -626,7 +668,7 @@ export class ApiKeyFailoverManager {
             configId: lease.configId,
             credentialId: lease.credentialId,
             site: lease.site,
-            apiKeyName: allocation.apiKeyName,
+            apiKeyName: attempt.apiKeyName,
             expiresAt: lease.expiresAt
         };
     }
@@ -634,7 +676,7 @@ export class ApiKeyFailoverManager {
     private static async allocateBalanceLease(
         payload: ApiKeyBalanceAssignmentRequestedEvent['payload'],
         ownerInstanceId: string
-    ): Promise<(ApiKeyFailoverAttempt & { balanceLeaseId: string }) | undefined> {
+    ): Promise<(ApiKeyFailoverAttempt & { balanceLeaseId: string }) | 'fallback' | undefined> {
         for (const lease of this.balanceLeases.values()) {
             if (
                 lease.requestId === payload.requestId &&
@@ -645,7 +687,7 @@ export class ApiKeyFailoverManager {
                 lease.expiresAt > Date.now()
             ) {
                 const operationToken = ConfigSetStore.getApplyOperationToken(payload.slot);
-                const pool = await this.resolveConfigPool(payload.slot);
+                const pool = await this.resolveConfigPool(payload.slot, true);
                 if (!pool) {
                     return undefined;
                 }
@@ -657,9 +699,11 @@ export class ApiKeyFailoverManager {
             payload.balanceKey,
             payload.requestId,
             ownerInstanceId,
-            payload.preferredCredentialId,
-            payload.previousCredentialId
+            payload.preferredCredentialId
         );
+        if (attempt === 'fallback') {
+            return (await this.validateBalanceFallback(payload.slot)) ? 'fallback' : undefined;
+        }
         if (!attempt?.balanceLeaseId) {
             return undefined;
         }
@@ -765,8 +809,10 @@ export class ApiKeyFailoverManager {
             return;
         }
         const currentTerm = authorityTerm ?? InterInstanceBus.getAuthorityTerm();
+        const releaseKey = JSON.stringify([currentTerm, leaseId]);
         if (
             !currentTerm ||
+            this.releasedBalanceLeases.has(releaseKey) ||
             !InterInstanceBus.publishIpcOnly({
                 type: 'apiKeyBalanceLeaseReleased',
                 payload: { leaseId, authorityTerm: currentTerm }
@@ -774,6 +820,10 @@ export class ApiKeyFailoverManager {
         ) {
             return;
         }
+        if (this.releasedBalanceLeases.size >= BALANCE_RELEASED_LEASES_LIMIT) {
+            this.releasedBalanceLeases.delete(this.releasedBalanceLeases.values().next().value!);
+        }
+        this.releasedBalanceLeases.add(releaseKey);
         this.balanceLeases.delete(leaseId);
     }
 
@@ -894,16 +944,18 @@ export class ApiKeyFailoverManager {
             for (const leaseId of this.balanceLeaseRenewalTimers.keys()) {
                 this.stopBalanceLeaseHeartbeat(leaseId);
             }
+            // 模式事件的去重水位仅在完整清理时重置，不随 authority 交接丢失。
+            this.balanceModeEventTimestamps.clear();
         }
         this.clearPendingBalanceDisconnectReclaims();
         this.balanceLeases.clear();
         this.balanceAttemptSnapshots.clear();
+        this.releasedBalanceLeases.clear();
         this.balanceAuthorityTerm = undefined;
         this.balanceAuthorityReady = undefined;
         this.pendingBalanceLeaseRenewals = [];
         this.balanceResigningTerm = undefined;
         this.balanceModeGenerations.clear();
-        this.balanceModeEventTimestamps.clear();
     }
 
     static handleBalanceModeChanged(slot: string, eventTimestamp?: number): void {
@@ -914,6 +966,7 @@ export class ApiKeyFailoverManager {
         }
         this.balanceModeEventTimestamps.set(slot, timestamp);
         this.balanceModeGenerations.set(slot, this.getBalanceModeGeneration(slot) + 1);
+        this.switchModeGenerations.set(slot, this.getSwitchModeGeneration(slot) + 1);
         BalanceAffinityCache.instance.clear(slot);
         for (const [leaseId, activeSlot] of this.activeBalanceLeaseSlots) {
             if (activeSlot === slot) {
@@ -953,6 +1006,9 @@ export class ApiKeyFailoverManager {
         this.scheduleBalanceLeasePersistence();
     }
 
+    static getSwitchModeGeneration(slot: string): number {
+        return this.switchModeGenerations.get(slot) ?? 0;
+    }
     static resetFailureCount(slot: string, failureRequestId: string): void {
         if (!failureRequestId || !LeaderElectionService.isInitialized()) {
             return;
@@ -1013,9 +1069,12 @@ export class ApiKeyFailoverManager {
             return { handled: true, shouldRetry: true, switched: false };
         }
 
-        const currentPool = await this.resolveConfigPool(payload.slot);
-        if (!currentPool || currentPool.candidates.length < 2) {
+        const currentPool = await this.resolveFailoverPool(payload.slot);
+        if (!currentPool || currentPool.candidates.length === 0) {
             return STOP_DECISION;
+        }
+        if (currentPool.candidates.length === 1) {
+            return UNHANDLED_DECISION;
         }
         if (this.leaderFailureResets.has(this.getLeaderFailureResetKey(payload))) {
             return { handled: true, shouldRetry: true, switched: false };
@@ -1023,7 +1082,7 @@ export class ApiKeyFailoverManager {
         const currentIdentity = this.getIdentity(
             currentPool.current.item.id,
             currentPool.current.apiKey,
-            currentPool.currentSite
+            currentPool.current.item.site ?? currentPool.currentSite
         );
         if (currentIdentity !== payload.identity) {
             this.leaderFailureWindows.delete(this.getLeaderFailureWindowKey(payload));
@@ -1115,7 +1174,7 @@ export class ApiKeyFailoverManager {
                 return { decision };
             }
 
-            const targetPool = await this.resolveConfigPool(payload.slot);
+            const targetPool = await this.resolveFailoverPool(payload.slot);
             if (!targetPool) {
                 return { decision: STOP_DECISION };
             }
@@ -1125,7 +1184,7 @@ export class ApiKeyFailoverManager {
                 targetIdentity: this.getIdentity(
                     targetPool.current.item.id,
                     targetPool.current.apiKey,
-                    targetPool.currentSite
+                    targetPool.current.item.site ?? targetPool.currentSite
                 )
             };
         } finally {
@@ -1368,10 +1427,10 @@ export class ApiKeyFailoverManager {
         return ConfigSetStore.isAutoSwitchEnabled(slot) ? ConfigSetStore.list(slot).length : 0;
     }
 
-    static async canEnableAutoSwitch(slot: string): Promise<boolean> {
+    static async canEnableAutoSwitch(slot: string, mode: ConfigSetSwitchMode = 'failover'): Promise<boolean> {
         try {
-            const pool = await this.resolveConfigPool(slot);
-            return !!pool && pool.candidates.length >= 2;
+            const pool = await this.resolveConfigPool(slot, mode === 'balance');
+            return !!pool && (mode === 'balance' || pool.candidates.length >= 2);
         } catch (error) {
             Logger.warn(`[ApiKeyFailover] Failed to validate candidate configurations for ${slot}:`, error);
             return false;
@@ -1386,8 +1445,16 @@ export class ApiKeyFailoverManager {
             if (!ConfigSetStore.isAutoSwitchEnabled(slot)) {
                 return false;
             }
-            const pool = await this.resolveConfigPool(slot);
-            if (pool && pool.candidates.length >= 2) {
+            const mode = ConfigSetStore.getSwitchMode(slot);
+            const items = ConfigSetStore.list(slot);
+            if (
+                (mode === 'balance' && items.length > 0) ||
+                (mode === 'failover' && items.some(item => getBalanceWeight(item) === 0))
+            ) {
+                return false;
+            }
+            const pool = await this.resolveConfigPool(slot, mode === 'balance');
+            if (pool && (mode === 'balance' || pool.candidates.length >= 2)) {
                 return false;
             }
             await ConfigSetStore.setAutoSwitchEnabled(slot, false);
@@ -1401,8 +1468,8 @@ export class ApiKeyFailoverManager {
         balanceKey?: string,
         allocationRequestId?: string,
         preferredCredentialId?: string,
-        previousCredentialId?: string,
-        token?: vscode.CancellationToken
+        token?: vscode.CancellationToken,
+        onBalanceFallback?: (snapshot: BalanceFallbackSnapshot) => void
     ): Promise<ApiKeyFailoverAttempt | undefined> {
         if (token?.isCancellationRequested) {
             return undefined;
@@ -1414,7 +1481,11 @@ export class ApiKeyFailoverManager {
                 return undefined;
             }
             if (LeaderElectionService.isLeader()) {
-                await this.becomeBalanceAuthority(ownedAuthorityTerm);
+                if (this.balanceAuthorityTerm === ownedAuthorityTerm && !this.balanceAuthorityReady) {
+                    await this.becomeBalanceAuthority(ownedAuthorityTerm);
+                } else {
+                    await this.awaitBalanceOperation(() => this.becomeBalanceAuthority(ownedAuthorityTerm), token);
+                }
             }
             if (token?.isCancellationRequested) {
                 return undefined;
@@ -1434,7 +1505,10 @@ export class ApiKeyFailoverManager {
                     const authorityGeneration = this.balanceAuthorityGeneration;
                     const modeGeneration = this.getBalanceModeGeneration(slot);
                     const operationToken = ConfigSetStore.getApplyOperationToken(slot);
-                    const apiKey = await ConfigSetStore.getApiKey(slot, snapshot.attempt.activeId);
+                    const apiKey = await this.awaitBalanceOperation(
+                        () => ConfigSetStore.getApiKey(slot, snapshot.attempt.activeId),
+                        token
+                    );
                     if (token?.isCancellationRequested) {
                         this.releaseBalanceLease(
                             snapshot.attempt.balanceLeaseId,
@@ -1467,6 +1541,7 @@ export class ApiKeyFailoverManager {
                 }
                 this.balanceAttemptSnapshots.delete(allocationRequestId);
             }
+            let pendingBalanceAttempt: Promise<BalanceCaptureResult> | undefined;
             const attempt =
                 LeaderElectionService.isInitialized() && !LeaderElectionService.isLeader() ?
                     await this.captureBalanceAttempt(
@@ -1474,22 +1549,53 @@ export class ApiKeyFailoverManager {
                         balanceKey,
                         allocationRequestId,
                         preferredCredentialId,
-                        previousCredentialId,
                         token
                     )
-                :   await enqueueConfigSetMutation(async () =>
-                        this.captureBalanceAttempt(
-                            slot,
-                            balanceKey,
-                            allocationRequestId,
-                            preferredCredentialId,
-                            previousCredentialId,
-                            token
-                        )
-                    );
+                :   await this.awaitBalanceOperation(() => {
+                        pendingBalanceAttempt = enqueueConfigSetMutation(async () =>
+                            this.captureBalanceAttempt(
+                                slot,
+                                balanceKey,
+                                allocationRequestId,
+                                preferredCredentialId,
+                                token
+                            )
+                        );
+                        return pendingBalanceAttempt;
+                    }, token);
             if (token?.isCancellationRequested) {
-                if (attempt?.balanceLeaseId) {
+                if (!attempt && allocationRequestId) {
+                    const existingLease = [...this.balanceLeases.values()].find(
+                        lease =>
+                            lease.requestId === allocationRequestId &&
+                            lease.slot === slot &&
+                            lease.balanceKey === balanceKey &&
+                            lease.ownerInstanceId === LeaderElectionService.getInstanceId() &&
+                            lease.authorityTerm === ownedAuthorityTerm
+                    );
+                    if (existingLease) {
+                        this.releaseBalanceLease(existingLease.leaseId, existingLease.authorityTerm);
+                    }
+                }
+                if (!attempt && pendingBalanceAttempt) {
+                    void pendingBalanceAttempt.then(
+                        lateAttempt => {
+                            if (lateAttempt && lateAttempt !== 'fallback' && lateAttempt.balanceLeaseId) {
+                                this.releaseBalanceLease(lateAttempt.balanceLeaseId, lateAttempt.balanceAuthorityTerm);
+                            }
+                        },
+                        () => undefined
+                    );
+                }
+                if (attempt && attempt !== 'fallback' && attempt.balanceLeaseId) {
                     this.releaseBalanceLease(attempt.balanceLeaseId, attempt.balanceAuthorityTerm);
+                }
+                return undefined;
+            }
+            if (attempt === 'fallback') {
+                const snapshot = await this.validateBalanceFallback(slot, token);
+                if (snapshot) {
+                    onBalanceFallback?.(snapshot);
                 }
                 return undefined;
             }
@@ -1502,29 +1608,70 @@ export class ApiKeyFailoverManager {
             return undefined;
         }
 
-        return await enqueueConfigSetMutation(async () => {
-            if (ConfigSetStore.getSwitchMode(slot) !== 'failover') {
-                return undefined;
-            }
-            const operationToken = ConfigSetStore.getApplyOperationToken(slot);
-            const pool = await this.resolveConfigPool(slot);
-            if (ConfigSetStore.getApplyOperationToken(slot) !== operationToken) {
-                throw new Error(
-                    t('Configuration changed while capturing the request snapshot.', '读取请求快照时配置已变化。')
-                );
-            }
-            if (!pool || pool.candidates.length < 2) {
-                return undefined;
-            }
-            return {
-                mode: 'failover',
-                activeId: pool.current.item.id,
-                apiKey: pool.current.apiKey,
-                apiKeyName: pool.currentApiKeyName,
-                identity: this.getIdentity(pool.current.item.id, pool.current.apiKey, pool.currentSite),
-                site: pool.currentSite
-            };
-        });
+        return await this.awaitBalanceOperation(
+            () =>
+                enqueueConfigSetMutation<ApiKeyFailoverAttempt | undefined>(async () => {
+                    if (token?.isCancellationRequested || ConfigSetStore.getSwitchMode(slot) !== 'failover') {
+                        return undefined;
+                    }
+                    const operationToken = ConfigSetStore.getApplyOperationToken(slot);
+                    const pool = await this.awaitBalanceOperation(() => this.resolveFailoverPool(slot), token);
+                    if (token?.isCancellationRequested || ConfigSetStore.getSwitchMode(slot) !== 'failover') {
+                        return undefined;
+                    }
+                    if (ConfigSetStore.getApplyOperationToken(slot) !== operationToken) {
+                        throw new Error(
+                            t(
+                                'Configuration changed while capturing the request snapshot.',
+                                '读取请求快照时配置已变化。'
+                            )
+                        );
+                    }
+                    if (!pool || pool.candidates.length === 0) {
+                        const items = ConfigSetStore.list(slot);
+                        if (pool || (items.length > 0 && items.every(item => getBalanceWeight(item) === 0))) {
+                            throw new Error(
+                                t(
+                                    'No positive-weight API key could be assigned for failover.',
+                                    '无法为故障切换分配正权重 API Key。'
+                                )
+                            );
+                        }
+                        return undefined;
+                    }
+                    const site = pool.current.item.site ?? pool.currentSite;
+                    return {
+                        mode: 'failover',
+                        activeId: pool.current.item.id,
+                        apiKey: pool.current.apiKey,
+                        apiKeyName: pool.currentApiKeyName,
+                        identity: this.getIdentity(pool.current.item.id, pool.current.apiKey, site),
+                        site
+                    };
+                }),
+            token
+        );
+    }
+
+    static async isFailoverFallbackAvailable(
+        slot: string,
+        apiKey: string | undefined,
+        site?: string
+    ): Promise<boolean> {
+        const items = ConfigSetStore.list(slot);
+        const metadata = JSON.stringify(items);
+        const keys = apiKey ? await Promise.all(items.map(item => ConfigSetStore.getApiKey(slot, item.id))) : [];
+        if (JSON.stringify(ConfigSetStore.list(slot)) !== metadata) {
+            throw new Error(
+                t('Configuration changed while capturing the request snapshot.', '读取请求快照时配置已变化。')
+            );
+        }
+        const matchingItems =
+            apiKey ? items.filter((item, index) => keys[index] === apiKey && (item.site ?? site) === site) : [];
+        return (
+            (items.length === 0 || items.some(item => getBalanceWeight(item) > 0)) &&
+            (matchingItems.length === 0 || matchingItems.some(item => getBalanceWeight(item) > 0))
+        );
     }
 
     private static async captureBalanceAttempt(
@@ -1532,14 +1679,13 @@ export class ApiKeyFailoverManager {
         balanceKey: string,
         allocationRequestId?: string,
         preferredCredentialId?: string,
-        previousCredentialId?: string,
         token?: vscode.CancellationToken
-    ): Promise<ApiKeyFailoverAttempt | undefined> {
+    ): Promise<BalanceCaptureResult> {
         if (token?.isCancellationRequested || ConfigSetStore.getSwitchMode(slot) !== 'balance') {
             return undefined;
         }
         if (!LeaderElectionService.isInitialized()) {
-            return undefined;
+            return 'fallback';
         }
         // Agents 窗口仅作为 IPC Follower 参与均衡，必须依赖普通窗口 Leader。
         if (!LeaderElectionService.isLeader()) {
@@ -1548,7 +1694,6 @@ export class ApiKeyFailoverManager {
                 balanceKey,
                 allocationRequestId,
                 preferredCredentialId,
-                previousCredentialId,
                 token
             );
         }
@@ -1558,7 +1703,7 @@ export class ApiKeyFailoverManager {
             allocationRequestId,
             undefined,
             preferredCredentialId,
-            previousCredentialId
+            token
         );
     }
 
@@ -1568,19 +1713,21 @@ export class ApiKeyFailoverManager {
         allocationRequestId?: string,
         ownerInstanceId = LeaderElectionService.getInstanceId(),
         preferredCredentialId?: string,
-        previousCredentialId?: string
-    ): Promise<ApiKeyFailoverAttempt | undefined> {
+        token?: vscode.CancellationToken
+    ): Promise<BalanceCaptureResult> {
         const operationToken = ConfigSetStore.getApplyOperationToken(slot);
         const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
         if (
+            token?.isCancellationRequested ||
             !authorityTerm ||
             this.balanceResigningTerm === authorityTerm ||
             ConfigSetStore.getSwitchMode(slot) !== 'balance'
         ) {
             return undefined;
         }
-        const pool = await this.resolveConfigPool(slot);
+        const pool = await this.awaitBalanceOperation(() => this.resolveConfigPool(slot, true), token);
         if (
+            token?.isCancellationRequested ||
             !LeaderElectionService.isLeader() ||
             this.balanceResigningTerm === authorityTerm ||
             LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm
@@ -1596,7 +1743,24 @@ export class ApiKeyFailoverManager {
             );
         }
         if (!pool) {
-            return undefined;
+            if (ConfigSetStore.list(slot).length > 0) {
+                throw new BalanceWeightUnavailableError();
+            }
+            return 'fallback';
+        }
+        if (allocationRequestId) {
+            const existingLease = [...this.balanceLeases.values()].find(
+                lease =>
+                    lease.requestId === allocationRequestId &&
+                    lease.ownerInstanceId === ownerInstanceId &&
+                    lease.authorityTerm === authorityTerm &&
+                    lease.slot === slot &&
+                    lease.balanceKey === balanceKey &&
+                    lease.expiresAt > Date.now()
+            );
+            if (existingLease) {
+                return this.balanceAttemptFromLease(existingLease, pool, operationToken, token);
+            }
         }
         const now = Date.now();
         const excludedCredentialIds = new Set(
@@ -1609,38 +1773,33 @@ export class ApiKeyFailoverManager {
                 )
                 .map(entry => entry.credentialId)
         );
-        const balanceCandidates = new Map<string, KeyedConfigSetItem>();
+        const balanceCandidates = new Map<string, BalanceCandidate>();
         for (const candidate of pool.keyedItems) {
             const credentialId = this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite);
+            const weight = getBalanceWeight(candidate.item);
+            const group = balanceCandidates.get(credentialId);
             // 激活别名只替换组代表，不能改变该凭据组的哈希位置。
-            if (!balanceCandidates.has(credentialId) || candidate === pool.current) {
-                balanceCandidates.set(credentialId, candidate);
+            if (!group) {
+                balanceCandidates.set(credentialId, { config: candidate, credentialId, weight });
+            } else {
+                group.weight = Math.max(group.weight, weight);
+                if (candidate === pool.current) {
+                    group.config = candidate;
+                }
             }
         }
-        let candidates = [...balanceCandidates]
-            .filter(([credentialId]) => !excludedCredentialIds.has(credentialId))
-            .map(([, candidate]) => candidate);
-        if (candidates.length === 0) {
-            // 全部候选被隔离时回退完整池，隔离仅为 Advisory，不造成可用性空洞
-            candidates = [...balanceCandidates.values()];
+        const eligibleCandidates = [...balanceCandidates.values()].filter(candidate => candidate.weight > 0);
+        if (eligibleCandidates.length === 0) {
+            throw new BalanceWeightUnavailableError();
         }
-        const nextTurnCandidates = candidates.filter(
-            candidate =>
-                this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite) !==
-                previousCredentialId
-        );
-        const target =
-            candidates.find(
-                candidate =>
-                    this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite) ===
-                    preferredCredentialId
-            ) ??
-            this.selectLeastLoadedBalanceCandidate(
-                slot,
-                balanceKey,
-                nextTurnCandidates.length > 0 ? nextTurnCandidates : candidates,
-                pool.currentSite
-            );
+        let candidates = eligibleCandidates.filter(candidate => !excludedCredentialIds.has(candidate.credentialId));
+        if (candidates.length === 0) {
+            candidates = eligibleCandidates;
+        }
+        const target = (
+            candidates.find(candidate => candidate.credentialId === preferredCredentialId) ??
+            this.selectLeastLoadedBalanceCandidate(slot, balanceKey, candidates)
+        )?.config;
         if (!target) {
             return undefined;
         }
@@ -1654,20 +1813,6 @@ export class ApiKeyFailoverManager {
                 identity: this.getCredentialIdentity(target.apiKey, targetSite),
                 site: targetSite
             };
-        }
-        if (allocationRequestId) {
-            const existingLease = [...this.balanceLeases.values()].find(
-                lease =>
-                    lease.requestId === allocationRequestId &&
-                    lease.ownerInstanceId === ownerInstanceId &&
-                    lease.authorityTerm === authorityTerm &&
-                    lease.slot === slot &&
-                    lease.balanceKey === balanceKey &&
-                    lease.expiresAt > Date.now()
-            );
-            if (existingLease) {
-                return this.balanceAttemptFromLease(existingLease, pool, operationToken);
-            }
         }
         const lease: BalanceLease = {
             leaseId: crypto.randomUUID(),
@@ -1683,32 +1828,53 @@ export class ApiKeyFailoverManager {
         };
         this.cleanupBalanceLeases();
         this.balanceLeases.set(lease.leaseId, lease);
-        await this.persistBalanceLeases(authorityTerm);
-        if (
-            !this.isCurrentLeaderTerm(authorityTerm) ||
-            this.balanceResigningTerm === authorityTerm ||
-            ConfigSetStore.getApplyOperationToken(slot) !== operationToken ||
-            lease.expiresAt <= Date.now() ||
-            this.balanceLeases.get(lease.leaseId) !== lease ||
-            ConfigSetStore.getSwitchMode(slot) !== 'balance'
-        ) {
+        let cancellation: vscode.Disposable | undefined;
+        const cancelLease = () => {
             if (this.balanceLeases.get(lease.leaseId) === lease) {
                 this.balanceLeases.delete(lease.leaseId);
-                await this.persistBalanceLeases(authorityTerm);
             }
-            return undefined;
-        }
-        return {
-            mode: 'balance',
-            activeId: target.item.id,
-            apiKey: target.apiKey,
-            apiKeyName: this.resolveBalanceApiKeyName(pool, target),
-            identity: this.getCredentialIdentity(target.apiKey, targetSite),
-            site: targetSite,
-            balanceLeaseId: lease.leaseId,
-            balanceLeaseExpiresAt: lease.expiresAt,
-            balanceAuthorityTerm: lease.authorityTerm
+            cancellation?.dispose();
+            cancellation = undefined;
         };
+        cancellation = token?.onCancellationRequested(cancelLease);
+        try {
+            if (token?.isCancellationRequested) {
+                cancelLease();
+                return undefined;
+            }
+            // 调用方可先取消，原队列仍须等待旧写和补偿写结束。
+            await this.persistBalanceLeases(authorityTerm);
+            if (
+                token?.isCancellationRequested ||
+                !this.isCurrentLeaderTerm(authorityTerm) ||
+                this.balanceResigningTerm === authorityTerm ||
+                ConfigSetStore.getApplyOperationToken(slot) !== operationToken ||
+                lease.expiresAt <= Date.now() ||
+                this.balanceLeases.get(lease.leaseId) !== lease ||
+                ConfigSetStore.getSwitchMode(slot) !== 'balance'
+            ) {
+                if (token?.isCancellationRequested || this.balanceLeases.get(lease.leaseId) === lease) {
+                    if (this.balanceLeases.get(lease.leaseId) === lease) {
+                        this.balanceLeases.delete(lease.leaseId);
+                    }
+                    await this.persistBalanceLeases(authorityTerm);
+                }
+                return undefined;
+            }
+            return {
+                mode: 'balance',
+                activeId: target.item.id,
+                apiKey: target.apiKey,
+                apiKeyName: this.resolveBalanceApiKeyName(pool, target),
+                identity: this.getCredentialIdentity(target.apiKey, targetSite),
+                site: targetSite,
+                balanceLeaseId: lease.leaseId,
+                balanceLeaseExpiresAt: lease.expiresAt,
+                balanceAuthorityTerm: lease.authorityTerm
+            };
+        } finally {
+            cancellation?.dispose();
+        }
     }
 
     private static async requestBalanceAssignment(
@@ -1716,12 +1882,14 @@ export class ApiKeyFailoverManager {
         balanceKey: string,
         allocationRequestId?: string,
         preferredCredentialId?: string,
-        previousCredentialId?: string,
         token?: vscode.CancellationToken
-    ): Promise<ApiKeyFailoverAttempt | undefined> {
+    ): Promise<BalanceCaptureResult> {
         const authorityTerm = InterInstanceBus.getAuthorityTerm();
-        if (token?.isCancellationRequested || !authorityTerm || !InterInstanceBus.hasActiveTransport()) {
+        if (token?.isCancellationRequested) {
             return undefined;
+        }
+        if (!authorityTerm || !InterInstanceBus.hasActiveTransport()) {
+            return 'fallback';
         }
         const authorityGeneration = this.balanceAuthorityGeneration;
         const modeGeneration = this.getBalanceModeGeneration(slot);
@@ -1756,8 +1924,7 @@ export class ApiKeyFailoverManager {
                     authorityTerm,
                     slot,
                     balanceKey,
-                    ...(preferredCredentialId ? { preferredCredentialId } : {}),
-                    ...(previousCredentialId ? { previousCredentialId } : {})
+                    ...(preferredCredentialId ? { preferredCredentialId } : {})
                 }
             });
             if (!published) {
@@ -1766,23 +1933,39 @@ export class ApiKeyFailoverManager {
             const assigned = await response;
             if (
                 token?.isCancellationRequested ||
-                !assigned?.handled ||
-                !assigned.configId ||
-                !assigned.credentialId ||
-                !assigned.leaseId ||
                 authorityGeneration !== this.balanceAuthorityGeneration ||
                 modeGeneration !== this.getBalanceModeGeneration(slot) ||
                 operationToken !== ConfigSetStore.getApplyOperationToken(slot) ||
-                assigned.authorityTerm !== InterInstanceBus.getAuthorityTerm() ||
+                authorityTerm !== InterInstanceBus.getAuthorityTerm() ||
                 ConfigSetStore.getSwitchMode(slot) !== 'balance' ||
                 !InterInstanceBus.hasActiveTransport() ||
-                InterInstanceBus.isAuthorityTransitioning() ||
+                InterInstanceBus.isAuthorityTransitioning()
+            ) {
+                return undefined;
+            }
+            if (!assigned) {
+                return 'fallback';
+            }
+            if (assigned.weightBlocked) {
+                throw new BalanceWeightUnavailableError();
+            }
+            if (assigned.assignmentInvalidated) {
+                return undefined;
+            }
+            if (!assigned.handled) {
+                return 'fallback';
+            }
+            if (
+                !assigned.configId ||
+                !assigned.credentialId ||
+                !assigned.leaseId ||
                 !assigned.expiresAt ||
                 assigned.expiresAt <= Date.now()
             ) {
                 return undefined;
             }
-            const apiKey = await ConfigSetStore.getApiKey(slot, assigned.configId);
+            const configId = assigned.configId;
+            const apiKey = await this.awaitBalanceOperation(() => ConfigSetStore.getApiKey(slot, configId), token);
             const site = assigned.site;
             if (
                 token?.isCancellationRequested ||
@@ -1826,9 +2009,17 @@ export class ApiKeyFailoverManager {
     private static async balanceAttemptFromLease(
         lease: BalanceLease,
         pool: ResolvedConfigPool,
-        operationToken: string | undefined
+        operationToken: string | undefined,
+        token?: vscode.CancellationToken
     ): Promise<(ApiKeyFailoverAttempt & { balanceLeaseId: string }) | undefined> {
-        const apiKey = await ConfigSetStore.getApiKey(lease.slot, lease.configId);
+        const apiKey = await this.awaitBalanceOperation(
+            () => ConfigSetStore.getApiKey(lease.slot, lease.configId),
+            token
+        );
+        if (token?.isCancellationRequested) {
+            this.releaseBalanceLease(lease.leaseId, lease.authorityTerm);
+            return undefined;
+        }
         if (
             !this.isCurrentLeaderTerm(lease.authorityTerm) ||
             this.balanceResigningTerm === lease.authorityTerm ||
@@ -1851,8 +2042,13 @@ export class ApiKeyFailoverManager {
                 lease.balanceKey,
                 lease.requestId,
                 lease.ownerInstanceId,
-                lease.credentialId
+                lease.credentialId,
+                token
             );
+            if (replacement === 'fallback') {
+                await this.validateBalanceFallback(lease.slot, token);
+                return undefined;
+            }
             return replacement?.balanceLeaseId ?
                     { ...replacement, balanceLeaseId: replacement.balanceLeaseId }
                 :   undefined;
@@ -1870,12 +2066,42 @@ export class ApiKeyFailoverManager {
         };
     }
 
+    private static async awaitBalanceOperation<T>(
+        operation: () => Promise<T>,
+        token?: vscode.CancellationToken
+    ): Promise<T | undefined> {
+        if (token?.isCancellationRequested) {
+            return undefined;
+        }
+        if (!token) {
+            return operation();
+        }
+        let cancel!: () => void;
+        const cancelled = new Promise<undefined>(resolve => {
+            cancel = () => resolve(undefined);
+        });
+        const cancellation = token.onCancellationRequested(cancel);
+        try {
+            if (token.isCancellationRequested) {
+                return undefined;
+            }
+            const value = await Promise.race([operation(), cancelled]);
+            return token.isCancellationRequested ? undefined : value;
+        } catch (error) {
+            if (token.isCancellationRequested) {
+                return undefined;
+            }
+            throw error;
+        } finally {
+            cancellation.dispose();
+        }
+    }
+
     private static selectLeastLoadedBalanceCandidate(
         slot: string,
         balanceKey: string,
-        candidates: KeyedConfigSetItem[],
-        currentSite?: string
-    ): KeyedConfigSetItem | undefined {
+        candidates: BalanceCandidate[]
+    ): BalanceCandidate | undefined {
         this.cleanupBalanceLeases();
         const counts = new Map<string, number>();
         for (const lease of this.balanceLeases.values()) {
@@ -1884,17 +2110,66 @@ export class ApiKeyFailoverManager {
             }
         }
         const min = Math.min(
-            ...candidates.map(
-                candidate =>
-                    counts.get(this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? currentSite)) ?? 0
-            )
+            ...candidates.map(candidate => (counts.get(candidate.credentialId) ?? 0) / candidate.weight)
         );
         const leastLoaded = candidates.filter(
-            candidate =>
-                (counts.get(this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? currentSite)) ?? 0) ===
-                min
+            candidate => (counts.get(candidate.credentialId) ?? 0) / candidate.weight === min
         );
-        return leastLoaded[this.balanceIndex(balanceKey, leastLoaded.length)];
+        if (leastLoaded.every(candidate => candidate.weight === leastLoaded[0]?.weight)) {
+            return leastLoaded[this.balanceIndex(balanceKey, leastLoaded.length)];
+        }
+        let bucket = this.balanceIndex(
+            balanceKey,
+            leastLoaded.reduce((sum, candidate) => sum + candidate.weight, 0)
+        );
+        for (const candidate of leastLoaded) {
+            if (bucket < candidate.weight) {
+                return candidate;
+            }
+            bucket -= candidate.weight;
+        }
+        return undefined;
+    }
+
+    static async validateBalanceFallback(
+        slot: string,
+        token?: vscode.CancellationToken
+    ): Promise<BalanceFallbackSnapshot | undefined> {
+        if (ConfigSetStore.getSwitchMode(slot) !== 'balance') {
+            return;
+        }
+        if (token?.isCancellationRequested) {
+            throw new vscode.CancellationError();
+        }
+        const operationToken = ConfigSetStore.getApplyOperationToken(slot);
+        let cancel!: () => void;
+        const cancelled = new Promise<never>((_, reject) => {
+            cancel = () => reject(new vscode.CancellationError());
+        });
+        const cancellation = token?.onCancellationRequested(cancel);
+        try {
+            if (token?.isCancellationRequested) {
+                cancel();
+                return await cancelled;
+            }
+            const currentApiKey = await Promise.race([ApiKeyManager.getApiKey(slot), cancelled]);
+            if (token?.isCancellationRequested) {
+                throw new vscode.CancellationError();
+            }
+            if (ConfigSetStore.getSwitchMode(slot) !== 'balance') {
+                return;
+            }
+            if (ConfigSetStore.getApplyOperationToken(slot) !== operationToken) {
+                throw new Error(
+                    t('Configuration changed while capturing the request snapshot.', '读取请求快照时配置已变化。')
+                );
+            }
+            const siteProvider = getSiteOwnerProvider(slot);
+            const site = siteProvider ? readCurrentSite(siteProvider) : undefined;
+            return { apiKey: currentApiKey, site };
+        } finally {
+            cancellation?.dispose();
+        }
     }
 
     private static cleanupBalanceLeases(): void {
@@ -2122,7 +2397,7 @@ export class ApiKeyFailoverManager {
                 }
 
                 const sourceOperationToken = ConfigSetStore.getApplyOperationToken(slot);
-                const pool = await this.resolveConfigPool(slot);
+                const pool = await this.resolveFailoverPool(slot);
                 if (!pool || pool.candidates.length < 2) {
                     return UNHANDLED_DECISION;
                 }
@@ -2134,7 +2409,11 @@ export class ApiKeyFailoverManager {
                     ConfigSetStore.getApplyOperationToken(slot) === sourceOperationToken &&
                     (!siteProvider || readCurrentSite(siteProvider) === pool.currentSite);
 
-                const currentIdentity = this.getIdentity(pool.current.item.id, pool.current.apiKey, pool.currentSite);
+                const currentIdentity = this.getIdentity(
+                    pool.current.item.id,
+                    pool.current.apiKey,
+                    pool.current.item.site ?? pool.currentSite
+                );
                 if (currentIdentity !== attempt.identity) {
                     attemptedIdentities.add(attempt.identity);
                     return this.getRequestDecisionForTarget(
@@ -2241,16 +2520,49 @@ export class ApiKeyFailoverManager {
         );
     }
 
-    private static async resolveConfigPool(slot: string): Promise<ResolvedConfigPool | undefined> {
+    private static async resolveFailoverPool(slot: string): Promise<ResolvedConfigPool | undefined> {
+        const pool = await this.resolveConfigPool(slot, true);
+        if (!pool) {
+            return undefined;
+        }
+        const enabledCredentials = new Set(
+            pool.keyedItems
+                .filter(candidate => getBalanceWeight(candidate.item) > 0)
+                .map(candidate => this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite))
+        );
+        const candidates = pool.candidates.filter(candidate =>
+            enabledCredentials.has(
+                this.getCredentialIdentity(candidate.apiKey, candidate.item.site ?? pool.currentSite)
+            )
+        );
+        const current = candidates.find(candidate => candidate === pool.current) ?? candidates[0] ?? pool.current;
+        return {
+            ...pool,
+            current,
+            candidates,
+            currentApiKeyName: this.resolveBalanceApiKeyName(pool, current)
+        };
+    }
+
+    private static async resolveConfigPool(
+        slot: string,
+        allowSingleCandidate = false
+    ): Promise<ResolvedConfigPool | undefined> {
         const items = ConfigSetStore.list(slot);
-        if (items.length < 2) {
+        if (items.length < (allowSingleCandidate ? 1 : 2)) {
             return undefined;
         }
 
+        const metadata = JSON.stringify(items);
         const [currentApiKey, ...savedKeys] = await Promise.all([
             ApiKeyManager.getApiKey(slot),
             ...items.map(item => ConfigSetStore.getApiKey(slot, item.id))
         ]);
+        if (JSON.stringify(ConfigSetStore.list(slot)) !== metadata) {
+            throw new Error(
+                t('Configuration changed while capturing the request snapshot.', '读取请求快照时配置已变化。')
+            );
+        }
         if (!currentApiKey) {
             return undefined;
         }
@@ -2300,7 +2612,9 @@ export class ApiKeyFailoverManager {
             current === marked || keyedItems.filter(matchesCurrent).length === 1 ?
                 current.item.label.trim() || undefined
             :   undefined;
-        return candidates.length >= 2 ? { current, candidates, keyedItems, currentSite, currentApiKeyName } : undefined;
+        return candidates.length >= (allowSingleCandidate ? 1 : 2) ?
+                { current, candidates, keyedItems, currentSite, currentApiKeyName }
+            :   undefined;
     }
 
     private static findNextCandidate(

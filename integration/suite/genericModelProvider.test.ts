@@ -524,6 +524,97 @@ suite('genericModelProvider retry gating', () => {
         assert.equal(Number.isFinite(attemptStarts[0]), true);
     });
 
+    for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
+        for (const allZero of [false, true]) {
+            test(`zero-weight failover dispatch guard: ${sdkMode}, allZero=${allZero}`, async () => {
+                const context = createFailoverContext();
+                ApiKeyManager.initialize(context);
+                ConfigSetStore.initialize(context);
+                const slot = 'test-weight-provider';
+                await ConfigSetStore.add(slot, { id: 'a', label: 'a', balanceWeight: 0 }, 'key-a');
+                await ConfigSetStore.add(slot, { id: 'b', label: 'b', balanceWeight: allZero ? 0 : 1 }, 'key-b');
+                await ConfigSetStore.setActive(slot, 'a');
+                await ApiKeyManager.setApiKey(slot, 'key-a');
+                await ConfigSetStore.setSwitchMode(slot, 'failover');
+                const usedKeys: Array<string | undefined> = [];
+                const provider = createTestProvider({
+                    async handleRequest(_model, config) {
+                        usedKeys.push(await ApiKeyManager.getApiKeyForRequest(slot, config));
+                    }
+                });
+                const cancellation = new vscode.CancellationTokenSource();
+                try {
+                    const request = provider.executeModelRequest(
+                        model,
+                        { ...modelConfig, sdkMode, provider: slot, baseUrl: 'https://provider.test/v1' },
+                        [],
+                        {
+                            modelOptions: { requestKind: 'main-agent' }
+                        } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                        createProgress([]),
+                        '',
+                        'session-weight',
+                        cancellation.token,
+                        slot,
+                        Date.now()
+                    );
+                    if (allZero) {
+                        await assert.rejects(request, /positive[- ]weight|正权重/i);
+                        assert.deepEqual(usedKeys, []);
+                    } else {
+                        await request;
+                        assert.deepEqual(usedKeys, ['key-b']);
+                    }
+                    assert.equal(ConfigSetStore.getSwitchMode(slot), 'failover');
+                    assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
+                } finally {
+                    cancellation.dispose();
+                }
+            });
+        }
+
+        test(`zero-weight failover mixed weights preserve unmatched-runtime fallback: ${sdkMode}`, async () => {
+            const context = createFailoverContext();
+            ApiKeyManager.initialize(context);
+            ConfigSetStore.initialize(context);
+            const slot = 'test-weight-fallback';
+            await ConfigSetStore.add(slot, { id: 'a', label: 'a', balanceWeight: 1 }, 'key-a');
+            await ConfigSetStore.add(slot, { id: 'b', label: 'b', balanceWeight: 0 }, 'key-b');
+            await ConfigSetStore.setActive(slot, 'a');
+            await ApiKeyManager.setApiKey(slot, 'outside-key');
+            await ConfigSetStore.setSwitchMode(slot, 'failover');
+            const usedKeys: Array<string | undefined> = [];
+            const provider = createTestProvider({
+                async handleRequest(_model, config) {
+                    usedKeys.push(await ApiKeyManager.getApiKeyForRequest(slot, config));
+                }
+            });
+            const cancellation = new vscode.CancellationTokenSource();
+            try {
+                await provider.executeModelRequest(
+                    model,
+                    { ...modelConfig, sdkMode, provider: slot, baseUrl: 'https://provider.test/v1' },
+                    [],
+                    {
+                        modelOptions: { requestKind: 'main-agent' }
+                    } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                    createProgress([]),
+                    '',
+                    'session-weight-fallback',
+                    cancellation.token,
+                    slot,
+                    Date.now()
+                );
+                assert.deepEqual(usedKeys, ['outside-key']);
+                assert.equal(ConfigSetStore.getSwitchMode(slot), 'failover');
+                assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+                assert.equal(await ApiKeyManager.getApiKey(slot), 'outside-key');
+            } finally {
+                cancellation.dispose();
+            }
+        });
+    }
+
     test('retries with the next API key after the configured failure threshold', async () => {
         const context = createFailoverContext();
         ApiKeyManager.initialize(context);
@@ -579,6 +670,52 @@ suite('genericModelProvider retry gating', () => {
         assert.deepEqual(outputs, ['recovered']);
         assert.equal(ConfigSetStore.getActiveId(slot), 'b');
         assert.equal(await ApiKeyManager.getApiKey(slot), 'key-b');
+    });
+
+    test('zero-weight failover skips a disabled middle credential on retries while preserving a dispatched snapshot', async () => {
+        const context = createFailoverContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'test-weight-retry';
+        for (const id of ['a', 'b', 'c']) {
+            await ConfigSetStore.add(slot, { id, label: id, balanceWeight: id === 'b' ? 0 : 1 }, `key-${id}`);
+        }
+        await ConfigSetStore.setActive(slot, 'a');
+        await ApiKeyManager.setApiKey(slot, 'key-a');
+        await ConfigSetStore.setSwitchMode(slot, 'failover');
+        const usedKeys: Array<string | undefined> = [];
+        const provider = createTestProvider({
+            async handleRequest(_model, config) {
+                const apiKey = await ApiKeyManager.getApiKeyForRequest(slot, config);
+                usedKeys.push(apiKey);
+                if (apiKey === 'key-a') {
+                    throw Object.assign(new Error('rate limited'), { status: 429 });
+                }
+                await ConfigSetStore.updateMeta(slot, 'c', { balanceWeight: 0 });
+                assert.equal(await ApiKeyManager.getApiKeyForRequest(slot, config), 'key-c');
+            }
+        });
+        provider.getRequestRetryConfig = () => ({ enabled: true, maxAttempts: 3, initialDelayMs: 0, maxDelayMs: 0 });
+        const cancellation = new vscode.CancellationTokenSource();
+        try {
+            await provider.executeModelRequest(
+                model,
+                { ...modelConfig, provider: slot },
+                [],
+                {
+                    modelOptions: { requestKind: 'main-agent' }
+                } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                createProgress([]),
+                '',
+                'session-weight-retry',
+                cancellation.token,
+                slot,
+                Date.now()
+            );
+            assert.deepEqual(usedKeys, ['key-a', 'key-a', 'key-a', 'key-c']);
+        } finally {
+            cancellation.dispose();
+        }
     });
 
     for (const [name, failure] of [

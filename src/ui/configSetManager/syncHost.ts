@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetStore, type ConfigSetItem } from '../../utils/config/configSetStore';
+import { getBalanceWeight } from '../../utils/config/balanceWeight';
 import {
     enqueueConfigSetMutation,
     getSiteOwnerProvider,
@@ -793,7 +794,8 @@ export class ConfigSetSyncHost {
                             id: item.id,
                             label: item.label,
                             siteLabel: siteProvider ? siteLabel(siteProvider, item.site) : undefined,
-                            note: item.note
+                            note: item.note,
+                            balanceWeight: getBalanceWeight(item)
                         }))
                     });
                 }
@@ -1073,6 +1075,7 @@ export class ConfigSetSyncHost {
                     label: item.label,
                     siteLabel: siteProvider ? siteLabel(siteProvider, item.site) : undefined,
                     note: item.note,
+                    balanceWeight: getBalanceWeight(item),
                     hasKey: !!apiKey,
                     isActive: item.id === activeId
                 });
@@ -1113,7 +1116,8 @@ export class ConfigSetSyncHost {
                     id: item.id,
                     label: item.label,
                     siteLabel: siteProvider ? siteLabel(siteProvider, item.site) : undefined,
-                    note: item.note
+                    note: item.note,
+                    balanceWeight: getBalanceWeight(item)
                 }))
             });
         }

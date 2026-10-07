@@ -54,15 +54,35 @@ export function enqueueConfigSetMutation<T>(task: () => Promise<T>): Promise<T> 
 
 export async function captureRequestApiKeyNames(
     slot: string,
-    site?: string
+    site?: string,
+    token?: vscode.CancellationToken
 ): Promise<ReadonlyMap<string, string | undefined>> {
+    let cancellation: vscode.Disposable | undefined;
     try {
+        if (token?.isCancellationRequested) {
+            throw new vscode.CancellationError();
+        }
         const operationToken = ConfigSetStore.getApplyOperationToken(slot);
         const activeId = ConfigSetStore.getActiveId(slot);
         const items = ConfigSetStore.list(slot)
             .filter(item => site === undefined || (item.site ?? site) === site)
             .map(item => ({ id: item.id, label: item.label }));
-        const keys = await Promise.all(items.map(item => ConfigSetStore.getApiKey(slot, item.id)));
+        let cancel!: () => void;
+        const cancelled = new Promise<never>((_, reject) => {
+            cancel = () => reject(new vscode.CancellationError());
+        });
+        cancellation = token?.onCancellationRequested(cancel);
+        if (token?.isCancellationRequested) {
+            cancel();
+            return await cancelled;
+        }
+        const keys = await Promise.race([
+            Promise.all(items.map(item => ConfigSetStore.getApiKey(slot, item.id))),
+            cancelled
+        ]);
+        if (token?.isCancellationRequested) {
+            throw new vscode.CancellationError();
+        }
         if (ConfigSetStore.getApplyOperationToken(slot) !== operationToken) {
             return new Map();
         }
@@ -86,8 +106,13 @@ export async function captureRequestApiKeyNames(
         }
         return names;
     } catch {
+        if (token?.isCancellationRequested) {
+            throw new vscode.CancellationError();
+        }
         Logger.debug(`[ConfigSet] ${slot}: request key name metadata unavailable`);
         return new Map();
+    } finally {
+        cancellation?.dispose();
     }
 }
 

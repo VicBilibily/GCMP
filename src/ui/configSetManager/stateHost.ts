@@ -14,6 +14,7 @@ import {
 } from '../../utils/config/configSetCommands';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetItem, ConfigSetStore } from '../../utils/config/configSetStore';
+import { getBalanceWeight } from '../../utils/config/balanceWeight';
 import { ApiKeyFailoverManager } from '../../utils/config/failover/apiKeyFailoverManager';
 import { getKeyDisplayName } from '../../sync/gistSyncService';
 import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
@@ -139,6 +140,7 @@ export class StateHost {
                         label: item.label,
                         site: item.site,
                         note: item.note,
+                        balanceWeight: item.balanceWeight === undefined ? undefined : getBalanceWeight(item),
                         siteLabel:
                             !p.custom && slotInfo.siteProvider ?
                                 siteLabel(slotInfo.siteProvider, item.site ?? currentSite)

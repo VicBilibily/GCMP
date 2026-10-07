@@ -217,6 +217,58 @@ suite('balance retry and coordination', () => {
     });
 
     for (const sdkMode of ['openai', 'openai-responses'] as const) {
+        for (const authority of ['leader', 'standalone'] as const) {
+            for (const outcome of ['recover', 'exhausted', 'disabled', 'zero-budget', 'cancel', 'permanent'] as const) {
+                test(`${sdkMode}: single positive failover key preserves ${outcome} retry with ${authority}`, async () => {
+                    if (authority === 'standalone') {
+                        LeaderElectionService.isInitialized = () => false;
+                        LeaderElectionService.isLeader = () => false;
+                        LeaderElectionService.getOwnedAuthorityTerm = () => undefined;
+                        InterInstanceBus.getAuthorityTerm = () => undefined;
+                    }
+                    await ConfigSetStore.updateMeta(slot, 'a', { balanceWeight: 1 });
+                    await ConfigSetStore.updateMeta(slot, 'b', { balanceWeight: 0 });
+                    await ConfigSetStore.setSwitchMode(slot, 'failover');
+                    const tracked = cancellation();
+                    const observed = { grants: 0 };
+                    const retry = {
+                        ...defaultRetry,
+                        enabled: outcome !== 'disabled',
+                        maxAttempts: outcome === 'zero-budget' ? 0 : 2
+                    };
+                    transport((_key, count) => {
+                        if (outcome === 'cancel') {
+                            tracked.cancel();
+                        }
+                        if (outcome === 'permanent') {
+                            return errorResponse(429, 'monthly quota exceeded', 'usage_limit_reached');
+                        }
+                        return outcome === 'recover' && count > 1 ? successResponse(sdkMode) : errorResponse();
+                    }, sdkMode);
+                    const pending = RetryProvider.run(sdkMode, retry, observed, tracked.token);
+                    if (outcome === 'recover') {
+                        await pending;
+                    } else if (outcome === 'cancel') {
+                        await assert.rejects(pending, vscode.CancellationError);
+                    } else {
+                        await assert.rejects(pending);
+                    }
+                    const expectedCount =
+                        outcome === 'recover' ? 2
+                        : outcome === 'exhausted' ? 3
+                        : 1;
+                    assert.deepEqual(
+                        wireKeys,
+                        Array.from({ length: expectedCount }, () => 'key-a')
+                    );
+                    assert.equal(observed.grants, expectedCount);
+                    assert.equal(ConfigSetStore.getActiveId(slot), 'a');
+                    assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
+                    assert.equal(tracked.disposals, tracked.subscriptions);
+                });
+            }
+        }
+
         test(`${sdkMode}: three real failed requests switch to the next key and retain its affinity`, async () => {
             transport(key => (key === wireKeys[0] ? errorResponse() : successResponse(sdkMode)), sdkMode);
             const observed = { grants: 0 };

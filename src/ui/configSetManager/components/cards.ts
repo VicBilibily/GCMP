@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SlotState, ConfigSetRow, ProviderOption } from '../types';
+import { getBalanceWeight, isValidBalanceWeight } from '../../../utils/config/balanceWeight';
 import { el, t, state, getConfigMetricType, postToVSCode, showMessage, clearMessage } from './state';
 import { renderConfigUsage } from './usage';
 
@@ -34,13 +35,29 @@ export function renderSlotCards(slotState: SlotState): HTMLElement {
             continue;
         }
 
-        // 头部：别称 + 使用中徽标
         const head = el('div', 'csm-config-card-head');
         const titleWrap = el('div', 'csm-config-card-titlewrap');
         titleWrap.appendChild(el('span', 'csm-config-card-title', row.label));
         head.appendChild(titleWrap);
+        const badges = el('div', 'csm-config-card-actions');
+        if (row.balanceWeight !== undefined) {
+            const balanceWeight = getBalanceWeight(row);
+            const weight = el(
+                'span',
+                'csm-config-card-badge csm-config-card-weight',
+                t('Weight {0}', '权重 {0}', balanceWeight)
+            );
+            weight.title =
+                balanceWeight === 0 ?
+                    t('Weight 0: excluded from failover and load balancing', '权重为 0：不参与故障切换和负载均衡')
+                :   t('Weight: {0}', '权重：{0}', balanceWeight);
+            badges.appendChild(weight);
+        }
         if (row.isActive) {
-            head.appendChild(el('span', 'csm-config-card-badge', t('In use', '使用中')));
+            badges.appendChild(el('span', 'csm-config-card-badge', t('In use', '使用中')));
+        }
+        if (badges.children.length > 0) {
+            head.appendChild(badges);
         }
         card.appendChild(head);
 
@@ -124,6 +141,26 @@ export function renderSlotCards(slotState: SlotState): HTMLElement {
 
 // ============= 新增表单 =============
 
+function renderBalanceWeightInput(panel: HTMLElement, value: string): HTMLInputElement {
+    const field = el('div', 'csm-field');
+    field.appendChild(el('label', '', t('Weight', '权重')));
+    const input = el('input', 'csm-input');
+    input.type = 'number';
+    input.min = '0';
+    input.max = '100';
+    input.step = '1';
+    input.required = true;
+    input.value = value;
+    input.title = t(
+        'Weight only applies to failover and load balancing. A weight of 0 excludes this configuration from new automatic assignments.',
+        '权重仅在故障切换和负载均衡模式下生效。权重为 0 时，该配置不参与新的自动分配。'
+    );
+    field.appendChild(input);
+    field.appendChild(el('span', 'csm-field-hint', input.title));
+    panel.appendChild(field);
+    return input;
+}
+
 export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefined): HTMLElement {
     const panel = el('div', 'csm-add-panel');
     const draft = state.addFormDraft?.slot === slotState.slot ? state.addFormDraft : null;
@@ -181,18 +218,22 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
     noteRow.appendChild(noteInput);
     panel.appendChild(noteRow);
 
+    const balanceWeightInput = renderBalanceWeightInput(panel, draft?.balanceWeight ?? '1');
+
     const syncAddDraft = (): void => {
         state.addFormDraft = {
             slot: slotState.slot,
             label: labelInput.value,
             note: noteInput.value,
             apiKey: keyInput.value,
+            balanceWeight: balanceWeightInput.value,
             site: siteSelect?.value || undefined
         };
     };
     labelInput.addEventListener('input', syncAddDraft);
     keyInput.addEventListener('input', syncAddDraft);
     noteInput.addEventListener('input', syncAddDraft);
+    balanceWeightInput.addEventListener('input', syncAddDraft);
     siteSelect?.addEventListener('change', syncAddDraft);
 
     const actions = el('div', 'csm-add-actions');
@@ -209,15 +250,21 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
         const apiKey = keyInput.value.trim();
         const note = noteInput.value.trim() || undefined;
         const site = siteSelect && siteSelect.value ? siteSelect.value : undefined;
+        const balanceWeight = balanceWeightInput.valueAsNumber;
         if (!label || !apiKey) {
             showMessage('warning', t('Name and API key are required', '请填写名称和 API Key'));
             return;
         }
+        if (!isValidBalanceWeight(balanceWeight)) {
+            showMessage('warning', t('Weight must be an integer from 0 to 100', '权重必须是 0 到 100 之间的整数'));
+            return;
+        }
+        syncAddDraft();
         clearMessage();
         state.reloadUsageOnNextStates = true;
         state.busy = true;
         render();
-        postToVSCode({ command: 'add', slot: slotState.slot, label, note, site, apiKey });
+        postToVSCode({ command: 'add', slot: slotState.slot, label, note, site, apiKey, balanceWeight });
     });
     actions.appendChild(cancelBtn);
     actions.appendChild(confirmBtn);
@@ -262,17 +309,21 @@ export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLEle
     noteRow.appendChild(noteInput);
     panel.appendChild(noteRow);
 
+    const balanceWeightInput = renderBalanceWeightInput(panel, draft?.balanceWeight ?? String(getBalanceWeight(row)));
+
     const syncEditDraft = (): void => {
         state.editFormDraft = {
             key: editKey,
             label: labelInput.value,
             note: noteInput.value,
-            apiKey: keyInput.value
+            apiKey: keyInput.value,
+            balanceWeight: balanceWeightInput.value
         };
     };
     labelInput.addEventListener('input', syncEditDraft);
     keyInput.addEventListener('input', syncEditDraft);
     noteInput.addEventListener('input', syncEditDraft);
+    balanceWeightInput.addEventListener('input', syncEditDraft);
 
     const actions = el('div', 'csm-add-actions');
     const cancelBtn = el('button', 'csm-btn csm-btn-sm', t('Cancel', '取消'));
@@ -287,15 +338,21 @@ export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLEle
         const label = labelInput.value.trim();
         const note = noteInput.value.trim();
         const apiKey = keyInput.value.trim() || undefined;
+        const balanceWeight = balanceWeightInput.valueAsNumber;
         if (!label) {
             showMessage('warning', t('Name is required', '请填写名称'));
             return;
         }
+        if (!isValidBalanceWeight(balanceWeight)) {
+            showMessage('warning', t('Weight must be an integer from 0 to 100', '权重必须是 0 到 100 之间的整数'));
+            return;
+        }
+        syncEditDraft();
         clearMessage();
         state.reloadUsageOnNextStates = apiKey !== undefined;
         state.busy = true;
         render();
-        postToVSCode({ command: 'edit', slot: slotState.slot, id: row.id, label, note, apiKey });
+        postToVSCode({ command: 'edit', slot: slotState.slot, id: row.id, label, note, apiKey, balanceWeight });
     });
     actions.appendChild(cancelBtn);
     actions.appendChild(saveBtn);
