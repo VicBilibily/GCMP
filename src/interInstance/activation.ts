@@ -151,6 +151,8 @@ function isApiKeyBalanceAssignmentResolvedPayload(
         typeof value.authorityTerm === 'string' &&
         value.authorityTerm.length > 0 &&
         typeof value.handled === 'boolean' &&
+        (value.weightBlocked === undefined || typeof value.weightBlocked === 'boolean') &&
+        (value.assignmentInvalidated === undefined || typeof value.assignmentInvalidated === 'boolean') &&
         (value.leaseId === undefined || (typeof value.leaseId === 'string' && value.leaseId.length > 0)) &&
         (value.configId === undefined || (typeof value.configId === 'string' && value.configId.length > 0)) &&
         (value.credentialId === undefined ||

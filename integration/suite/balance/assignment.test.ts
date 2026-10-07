@@ -161,7 +161,7 @@ suite('balance initial assignment cancellation', () => {
     }
 
     function capture(requestId = randomUUID(), token?: vscode.CancellationToken) {
-        return ApiKeyFailoverManager.captureAttempt(slot, balanceKey, requestId, undefined, undefined, token);
+        return ApiKeyFailoverManager.captureAttempt(slot, balanceKey, requestId, undefined, token);
     }
 
     function assignment(index = 0): Assignment {
@@ -226,7 +226,7 @@ suite('balance initial assignment cancellation', () => {
             if (action === 'pre-cancel' || action === 'cancel-on-subscribe') {
                 assert.equal(requests.length, 0);
             } else {
-                assert.equal(tracked.subscriptions, 1);
+                assert.equal(tracked.subscriptions, action === 'timeout' ? 2 : 1);
                 if (!action.includes('reply')) {
                     ApiKeyFailoverManager.resolveBalanceAssignment(assignment());
                 }
@@ -258,7 +258,7 @@ suite('balance initial assignment cancellation', () => {
                 assert.equal(await pending, undefined);
             }
             assertClean(tracked);
-            assert.equal(tracked.subscriptions, 1);
+            assert.equal(tracked.subscriptions, action === 'false' ? 2 : 1);
         });
     }
 
@@ -284,8 +284,8 @@ suite('balance initial assignment cancellation', () => {
         }
         const attempt = await pending;
         assert.equal(attempt?.balanceLeaseId, payload.leaseId);
-        assert.equal(tracked.subscriptions, 1);
-        assert.equal(tracked.disposals, 1);
+        assert.equal(tracked.subscriptions, 2);
+        assert.equal(tracked.disposals, 2);
         ApiKeyFailoverManager.resolveBalanceAssignment(payload);
         tracked.cancel();
         assert.deepEqual(releases, []);
@@ -515,6 +515,56 @@ suite('balance initial assignment cancellation', () => {
                 ApiKeyManager.getApiKey = originalGetPrimary;
             }
         });
+
+        for (const action of ['mode', 'configuration', 'credential'] as const) {
+            test(`${sdkMode}: invalidated assignment cannot enter primary fallback: ${action}`, async () => {
+                const tracked = cancellation();
+                const handle: RateLimitHandle = {
+                    grantId: randomUUID(),
+                    costs: { requests: 1, tokens: 50 },
+                    leaseMs: 30_000,
+                    authoritative: true,
+                    authorityTerm: term
+                };
+                const refunds: Array<Parameters<typeof RateLimiter.release>> = [];
+                RateLimiter.release = (...args) => {
+                    refunds.push(args);
+                };
+                const originalGetPrimary = ApiKeyManager.getApiKey;
+                let primaryReads = 0;
+                let wireCount = 0;
+                ApiKeyManager.getApiKey = async provider => {
+                    primaryReads++;
+                    return originalGetPrimary.call(ApiKeyManager, provider);
+                };
+                ConfigManager.createProxyAwareFetch = () => async () => {
+                    wireCount++;
+                    return successResponse(sdkMode);
+                };
+                const pending = RetryProvider.run(sdkMode, defaultRetry, { grants: 0, handle }, tracked.token);
+                const rejected = assert.rejects(pending, /Configuration changed while capturing/);
+                try {
+                    await sent.promise;
+                    const payload = assignment();
+                    if (action === 'mode') {
+                        ApiKeyFailoverManager.handleBalanceModeChanged(slot);
+                    } else if (action === 'configuration') {
+                        await ConfigSetStore.setApplyOperationToken(slot, randomUUID());
+                    } else {
+                        await ConfigSetStore.setApiKey(slot, 'b', 'replacement-key');
+                    }
+                    ApiKeyFailoverManager.resolveBalanceAssignment(payload);
+                    await rejected;
+                    assert.equal(primaryReads, 0);
+                    assert.equal(wireCount, 0);
+                    assert.deepEqual(refunds, [[handle, handle.costs]]);
+                    assert.deepEqual(releases, [{ leaseId: payload.leaseId, authorityTerm: term }]);
+                    assertClean(tracked);
+                } finally {
+                    ApiKeyManager.getApiKey = originalGetPrimary;
+                }
+            });
+        }
     }
 
     for (const sdkMode of ['openai', 'openai-responses'] as const) {
@@ -617,6 +667,14 @@ suite('balance initial assignment cancellation', () => {
                         ]);
                         if (phase.startsWith('fallback-cancel-')) {
                             tracked.cancel();
+                            const beforeGate = await Promise.race([
+                                settled,
+                                new Promise<{ state: 'pending' }>(resolve => {
+                                    setImmediate(() => setImmediate(() => resolve({ state: 'pending' })));
+                                })
+                            ]);
+                            assert.equal(beforeGate.state, 'rejected');
+                            assert.deepEqual(refunds, [[handle, handle.costs]]);
                         }
                         gate.resolve();
                     }
@@ -726,21 +784,21 @@ suite('balance initial assignment cancellation', () => {
                     await primaryStarted.promise;
                     if (phase.startsWith('primary-')) {
                         tracked.cancel();
-                        primaryGate.resolve();
-                        const beforeMetadata = await Promise.race([
-                            settled,
-                            new Promise<{ state: 'pending' }>(resolve => {
-                                setImmediate(() => setImmediate(() => resolve({ state: 'pending' })));
-                            })
-                        ]);
                         assert.equal(metadataReads, 0, 'Cancellation after primary lookup must skip name metadata');
-                        assert.equal(beforeMetadata.state, 'rejected');
-                        assert.deepEqual(refunds, [[handle, handle.costs]]);
                     } else {
                         primaryGate.resolve();
                         await metadataStarted.promise;
                         tracked.cancel();
                     }
+                    const beforeGate = await Promise.race([
+                        settled,
+                        new Promise<{ state: 'pending' }>(resolve => {
+                            setImmediate(() => setImmediate(() => resolve({ state: 'pending' })));
+                        })
+                    ]);
+                    assert.equal(beforeGate.state, 'rejected');
+                    assert.deepEqual(refunds, [[handle, handle.costs]]);
+                    primaryGate.resolve();
                     metadataGate.resolve();
                     const result = await settled;
                     assert.ok(result.state === 'rejected' && result.error instanceof vscode.CancellationError);

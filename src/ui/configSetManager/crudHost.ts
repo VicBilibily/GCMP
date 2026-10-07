@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetItem, ConfigSetStore } from '../../utils/config/configSetStore';
+import { getBalanceWeight } from '../../utils/config/balanceWeight';
 import {
     applyConfigSetUnlocked,
     applySiteSetting,
@@ -124,13 +125,15 @@ export class CrudHost {
         label: string,
         note: string | undefined,
         site: string | undefined,
-        apiKey: string
+        apiKey: string,
+        balanceWeight?: number
     ): Promise<void> {
         try {
+            getBalanceWeight({ balanceWeight });
             const result = await enqueueConfigSetMutation(async () => {
                 const siteProvider = getSiteOwnerProvider(slot);
                 await ConfigSetStore.ensureMigrated(slot, siteProvider ? readCurrentSite(siteProvider) : undefined);
-                const item: ConfigSetItem = { id: newId(), label, site, note };
+                const item: ConfigSetItem = { id: newId(), label, site, note, balanceWeight };
                 await ConfigSetStore.add(slot, item, apiKey.trim());
                 Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" added`);
 
@@ -246,7 +249,7 @@ export class CrudHost {
 
         try {
             const updated = await enqueueConfigSetMutation(async () => {
-                if (mode !== 'off' && !(await ApiKeyFailoverManager.canEnableAutoSwitch(slot))) {
+                if (mode !== 'off' && !(await ApiKeyFailoverManager.canEnableAutoSwitch(slot, mode))) {
                     return false;
                 }
                 await ConfigSetStore.setSwitchMode(slot, mode);
@@ -257,10 +260,16 @@ export class CrudHost {
                 this.ctx.post({
                     command: 'switchModeResult',
                     ok: false,
-                    error: t(
-                        'At least two saved API Key configurations are required, and the current key must match one of them.',
-                        '至少需要两套已保存的 API Key 配置，且当前 Key 必须匹配其中一套。'
-                    )
+                    error:
+                        mode === 'balance' ?
+                            t(
+                                'A saved API Key configuration is required, and the current key must match one of them.',
+                                '需要已保存的 API Key 配置，且当前 Key 必须匹配其中一套。'
+                            )
+                        :   t(
+                                'At least two saved API Key configurations are required, and the current key must match one of them.',
+                                '至少需要两套已保存的 API Key 配置，且当前 Key 必须匹配其中一套。'
+                            )
                 });
                 return;
             }
@@ -436,7 +445,8 @@ export class CrudHost {
         id: string,
         label: string,
         note: string | undefined,
-        apiKey: string | undefined
+        apiKey: string | undefined,
+        balanceWeight?: number
     ): Promise<void> {
         const item = ConfigSetStore.list(slot).find(i => i.id === id);
         if (!item) {
@@ -445,6 +455,7 @@ export class CrudHost {
         }
 
         try {
+            getBalanceWeight({ balanceWeight });
             const wasActive = await enqueueConfigSetMutation(async () => {
                 const currentItem = ConfigSetStore.list(slot).find(i => i.id === id);
                 if (!currentItem) {
@@ -458,7 +469,13 @@ export class CrudHost {
                 const previousSavedKey = shouldApplyKey ? await ConfigSetStore.getApiKey(slot, id) : undefined;
                 const previousRuntimeKey = shouldApplyKey ? await ApiKeyManager.getApiKey(slot) : undefined;
 
-                await ConfigSetStore.updateMeta(slot, id, { label, note }, apiKey, operationToken);
+                await ConfigSetStore.updateMeta(
+                    slot,
+                    id,
+                    { label, note, ...(balanceWeight === undefined ? {} : { balanceWeight }) },
+                    apiKey,
+                    operationToken
+                );
 
                 if (shouldApplyKey) {
                     try {
@@ -469,7 +486,11 @@ export class CrudHost {
                             await ConfigSetStore.updateMeta(
                                 slot,
                                 id,
-                                { label: currentItem.label, note: currentItem.note ?? '' },
+                                {
+                                    label: currentItem.label,
+                                    note: currentItem.note ?? '',
+                                    balanceWeight: currentItem.balanceWeight
+                                },
                                 previousSavedKey ?? null,
                                 operationToken
                             );

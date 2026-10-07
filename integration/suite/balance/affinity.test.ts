@@ -18,7 +18,9 @@ import { setBalanceHandoffDirectoryOverride } from '../../../src/interInstance/p
 import { GenericModelProvider } from '../../../src/providers/genericModelProvider';
 import { LeaderElectionService } from '../../../src/status/leaderElectionService';
 import type { ModelConfig } from '../../../src/types/sharedTypes';
+import { StateHost } from '../../../src/ui/configSetManager/stateHost';
 import { ApiKeyManager } from '../../../src/utils/config/apiKeyManager';
+import { CompatibleModelManager } from '../../../src/utils/config/compatibleModelManager';
 import { ConfigSetStore } from '../../../src/utils/config/configSetStore';
 import { ApiKeyFailoverManager } from '../../../src/utils/config/failover/apiKeyFailoverManager';
 import { BalanceAffinityCache } from '../../../src/utils/config/failover/balanceAffinityCache';
@@ -393,7 +395,7 @@ suite('balance turn affinity', () => {
 
     for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
         for (const source of ['marker', 'cache', 'summary'] as const) {
-            test(`${sdkMode}: adjacent idle turns avoid a hash collision via ${source}`, async () => {
+            test(`${sdkMode}: adjacent idle turns reuse a colliding key and retain current-turn affinity via ${source}`, async () => {
                 const seed = new vscode.LanguageModelDataPart(
                     encodeStatefulMarker('affinity-model', {
                         provider: 'slot',
@@ -439,8 +441,9 @@ suite('balance turn affinity', () => {
                 });
                 assert.equal(next.sessionId, first.sessionId);
                 assert.notEqual(next.balanceKey, first.balanceKey);
-                assert.notEqual(next.usedKeys[0], first.usedKeys[0]);
+                assert.equal(next.usedKeys[0], first.usedKeys[0]);
                 assert.deepEqual(next.usedKeys, [next.usedKeys[0], next.usedKeys[0]]);
+                assert.equal(next.marker.balanceAffinity?.balanceKey, next.balanceKey);
                 const resumed = await AffinityProvider.run(continuation(history, next.parts), {
                     sdkMode,
                     copilotOptions: nextOptions
@@ -453,7 +456,7 @@ suite('balance turn affinity', () => {
     }
 
     for (const scope of ['wrong-slot', 'wrong-session', 'child', 'older-turn', 'invalid'] as const) {
-        test(`previous-turn avoidance ignores unrelated marker affinity: ${scope}`, async () => {
+        test(`a new turn ignores unrelated or invalid marker affinity: ${scope}`, async () => {
             const marker: StatefulMarkerContainer = {
                 extension: 'vicanent.gcmp',
                 provider: 'slot',
@@ -624,7 +627,7 @@ suite('balance turn affinity', () => {
         assert.deepEqual(next.usedKeys, first.usedKeys);
     });
 
-    for (const action of ['replace-key', 'remove', 'replace-site', 'isolate'] as const) {
+    for (const action of ['replace-key', 'remove', 'replace-site', 'isolate', 'zero-weight'] as const) {
         test(`recovered affinity still validates the current credential: ${action}`, async () => {
             const messages = [userMessage()];
             const copilotOptions = turnOptions(1);
@@ -639,6 +642,8 @@ suite('balance turn affinity', () => {
                 if (action === 'replace-site') {
                     await ConfigSetStore.add('slot', { id, label: id, site: 'other-site' }, first.usedKeys[0]);
                 }
+            } else if (action === 'zero-weight') {
+                await ConfigSetStore.updateMeta('slot', id, { balanceWeight: 0 });
             } else {
                 await ConfigSetStore.addBalanceExclusion(
                     'slot',
@@ -770,6 +775,40 @@ suite('balance turn affinity', () => {
         assert.equal(manager.balanceLeases.size, 0);
     });
 
+    test('UI state refresh preserves all-zero balance mode and cannot bypass the provider allocation guard', async () => {
+        for (const item of ConfigSetStore.list('slot')) {
+            await ConfigSetStore.updateMeta('slot', item.id, { balanceWeight: 0 });
+        }
+        const originalIds = CompatibleModelManager.getCustomProviderIds;
+        CompatibleModelManager.getCustomProviderIds = () => ['slot'];
+        try {
+            const states = await new StateHost({
+                post() {},
+                async sendStates() {},
+                async refreshCliProviders() {},
+                async refreshCliUsage() {},
+                isAlive: () => true
+            }).buildStates();
+            const state = states.find(entry => entry.provider === 'slot')?.slots.find(entry => entry.slot === 'slot');
+            assert.ok(state);
+            assert.equal(state.switchMode, 'balance');
+            assert.deepEqual(
+                state.rows.map(row => row.balanceWeight),
+                [0, 0, 0]
+            );
+            assert.equal(ConfigSetStore.isAutoSwitchEnabled('slot'), true);
+            let dispatched = 0;
+            await assert.rejects(
+                () => AffinityProvider.run([userMessage()], { onDispatch: () => dispatched++ }),
+                /positive[- ]weight|正权重/i
+            );
+            assert.equal(dispatched, 0);
+            assert.equal(ConfigSetStore.getSwitchMode('slot'), 'balance');
+        } finally {
+            CompatibleModelManager.getCustomProviderIds = originalIds;
+        }
+    });
+
     test('switching balance off stops publishing affinity', async () => {
         const messages = [userMessage()];
         const first = await AffinityProvider.run(messages);
@@ -787,7 +826,8 @@ suite('balance turn affinity', () => {
         'replace-key',
         'remove',
         'replace-site',
-        'isolate'
+        'isolate',
+        'zero-weight'
     ] as const) {
         test(`Leader validates a preferred credential against the current pool: ${action}`, async () => {
             const first = await ApiKeyFailoverManager.captureAttempt('slot', 'm:turn', 'first-request');
@@ -808,6 +848,8 @@ suite('balance turn affinity', () => {
                 }
             } else if (action === 'isolate') {
                 await ConfigSetStore.addBalanceExclusion('slot', 'm:turn', first.identity, Date.now(), authorityTerm);
+            } else if (action === 'zero-weight') {
+                await ConfigSetStore.updateMeta('slot', id, { balanceWeight: 0 });
             }
             const busy = await ApiKeyFailoverManager.captureAttempt(
                 'slot',
@@ -844,7 +886,7 @@ suite('balance turn affinity', () => {
         assert.equal(manager.balanceLeases.size, 1);
     });
 
-    test('Follower sends current and previous credential fingerprints in its assignment request', async () => {
+    test('Follower sends only the preferred fingerprint with the cancellation token in the fifth argument', async () => {
         LeaderElectionService.isLeader = () => false;
         LeaderElectionService.getOwnedAuthorityTerm = () => undefined;
         LeaderElectionService.getInstanceId = () => 'affinity-follower';
@@ -868,16 +910,22 @@ suite('balance turn affinity', () => {
             }
             return true;
         };
-        const attempt = await ApiKeyFailoverManager.captureAttempt(
-            'slot',
-            'm:turn',
-            'follower-request',
-            identity('fake-key-b'),
-            identity('fake-key-a')
-        );
-        assert.equal(attempt?.identity, identity('fake-key-b'));
+        const cancellation = new vscode.CancellationTokenSource();
+        try {
+            const attempt = await ApiKeyFailoverManager.captureAttempt(
+                'slot',
+                'm:turn',
+                'follower-request',
+                identity('fake-key-b'),
+                cancellation.token
+            );
+            assert.equal(attempt?.identity, identity('fake-key-b'));
+        } finally {
+            cancellation.dispose();
+        }
         assert.equal(received?.preferredCredentialId, identity('fake-key-b'));
-        assert.equal(received?.previousCredentialId, identity('fake-key-a'));
+        assert.ok(received);
+        assert.equal(Object.hasOwn(received, 'previousCredentialId'), false);
         assert.equal(JSON.stringify(received).includes('fake-key-b'), false);
         assert.equal(JSON.stringify(received).includes('fake-key-a'), false);
     });

@@ -8,6 +8,7 @@
 
 import { ConfigManager } from '../utils/config/configManager';
 import { ConfigSetItem, ConfigSetStore } from '../utils/config/configSetStore';
+import { getBalanceWeight, isValidBalanceWeight } from '../utils/config/balanceWeight';
 import { Logger } from '../utils/runtime/logger';
 import { GistSyncService } from './gistSyncService';
 import { getEncryptedPayloadKdfMetadata } from './syncCrypto';
@@ -112,6 +113,7 @@ function normalizeRemoteConfigSetData(value: unknown): ConfigSetSyncData | undef
                 !isBoundedText(rawItem.label, MAX_SYNC_FIELD_LENGTH) ||
                 (rawItem.site !== undefined && !isBoundedText(rawItem.site, MAX_SYNC_FIELD_LENGTH)) ||
                 (rawItem.note !== undefined && !isBoundedText(rawItem.note, MAX_SYNC_FIELD_LENGTH, true)) ||
+                !isValidBalanceWeight(rawItem.balanceWeight) ||
                 typeof rawItem.apiKey !== 'string' ||
                 rawItem.apiKey.length === 0 ||
                 rawItem.apiKey.length > MAX_ENCRYPTED_KEY_LENGTH
@@ -132,6 +134,7 @@ function normalizeRemoteConfigSetData(value: unknown): ConfigSetSyncData | undef
                 label: rawItem.label,
                 ...(rawItem.site === undefined ? {} : { site: rawItem.site }),
                 ...(rawItem.note === undefined ? {} : { note: rawItem.note }),
+                ...(rawItem.balanceWeight === undefined ? {} : { balanceWeight: rawItem.balanceWeight as number }),
                 apiKey: rawItem.apiKey
             });
         }
@@ -184,6 +187,7 @@ export async function collectLocalConfigSets(): Promise<Record<string, SyncedSlo
         }
         const withKeys: (ConfigSetItem & { apiKey: string })[] = [];
         for (const item of items) {
+            getBalanceWeight(item);
             const apiKey = await ConfigSetStore.getApiKey(slot, item.id);
             if (apiKey) {
                 withKeys.push({ ...item, apiKey });
@@ -289,6 +293,7 @@ async function encryptSlotKeys(data: ConfigSetSyncData): Promise<ConfigSetSyncDa
         for (const [slot, set] of Object.entries(data.slots)) {
             const items: (ConfigSetItem & { apiKey: string })[] = [];
             for (const item of set.items) {
+                getBalanceWeight(item);
                 const apiKey = encrypt(item.apiKey);
                 if (apiKey === undefined) {
                     return undefined;
@@ -317,6 +322,7 @@ async function encryptSlotKeysWithPassphrase(
         for (const [slot, set] of Object.entries(data.slots)) {
             const items: (ConfigSetItem & { apiKey: string })[] = [];
             for (const item of set.items) {
+                getBalanceWeight(item);
                 const apiKey = encrypt(item.apiKey);
                 if (apiKey === undefined) {
                     return undefined;
@@ -598,7 +604,14 @@ export async function createGistForConfigSets(token: string, data: ConfigSetSync
 
 /** 规范化单个配置项：固定字段顺序，忽略键顺序与 undefined 缺失差异 */
 function itemFingerprint(item: SyncedSlotConfigSet['items'][number]): string {
-    return JSON.stringify([item.id, item.label, item.site ?? null, item.note ?? null, item.apiKey]);
+    return JSON.stringify([
+        item.id,
+        item.label,
+        item.site ?? null,
+        item.note ?? null,
+        getBalanceWeight(item),
+        item.apiKey
+    ]);
 }
 
 /** 对比本地与远端，得出每个槽位的同步状态（items 按 id 排序后逐项指纹比对，顺序/字段差异不误报） */

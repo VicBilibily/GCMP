@@ -3,7 +3,15 @@
  *  renderDeleteDialog / renderPassphraseDialog / renderRestoreDialog
  *--------------------------------------------------------------------------------------------*/
 
-import type { SlotState, ConfigSetRow, SlotItemSelection, UploadSlotSnapshot, ActiveKeyAction } from '../types';
+import type {
+    SlotState,
+    ConfigSetRow,
+    SlotItemSelection,
+    UploadSlotSnapshot,
+    ActiveKeyAction,
+    RemoteItemSnapshot
+} from '../types';
+import { getBalanceWeight } from '../../../utils/config/balanceWeight';
 import { el, t, state, postToVSCode, showMessage, clearMessage } from './state';
 
 // ============= 删除确认对话框 =============
@@ -454,6 +462,12 @@ const STATUS_GROUPS: Array<['new' | 'update' | 'unchanged', string]> = [
 
 // ============= 恢复选择对话框 =============
 
+function syncedItemText(item: RemoteItemSnapshot): string {
+    const label = item.siteLabel ? `${item.label} · ${item.siteLabel}` : item.label;
+    const weight = getBalanceWeight(item);
+    return `${label} · ${t('Weight: {0}', '权重：{0}', weight)}${weight === 0 ? t(' (excluded from failover and load balancing)', '（不参与故障切换和负载均衡）') : ''}`;
+}
+
 export function renderRestoreDialog(): void {
     if (!state.restoreSnapshots || state.restoreSnapshots.length === 0) {
         showMessage('warning', t('No remote data to restore', '远端无可恢复数据'));
@@ -475,7 +489,7 @@ export function renderRestoreDialog(): void {
                 defaultChecked: status !== 'unchanged',
                 items: snap.items.map(it => ({
                     id: it.id,
-                    text: it.siteLabel ? `${it.label} · ${it.siteLabel}` : it.label
+                    text: syncedItemText(it)
                 }))
             }))
         });
@@ -522,7 +536,7 @@ export function renderUploadDialog(): void {
                 :   undefined,
             items: snap.items.map(it => ({
                 id: it.id,
-                text: it.siteLabel ? `${it.label} · ${it.siteLabel}` : it.label,
+                text: syncedItemText(it),
                 tag:
                     !it.hasKey ? t('No API Key', '缺少 Key')
                     : it.isActive ? t('In use', '使用中')
@@ -740,7 +754,7 @@ export function renderRemoteConfigsDialog(): void {
                     defaultChecked: true,
                     items: snap.items.map(it => ({
                         id: it.id,
-                        text: it.siteLabel ? `${it.label} · ${it.siteLabel}` : it.label
+                        text: syncedItemText(it)
                     }))
                 }
             ]

@@ -275,50 +275,50 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
     const switchTabs = el('div', 'csm-switch-tabs');
     const switchModes: Array<{
         mode: SlotState['switchMode'];
-        labelEn: string;
-        labelZh: string;
-        titleEn: string;
-        titleZh: string;
+        label: string;
+        title: string;
     }> = [
         {
             mode: 'off',
-            labelEn: 'Off',
-            labelZh: '手动切换',
-            titleEn: 'Switch configurations manually.',
-            titleZh: '仅手动切换配置。'
+            label: t('Off', '手动切换'),
+            title: t('Switch configurations manually.', '仅手动切换配置。')
         },
         {
             mode: 'failover',
-            labelEn: 'Failover',
-            labelZh: '故障切换',
-            titleEn:
+            label: t('Failover', '故障切换'),
+            title: t(
                 'When enabled, any request error counts toward failover. After 3 consecutive failures, activate the next saved configuration. User cancellation does not count or stop a switch already started.',
-            titleZh:
                 '开启后，任意请求错误均计入连续失败，达到 3 次后激活下一套配置；主动取消不计入，也不阻止已开始的切换。'
+            )
         },
         {
             mode: 'balance',
-            labelEn: 'Balance',
-            labelZh: '负载均衡',
-            titleEn:
-                'A Leader assigns chat sessions and sub-agent sub-sessions across saved configurations. If no Leader is available, requests use the primary API Key. A credential that fails 3 times in a row is avoided for 5 minutes.',
-            titleZh:
-                '由 Leader 将会话与子代理子会话分配到各套已保存配置；没有可用 Leader 时回退到主 API Key；凭据连续失败 3 次后隔离 5 分钟。'
+            label: t('Balance', '负载均衡'),
+            title: t(
+                'The leader window assigns conversation turns and sub-agent sessions based on weight and current load. Consecutive turns may use the same key. Configurations with a weight of 0 receive no new requests. Without a leader, requests fall back to the default primary key. A key is temporarily excluded for 5 minutes after 3 consecutive failures.',
+                '由主窗口（Leader）根据权重和当前负载分配对话轮次及子代理会话，连续轮次可以使用同一个 Key。权重为 0 的配置不再接收新请求。没有主窗口时，请求回退到默认的主使用 Key。某个 Key 连续失败 3 次后，将暂停使用 5 分钟。'
+            )
         }
     ];
     for (const switchMode of switchModes) {
         const tab = el(
             'button',
             `csm-switch-tab${slotState.switchMode === switchMode.mode ? ' csm-switch-tab-active' : ''}`,
-            t(switchMode.labelEn, switchMode.labelZh)
+            switchMode.label
         );
         tab.type = 'button';
+        const needsConfigurations =
+            slotState.switchMode === 'off' &&
+            (switchMode.mode === 'failover' ? slotState.rows.length < 2
+            : switchMode.mode === 'balance' ? slotState.rows.length === 0
+            : false);
         tab.title =
-            slotState.rows.length < 2 && slotState.switchMode === 'off' && switchMode.mode !== 'off' ?
-                t('Add at least 2 saved configurations first.', '请先添加至少 2 套已保存配置。')
-            :   t(switchMode.titleEn, switchMode.titleZh);
-        tab.disabled =
-            state.busy || (slotState.rows.length < 2 && slotState.switchMode === 'off' && switchMode.mode !== 'off');
+            needsConfigurations ?
+                switchMode.mode === 'balance' ?
+                    t('Add a saved configuration first.', '请先添加已保存配置。')
+                :   t('Add at least 2 saved configurations first.', '请先添加至少 2 套已保存配置。')
+            :   switchMode.title;
+        tab.disabled = state.busy || needsConfigurations;
         tab.setAttribute('aria-pressed', slotState.switchMode === switchMode.mode ? 'true' : 'false');
         tab.addEventListener('click', () => {
             if (switchMode.mode === slotState.switchMode) {

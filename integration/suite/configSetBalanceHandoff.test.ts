@@ -719,6 +719,12 @@ suite('balance handoff continuation regressions', () => {
         'config-before-lookup'
     ] as const) {
         test(`follower assignment revalidates after key lookup: ${action}`, async () => {
+            const originalValidate = ApiKeyFailoverManager.validateBalanceFallback;
+            let fallbackValidations = 0;
+            ApiKeyFailoverManager.validateBalanceFallback = (...args) => {
+                fallbackValidations++;
+                return originalValidate.apply(ApiKeyFailoverManager, args);
+            };
             let now = originalNow();
             Date.now = () => now;
             LeaderElectionService.isLeader = () => false;
@@ -771,6 +777,7 @@ suite('balance handoff continuation regressions', () => {
                     unblock();
                     assert.equal(await pending, undefined);
                     assert.equal(keyLookups, 0);
+                    assert.equal(fallbackValidations, 0);
                     assert.deepEqual(releases, [{ leaseId: 'assigned-before-change', authorityTerm: 'leader-new:2' }]);
                     return;
                 }
@@ -805,6 +812,7 @@ suite('balance handoff continuation regressions', () => {
                 }
                 unblock();
                 const attempt = await pending;
+                assert.equal(fallbackValidations, 0);
                 if (action === 'unchanged' || action === 'other-slot-mode') {
                     assert.equal(attempt?.balanceLeaseId, 'assigned-before-change');
                     assert.deepEqual(releases, []);
@@ -814,6 +822,7 @@ suite('balance handoff continuation regressions', () => {
                 }
             } finally {
                 unblock();
+                ApiKeyFailoverManager.validateBalanceFallback = originalValidate;
                 await pending;
                 await configurationUpdate;
             }

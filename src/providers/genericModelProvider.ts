@@ -60,7 +60,8 @@ import type { SessionRecoverySource } from '../usages/fileLogger/types';
 import {
     API_KEY_FAILOVER_ERROR_THRESHOLD,
     ApiKeyFailoverManager,
-    type ApiKeyFailoverAttempt
+    type ApiKeyFailoverAttempt,
+    type BalanceFallbackSnapshot
 } from '../utils/config/failover/apiKeyFailoverManager';
 import { isApiKeyFailoverError } from '../utils/config/failover/apiKeyFailoverClassifier';
 import { BalanceAffinityCache, getBalanceTurnKey } from '../utils/config/failover/balanceAffinityCache';
@@ -757,6 +758,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 外层 requestStartTime 保留给 recordEstimatedTokens / 持久化记录使用。
 
         const configuredRetryConfig = this.getRequestRetryConfig(effectiveProviderKey);
+        const initialSwitchMode = ConfigSetStore.getSwitchMode(effectiveProviderKey);
+        const initialSwitchModeGeneration = ApiKeyFailoverManager.getSwitchModeGeneration(effectiveProviderKey);
         const failoverCandidateCount = ApiKeyFailoverManager.getCandidateCountUpperBound(effectiveProviderKey);
         const failoverRetryBudget =
             failoverCandidateCount >= 2 && configuredRetryConfig.enabled && configuredRetryConfig.maxAttempts !== 0 ?
@@ -807,10 +810,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const telemetryTurn = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn;
         const canRecoverAffinity =
             requestKind === 'main-agent' && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
-        const previousTurnKey =
-            canRecoverAffinity && telemetryTurn !== undefined && telemetryTurn > 0 ?
-                getBalanceTurnKey(sessionId, telemetryTurn - 1)
-            :   undefined;
         let turnStartIndex = -1;
         if (requestKind === 'main-agent') {
             for (let index = messages.length - 1; index >= 0; index--) {
@@ -855,27 +854,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance'
         ) {
             preferredBalanceCredentialId = BalanceAffinityCache.instance.get(effectiveProviderKey, balanceKey);
-        }
-
-        let previousBalanceCredentialId: string | undefined;
-        if (previousTurnKey && ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance') {
-            for (const { statefulMarker } of getAllStatefulMarkersAndIndicies(messages)) {
-                const marker = statefulMarker.marker;
-                const affinity = marker?.balanceAffinity;
-                if (
-                    marker?.extension === 'vicanent.gcmp' &&
-                    marker.sessionId === sessionId &&
-                    marker.subSessionId === undefined &&
-                    affinity?.slot === effectiveProviderKey &&
-                    affinity.balanceKey === previousTurnKey &&
-                    typeof affinity.credentialId === 'string' &&
-                    /^[a-f0-9]{64}$/.test(affinity.credentialId)
-                ) {
-                    previousBalanceCredentialId = affinity.credentialId;
-                    break;
-                }
-            }
-            previousBalanceCredentialId ??= BalanceAffinityCache.instance.get(effectiveProviderKey, previousTurnKey);
         }
 
         // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
@@ -957,17 +935,21 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         }
                     );
                     let failoverAttempt: ApiKeyFailoverAttempt | undefined;
+                    let balanceFallback: BalanceFallbackSnapshot | undefined;
                     try {
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
                         }
+                        const captureOperationToken = ConfigSetStore.getApplyOperationToken(effectiveProviderKey);
                         failoverAttempt = await ApiKeyFailoverManager.captureAttempt(
                             effectiveProviderKey,
                             balanceKey,
                             balanceAllocationRequestId,
                             preferredBalanceCredentialId,
-                            previousBalanceCredentialId,
-                            token
+                            token,
+                            snapshot => {
+                                balanceFallback = snapshot;
+                            }
                         );
                         const nextBalanceLeaseId = failoverAttempt?.balanceLeaseId;
                         if (balanceLeaseId && balanceLeaseId !== nextBalanceLeaseId) {
@@ -999,9 +981,26 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             failoverFailureMode = failoverAttempt?.mode;
                         }
                         initialFailoverConfigId ??= failoverAttempt?.activeId;
+                        if (
+                            !failoverAttempt &&
+                            !balanceFallback &&
+                            ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance'
+                        ) {
+                            throw new Error(
+                                t(
+                                    'Configuration changed while capturing the request snapshot.',
+                                    '读取请求快照时配置已变化。'
+                                )
+                            );
+                        }
+                        if (token.isCancellationRequested) {
+                            throw new vscode.CancellationError();
+                        }
                         const siteProvider = getSiteOwnerProvider(effectiveProviderKey);
                         const requestSite =
-                            failoverAttempt?.site ?? (siteProvider ? readCurrentSite(siteProvider) : undefined);
+                            failoverAttempt?.site ??
+                            balanceFallback?.site ??
+                            (siteProvider ? readCurrentSite(siteProvider) : undefined);
                         const attemptModelConfig = {
                             ...baseModelConfig,
                             ...(sdkMode === 'openai-responses' ? { provider: effectiveProviderKey } : {}),
@@ -1021,10 +1020,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             !failoverAttempt &&
                             ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance'
                         ) {
-                            const apiKey = await ApiKeyManager.getApiKey(effectiveProviderKey);
-                            if (token.isCancellationRequested) {
-                                throw new vscode.CancellationError();
-                            }
+                            const apiKey = balanceFallback?.apiKey;
                             if (apiKey && ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance') {
                                 ApiKeyManager.bindRequestApiKey(attemptModelConfig, apiKey);
                                 balanceAffinity = {
@@ -1040,7 +1036,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         preferredBalanceCredentialId = balanceAffinity?.credentialId;
                         const requestApiKeyNames =
                             requestId && !failoverAttempt ?
-                                await captureRequestApiKeyNames(effectiveProviderKey, requestSite)
+                                await captureRequestApiKeyNames(effectiveProviderKey, requestSite, token)
                             :   undefined;
                         const handleRequestDispatched = (attemptStartedAt: number) => {
                             const apiKeyHash = ApiKeyManager.getRequestApiKeyHash(attemptModelConfig);
@@ -1054,6 +1050,83 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         };
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
+                        }
+                        if (!failoverAttempt && !balanceAffinity) {
+                            const mode = ConfigSetStore.getSwitchMode(effectiveProviderKey);
+                            const modeGeneration = ApiKeyFailoverManager.getSwitchModeGeneration(effectiveProviderKey);
+                            const operationToken = ConfigSetStore.getApplyOperationToken(effectiveProviderKey);
+                            if (
+                                mode === 'balance' ||
+                                (mode === 'failover' &&
+                                    (initialSwitchMode !== 'failover' ||
+                                        modeGeneration !== initialSwitchModeGeneration ||
+                                        operationToken !== captureOperationToken))
+                            ) {
+                                throw new Error(
+                                    t(
+                                        'Configuration changed while capturing the request snapshot.',
+                                        '读取请求快照时配置已变化。'
+                                    )
+                                );
+                            }
+                            let cancel!: () => void;
+                            const cancelled = new Promise<never>((_, reject) => {
+                                cancel = () => reject(new vscode.CancellationError());
+                            });
+                            const cancellation = token.onCancellationRequested(cancel);
+                            try {
+                                if (token.isCancellationRequested) {
+                                    cancel();
+                                    await cancelled;
+                                }
+                                const apiKey = await Promise.race([
+                                    ApiKeyManager.getApiKey(effectiveProviderKey),
+                                    cancelled
+                                ]);
+                                if (token.isCancellationRequested) {
+                                    throw new vscode.CancellationError();
+                                }
+                                // 归属 token 先于写入完成，须按本次实际凭据复核资格。
+                                const fallbackAvailable =
+                                    mode !== 'failover' ||
+                                    (await Promise.race([
+                                        ApiKeyFailoverManager.isFailoverFallbackAvailable(
+                                            effectiveProviderKey,
+                                            apiKey,
+                                            requestSite
+                                        ),
+                                        cancelled
+                                    ]));
+                                if (token.isCancellationRequested) {
+                                    throw new vscode.CancellationError();
+                                }
+                                if (
+                                    mode !== ConfigSetStore.getSwitchMode(effectiveProviderKey) ||
+                                    modeGeneration !==
+                                        ApiKeyFailoverManager.getSwitchModeGeneration(effectiveProviderKey) ||
+                                    operationToken !== ConfigSetStore.getApplyOperationToken(effectiveProviderKey) ||
+                                    (siteProvider && requestSite !== readCurrentSite(siteProvider))
+                                ) {
+                                    throw new Error(
+                                        t(
+                                            'Configuration changed while capturing the request snapshot.',
+                                            '读取请求快照时配置已变化。'
+                                        )
+                                    );
+                                }
+                                if (!fallbackAvailable) {
+                                    throw new Error(
+                                        t(
+                                            'No positive-weight API key could be assigned for failover.',
+                                            '无法为故障切换分配正权重 API Key。'
+                                        )
+                                    );
+                                }
+                                // 空值也固定到本次请求，避免 handler 在准备结束后回读新 Key。
+                                ApiKeyManager.bindRequestApiKey(attemptModelConfig, apiKey ?? '');
+                            } finally {
+                                cancellation.dispose();
+                            }
                         }
                         if (
                             canRecoverAffinity &&

@@ -11,6 +11,7 @@ import { ApiKeyManager } from './apiKeyManager';
 import { InterInstanceBus } from '../../interInstance';
 import { t } from '../runtime/l10n';
 import { Logger } from '../runtime/logger';
+import { getBalanceWeight } from './balanceWeight';
 
 /**
  * 一套配置（绑定单个槽位）
@@ -24,6 +25,7 @@ export interface ConfigSetItem {
     site?: string;
     /** 备注描述（可选） */
     note?: string;
+    balanceWeight?: number;
 }
 
 /**
@@ -355,14 +357,15 @@ export class ConfigSetStore {
         await this.context.globalState.update(this.activeKey(slot), undefined);
     }
 
-    /** 更新配置元数据（label / note） */
+    /** 更新配置元数据 */
     static async updateMeta(
         slot: string,
         id: string,
-        patch: { label?: string; note?: string },
+        patch: { label?: string; note?: string; balanceWeight?: number },
         apiKey?: string | null,
         operationToken?: string
     ): Promise<void> {
+        getBalanceWeight(patch);
         await this.mutateSlot(slot, operationToken, async () => {
             await this.migrateSlotIndexUnlocked(slot);
             const previousItems = this.readSlotItems(slot);
@@ -391,6 +394,15 @@ export class ConfigSetStore {
                         delete nextItem.note;
                     }
                 }
+
+                if (Object.prototype.hasOwnProperty.call(patch, 'balanceWeight')) {
+                    if (patch.balanceWeight === undefined) {
+                        delete nextItem.balanceWeight;
+                    } else {
+                        nextItem.balanceWeight = patch.balanceWeight;
+                    }
+                }
+                getBalanceWeight(nextItem);
 
                 return nextItem;
             });
@@ -424,9 +436,9 @@ export class ConfigSetStore {
 
     /** 新增一套配置（enqueue 内部实现，供入队上下文复用，避免嵌套入队死锁） */
     private static async addUnlocked(slot: string, item: ConfigSetItem, apiKey: string): Promise<void> {
+        getBalanceWeight(item);
         await this.migrateSlotIndexUnlocked(slot);
-        const items = this.readSlotItems(slot);
-        items.push(item);
+        const items = [...this.readSlotItems(slot), item];
         await this.context.secrets.store(this.secretKey(slot, item.id), apiKey);
         try {
             await this.writeSlotItems(slot, items);
@@ -443,6 +455,7 @@ export class ConfigSetStore {
 
     /** 新增一套配置 */
     static async add(slot: string, item: ConfigSetItem, apiKey: string, operationToken?: string): Promise<void> {
+        getBalanceWeight(item);
         await this.mutateSlot(slot, operationToken, () => this.addUnlocked(slot, item, apiKey));
     }
 
@@ -513,7 +526,9 @@ export class ConfigSetStore {
         activeId?: string,
         operationToken?: string
     ): Promise<void> {
+        items.forEach(getBalanceWeight);
         await this.mutateSlot(slot, operationToken, async () => {
+            items.forEach(getBalanceWeight);
             await this.migrateSlotIndexUnlocked(slot);
             const previousItems = this.readSlotItems(slot);
             const previousActiveId = this.getActiveId(slot);

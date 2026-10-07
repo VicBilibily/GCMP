@@ -6,6 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ConfigSetSwitchMode } from '../../utils/config/configSetStore';
+import { isValidBalanceWeight } from '../../utils/config/balanceWeight';
 
 /** 站点选项 */
 export interface SiteOption {
@@ -41,6 +42,7 @@ export interface ConfigSetRow {
     site?: string;
     siteLabel?: string;
     note?: string;
+    balanceWeight?: number;
     isActive: boolean;
 }
 
@@ -102,6 +104,7 @@ export interface RemoteItemSnapshot {
     label: string;
     siteLabel?: string;
     note?: string;
+    balanceWeight?: number;
 }
 
 /** 恢复时的远端槽位快照 */
@@ -128,6 +131,7 @@ export interface LocalItemSnapshot {
     label: string;
     siteLabel?: string;
     note?: string;
+    balanceWeight?: number;
     /** 是否有已保存的 Key（无 Key 项不可上传） */
     hasKey: boolean;
     /** 是否为本地当前激活配置 */
@@ -235,6 +239,7 @@ export interface AddFormDraftState {
     label: string;
     note: string;
     apiKey: string;
+    balanceWeight: string;
     site?: string;
 }
 
@@ -243,6 +248,7 @@ export interface EditFormDraftState {
     label: string;
     note: string;
     apiKey: string;
+    balanceWeight: string;
 }
 
 /** ============= 后端 -> 前端 ============= */
@@ -288,11 +294,27 @@ export type WebViewMessage =
     | { command: 'ready' }
     | { command: 'loadProviderUsage'; provider: string }
     | { command: 'refreshConfigUsage'; slot: string; id: string }
-    | { command: 'add'; slot: string; label: string; note?: string; site?: string; apiKey: string }
+    | {
+          command: 'add';
+          slot: string;
+          label: string;
+          note?: string;
+          site?: string;
+          apiKey: string;
+          balanceWeight?: number;
+      }
     | { command: 'apply'; slot: string; id: string }
     | { command: 'deactivate'; slot: string }
     | { command: 'setSwitchMode'; slot: string; mode: ConfigSetSwitchMode }
-    | { command: 'edit'; slot: string; id: string; label: string; note?: string; apiKey?: string }
+    | {
+          command: 'edit';
+          slot: string;
+          id: string;
+          label: string;
+          note?: string;
+          apiKey?: string;
+          balanceWeight?: number;
+      }
     | { command: 'remove'; slot: string; id: string }
     | { command: 'setupCli'; provider: string }
     | { command: 'openCliTerminal'; provider: string }
@@ -404,7 +426,8 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
                 !isValidString(msg.label) ||
                 !isValidString(msg.apiKey) ||
                 !isOptionalString(msg.note) ||
-                !isOptionalString(msg.site)
+                !isOptionalString(msg.site) ||
+                !isValidBalanceWeight(msg.balanceWeight)
             ) {
                 return undefined;
             }
@@ -420,6 +443,7 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
                     note?: string;
                     site?: string;
                     apiKey: string;
+                    balanceWeight?: number;
                 }),
                 apiKey
             };
@@ -430,7 +454,8 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
                 !isValidString(msg.id) ||
                 !isValidString(msg.label) ||
                 !isOptionalString(msg.note) ||
-                !isOptionalString(msg.apiKey)
+                !isOptionalString(msg.apiKey) ||
+                !isValidBalanceWeight(msg.balanceWeight)
             ) {
                 return undefined;
             }
@@ -442,6 +467,7 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
                     label: string;
                     note?: string;
                     apiKey?: string;
+                    balanceWeight?: number;
                 }),
                 apiKey:
                     typeof msg.apiKey === 'string' ? msg.apiKey.trim() || undefined : (msg.apiKey as string | undefined)

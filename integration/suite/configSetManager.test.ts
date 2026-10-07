@@ -6,11 +6,23 @@ import * as vscode from 'vscode';
 import { GistSyncService } from '../../src/sync/gistSyncService';
 import { runClearPassphraseFlow } from '../../src/sync/passphraseFlow';
 import { runSetPassphraseFlow } from '../../src/sync/passphraseFlow';
-import { readRemoteConfigSets, readRemoteConfigSetsWithPassphrase } from '../../src/sync/configSetSyncService';
+import {
+    collectLocalConfigSets,
+    createGistForConfigSets,
+    diffConfigSets,
+    readRemoteConfigSets,
+    readRemoteConfigSetsWithPassphrase,
+    writeRemoteConfigSets,
+    writeRemoteConfigSetsWithPassphrase,
+    type ConfigSetSyncData,
+    type SyncedSlotConfigSet
+} from '../../src/sync/configSetSyncService';
 import { StatusBarManager } from '../../src/status';
 import { CrudHost } from '../../src/ui/configSetManager/crudHost';
+import { ConfigSetManagerPanel } from '../../src/ui/configSetManager';
+import { StateHost } from '../../src/ui/configSetManager/stateHost';
 import { ConfigSetSyncHost } from '../../src/ui/configSetManager/syncHost';
-import type { PanelContext } from '../../src/ui/configSetManager/types';
+import type { PanelContext, WebViewMessage } from '../../src/ui/configSetManager/types';
 import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import {
@@ -19,6 +31,7 @@ import {
     readCurrentSite
 } from '../../src/utils/config/configSetCommands';
 import { ConfigSetStore, type ConfigSetItem } from '../../src/utils/config/configSetStore';
+import { getBalanceWeight } from '../../src/utils/config/balanceWeight';
 import { ApiKeyFailoverManager } from '../../src/utils/config/failover/apiKeyFailoverManager';
 
 function failoverIdentity(id: string, apiKey: string, site?: string): string {
@@ -628,6 +641,14 @@ suite('API key automatic failover', () => {
 
             assert.equal(await ApiKeyFailoverManager.canEnableAutoSwitch(slot), true);
             await ConfigSetStore.setAutoSwitchEnabled(slot, true);
+            await ConfigSetStore.updateMeta(slot, 'china', { balanceWeight: 0 });
+            const weightedAttempt = await ApiKeyFailoverManager.captureAttempt(slot);
+            assert.equal(weightedAttempt?.activeId, 'global');
+            assert.equal(weightedAttempt.apiKey, 'same-key');
+            assert.equal(weightedAttempt.site, 'api.z.ai');
+            assert.equal(weightedAttempt.identity, failoverIdentity('global', 'same-key', 'api.z.ai'));
+            assert.equal(readCurrentSite('zhipu'), 'open.bigmodel.cn');
+            await ConfigSetStore.updateMeta(slot, 'china', { balanceWeight: undefined });
             const attempt = await ApiKeyFailoverManager.captureAttempt(slot);
             assert.ok(attempt);
             const decision = await ApiKeyFailoverManager.handleFailure(
@@ -1034,7 +1055,7 @@ suite('config set label behavior', () => {
             async sendStates(): Promise<void> {}
         });
         const mutableHost = host as unknown as {
-            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+            preparedDownloadSlots?: Record<string, SyncedSlotConfigSet>;
             confirmLocalActive: (slot: string) => Promise<void>;
             ensureGistToken: () => Promise<{ id: number; login: string; token: string } | undefined>;
             postSyncState: () => Promise<void>;
@@ -1046,7 +1067,7 @@ suite('config set label behavior', () => {
 
         mutableHost.preparedDownloadSlots = {
             'slot-prepared': {
-                items: [{ id: 'remote-a', label: 'Remote A', apiKey: 'remote-key-a' }]
+                items: [{ id: 'remote-a', label: 'Remote A', apiKey: 'remote-key-a', balanceWeight: 0 }]
             }
         };
         mutableHost.ensureGistToken = async () => {
@@ -1070,6 +1091,7 @@ suite('config set label behavior', () => {
             ['remote-a']
         );
         assert.equal(await ConfigSetStore.getApiKey('slot-prepared', 'remote-a'), 'remote-key-a');
+        assert.equal(ConfigSetStore.list('slot-prepared')[0].balanceWeight, 0);
         assert.equal(mutableHost.preparedDownloadSlots, undefined, 'prepared snapshot should be cleared after restore');
         assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
         assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).ok === true));
@@ -1475,6 +1497,11 @@ suite('config set label behavior', () => {
                 data: ''
             });
         const malformedPayloads: unknown[] = [
+            ...[-1, 0.5, 101, Number.NaN, Infinity, -Infinity, '1', null].map(balanceWeight => ({
+                version: 1,
+                timestamp,
+                slots: { slot: { items: [{ id: 'a', label: 'A', apiKey: 'encrypted', balanceWeight }] } }
+            })),
             { version: 2, timestamp, slots: {} },
             JSON.parse(`{"version":1,"timestamp":"${timestamp}","slots":{"__proto__":{"items":[]}}}`) as unknown,
             {
@@ -1530,6 +1557,12 @@ suite('config set label behavior', () => {
                     status: 'error'
                 });
             }
+
+            content = `{"version":1,"timestamp":"${timestamp}","slots":{"slot":{"items":[{"id":"a","label":"A","apiKey":"encrypted","balanceWeight":1e309}]}}}`;
+            assert.deepEqual(await readRemoteConfigSets('token', 'gist-1'), { status: 'error' });
+            assert.deepEqual(await readRemoteConfigSetsWithPassphrase('token', 'gist-1', 'passphrase'), {
+                status: 'error'
+            });
 
             assert.equal(decryptorCreations, 0);
             content = JSON.stringify({
@@ -2469,7 +2502,7 @@ suite('config set label behavior', () => {
 
     test('ConfigSetSyncHost.handleRestore rolls back earlier slots when a later slot fails', async () => {
         ConfigSetStore.initialize(createExtensionContext());
-        await ConfigSetStore.add('slot-ok', { id: 'local-ok', label: 'Local OK' }, 'local-key-ok');
+        await ConfigSetStore.add('slot-ok', { id: 'local-ok', label: 'Local OK', balanceWeight: 25 }, 'local-key-ok');
         await ConfigSetStore.add('slot-fail', { id: 'local-fail', label: 'Local Fail' }, 'local-key-fail');
 
         const posts: unknown[] = [];
@@ -2480,7 +2513,7 @@ suite('config set label behavior', () => {
             async sendStates(): Promise<void> {}
         });
         const mutableHost = host as unknown as {
-            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+            preparedDownloadSlots?: Record<string, SyncedSlotConfigSet>;
             confirmLocalActive: (slot: string) => Promise<void>;
             postSyncState: () => Promise<void>;
         };
@@ -2494,7 +2527,10 @@ suite('config set label behavior', () => {
 
         mutableHost.preparedDownloadSlots = {
             'slot-ok': {
-                items: [{ id: 'remote-ok', label: 'Remote OK', apiKey: 'remote-key-ok' }]
+                items: [
+                    { id: 'local-ok', label: 'Remote replacement', apiKey: 'replacement-key', balanceWeight: 0 },
+                    { id: 'remote-ok', label: 'Remote OK', apiKey: 'remote-key-ok', balanceWeight: 100 }
+                ]
             },
             'slot-fail': {
                 items: [{ id: 'remote-fail', label: 'Remote Fail', apiKey: 'remote-key-fail' }]
@@ -2512,7 +2548,7 @@ suite('config set label behavior', () => {
 
         try {
             await host.handleRestore([
-                { slot: 'slot-ok', itemIds: ['remote-ok'] },
+                { slot: 'slot-ok', itemIds: ['local-ok', 'remote-ok'] },
                 { slot: 'slot-fail', itemIds: ['remote-fail'] }
             ]);
         } finally {
@@ -2530,6 +2566,8 @@ suite('config set label behavior', () => {
             ['local-fail']
         );
         assert.equal(await ConfigSetStore.getApiKey('slot-ok', 'local-ok'), 'local-key-ok');
+        assert.equal(ConfigSetStore.list('slot-ok')[0].balanceWeight, 25);
+        assert.equal(await ConfigSetStore.getApiKey('slot-ok', 'remote-ok'), undefined);
         assert.equal(await ConfigSetStore.getApiKey('slot-fail', 'local-fail'), 'local-key-fail');
         assert.equal(mutableHost.preparedDownloadSlots, undefined, 'prepared snapshot should be cleared after failure');
         assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
@@ -2763,5 +2801,394 @@ suite('config set label behavior', () => {
         host.discardPreparedRestore();
 
         assert.equal(mutableHost.preparedDownloadSlots, undefined);
+    });
+});
+
+suite('config set balance weight boundaries', () => {
+    test('panel routes numeric weights and rejects malicious values before CRUD', async () => {
+        const panel = Object.create(ConfigSetManagerPanel.prototype) as ConfigSetManagerPanel;
+        const addCalls: Parameters<CrudHost['handleAdd']>[] = [];
+        const editCalls: Parameters<CrudHost['handleEdit']>[] = [];
+        Object.assign(panel, {
+            crudHost: {
+                handleAdd: async (...args: Parameters<CrudHost['handleAdd']>) => {
+                    addCalls.push(args);
+                },
+                handleEdit: async (...args: Parameters<CrudHost['handleEdit']>) => {
+                    editCalls.push(args);
+                }
+            }
+        });
+        const mutablePanel = panel as unknown as { handleMessage: (message: WebViewMessage) => Promise<void> };
+        for (const balanceWeight of [0, 100]) {
+            await mutablePanel.handleMessage({
+                command: 'add',
+                slot: 'slot',
+                label: 'A',
+                apiKey: 'key',
+                balanceWeight
+            });
+            await mutablePanel.handleMessage({ command: 'edit', slot: 'slot', id: 'a', label: 'A', balanceWeight });
+        }
+        assert.deepEqual(
+            addCalls.map(args => args[5]),
+            [0, 100]
+        );
+        assert.deepEqual(
+            editCalls.map(args => args[5]),
+            [0, 100]
+        );
+        for (const balanceWeight of [-1, 0.5, 101, Number.NaN, Infinity, '1', null]) {
+            for (const command of ['add', 'edit']) {
+                await mutablePanel.handleMessage({
+                    command,
+                    slot: 'slot',
+                    id: 'a',
+                    label: 'A',
+                    apiKey: 'key',
+                    balanceWeight
+                } as unknown as WebViewMessage);
+            }
+        }
+        assert.equal(addCalls.length, 2);
+        assert.equal(editCalls.length, 2);
+    });
+
+    test('store preserves legacy defaults and saves weights without changing active credentials', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        await context.globalState.update('configSets', { slot: [{ id: 'legacy', label: 'Legacy' }] });
+        const legacy = ConfigSetStore.list('slot')[0];
+        assert.equal(getBalanceWeight(legacy), 1);
+        assert.equal(Object.hasOwn(legacy, 'balanceWeight'), false);
+        assert.equal(context.globalState.get('configSets.items.slot'), undefined);
+        await ConfigSetStore.add('slot', { id: 'a', label: 'A', balanceWeight: 0 }, 'key-a');
+        await ConfigSetStore.setActive('slot', 'a');
+        await ApiKeyManager.setApiKey('slot', 'key-a');
+        for (const mode of ['off', 'failover', 'balance'] as const) {
+            await ConfigSetStore.setSwitchMode('slot', mode);
+            await ConfigSetStore.updateMeta('slot', 'a', { balanceWeight: 100 });
+            await ConfigSetStore.updateMeta('slot', 'a', { label: 'Renamed' });
+            assert.equal(ConfigSetStore.list('slot')[1].balanceWeight, 100);
+            assert.equal(ConfigSetStore.getSwitchMode('slot'), mode);
+            assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+            assert.equal(await ApiKeyManager.getApiKey('slot'), 'key-a');
+        }
+        await ConfigSetStore.writeAll('slot', [{ id: 'a', label: 'A', balanceWeight: 0 }], { a: 'key-a' }, 'a');
+        assert.equal(ConfigSetStore.list('slot')[0].balanceWeight, 0);
+        await ConfigSetStore.updateMeta('slot', 'a', { balanceWeight: undefined });
+        assert.equal(Object.hasOwn(ConfigSetStore.list('slot')[0], 'balanceWeight'), false);
+        assert.equal(getBalanceWeight(ConfigSetStore.list('slot')[0]), 1);
+    });
+
+    for (const balanceWeight of [-1, 0.5, 101, Number.NaN, Infinity, -Infinity, '1', null]) {
+        for (const operation of ['add', 'updateMeta', 'writeAll'] as const) {
+            test(`${operation} rejects illegal balance weight before changing state: ${String(balanceWeight)}`, async () => {
+                const context = createExtensionContext();
+                ConfigSetStore.initialize(context);
+                const previous = { id: 'a', label: 'A', balanceWeight: 25 };
+                await ConfigSetStore.add('slot', previous, 'key-a');
+                await ConfigSetStore.setActive('slot', 'a');
+                const previousToken = ConfigSetStore.getApplyOperationToken('slot');
+                const item = { id: 'a', label: 'Changed', balanceWeight } as unknown as ConfigSetItem;
+                await assert.rejects(async () => {
+                    if (operation === 'add') {
+                        await ConfigSetStore.add('slot', { ...item, id: 'b' }, 'key-b');
+                    } else if (operation === 'updateMeta') {
+                        await ConfigSetStore.updateMeta('slot', 'a', item, 'new-key');
+                    } else {
+                        await ConfigSetStore.writeAll('slot', [item], { a: 'new-key' }, 'a');
+                    }
+                }, RangeError);
+                assert.deepEqual(ConfigSetStore.list('slot'), [previous]);
+                assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-a');
+                assert.equal(await ConfigSetStore.getApiKey('slot', 'b'), undefined);
+                assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+                assert.equal(ConfigSetStore.getApplyOperationToken('slot'), previousToken);
+            });
+        }
+    }
+
+    for (const balanceWeight of [undefined, 0, 100]) {
+        test(`store updateMeta rolls back weight and key after metadata write failure: ${balanceWeight}`, async () => {
+            const context = createExtensionContext();
+            ConfigSetStore.initialize(context);
+            const item: ConfigSetItem = {
+                id: 'a',
+                label: 'A',
+                ...(balanceWeight === undefined ? {} : { balanceWeight })
+            };
+            await ConfigSetStore.add('slot', item, 'key-a');
+            const originalUpdate = context.globalState.update.bind(context.globalState);
+            let failed = false;
+            context.globalState.update = async (key, value) => {
+                await originalUpdate(key, value);
+                if (key === 'configSets.items.slot' && !failed) {
+                    failed = true;
+                    throw new Error('metadata-write-failed');
+                }
+            };
+            await assert.rejects(
+                () => ConfigSetStore.updateMeta('slot', 'a', { label: 'Changed', balanceWeight: 50 }, 'new-key'),
+                /metadata-write-failed/
+            );
+            assert.equal(failed, true);
+            assert.deepEqual(ConfigSetStore.list('slot'), [item]);
+            assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-a');
+        });
+
+        test(`CrudHost rolls back weight after an active key edit fails: ${balanceWeight}`, async () => {
+            const context = createExtensionContext();
+            ConfigSetStore.initialize(context);
+            ApiKeyManager.initialize(context);
+            const item: ConfigSetItem = {
+                id: 'a',
+                label: 'A',
+                ...(balanceWeight === undefined ? {} : { balanceWeight })
+            };
+            await ConfigSetStore.add('slot', item, 'key-a');
+            await ConfigSetStore.setActive('slot', 'a');
+            await ApiKeyManager.setApiKey('slot', 'key-a');
+            const posts: unknown[] = [];
+            const originalSet = ApiKeyManager.setApiKey;
+            let failed = false;
+            ApiKeyManager.setApiKey = async (...args) => {
+                await originalSet.call(ApiKeyManager, ...args);
+                if (args[1] === 'new-key') {
+                    failed = true;
+                    throw new Error('active-key-write-failed');
+                }
+            };
+            try {
+                await new CrudHost(createPanelContext(posts)).handleEdit('slot', 'a', 'Changed', '', 'new-key', 50);
+            } finally {
+                ApiKeyManager.setApiKey = originalSet;
+            }
+            assert.equal(failed, true);
+            assert.deepEqual(ConfigSetStore.list('slot'), [item]);
+            assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-a');
+            assert.equal(await ApiKeyManager.getApiKey('slot'), 'key-a');
+            assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+            assert.equal((posts.at(-1) as { ok: boolean }).ok, false);
+        });
+    }
+
+    test('add and writeAll retain previous weights after persistence failures', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+        const previous = { id: 'a', label: 'A', balanceWeight: 25 };
+        await ConfigSetStore.add('slot', previous, 'key-a');
+        await ConfigSetStore.setActive('slot', 'a');
+        const originalUpdate = context.globalState.update.bind(context.globalState);
+        context.globalState.update = async (key, value) => {
+            if (key === 'configSets.items.slot') {
+                throw new Error('list-write-failed');
+            }
+            await originalUpdate(key, value);
+        };
+        try {
+            await assert.rejects(
+                () => ConfigSetStore.add('slot', { id: 'b', label: 'B', balanceWeight: 0 }, 'key-b'),
+                /list-write-failed/
+            );
+        } finally {
+            context.globalState.update = originalUpdate;
+        }
+        assert.deepEqual(ConfigSetStore.list('slot'), [previous]);
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'b'), undefined);
+        const originalStore = context.secrets.store.bind(context.secrets);
+        context.secrets.store = async (key, value) => {
+            if (value === 'new-key') {
+                throw new Error('secret-write-failed');
+            }
+            await originalStore(key, value);
+        };
+        try {
+            await assert.rejects(
+                () => ConfigSetStore.writeAll('slot', [{ ...previous, balanceWeight: 0 }], { a: 'new-key' }, 'a'),
+                /secret-write-failed/
+            );
+        } finally {
+            context.secrets.store = originalStore;
+        }
+        assert.deepEqual(ConfigSetStore.list('slot'), [previous]);
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-a');
+        assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+    });
+
+    test('CrudHost saves and edits zero weight without changing active runtime keys', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+        ApiKeyManager.initialize(context);
+        await ApiKeyManager.setApiKey('slot', 'runtime-key');
+        const posts: unknown[] = [];
+        const host = new CrudHost(createPanelContext(posts));
+        await host.handleAdd('slot', 'New', undefined, undefined, 'saved-key', 0);
+        const item = ConfigSetStore.list('slot').find(entry => entry.label === 'New');
+        assert.ok(item);
+        assert.equal(item.balanceWeight, 0);
+        await host.handleEdit('slot', item.id, 'Edited', '', undefined, 100);
+        assert.equal(ConfigSetStore.list('slot').find(entry => entry.id === item.id)?.balanceWeight, 100);
+        await host.handleEdit('slot', item.id, 'Edited again', '', undefined);
+        assert.equal(ConfigSetStore.list('slot').find(entry => entry.id === item.id)?.balanceWeight, 100);
+        assert.equal(await ApiKeyManager.getApiKey('slot'), 'runtime-key');
+        assert.equal(await ConfigSetStore.getApiKey('slot', item.id), 'saved-key');
+        assert.equal((posts.at(-1) as { ok: boolean }).ok, true);
+    });
+
+    test('Gist fingerprints include effective weights and equate legacy and explicit one', () => {
+        const item = { id: 'a', label: 'A', apiKey: 'key-a' };
+        const local = { slot: { items: [item] } };
+        for (const balanceWeight of [undefined, 1]) {
+            const remote = { slot: { items: [{ ...item, balanceWeight }] } };
+            assert.deepEqual(diffConfigSets(local, remote), { slot: 'unchanged' });
+            assert.deepEqual(diffConfigSets(remote, local), { slot: 'unchanged' });
+        }
+        for (const balanceWeight of [0, 100]) {
+            assert.deepEqual(diffConfigSets(local, { slot: { items: [{ ...item, balanceWeight }] } }), {
+                slot: 'update'
+            });
+        }
+        const invalid = { slot: { items: [{ ...item, balanceWeight: null }] } } as unknown as Record<
+            string,
+            SyncedSlotConfigSet
+        >;
+        assert.throws(() => diffConfigSets(local, invalid), RangeError);
+    });
+
+    test('Gist roundtrip preserves weights, legacy omissions and whitelisted metadata', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+        for (const item of [
+            { id: 'legacy', label: 'Legacy' },
+            { id: 'zero', label: 'Zero', balanceWeight: 0 },
+            { id: 'max', label: 'Max', balanceWeight: 100 }
+        ]) {
+            await ConfigSetStore.add('slot', item, `key-${item.id}`);
+        }
+        const slots = await collectLocalConfigSets();
+        assert.ok(slots);
+        const data: ConfigSetSyncData = { version: 1, timestamp: new Date().toISOString(), slots };
+        const originalFetch = ConfigManager.fetchWithProxy;
+        const originalEncrypt = GistSyncService.createBatchEncryptor;
+        const originalExplicitEncrypt = GistSyncService.createBatchEncryptorWithPassphrase;
+        const originalDecrypt = GistSyncService.createBatchDecryptor;
+        const originalExplicitDecrypt = GistSyncService.createBatchDecryptorWithPassphrase;
+        let content = '';
+        let writes = 0;
+        const encryptor = () => Object.assign((key: string) => `encrypted:${key}`, { dispose() {} });
+        const decryptor = () => Object.assign(async (key: string) => key.slice('encrypted:'.length), { dispose() {} });
+        GistSyncService.createBatchEncryptor = async () => encryptor();
+        GistSyncService.createBatchEncryptorWithPassphrase = async () => encryptor();
+        GistSyncService.createBatchDecryptor = async () => decryptor();
+        GistSyncService.createBatchDecryptorWithPassphrase = () => decryptor();
+        ConfigManager.fetchWithProxy = (async (_url, options) => {
+            if (options?.method === 'PATCH' || options?.method === 'POST') {
+                const body = JSON.parse(String(options.body)) as { files: Record<string, { content: string }> };
+                content = body.files['gcmp-configsets.json'].content;
+                writes++;
+                return new Response(JSON.stringify({ id: 'gist-test' }));
+            }
+            return new Response(JSON.stringify({ files: { 'gcmp-configsets.json': { content } } }));
+        }) as typeof ConfigManager.fetchWithProxy;
+        try {
+            assert.equal(await writeRemoteConfigSets('token', 'gist-test', data), true);
+            const wire = JSON.parse(content) as ConfigSetSyncData;
+            assert.equal(wire.slots.slot.items[1].balanceWeight, 0);
+            assert.equal(wire.slots.slot.items[2].balanceWeight, 100);
+            assert.equal(wire.slots.slot.items[0].balanceWeight, undefined);
+            assert.equal(content.includes('encrypted:key-zero'), true);
+            Object.assign(wire.slots.slot.items[1], { unwanted: true });
+            content = JSON.stringify(wire);
+            const regular = await readRemoteConfigSets('token', 'gist-test');
+            assert.ok(regular.status === 'ok');
+            assert.deepEqual(regular.data.slots, slots);
+            assert.equal(Object.hasOwn(regular.data.slots.slot.items[1], 'unwanted'), false);
+            assert.equal(
+                await writeRemoteConfigSetsWithPassphrase('token', 'gist-test', data, 'fake-passphrase'),
+                true
+            );
+            const explicit = await readRemoteConfigSetsWithPassphrase('token', 'gist-test', 'fake-passphrase');
+            assert.ok(explicit.status === 'ok');
+            assert.deepEqual(explicit.data.slots, slots);
+            assert.equal(await createGistForConfigSets('token', data), 'gist-test');
+            for (const balanceWeight of [-1, 0.5, 101, Number.NaN, Infinity, -Infinity, '1', null]) {
+                const invalid: ConfigSetSyncData = {
+                    ...data,
+                    slots: {
+                        slot: {
+                            items: [
+                                {
+                                    ...slots.slot.items[0],
+                                    balanceWeight
+                                } as unknown as SyncedSlotConfigSet['items'][number]
+                            ]
+                        }
+                    }
+                };
+                assert.equal(await writeRemoteConfigSets('token', 'gist-test', invalid), false);
+                assert.equal(
+                    await writeRemoteConfigSetsWithPassphrase('token', 'gist-test', invalid, 'fake-passphrase'),
+                    false
+                );
+                assert.equal(await createGistForConfigSets('token', invalid), undefined);
+                assert.equal(writes, 3);
+            }
+            await context.globalState.update('configSets.items.slot', [
+                { id: 'bad', label: 'Bad', balanceWeight: null }
+            ]);
+            assert.throws(() => getBalanceWeight(ConfigSetStore.list('slot')[0]), RangeError);
+            await assert.rejects(() => collectLocalConfigSets(), RangeError);
+        } finally {
+            ConfigManager.fetchWithProxy = originalFetch;
+            GistSyncService.createBatchEncryptor = originalEncrypt;
+            GistSyncService.createBatchEncryptorWithPassphrase = originalExplicitEncrypt;
+            GistSyncService.createBatchDecryptor = originalDecrypt;
+            GistSyncService.createBatchDecryptorWithPassphrase = originalExplicitDecrypt;
+        }
+    });
+
+    test('card state preserves unset weights while upload/download previews expose effective weights without API keys', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+        ApiKeyManager.initialize(context);
+        await ConfigSetStore.add('zhipu', { id: 'legacy', label: 'Legacy' }, 'key-legacy');
+        await ConfigSetStore.add('zhipu', { id: 'zero', label: 'Zero', balanceWeight: 0 }, 'key-zero');
+        await ConfigSetStore.add('zhipu', { id: 'one', label: 'One', balanceWeight: 1 }, 'key-one');
+        await ConfigSetStore.add('zhipu', { id: 'max', label: 'Max', balanceWeight: 100 }, 'key-max');
+        await ConfigSetStore.setActive('zhipu', 'zero');
+        await ApiKeyManager.setApiKey('zhipu', 'key-zero');
+        const posts: unknown[] = [];
+        const states = await new StateHost(createPanelContext(posts)).buildStates();
+        const rows = states
+            .find(entry => entry.provider === 'zhipu')
+            ?.slots.find(entry => entry.slot === 'zhipu')?.rows;
+        assert.ok(rows);
+        assert.deepEqual(
+            rows.map(row => row.balanceWeight),
+            [undefined, 0, 1, 100]
+        );
+        assert.equal(rows[1].isActive, true);
+        const host = new ConfigSetSyncHost({ post: message => posts.push(message), sendStates: async () => {} });
+        const mutableHost = host as unknown as {
+            sendUploadPrep: (status: undefined, remoteReadable: boolean) => Promise<void>;
+            sendDownloadPrep: (remote: Record<string, SyncedSlotConfigSet>) => Promise<void>;
+        };
+        await mutableHost.sendUploadPrep(undefined, true);
+        const remote = await collectLocalConfigSets();
+        assert.ok(remote);
+        await mutableHost.sendDownloadPrep(remote);
+        for (const command of ['uploadPrep', 'downloadPrep']) {
+            const prep = posts.find(message => (message as { command: string }).command === command) as {
+                snapshots: Array<{ slot: string; items: Array<{ balanceWeight?: number }> }>;
+            };
+            assert.ok(prep);
+            assert.deepEqual(
+                prep.snapshots.find(snapshot => snapshot.slot === 'zhipu')?.items.map(item => item.balanceWeight),
+                [1, 0, 1, 100]
+            );
+            assert.equal(JSON.stringify(prep).includes('key-zero'), false);
+        }
     });
 });

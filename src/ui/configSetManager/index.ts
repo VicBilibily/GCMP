@@ -174,7 +174,8 @@ export class ConfigSetManagerPanel implements PanelContext {
                         message.label,
                         message.note,
                         message.site,
-                        message.apiKey
+                        message.apiKey,
+                        message.balanceWeight
                     );
                     return;
                 case 'loadProviderUsage':
@@ -207,7 +208,8 @@ export class ConfigSetManagerPanel implements PanelContext {
                         message.id,
                         message.label,
                         message.note,
-                        message.apiKey
+                        message.apiKey,
+                        message.balanceWeight
                     );
                     return;
                 case 'remove':

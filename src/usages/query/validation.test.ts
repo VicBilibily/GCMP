@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { sanitizeWebViewMessage } from '../../ui/configSetManager/types';
+import type { SlotState, WebViewMessage } from '../../ui/configSetManager/types';
+import { getBalanceWeight, isValidBalanceWeight } from '../../utils/config/balanceWeight';
+import { initCards, renderAddForm, renderEditForm, renderSlotCards } from '../../ui/configSetManager/components/cards';
+import { state, type State } from '../../ui/configSetManager/components/state';
 import { createEmptyNativeCostSplit } from '../fileLogger/nativeCostSplit';
 import type { UsagesPendingRecord, UsagesQuery } from './types';
 import { isUsagesQueryResult, normalizeUsagesPendingRecords, normalizeUsagesQuery } from './validation';
@@ -546,4 +550,265 @@ test('rejects malformed records and results that do not match their original que
         ),
         false
     );
+});
+
+test('balance weight defaults to one and accepts integer boundaries without coercion', () => {
+    assert.equal(getBalanceWeight({}), 1);
+    assert.equal(isValidBalanceWeight(undefined), true);
+    for (const balanceWeight of [0, 1, 50, 100]) {
+        assert.equal(isValidBalanceWeight(balanceWeight), true);
+        assert.equal(getBalanceWeight({ balanceWeight }), balanceWeight);
+        for (const command of ['add', 'edit'] as const) {
+            const message = sanitizeWebViewMessage({
+                command,
+                slot: 'slot',
+                id: 'id',
+                label: 'Name',
+                apiKey: ' key ',
+                balanceWeight
+            });
+            assert.ok(message?.command === command);
+            assert.equal(message.balanceWeight, balanceWeight);
+            assert.equal(message.apiKey, 'key');
+        }
+    }
+    for (const command of ['add', 'edit'] as const) {
+        const message = sanitizeWebViewMessage({ command, slot: 'slot', id: 'id', label: 'Name', apiKey: 'key' });
+        assert.ok(message?.command === command);
+        assert.equal(message.balanceWeight, undefined);
+    }
+});
+
+for (const value of [-1, 0.5, 101, Number.NaN, Infinity, -Infinity, '0', '', null, true, [], {}]) {
+    test(`balance weight rejects invalid persisted values and messages: ${String(value)}`, () => {
+        assert.equal(isValidBalanceWeight(value), false);
+        assert.throws(
+            () => getBalanceWeight({ balanceWeight: value } as unknown as { balanceWeight?: number }),
+            RangeError
+        );
+        for (const command of ['add', 'edit'] as const) {
+            assert.equal(
+                sanitizeWebViewMessage({
+                    command,
+                    slot: 'slot',
+                    id: 'id',
+                    label: 'Name',
+                    apiKey: 'key',
+                    balanceWeight: value
+                }),
+                undefined
+            );
+        }
+    });
+}
+
+test('weight form inputs preserve drafts, reject invalid numbers and submit numeric weights in both locales', () => {
+    class Element {
+        className = '';
+        textContent = '';
+        value = '';
+        type = '';
+        min = '';
+        max = '';
+        step = '';
+        title = '';
+        innerHTML = '';
+        required = false;
+        disabled = false;
+        children: Element[] = [];
+        listeners = new Map<string, () => void>();
+        constructor(readonly tag: string) {}
+        get valueAsNumber(): number {
+            return this.value === '' ? Number.NaN : Number(this.value);
+        }
+        appendChild(child: Element): Element {
+            this.children.push(child);
+            return child;
+        }
+        addEventListener(event: string, callback: () => void): void {
+            this.listeners.set(event, callback);
+        }
+        fire(event: string): void {
+            this.listeners.get(event)?.();
+        }
+        all(): Element[] {
+            return [this, ...this.children.flatMap(child => child.all())];
+        }
+    }
+    const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const savedState = { ...state };
+    const posts: WebViewMessage[] = [];
+    const bar = new Element('div');
+    const dom = {
+        documentElement: { lang: 'zh-cn' },
+        createElement: (tag: string) => new Element(tag),
+        querySelector: () => bar
+    };
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: dom });
+    Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { vscode: { postMessage: (message: WebViewMessage) => posts.push(message) } }
+    });
+    let renders = 0;
+    initCards({
+        render: () => {
+            renders++;
+        },
+        renderDeleteDialog() {},
+        renderDeactivateDialog() {}
+    });
+    const slot: SlotState = {
+        slot: 'slot',
+        displayName: 'Slot',
+        isMain: true,
+        hasSite: false,
+        switchMode: 'off',
+        hasUsage: false,
+        rows: []
+    };
+    const weightInput = (panel: Element): Element => {
+        const input = panel.all().find(node => node.type === 'number');
+        assert.ok(input);
+        assert.deepEqual([input.min, input.max, input.step, input.required], ['0', '100', '1', true]);
+        const field = panel.all().find(node => node.className === 'csm-field' && node.children.includes(input));
+        assert.ok(field);
+        assert.equal(field.children[0].textContent, dom.documentElement.lang === 'en' ? 'Weight' : '权重');
+        assert.equal(
+            input.title,
+            dom.documentElement.lang === 'en' ?
+                'Weight only applies to failover and load balancing. A weight of 0 excludes this configuration from new automatic assignments.'
+            :   '权重仅在故障切换和负载均衡模式下生效。权重为 0 时，该配置不参与新的自动分配。'
+        );
+        const hint = field.children[2];
+        assert.equal(hint?.className, 'csm-field-hint');
+        assert.equal(hint.textContent, input.title);
+        return input;
+    };
+    try {
+        for (const locale of ['zh-cn', 'en']) {
+            dom.documentElement.lang = locale;
+            state.busy = false;
+            state.addFormDraft = null;
+            state.editFormDraft = null;
+            posts.length = 0;
+            let panel = renderAddForm(slot, undefined) as unknown as Element;
+            assert.equal(weightInput(panel).value, '1');
+            const inputs = panel.all().filter(node => node.tag === 'input');
+            inputs[0].value = 'New';
+            inputs[0].fire('input');
+            inputs[1].value = 'key';
+            inputs[1].fire('input');
+            weightInput(panel).value = '0';
+            weightInput(panel).fire('input');
+            panel = renderAddForm(slot, undefined) as unknown as Element;
+            assert.equal(weightInput(panel).value, '0');
+            panel
+                .all()
+                .filter(node => node.tag === 'button')
+                .at(-1)
+                ?.fire('click');
+            assert.ok(posts[0]?.command === 'add');
+            assert.equal(posts[0].balanceWeight, 0);
+            assert.equal((state as State).addFormDraft?.balanceWeight, '0');
+            const row = { id: 'id', label: 'Old', isActive: true, balanceWeight: 0 };
+            state.busy = false;
+            panel = renderEditForm(slot, row) as unknown as Element;
+            assert.equal(weightInput(panel).value, '0');
+            assert.equal(
+                weightInput(renderEditForm(slot, { ...row, balanceWeight: undefined }) as unknown as Element).value,
+                '1'
+            );
+            for (const invalid of ['', '-1', '0.5', '101', 'NaN', 'Infinity']) {
+                weightInput(panel).value = invalid;
+                weightInput(panel).fire('input');
+                panel
+                    .all()
+                    .filter(node => node.tag === 'button')
+                    .at(-1)
+                    ?.fire('click');
+                assert.equal(posts.length, 1);
+                assert.equal(state.busy, false);
+            }
+            panel = renderEditForm(slot, row) as unknown as Element;
+            assert.equal(weightInput(panel).value, 'Infinity');
+            weightInput(panel).value = '100';
+            weightInput(panel).fire('input');
+            panel = renderEditForm(slot, row) as unknown as Element;
+            assert.equal(weightInput(panel).value, '100');
+            panel
+                .all()
+                .filter(node => node.tag === 'button')
+                .at(-1)
+                ?.fire('click');
+            assert.ok(posts[1]?.command === 'edit');
+            assert.equal(posts[1].balanceWeight, 100);
+            for (const switchMode of ['off', 'failover', 'balance'] as const) {
+                state.editFormKey = null;
+                for (const balanceWeight of [undefined, 0, 1, 100]) {
+                    for (const isActive of [false, true]) {
+                        const card = renderSlotCards({
+                            ...slot,
+                            switchMode,
+                            rows: [{ ...row, balanceWeight, isActive }]
+                        }) as unknown as Element;
+                        const head = card.all().find(node => node.className === 'csm-config-card-head');
+                        assert.ok(head);
+                        const badges = head.children.find(node => node.className === 'csm-config-card-actions');
+                        const weight = card.all().find(node => node.className.includes('csm-config-card-weight'));
+                        if (balanceWeight === undefined) {
+                            assert.equal(weight, undefined);
+                            assert.equal(
+                                card.all().some(node => /weight|权重/i.test(node.textContent)),
+                                false
+                            );
+                        } else {
+                            assert.ok(weight);
+                            assert.ok(badges?.children.includes(weight));
+                            assert.equal(weight.textContent, `${locale === 'en' ? 'Weight' : '权重'} ${balanceWeight}`);
+                            if (balanceWeight === 0) {
+                                assert.match(
+                                    weight.title,
+                                    locale === 'en' ?
+                                        /excluded from failover and load balancing/
+                                    :   /不参与故障切换和负载均衡/
+                                );
+                            }
+                        }
+                        const activeBadge = head
+                            .all()
+                            .find(node => node.textContent === (locale === 'en' ? 'In use' : '使用中'));
+                        assert.equal(!!activeBadge, isActive);
+                        if (activeBadge) {
+                            assert.equal(badges?.children.at(-1), activeBadge);
+                        }
+                        assert.equal(
+                            card
+                                .all()
+                                .some(
+                                    node =>
+                                        node.className === 'csm-config-meta-label' &&
+                                        /weight|权重/i.test(node.textContent)
+                                ),
+                            false
+                        );
+                    }
+                }
+            }
+        }
+        assert.equal(renders, 4);
+    } finally {
+        Object.assign(state, savedState);
+        initCards({ render() {}, renderDeleteDialog() {}, renderDeactivateDialog() {} });
+        for (const [name, descriptor] of [
+            ['document', documentDescriptor],
+            ['window', windowDescriptor]
+        ] as const) {
+            if (descriptor) {
+                Object.defineProperty(globalThis, name, descriptor);
+            } else {
+                Reflect.deleteProperty(globalThis, name);
+            }
+        }
+    }
 });
