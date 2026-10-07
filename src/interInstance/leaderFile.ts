@@ -57,12 +57,17 @@ export function readLeaderFile(filePath: string = resolveLeaderFilePath()): Lead
  * 写入 Leader 发现文件（原子写：临时文件 + rename）
  * 仅应由当前 Leader 在 IPC Server 启动成功后调用
  */
-export async function writeLeaderFile(info: LeaderFileInfo, filePath: string = resolveLeaderFilePath()): Promise<void> {
+export async function writeLeaderFile(
+    info: LeaderFileInfo,
+    filePath: string = resolveLeaderFilePath()
+): Promise<boolean> {
     try {
         await AtomicJsonFile.writeJsonAtomically(filePath, info, value => JSON.stringify(value));
+        return true;
     } catch (error) {
         // 保持纯逻辑模块不依赖 vscode 日志（node:test 约束）
         console.warn('[LeaderFile] Failed to write leader file', error);
+        return false;
     }
 }
 
@@ -73,7 +78,7 @@ export async function writeLeaderFile(info: LeaderFileInfo, filePath: string = r
 export class LeaderFilePublisher {
     private timer: ReturnType<typeof setTimeout> | undefined;
     private stopped = true;
-    private refreshPromise: Promise<void> = Promise.resolve();
+    private refreshPromise: Promise<boolean> = Promise.resolve(false);
 
     constructor(
         private readonly instanceId: string,
@@ -88,7 +93,10 @@ export class LeaderFilePublisher {
             return;
         }
         this.stopped = false;
-        await this.refresh();
+        if (!(await this.refresh())) {
+            this.stopped = true;
+            throw new Error('Failed to publish leader file');
+        }
         this.scheduleRefresh();
     }
 
@@ -101,9 +109,9 @@ export class LeaderFilePublisher {
         await this.refreshPromise;
     }
 
-    private async refresh(): Promise<void> {
+    private async refresh(): Promise<boolean> {
         if (this.stopped) {
-            return;
+            return false;
         }
         this.refreshPromise = writeLeaderFile(
             {
@@ -114,7 +122,7 @@ export class LeaderFilePublisher {
             },
             this.filePath
         );
-        await this.refreshPromise;
+        return await this.refreshPromise;
     }
 
     private scheduleRefresh(): void {
