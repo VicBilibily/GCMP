@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import test from 'node:test';
 
 import { LeaderFilePublisher, readLeaderFile, writeLeaderFile } from './leaderFile';
+import { AtomicJsonFile } from '../usages/atomicJsonFile';
 
 function tempFilePath(): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gcmp-leaderfile-test-'));
@@ -118,3 +119,52 @@ async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void>
         await new Promise(resolve => setTimeout(resolve, 10));
     }
 }
+
+test('publisher rejects a failed initial write and can be started again', async () => {
+    const filePath = tempFilePath();
+    const originalWrite = AtomicJsonFile.writeJsonAtomically;
+    const publisher = new LeaderFilePublisher('current', 'current:2', 'pipe', filePath);
+    await writeLeaderFile(
+        { instanceId: 'current', authorityTerm: 'current:1', ipcPath: 'pipe', updatedAt: 1 },
+        filePath
+    );
+    AtomicJsonFile.writeJsonAtomically = async () => {
+        throw new Error('isolated initial publication failure');
+    };
+    try {
+        await assert.rejects(publisher.start(), /Failed to publish leader file/);
+        assert.equal(readLeaderFile(filePath)?.authorityTerm, 'current:1');
+        await publisher.stop();
+        AtomicJsonFile.writeJsonAtomically = originalWrite;
+        await publisher.start();
+        assert.equal(readLeaderFile(filePath)?.authorityTerm, 'current:2');
+    } finally {
+        AtomicJsonFile.writeJsonAtomically = originalWrite;
+        await publisher.stop();
+    }
+});
+
+test('periodic publication retries after a failed refresh', async () => {
+    const filePath = tempFilePath();
+    const originalWrite = AtomicJsonFile.writeJsonAtomically;
+    const publisher = new LeaderFilePublisher('current', 'current:2', 'pipe', filePath, 20);
+    let failed = false;
+    await publisher.start();
+    try {
+        await writeLeaderFile(
+            { instanceId: 'stale', authorityTerm: 'stale:1', ipcPath: 'old', updatedAt: 1 },
+            filePath
+        );
+        AtomicJsonFile.writeJsonAtomically = async (...args) => {
+            if (args[0] === filePath && !failed) {
+                failed = true;
+                throw new Error('isolated periodic publication failure');
+            }
+            await originalWrite.call(AtomicJsonFile, ...args);
+        };
+        await waitFor(() => failed && readLeaderFile(filePath)?.authorityTerm === 'current:2', 10_000);
+    } finally {
+        AtomicJsonFile.writeJsonAtomically = originalWrite;
+        await publisher.stop();
+    }
+});

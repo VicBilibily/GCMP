@@ -391,6 +391,37 @@ test('IPC server enforces immutable identities on real sockets', async () => {
         });
         await new Promise<void>(resolve => setTimeout(resolve, 25));
         assert.equal(unboundReceived, false);
+
+        const listeningServer = (server as unknown as { server: unknown }).server;
+        const closing = Promise.all([
+            waitForClose(followerA, 'bound client was not disconnected'),
+            waitForClose(unbound, 'unbound client was not disconnected')
+        ]);
+        const connections = server as unknown as { disconnectClients: () => void };
+        assert.equal(typeof connections.disconnectClients, 'function');
+        connections.disconnectClients();
+        await closing;
+        assert.equal(server.getConnectionCount(), 0);
+        assert.deepEqual(server.getConnectedFollowerIds(), []);
+        assert.deepEqual(server.getEligibleFollowerIds(), []);
+        assert.deepEqual(disconnectedInstanceIds, ['follower-b', 'follower-a']);
+        assert.equal((server as unknown as { server: unknown }).server, listeningServer);
+        connections.disconnectClients();
+        assert.deepEqual(disconnectedInstanceIds, ['follower-b', 'follower-a']);
+        const reconnected = await connectSocket(pipePath);
+        sockets.push(reconnected);
+        reconnected.write(
+            serializeEvent({
+                type: 'remoteInstanceHello',
+                payload: { leaderEligible: false },
+                timestamp: 6,
+                senderInstanceId: 'follower-a'
+            })
+        );
+        await waitFor(
+            () => server!.getConnectedFollowerIds().includes('follower-a'),
+            'same listener did not accept the new connection'
+        );
     } finally {
         for (const socket of sockets) {
             socket.destroy();
@@ -402,6 +433,7 @@ test('IPC server enforces immutable identities on real sockets', async () => {
 
 test('usage query transport requires a matching leader capability', async t => {
     const originalRequire = NodeModule.prototype.require;
+    let agentsWindow = false;
     NodeModule.prototype.require = function (id: string): unknown {
         if (id === 'vscode') {
             return {
@@ -432,7 +464,7 @@ test('usage query transport requires a matching leader capability', async t => {
             return {
                 LeaderElectionService: {
                     isLeader: () => false,
-                    isAgentsWindow: () => false,
+                    isAgentsWindow: () => agentsWindow,
                     getInstanceId: () => 'follower'
                 }
             };
@@ -500,6 +532,45 @@ test('usage query transport requires a matching leader capability', async t => {
         });
         assert.equal(bus.hasCompatibleUsagesQueryTransport(), true);
 
+        await t.test('capabilities correct discovery terms only for a valid current leader identity', () => {
+            const capability = (
+                authorityTerm: unknown,
+                senderInstanceId = 'leader',
+                targetInstanceId = 'follower'
+            ): InterInstanceEvent =>
+                ({
+                    type: 'remoteInstanceCapabilities',
+                    payload: {
+                        targetInstanceId,
+                        extensionVersion: '1.0.0',
+                        usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
+                        authorityTerm
+                    },
+                    timestamp: Date.now(),
+                    senderInstanceId
+                }) as unknown as InterInstanceEvent;
+            bus.dispatchEvent(capability('leader:2', 'forged'));
+            bus.dispatchEvent(capability('leader:2', 'leader', 'another-follower'));
+            for (const term of [
+                undefined,
+                null,
+                2,
+                '',
+                'other:2',
+                'leader:0',
+                'leader:-1',
+                'leader:NaN',
+                'leader:01',
+                'leader:9007199254740992'
+            ]) {
+                bus.dispatchEvent(capability(term));
+                assert.equal(InterInstanceBus.getAuthorityTerm(), 'leader:1');
+            }
+            bus.dispatchEvent(capability('leader:2'));
+            assert.equal(InterInstanceBus.getAuthorityTerm(), 'leader:2');
+            assert.equal(bus.hasCompatibleUsagesQueryTransport(), true);
+        });
+
         bus.setAuthorityTerm('next-leader:2');
         assert.equal(bus.hasCompatibleUsagesQueryTransport(), false);
 
@@ -525,6 +596,7 @@ test('usage query transport requires a matching leader capability', async t => {
             :   join(tmpdir(), `gcmp-bus-test-${process.pid}-${Date.now()}.sock`);
         let leaderId = 'leader';
         let authorityTerm = 'leader:1';
+        let discoveredTerm: string | undefined;
         let reconnects = 0;
         let localExecutions = 0;
         const receivedEvents: InterInstanceEvent[] = [];
@@ -537,7 +609,8 @@ test('usage query transport requires a matching leader capability', async t => {
                         payload: {
                             targetInstanceId: event.senderInstanceId,
                             extensionVersion: '1.0.0',
-                            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
+                            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
+                            authorityTerm
                         },
                         timestamp: Date.now(),
                         senderInstanceId: leaderId
@@ -559,7 +632,11 @@ test('usage query transport requires a matching leader capability', async t => {
         });
         bus.setAuthorityTerm(undefined);
         Object.assign(InterInstanceBus, { initialized: true, context: {} });
-        connectionBus.getLeaderConnectionTarget = () => ({ instanceId: leaderId, ipcPath: pipePath, authorityTerm });
+        connectionBus.getLeaderConnectionTarget = () => ({
+            instanceId: leaderId,
+            ipcPath: pipePath,
+            authorityTerm: discoveredTerm ?? authorityTerm
+        });
         connectionBus.scheduleReconnect = () => {
             reconnects += 1;
         };
@@ -574,7 +651,13 @@ test('usage query transport requires a matching leader capability', async t => {
         });
         try {
             await server.start(pipePath);
-            for (const scenario of ['initial connection', 'reconnection', 'leader change']) {
+            for (const scenario of [
+                'initial connection',
+                'reconnection',
+                'leader change',
+                'Agents term change',
+                'stale discovery term'
+            ]) {
                 await t.test(`hello precedes authority listeners on ${scenario}`, async () => {
                     if (scenario === 'reconnection') {
                         await server.stop();
@@ -584,6 +667,21 @@ test('usage query transport requires a matching leader capability', async t => {
                     } else if (scenario === 'leader change') {
                         leaderId = 'next-leader';
                         authorityTerm = 'next-leader:2';
+                    } else if (scenario === 'Agents term change') {
+                        agentsWindow = true;
+                        authorityTerm = 'next-leader:3';
+                        const connections = server as unknown as { disconnectClients: () => void };
+                        assert.equal(typeof connections.disconnectClients, 'function');
+                        connections.disconnectClients();
+                        await waitFor(
+                            () => !InterInstanceBus.hasActiveTransport(),
+                            'old-term client did not disconnect'
+                        );
+                        assert.equal(InterInstanceBus.getAuthorityTerm(), undefined);
+                        assert.equal(bus.hasCompatibleUsagesQueryTransport(), false);
+                    } else if (scenario === 'stale discovery term') {
+                        authorityTerm = 'next-leader:4';
+                        discoveredTerm = 'next-leader:2';
                     }
                     receivedEvents.length = 0;
                     const reconnectsBeforeConnect = reconnects;
@@ -599,7 +697,8 @@ test('usage query transport requires a matching leader capability', async t => {
                         ['remoteInstanceHello', 'liveMetricsSnapshotRequested']
                     );
                     const hello = receivedEvents.find(event => event.type === 'remoteInstanceHello');
-                    assert.equal(hello?.payload.leaderEligible, true);
+                    assert.equal(hello?.payload.leaderEligible, !agentsWindow);
+                    assert.equal(InterInstanceBus.getAuthorityTerm(), authorityTerm);
                     const timestamp = Date.now();
                     const pending: UsagesPendingRecord = {
                         requestId: 'pending-over-socket',

@@ -342,6 +342,7 @@ export interface RemoteInstanceCapabilitiesEvent extends InterInstanceEventBase 
         targetInstanceId: string;
         extensionVersion: string;
         usagesQueryProtocolVersion: number;
+        authorityTerm?: string;
     };
 }
 

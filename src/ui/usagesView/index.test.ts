@@ -357,14 +357,14 @@ test('opening usages view reconciles a stale index once, without slowing event r
         });
 
         await t.test('active live metrics are published before the initial overview completes', async () => {
-            let signalOverviewStarted!: () => void;
             let releaseOverview!: () => void;
-            const overviewStarted = new Promise<void>(resolve => {
-                signalOverviewStarted = resolve;
-            });
             const blockedOverview = new Promise<void>(resolve => {
                 releaseOverview = resolve;
             });
+            const previousSnapshot = activeMetricsSnapshot;
+            const previousDate = actions.currentSelectedDate;
+            const previousListResolver = resolveNextList;
+            const previousMethods = Object.getOwnPropertyDescriptors(manager);
             activeMetricsSnapshot = [
                 {
                     type: 'requestStarted',
@@ -377,38 +377,42 @@ test('opening usages view reconciles a stale index once, without slowing event r
             Object.assign(manager, {
                 getDateStatsFromFile: async () => ({ providers: {}, hourly: {} }),
                 getDateOverview: async () => {
-                    signalOverviewStarted();
                     await blockedOverview;
                     return emptyOverview;
                 }
             });
-            const initialDateList = new Promise<void>(resolve => {
+            let deadline: ReturnType<typeof setTimeout> | undefined;
+            const initialDateList = new Promise<void>((resolve, reject) => {
                 resolveNextList = () => resolve();
+                // 超时仅防止消息丢失挂起，不作为索引读取性能断言。
+                deadline = setTimeout(() => reject(new Error('Initial date list was not published')), 30_000);
             });
             messages.length = 0;
             const initialData = actions.handleMessage({ command: 'getInitialData' });
-            await overviewStarted;
-            await new Promise<void>(resolve => setImmediate(resolve));
-            assert.equal(
-                messages.some(message => message.command === 'updateLiveMetrics'),
-                true
-            );
-            assert.equal(
-                messages.some(message => message.command === 'updateDateDetails'),
-                false
-            );
-            assert.equal(
-                await Promise.race([
-                    initialDateList.then(() => true),
-                    new Promise(resolve => setTimeout(() => resolve(false), 100))
-                ]),
-                true
-            );
-
-            releaseOverview();
-            await initialData;
-            activeMetricsSnapshot = [];
-            actions.currentSelectedDate = '2026-09-22';
+            try {
+                assert.equal(
+                    messages.some(message => message.command === 'updateLiveMetrics'),
+                    true,
+                    'Live metrics must precede the blocked overview'
+                );
+                await initialDateList;
+                assert.equal(
+                    messages.some(message => message.command === 'updateDateDetails'),
+                    false
+                );
+            } finally {
+                clearTimeout(deadline);
+                releaseOverview();
+                try {
+                    await initialData;
+                } finally {
+                    activeMetricsSnapshot = previousSnapshot;
+                    actions.currentSelectedDate = previousDate;
+                    resolveNextList = previousListResolver;
+                    Object.defineProperties(manager, previousMethods);
+                }
+            }
+            assert.ok(messages.some(message => message.command === 'updateDateDetails'));
         });
 
         await t.test('detail requests forward bounded query results without a full-day view cache', async () => {

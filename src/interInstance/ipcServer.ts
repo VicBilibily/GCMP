@@ -282,6 +282,12 @@ export class IpcServer {
         return this.sockets.size;
     }
 
+    disconnectClients(): void {
+        for (const socket of this.sockets) {
+            this.disconnectSocket(socket);
+        }
+    }
+
     private hasConnectedInstance(instanceId: string): boolean {
         for (const id of this.socketInstanceIds.values()) {
             if (id === instanceId) {

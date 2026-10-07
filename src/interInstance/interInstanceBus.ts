@@ -55,6 +55,7 @@ export class InterInstanceBus {
     private static server: IpcServer | undefined;
     private static client: IpcClient | undefined;
     private static leaderFilePublisher: LeaderFilePublisher | undefined;
+    private static leaderFileAuthorityTerm: string | undefined;
     private static fallbackTransport: FallbackTransport | undefined;
     /** IPC 完全失败时启用文件 fallback；保留此标记用于调试 fallback 触发场景 */
     private static fallbackActive = false;
@@ -110,8 +111,19 @@ export class InterInstanceBus {
         });
         context.subscriptions.push(
             LeaderElectionService.onLeaderIdentityChanged(() => {
+                if (!this.initialized) {
+                    return;
+                }
                 if (LeaderElectionService.isLeader()) {
-                    this.setAuthorityTerm(LeaderElectionService.getOwnedAuthorityTerm());
+                    const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+                    this.setAuthorityTerm(authorityTerm);
+                    if (
+                        authorityTerm &&
+                        this.options.enabled &&
+                        (!this.server || this.leaderFileAuthorityTerm !== authorityTerm)
+                    ) {
+                        this.enqueueRoleSwitch(true);
+                    }
                     return;
                 }
                 // Follower 保留旧任期，等新连接成功后再切到新 term，避免切主窗口把在途请求打成 unavailable
@@ -387,57 +399,90 @@ export class InterInstanceBus {
             return;
         }
 
-        await this.stopLeaderFilePublisher();
-
-        // 先断开之前的 client（如果之前是 follower）
-        await this.client?.disconnect();
-        this.client = undefined;
-
-        // 启动 IPC 服务器
+        const generation = this.lifecycleGeneration;
         const ipcPath = resolveIpcPath(LeaderElectionService.getInstanceId());
-        const server = new IpcServer({
-            onMessage: event => this.dispatchEvent(event),
-            onClientDisconnected: instanceId => this.handleRemoteInstanceDisconnected(instanceId)
-        });
-
+        let server = this.server;
+        let reconnectFollowers = false;
         try {
-            await server.start(ipcPath);
-            // await 期间角色可能已变更（如又变回 follower），落地前校验
-            if (!this.initialized || !this.context || !LeaderElectionService.isLeader()) {
-                await server.stop();
-                StatusLogger.debug('[InterInstanceBus] No longer leader after server start, stopped');
-                return;
-            }
-            this.server = server;
-            const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
-            if (!authorityTerm) {
-                await server.stop();
-                this.server = undefined;
-                this.setAuthorityTerm(undefined);
-                StatusLogger.debug('[InterInstanceBus] Missing authority term after server start, stopped');
-                return;
-            }
-            this.setAuthorityTerm(authorityTerm);
-            // Agents 窗体通过发现文件连接普通窗口 Leader；周期刷新可修正交接时迟到的旧写入。
-            const publisher = new LeaderFilePublisher(LeaderElectionService.getInstanceId(), authorityTerm, ipcPath);
-            this.leaderFilePublisher = publisher;
-            await publisher.start();
-            if (!this.initialized || !this.context || !LeaderElectionService.isLeader()) {
+            if (!server) {
                 await this.stopLeaderFilePublisher();
-                await server.stop();
-                this.server = undefined;
-                StatusLogger.debug('[InterInstanceBus] No longer leader after discovery publish, stopped');
-                return;
+                await this.client?.disconnect();
+                this.client = undefined;
+                server = new IpcServer({
+                    onMessage: event => this.dispatchEvent(event),
+                    onClientDisconnected: instanceId => this.handleRemoteInstanceDisconnected(instanceId)
+                });
+                await server.start(ipcPath);
             }
+
+            for (;;) {
+                if (
+                    !this.initialized ||
+                    !this.context ||
+                    generation !== this.lifecycleGeneration ||
+                    !LeaderElectionService.isLeader()
+                ) {
+                    await this.stopLeaderFilePublisher();
+                    await server.stop();
+                    this.server = undefined;
+                    StatusLogger.debug('[InterInstanceBus] No longer leader during IPC setup, stopped');
+                    return;
+                }
+                const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+                if (!authorityTerm) {
+                    await this.stopLeaderFilePublisher();
+                    await server.stop();
+                    this.server = undefined;
+                    this.setAuthorityTerm(undefined);
+                    this.scheduleReconnect();
+                    StatusLogger.debug('[InterInstanceBus] Missing authority term during IPC setup, stopped');
+                    return;
+                }
+                this.server = server;
+                this.setAuthorityTerm(authorityTerm);
+                if (this.leaderFilePublisher && this.leaderFileAuthorityTerm === authorityTerm) {
+                    if (reconnectFollowers) {
+                        server.disconnectClients();
+                    }
+                    break;
+                }
+
+                reconnectFollowers ||= this.leaderFileAuthorityTerm !== undefined;
+                await this.stopLeaderFilePublisher();
+                if (
+                    !this.initialized ||
+                    !this.context ||
+                    generation !== this.lifecycleGeneration ||
+                    !LeaderElectionService.isLeader() ||
+                    LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm
+                ) {
+                    continue;
+                }
+                const publisher = new LeaderFilePublisher(
+                    LeaderElectionService.getInstanceId(),
+                    authorityTerm,
+                    ipcPath
+                );
+                this.leaderFilePublisher = publisher;
+                this.leaderFileAuthorityTerm = authorityTerm;
+                await publisher.start();
+            }
+            if (this.reconnectTimer) {
+                clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = undefined;
+            }
+            this.reconnectAttempts = 0;
             StatusLogger.info(`[InterInstanceBus] IPC server started at ${ipcPath}`);
         } catch (error) {
             StatusLogger.error('[InterInstanceBus] Failed to start IPC server', error);
             await this.stopLeaderFilePublisher();
+            await server?.stop();
             this.server = undefined;
             this.setAuthorityTerm(undefined);
             // Leader IPC 启动失败，启用文件 fallback
             this.fallbackActive = true;
             this.startFallbackTransport();
+            this.scheduleReconnect();
         }
     }
 
@@ -463,6 +508,7 @@ export class InterInstanceBus {
     private static async stopLeaderFilePublisher(): Promise<void> {
         const publisher = this.leaderFilePublisher;
         this.leaderFilePublisher = undefined;
+        this.leaderFileAuthorityTerm = undefined;
         await publisher?.stop();
     }
 
@@ -579,7 +625,12 @@ export class InterInstanceBus {
     }
 
     private static scheduleReconnect(): void {
-        if (!this.initialized || !this.context || this.reconnectTimer || LeaderElectionService.isLeader()) {
+        if (
+            !this.initialized ||
+            !this.context ||
+            this.reconnectTimer ||
+            (LeaderElectionService.isLeader() && this.server)
+        ) {
             return;
         }
         const generation = this.lifecycleGeneration;
@@ -590,14 +641,9 @@ export class InterInstanceBus {
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = undefined;
-            if (
-                this.initialized &&
-                this.context &&
-                generation === this.lifecycleGeneration &&
-                !LeaderElectionService.isLeader()
-            ) {
+            if (this.initialized && this.context && generation === this.lifecycleGeneration) {
                 // 重连纳入角色切换串行链，避免与链上 become* 并发交错导致 client 引用被覆盖
-                this.enqueueRoleSwitch(false);
+                this.enqueueRoleSwitch(LeaderElectionService.isLeader());
             }
         }, delay);
     }
@@ -642,7 +688,8 @@ export class InterInstanceBus {
                 payload: {
                     targetInstanceId: event.senderInstanceId,
                     extensionVersion: this.extensionVersion,
-                    usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
+                    usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
+                    authorityTerm: LeaderElectionService.getOwnedAuthorityTerm()
                 }
             });
         } else if (!LeaderElectionService.isLeader() && event.type === 'remoteInstanceCapabilities') {
@@ -655,6 +702,18 @@ export class InterInstanceBus {
                 (payload as { targetInstanceId?: unknown }).targetInstanceId === this.instanceId &&
                 event.senderInstanceId === authorityInstanceId
             ) {
+                const authorityTerm = (payload as { authorityTerm?: unknown }).authorityTerm;
+                const electedAt =
+                    typeof authorityTerm === 'string' ?
+                        Number(authorityTerm.slice(event.senderInstanceId.length + 1))
+                    :   0;
+                if (
+                    Number.isSafeInteger(electedAt) &&
+                    electedAt > 0 &&
+                    authorityTerm === `${event.senderInstanceId}:${electedAt}`
+                ) {
+                    this.setAuthorityTerm(authorityTerm);
+                }
                 this.remoteUsagesQueryCompatible = isUsagesQueryCapabilityCompatible(this.extensionVersion, payload);
             }
         }

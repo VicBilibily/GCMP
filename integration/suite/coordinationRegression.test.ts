@@ -45,6 +45,7 @@ interface PatchedLeaderElectionService {
 
 interface LeaderElectionInternals {
     context: vscode.ExtensionContext | undefined;
+    initialized: boolean;
     _isLeader: boolean;
     recoverAfterLeaderResigning: (resigningLeaderId: string) => Promise<void>;
     becomeLeader: (force?: boolean) => Promise<void>;
@@ -557,6 +558,7 @@ suite('Coordination regressions', () => {
     test('recoverAfterLeaderResigning forces takeover even when old leader record is still fresh', async () => {
         const leaderElection = LeaderElectionService as unknown as LeaderElectionInternals;
         const originalContext = leaderElection.context;
+        const originalInitialized = leaderElection.initialized;
         const originalIsLeaderState = leaderElection._isLeader;
         const originalBecomeLeader = leaderElection.becomeLeader;
         const originalCheckLeader = leaderElection.checkLeader;
@@ -574,6 +576,7 @@ suite('Coordination regressions', () => {
                     })
                 }
             } as unknown as vscode.ExtensionContext;
+            leaderElection.initialized = true;
             leaderElection._isLeader = false;
             leaderElection.becomeLeader = async (force?: boolean) => {
                 forceFlags.push(force);
@@ -588,6 +591,7 @@ suite('Coordination regressions', () => {
             assert.equal(checkLeaderCalls, 1);
         } finally {
             leaderElection.context = originalContext;
+            leaderElection.initialized = originalInitialized;
             leaderElection._isLeader = originalIsLeaderState;
             leaderElection.becomeLeader = originalBecomeLeader;
             leaderElection.checkLeader = originalCheckLeader;
