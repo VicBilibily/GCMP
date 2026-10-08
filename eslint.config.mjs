@@ -13,6 +13,9 @@ export default defineConfig(
             'out',
             'dist',
             'node_modules',
+            // Devin provider transport: verbatim, self-contained CommonJS vendor source
+            // (direct HTTP + Connect-protobuf + OAuth); not authored in this style.
+            'src/devin',
             '**/*.d.ts',
             'extension.js',
             'src/ui/*.js'

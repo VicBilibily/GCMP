@@ -196,37 +196,19 @@ export class TokenUsagesManager {
      * 仅由 Leader 实例执行（通过 Leader 周期任务驱动，内部已保证仅 Leader 运行），
      * 避免多窗口下清理整目录与 Leader 的 stats 写入/历史压缩交叉竞态；
      * 周期任务每分钟触发，清理逻辑按固定间隔节流。
+     *
+     * 每日 context 只读约束：自动保留清理被停用，避免后台删除与今日 hourly .jsonl 读取竞态；
+     * 显式历史浏览/删除仍按用户操作执行。
      */
     private scheduleBackgroundCleanup(): void {
-        const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 每小时最多执行一次
-        let lastCleanupTime = 0;
-        LeaderElectionService.registerPeriodicTask(async () => {
-            if (Date.now() - lastCleanupTime < CLEANUP_INTERVAL_MS) {
-                return;
-            }
-            lastCleanupTime = Date.now();
-            try {
-                const config = vscode.workspace.getConfiguration('gcmp.usages');
-                const retentionDays = config.get<number>('retentionDays', 100);
-                if (retentionDays > 0) {
-                    StatusLogger.trace(
-                        `[UsagesManager] Starting background cleanup for expired data (retaining ${retentionDays} days)`
-                    );
-                    const deletedCount = await this.fileLogger.cleanupExpiredLogs(retentionDays);
-                    if (deletedCount > 0) {
-                        StatusLogger.debug(
-                            `[UsagesManager] Background cleanup completed: deleted data for ${deletedCount} expired dates`
-                        );
-                    } else {
-                        StatusLogger.trace('[UsagesManager] Background cleanup completed: no expired data to remove');
-                    }
-                } else {
-                    StatusLogger.trace('[UsagesManager] Data retention is set to keep forever, skipping cleanup');
-                }
-            } catch (error) {
-                StatusLogger.warn(`[UsagesManager] Background cleanup for expired data failed: ${error}`);
-            }
-        });
+        return;
+    }
+
+    /**
+     * 显式清理过期日志（供历史浏览/手动清理入口调用，不经后台自动路径）。
+     */
+    async cleanupExpiredLogsManually(retentionDays: number): Promise<number> {
+        return this.fileLogger.cleanupExpiredLogs(retentionDays);
     }
 
     /**

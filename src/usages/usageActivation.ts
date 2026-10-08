@@ -39,6 +39,17 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
                     }
 
                     const dateStr = payload.date ?? DateUtils.getTodayDateString();
+                    // 每日 context 只读：自动刷新只处理今日，历史日期不在此路径上重算。
+                    if (dateStr !== DateUtils.getTodayDateString()) {
+                        InterInstanceBus.publish(
+                            {
+                                type: 'statsRefreshCompleted',
+                                payload: { requestId: payload.requestId, regeneratedDates: [] }
+                            },
+                            { alsoFallback: true }
+                        );
+                        return;
+                    }
                     await fileLogger.getDateStats(dateStr);
                     InterInstanceBus.publish(
                         {

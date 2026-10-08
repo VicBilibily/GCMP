@@ -38,6 +38,7 @@ import { activateCopilotChatInBackground } from './utils/runtime/copilotChatActi
 import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityModelWizard';
 import { registerVisionModelCommand } from './wizards/visionWizard';
 import { registerAuxiliaryModelSettingsCommands } from './ui/auxiliaryModelSettings';
+import { installDevinProvider } from './devin/devin-provider';
 
 // 内联补全提供商实例（使用轻量级 Shim，延迟加载真正的补全引擎）
 let inlineCompletionProvider: InlineCompletionShim | undefined;
@@ -159,6 +160,15 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);
         Logger.trace(`Compatible provider registered (${Date.now() - stepStartTime}ms)`);
+
+        // 步骤3.1.1: 注册直连 Devin provider（自带 Devin 家族模型、额度状态栏与 OAuth 登录命令）
+        stepStartTime = Date.now();
+        try {
+            installDevinProvider(context);
+            Logger.trace(`Devin provider registered (${Date.now() - stepStartTime}ms)`);
+        } catch (error) {
+            Logger.warn('Failed to register Devin provider:', error);
+        }
 
         registerConfigSetProviderChangeHandlers(context);
 

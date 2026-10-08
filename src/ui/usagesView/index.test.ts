@@ -15,7 +15,7 @@ const NodeModule = require('node:module') as {
     prototype: { require: (id: string) => unknown };
 };
 
-test('opening usages view reconciles a stale index once, without slowing event refreshes', async t => {
+test('opening usages view reads the daily index without auto-reconcile or background rebuild', async t => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-usages-index-'));
     const originalRequire = NodeModule.prototype.require;
     let onStatsUpdate: () => void = () => {};
@@ -207,11 +207,15 @@ test('opening usages view reconciles a stale index once, without slowing event r
         });
         view.show();
         const firstList = await nextList;
-        assert.deepEqual(firstList.dateList, [{ date: '2026-09-22', total_requests: 3 }]);
-        assert.equal(reconciliations, 1);
-        assert.deepEqual((await indexManager.getIndexFast())['2026-09-22']?.total_input, 7);
-        assert.equal((await readFile(indexManager.getIndexPath(), 'utf8')).includes('2026-09-21'), false);
-        assert.equal((await readFile(indexManager.getIndexPath(), 'utf8')).includes('"versionTimestamp": 42'), true);
+        // 每日 context 只读：打开视图不再自动重建过期统计/对账索引，直接展示现有索引。
+        assert.deepEqual(firstList.dateList, [
+            { date: '2026-09-22', total_requests: 0 },
+            { date: '2026-09-21', total_requests: 1 }
+        ]);
+        assert.equal(reconciliations, 0);
+        assert.equal((await indexManager.getIndexFast())['2026-09-22']?.total_input, 0);
+        // 索引文件保持原样（不再被对账重写），versionTimestamp 原值不变。
+        assert.equal((await readFile(indexManager.getIndexPath(), 'utf8')).includes('"versionTimestamp":42'), true);
 
         blockFirstDetail = true;
         const viewInternals = view as unknown as { updateDateDetails(date: string): Promise<void> };
@@ -231,7 +235,8 @@ test('opening usages view reconciles a stale index once, without slowing event r
         });
         onStatsUpdate();
         await nextList;
-        assert.equal(reconciliations, 1);
+        // 每日 context 只读：事件刷新同样不触发对账。
+        assert.equal(reconciliations, 0);
         view.dispose();
 
         await writeFile(indexManager.getIndexPath(), JSON.stringify({ dates: {} }));
@@ -240,8 +245,9 @@ test('opening usages view reconciles a stale index once, without slowing event r
             resolveNextList = resolve;
         });
         view.show();
-        assert.deepEqual((await nextList).dateList, [{ date: '2026-09-22', total_requests: 3 }]);
-        assert.equal(reconciliations, 2);
+        // 再次打开仍只读索引（此处索引已被清空），且即使 regenerateOutdatedStats 会失败也不触发对账。
+        assert.deepEqual((await nextList).dateList, []);
+        assert.equal(reconciliations, 0);
 
         const realDetailRefresh = (
             Object.getPrototypeOf(view) as {

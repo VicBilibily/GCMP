@@ -48,7 +48,7 @@ import {
     type StatefulMarkerContainer
 } from '../handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../handlers/types';
-import { classifyRequest } from '../handlers/requestClassifier';
+import { classifyRequest, isSubRequest, type RequestKind } from '../handlers/requestClassifier';
 import { SessionTitleService } from '../usages/sessionTitleService';
 import { SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { resolveSubSessionId } from '../usages/subSessionResolver';
@@ -430,7 +430,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             rtOpts.modelOptions.subSessionId = subSessionId;
         }
         await this.prepareRequestSession(sessionId, messages, {
-            skipHistoricalHydrate: sessionRecoverySource === 'new-uuid'
+            // 全新 UUID 在历史日志中必然无标题；辅助/子代理请求（terminal-steering、summarization、
+            // search/execution subagent 等）从不产生用户会话标题，跳过历史日志扫描避免主线程被占死。
+            skipHistoricalHydrate:
+                sessionRecoverySource === 'new-uuid' || isSubRequest(requestKind as RequestKind)
         });
         return {
             requestKind,

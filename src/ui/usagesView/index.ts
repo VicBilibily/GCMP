@@ -48,7 +48,8 @@ export class TokenUsagesView {
     private crossInstanceUsageUpdateDisposable: vscode.Disposable | undefined;
     private liveMetricsDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
-    private hasCheckedOutdatedStats: boolean = false; // 是否已检查过过期统计
+    // 每日 context 只读：视图打开不再自动触发全量过期统计重建/自动索引对账，避免拖慢启动。
+    private hasCheckedOutdatedStats: boolean = true;
     // smartRefresh 防抖：合并短时间内的多次刷新请求，避免并发读到不一致中间状态
     private smartRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private smartRefreshInFlight: Promise<void> | null = null;
@@ -155,39 +156,16 @@ export class TokenUsagesView {
             // 记录当前查看的日期
             this.currentSelectedDate = displayDate;
 
-            // 先把 HTML 设置好，让 WebView 立即可见，避免 regenerateOutdatedStats 阻塞加载
+            // 先把 HTML 设置好，让 WebView 立即可见
             this.panel.webview.html = this.getWebviewContent();
 
-            // 异步检查并重新生成过期的统计数据（仅在首次打开时执行，不阻塞 HTML 渲染）
-            if (!this.hasCheckedOutdatedStats) {
-                this.hasCheckedOutdatedStats = true;
+            // 每日 context 只读：自动过期统计重建/索引对账已停用；首次只在查看今日时刷新今日详情，
+            // 历史日期仅按需刷新日期列表，不再对全量历史触发 regenerateOutdatedStats。
+            {
                 const panel = this.panel;
-                this.usagesManager
-                    .getFileLogger()
-                    .regenerateOutdatedStats()
-                    .catch(err => {
-                        StatusLogger.warn('[TokenUsagesView] Failed to regenerate outdated stats:', err);
-                        return {};
-                    })
-                    .then(async regenerated => {
-                        // 仅首次打开时对账；日常刷新继续走快索引。
-                        try {
-                            await this.usagesManager.getFileLogger().getIndex();
-                        } catch (err) {
-                            StatusLogger.warn('[TokenUsagesView] Failed to reconcile date index:', err);
-                        }
-                        if (this.panel !== panel) {
-                            return;
-                        }
-                        if (Object.keys(regenerated).length > 0) {
-                            await this.refreshAfterOutdatedStatsRegenerated(new Set(Object.keys(regenerated)), panel);
-                        } else {
-                            await this.updateDateListOnly(panel);
-                        }
-                    })
-                    .catch(err =>
-                        StatusLogger.warn('[TokenUsagesView] Failed to refresh after index reconciliation:', err)
-                    );
+                void this.updateDateListOnly(panel).catch(err =>
+                    StatusLogger.warn('[TokenUsagesView] Failed to refresh date list:', err)
+                );
             }
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update view:', err);
@@ -196,6 +174,7 @@ export class TokenUsagesView {
 
     /**
      * 后台重建过期统计后刷新当前视图。
+     * 每日 context 只读：仅当重建日期就是今日时才刷新右侧详情，历史日期不做全量对账。
      * 若当前正在查看的日期刚被重建，需要刷新右侧详情；否则只刷新左侧日期列表。
      */
     private async refreshAfterOutdatedStatsRegenerated(
@@ -209,7 +188,7 @@ export class TokenUsagesView {
 
         const today = getTodayDateString();
         const selectedDate = this.currentSelectedDate || today;
-        if (regeneratedDates.has(selectedDate)) {
+        if (regeneratedDates.has(selectedDate) && selectedDate === today) {
             await this.updateDateDetails(selectedDate, panel);
         }
         await this.updateDateListOnly(panel);
