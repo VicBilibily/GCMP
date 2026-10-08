@@ -4,7 +4,7 @@
 
 import { TokenFileLogger } from '../fileLogger';
 import { createEmptyNativeCostSplit, mergeNativeCostSplit } from '../fileLogger/nativeCostSplit';
-import type { NativeCostSplit, TokenUsageStatsFromFile } from '../fileLogger/types';
+import type { DateIndexEntry, NativeCostSplit, TokenUsageStatsFromFile } from '../fileLogger/types';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import type {
     MultiDayAnalysisResult,
@@ -35,7 +35,11 @@ export class MultiDayAggregator {
         this.fileLogger = fileLogger;
     }
 
-    async aggregate(dateFrom: string, dateTo: string): Promise<MultiDayAnalysisResult> {
+    async aggregate(
+        dateFrom: string,
+        dateTo: string,
+        reconciledIndex?: Readonly<Record<string, DateIndexEntry>>
+    ): Promise<MultiDayAnalysisResult> {
         StatusLogger.debug(`[MultiDayAggregator] Aggregating ${dateFrom} → ${dateTo}`);
 
         // 区间上限校验
@@ -48,7 +52,7 @@ export class MultiDayAggregator {
             );
         }
 
-        const index = await this.fileLogger.getIndex();
+        const index = reconciledIndex ?? (await this.fileLogger.getIndex());
         const dateKeys = Object.keys(index)
             .filter(d => d >= dateFrom && d <= dateTo)
             .sort();

@@ -27,14 +27,17 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
                     await fileLogger.flush();
                     if (payload.regenerateAll) {
                         const results = await fileLogger.regenerateOutdatedStats();
+                        const regeneratedDates = Object.keys(results);
                         InterInstanceBus.publish(
                             {
                                 type: 'statsRefreshCompleted',
-                                payload: { requestId: payload.requestId, regeneratedDates: Object.keys(results) }
+                                payload: { requestId: payload.requestId, regeneratedDates }
                             },
                             { alsoFallback: true }
                         );
-                        TokenUsagesManager.instance.notifyStatsUpdate();
+                        if (regeneratedDates.length > 0) {
+                            TokenUsagesManager.instance.notifyStatsUpdate();
+                        }
                         return;
                     }
 

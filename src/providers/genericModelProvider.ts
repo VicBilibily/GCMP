@@ -48,7 +48,7 @@ import {
     type StatefulMarkerContainer
 } from '../handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../handlers/types';
-import { classifyRequest } from '../handlers/requestClassifier';
+import { classifyRequest, isSubRequest, type RequestKind } from '../handlers/requestClassifier';
 import { SessionTitleService } from '../usages/sessionTitleService';
 import { SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { resolveSubSessionId } from '../usages/subSessionResolver';
@@ -430,7 +430,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             rtOpts.modelOptions.subSessionId = subSessionId;
         }
         await this.prepareRequestSession(sessionId, messages, {
-            skipHistoricalHydrate: sessionRecoverySource === 'new-uuid'
+            skipHistoricalHydrate:
+                sessionRecoverySource === 'new-uuid' ||
+                requestKind === 'terminal-steering' ||
+                isSubRequest(requestKind as RequestKind)
         });
         return {
             requestKind,
@@ -1706,7 +1709,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             Logger.debug('Failed to register session title for current turn:', err);
         }
 
-        // 全新 UUID 在历史日志中必然无标题快照，跳过日志扫描避免阻塞首个请求
+        // 辅助请求无需等待历史标题，新 UUID 也不存在历史快照。
         if (options?.skipHistoricalHydrate) {
             return;
         }

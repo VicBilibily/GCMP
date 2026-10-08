@@ -8,14 +8,14 @@ import * as fs from 'fs/promises';
 import { t } from '../../utils/runtime/l10n';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogPathManager } from './logPathManager';
-import { sanitizeRawUsage, type TokenRequestLog } from './types';
+import { sanitizeRawUsage, type LogFilePath, type TokenRequestLog } from './types';
 
 /**
  * 写入任务
  */
 interface WriteTask {
     log: TokenRequestLog;
-    resolve: () => void;
+    resolve: (logPath: LogFilePath) => void;
     reject: (err: Error) => void;
 }
 
@@ -36,7 +36,7 @@ export class LogWriteManager {
     /**
      * 追加日志条目(异步,使用队列)
      */
-    async appendLog(log: TokenRequestLog): Promise<void> {
+    async appendLog(log: TokenRequestLog): Promise<LogFilePath> {
         if (this.isDisposed) {
             throw new Error(
                 t('[LogWriteManager] Write manager has been disposed', '[LogWriteManager] 写入管理器已销毁')
@@ -71,8 +71,8 @@ export class LogWriteManager {
                 }
 
                 try {
-                    await this.writeLogInternal(task.log);
-                    task.resolve();
+                    const logPath = await this.writeLogInternal(task.log);
+                    task.resolve(logPath);
                 } catch (err) {
                     task.reject(err as Error);
                 }
@@ -86,7 +86,7 @@ export class LogWriteManager {
      * 内部写入方法(实际执行写入)
      * 每次请求都追加新行,形成流水记录
      */
-    private async writeLogInternal(log: TokenRequestLog): Promise<void> {
+    private async writeLogInternal(log: TokenRequestLog): Promise<LogFilePath> {
         const logPath = this.pathManager.getLogPathFromDate(new Date(log.timestamp));
 
         try {
@@ -103,6 +103,7 @@ export class LogWriteManager {
             StatusLogger.debug(
                 `[LogWriteManager] Wrote append-only log: ${logPath.fullPath} (${log.requestId}, status=${log.status})`
             );
+            return logPath;
         } catch (err) {
             StatusLogger.error(`[LogWriteManager] Failed to write log: ${logPath.fullPath}`, err);
             throw err;

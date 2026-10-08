@@ -32,6 +32,11 @@ export class LogReadManager {
         this.pathManager = pathManager;
     }
 
+    invalidateHourCache(dateStr: string, hour: number): void {
+        this.cacheGeneration += 1;
+        this.deleteHourDetailsCacheEntry(`${dateStr}:${hour}`);
+    }
+
     invalidateDateCache(dateStr: string): void {
         this.cacheGeneration += 1;
         const prefix = `${dateStr}:`;

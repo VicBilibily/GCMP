@@ -205,12 +205,18 @@ export class LeaderElectionService {
         }
 
         this.electionPausedUntil = Number.POSITIVE_INFINITY;
-        this.resignationPromise = this.handoffLeadership(nextLeaderId);
+        const generation = this.lifecycleGeneration;
+        const resignation = this.handoffLeadership(nextLeaderId);
+        this.resignationPromise = resignation;
         try {
-            return await this.resignationPromise;
+            return await resignation;
         } finally {
-            this.electionPausedUntil = this._isLeader ? 0 : Date.now() + this.HEARTBEAT_INTERVAL;
-            this.resignationPromise = undefined;
+            if (this.resignationPromise === resignation) {
+                if (generation === this.lifecycleGeneration) {
+                    this.electionPausedUntil = this._isLeader ? 0 : Date.now() + this.HEARTBEAT_INTERVAL;
+                }
+                this.resignationPromise = undefined;
+            }
         }
     }
 
@@ -265,6 +271,9 @@ export class LeaderElectionService {
         }
         const manual = nominatedLeaderId !== undefined;
         const sourceAuthorityTerm = this.getOwnedAuthorityTerm();
+        const generation = this.lifecycleGeneration;
+        const electedAt = this.ownElectedAt;
+        let deliveryUnconfirmed = false;
         this.handoffStateEmitter.fire(true);
         try {
             try {
@@ -335,8 +344,20 @@ export class LeaderElectionService {
                         },
                         manual ? nextLeaderId : undefined
                     );
-                    if (manual && !sent) {
+                    if (manual && sent === false) {
                         throw new Error('Failed to publish leadership handoff to the nominated instance');
+                    }
+                    if (manual && typeof sent !== 'boolean') {
+                        deliveryUnconfirmed = !(await sent);
+                        if (generation !== this.lifecycleGeneration || electedAt !== this.ownElectedAt) {
+                            return 'not-leader';
+                        }
+                    }
+                    if (deliveryUnconfirmed) {
+                        StatusLogger.warn(
+                            '[LeaderElectionService] Handoff write not confirmed, relinquishing authority'
+                        );
+                        break;
                     }
                     StatusLogger.info(
                         `[LeaderElectionService] Broadcast leaderResigning before handoff${
@@ -354,12 +375,22 @@ export class LeaderElectionService {
             const releasing = this.resignLeader();
             this.setLeaderState(false);
             await releasing;
+            if (deliveryUnconfirmed) {
+                // 对端可能已经收到通知，不能回滚为继续持有旧任期。
+                throw new Error('Leadership handoff was not confirmed; leadership was relinquished');
+            }
             return 'resigned';
         } finally {
-            if (sourceAuthorityTerm && sourceAuthorityTerm !== this.getOwnedAuthorityTerm()) {
-                this.setLeaderState(false);
+            if (generation === this.lifecycleGeneration) {
+                if (
+                    electedAt === this.ownElectedAt &&
+                    sourceAuthorityTerm &&
+                    sourceAuthorityTerm !== this.getOwnedAuthorityTerm()
+                ) {
+                    this.setLeaderState(false);
+                }
+                this.handoffStateEmitter.fire(false);
             }
-            this.handoffStateEmitter.fire(false);
         }
     }
 

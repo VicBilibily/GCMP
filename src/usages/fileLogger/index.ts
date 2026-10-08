@@ -28,6 +28,8 @@ import { LeaderElectionService } from '../../status/leaderElectionService';
 import { InterInstanceBus } from '../../interInstance';
 import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 
+type StatsRefreshCompletion = { status: 'completed'; dates: string[] } | { status: 'timeout' } | { status: 'disposed' };
+
 /**
  * Token文件日志管理器
  * 主入口,提供完整的日志记录和统计功能
@@ -67,7 +69,7 @@ export class TokenFileLogger {
     private readonly statsRefreshCompletedDisposable: vscode.Disposable;
     private readonly pendingStatsRefreshRequests = new Map<
         string,
-        { leaderId: string; resolve: (dates: string[]) => void; timer: ReturnType<typeof setTimeout> }
+        { leaderId: string; resolve: (result: StatsRefreshCompletion) => void; timer: ReturnType<typeof setTimeout> }
     >();
     private static readonly STATS_REFRESH_TIMEOUT_MS = 10_000; // 10s 超时
 
@@ -118,7 +120,7 @@ export class TokenFileLogger {
             if (pending && event.senderInstanceId === pending.leaderId) {
                 clearTimeout(pending.timer);
                 this.pendingStatsRefreshRequests.delete(payload.requestId);
-                pending.resolve(payload.regeneratedDates);
+                pending.resolve({ status: 'completed', dates: payload.regeneratedDates });
             }
         });
     }
@@ -240,8 +242,12 @@ export class TokenFileLogger {
         this.snapshotManager.clearCache();
     }
 
-    invalidateDetailCaches(dateStr: string): void {
-        this.readManager.invalidateDateCache(dateStr);
+    invalidateDetailCaches(dateStr: string, hour?: number): void {
+        if (hour === undefined) {
+            this.readManager.invalidateDateCache(dateStr);
+        } else {
+            this.readManager.invalidateHourCache(dateStr, hour);
+        }
         this.snapshotManager.invalidateCache(dateStr);
     }
 
@@ -365,8 +371,8 @@ export class TokenFileLogger {
         this.pendingLogs.set(params.requestId, log);
 
         // 写入文件
-        await this.writeManager.appendLog(log);
-        this.invalidateDetailCaches(DateUtils.formatDate(new Date(log.timestamp)));
+        const logPath = await this.writeManager.appendLog(log);
+        this.invalidateDetailCaches(logPath.date, logPath.hour);
 
         // 通知状态栏有新的预估请求
         this.notifyUpdate();
@@ -473,8 +479,8 @@ export class TokenFileLogger {
             }
 
             // 写入文件(追加新行,形成流水记录)
-            await this.writeManager.appendLog(pendingLog);
-            this.invalidateDetailCaches(DateUtils.formatDate(new Date(pendingLog.timestamp)));
+            const logPath = await this.writeManager.appendLog(pendingLog);
+            this.invalidateDetailCaches(logPath.date, logPath.hour);
 
             // 从内存移除
             this.pendingLogs.delete(params.requestId);
@@ -538,11 +544,12 @@ export class TokenFileLogger {
         };
 
         if (this.shouldReadRawJsonl(dateStr) && hasRawJsonlFiles) {
-            await this.writeManager.appendLog(updatedLog);
+            const logPath = await this.writeManager.appendLog(updatedLog);
+            this.invalidateDetailCaches(logPath.date, logPath.hour);
         } else {
             await this.snapshotManager.upsertRecord(dateStr, updatedLog);
+            this.invalidateDetailCaches(dateStr);
         }
-        this.invalidateDetailCaches(dateStr);
 
         this.notifyUpdate();
         return true;
@@ -621,8 +628,11 @@ export class TokenFileLogger {
                 }
             });
             // 等待 Leader 完成重建（带超时），完成后从磁盘读取重建日期的 stats
-            const regeneratedDates = await waitForCompletion;
-            if (regeneratedDates.length === 0) {
+            const completion = await waitForCompletion;
+            if (completion.status === 'disposed') {
+                return {};
+            }
+            if (completion.status === 'timeout') {
                 // 回退前重查 Leader 心跳：委托超时≠Leader 失联（可能只是全量重建耗时）。
                 // Leader 仍存活时本地强制写会造成双进程并发写 stats.json，
                 // 此时放弃本地兜底，沿用磁盘上稍旧的 stats（Leader 周期任务每分钟兜底刷新今日）。
@@ -638,7 +648,7 @@ export class TokenFileLogger {
                 return this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.regenerateOutdatedStats());
             }
             const results: Record<string, TokenUsageStatsFromFile> = {};
-            for (const dateStr of regeneratedDates) {
+            for (const dateStr of completion.dates) {
                 try {
                     results[dateStr] = await this.logStatsManager.getDateStats(dateStr);
                 } catch {
@@ -866,7 +876,7 @@ export class TokenFileLogger {
             this.statsRefreshCompletedDisposable.dispose();
             for (const [, pending] of this.pendingStatsRefreshRequests) {
                 clearTimeout(pending.timer);
-                pending.resolve([]);
+                pending.resolve({ status: 'disposed' });
             }
             this.pendingStatsRefreshRequests.clear();
             StatusLogger.debug('[TokenFileLogger] Stats refresh subscription disposed');
@@ -980,18 +990,15 @@ export class TokenFileLogger {
         }, this.statsRefreshDebounceMs);
     }
 
-    /**
-     * 等待 Leader 完成 statsRefreshRequested 对应的重建（带超时）。
-     * 超时后返回空数组，调用方使用当前磁盘上的可用数据继续。
-     */
-    private waitForStatsRefreshCompletion(requestId: string, leaderId: string): Promise<string[]> {
-        return new Promise<string[]>(resolve => {
+    // 空日期回执表示处理完成，不代表委托超时。
+    private waitForStatsRefreshCompletion(requestId: string, leaderId: string): Promise<StatsRefreshCompletion> {
+        return new Promise<StatsRefreshCompletion>(resolve => {
             const timer = setTimeout(() => {
                 if (this.pendingStatsRefreshRequests.has(requestId)) {
                     this.pendingStatsRefreshRequests.delete(requestId);
                     StatusLogger.warn(`[TokenFileLogger] Stats refresh request timed out: ${requestId}`);
                 }
-                resolve([]);
+                resolve({ status: 'timeout' });
             }, TokenFileLogger.STATS_REFRESH_TIMEOUT_MS);
             this.pendingStatsRefreshRequests.set(requestId, { leaderId, resolve, timer });
         });
@@ -1020,8 +1027,8 @@ export class TokenFileLogger {
                 }
             });
 
-            const regeneratedDates = await waitForCompletion;
-            if (regeneratedDates.length > 0) {
+            const completion = await waitForCompletion;
+            if (completion.status !== 'timeout') {
                 return;
             }
 

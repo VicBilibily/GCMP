@@ -1183,8 +1183,9 @@ export class TokenUsagesManager {
         // 确保最近几天的 stats.json 是最新的（异步写入可能还没落盘）
         await this.fileLogger.regenerateOutdatedStats();
 
+        const index = await this.fileLogger.getIndex();
         const aggregator = new MultiDayAggregator(this.fileLogger);
-        const base = await aggregator.aggregate(dateFrom, dateTo);
+        const base = await aggregator.aggregate(dateFrom, dateTo, index);
 
         // 趋势计算
         const trendCalc = new TrendCalculator();
@@ -1201,7 +1202,7 @@ export class TokenUsagesManager {
             prevTo.setDate(prevTo.getDate() - 1);
             const prevStr = (d: Date) => d.toISOString().slice(0, 10);
             try {
-                const prevResult = await aggregator.aggregate(prevStr(prevFrom), prevStr(prevTo));
+                const prevResult = await aggregator.aggregate(prevStr(prevFrom), prevStr(prevTo), index);
                 if (prevResult.missingDates.length === 0) {
                     tokensChangePct = trendCalc.calcPeriodOverPeriod(
                         base.summary.totalTokens,

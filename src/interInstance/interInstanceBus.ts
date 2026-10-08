@@ -54,6 +54,7 @@ export class InterInstanceBus {
 
     private static server: IpcServer | undefined;
     private static client: IpcClient | undefined;
+    private static clientTarget: LeaderConnectionTarget | undefined;
     private static leaderFilePublisher: LeaderFilePublisher | undefined;
     private static leaderFileAuthorityTerm: string | undefined;
     private static fallbackTransport: FallbackTransport | undefined;
@@ -167,6 +168,7 @@ export class InterInstanceBus {
 
         await this.client?.disconnect();
         this.client = undefined;
+        this.clientTarget = undefined;
 
         await this.stopLeaderFilePublisher();
         await this.server?.stop();
@@ -241,8 +243,16 @@ export class InterInstanceBus {
      */
     static publishIpcOnly(
         event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>,
+        requiredRecipientId?: undefined
+    ): boolean;
+    static publishIpcOnly(
+        event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>,
+        requiredRecipientId: string | undefined
+    ): boolean | Promise<boolean>;
+    static publishIpcOnly(
+        event: Omit<InterInstanceEvent, 'timestamp' | 'senderInstanceId'>,
         requiredRecipientId?: string
-    ): boolean {
+    ): boolean | Promise<boolean> {
         if (!this.initialized || !this.context) {
             return false;
         }
@@ -255,12 +265,34 @@ export class InterInstanceBus {
 
         // 设计意图：高频实时状态只走 IPC，IPC 不可用时直接降级为“当前 session 内可见”。
         if (this.server) {
-            if (
-                requiredRecipientId !== undefined &&
-                (!this.server.getEligibleFollowerIds().includes(requiredRecipientId) ||
-                    this.server.sendToInstance(requiredRecipientId, fullEvent) !== 'sent')
-            ) {
-                return false;
+            if (requiredRecipientId !== undefined) {
+                const server = this.server;
+                const generation = this.lifecycleGeneration;
+                if (!server.getEligibleFollowerIds().includes(requiredRecipientId)) {
+                    return false;
+                }
+                const sent =
+                    fullEvent.type === 'leaderResigning' && fullEvent.payload.reason === 'manual' ?
+                        server.sendToInstance(requiredRecipientId, fullEvent, true)
+                    :   server.sendToInstance(requiredRecipientId, fullEvent);
+                if (typeof sent !== 'string') {
+                    return sent.then(written => {
+                        if (
+                            written &&
+                            this.initialized &&
+                            generation === this.lifecycleGeneration &&
+                            this.server === server &&
+                            fullEvent.type === 'leaderResigning' &&
+                            LeaderElectionService.getOwnedAuthorityTerm() === fullEvent.payload.sourceAuthorityTerm
+                        ) {
+                            server.broadcast(fullEvent, undefined, requiredRecipientId);
+                        }
+                        return written;
+                    });
+                }
+                if (sent !== 'sent') {
+                    return false;
+                }
             }
             this.server.broadcast(fullEvent, undefined, requiredRecipientId);
             return true;
@@ -408,6 +440,7 @@ export class InterInstanceBus {
                 await this.stopLeaderFilePublisher();
                 await this.client?.disconnect();
                 this.client = undefined;
+                this.clientTarget = undefined;
                 server = new IpcServer({
                     onMessage: event => this.dispatchEvent(event),
                     onClientDisconnected: instanceId => this.handleRemoteInstanceDisconnected(instanceId)
@@ -532,15 +565,45 @@ export class InterInstanceBus {
             return;
         }
 
+        if (
+            this.client?.isConnected() &&
+            this.clientTarget?.instanceId === target.instanceId &&
+            this.clientTarget.ipcPath === target.ipcPath &&
+            this.clientTarget.authorityTerm === target.authorityTerm
+        ) {
+            if (this.reconnectTimer) {
+                clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = undefined;
+            }
+            this.reconnectAttempts = 0;
+            return;
+        }
+
+        StatusLogger.debug(
+            `[InterInstanceBus] Connecting to leader: reason=${this.client?.isConnected() ? 'target-changed' : 'transport-unavailable'}, ` +
+                `instanceId=${JSON.stringify(target.instanceId)}, authorityTerm=${JSON.stringify(target.authorityTerm)}`
+        );
         // 先断开可能残留的旧连接，避免断线事件与重连竞态导致旧 socket 被遗弃后继续派发事件
         await this.client?.disconnect();
         this.client = undefined;
+        this.clientTarget = undefined;
+        this.remoteUsagesQueryCompatible = false;
+        if (!this.initialized || generation !== this.lifecycleGeneration || LeaderElectionService.isLeader()) {
+            return;
+        }
 
-        this.client = new IpcClient({
+        const client = new IpcClient({
             onMessage: event => {
-                this.dispatchEvent(event);
+                if (this.client === client && generation === this.lifecycleGeneration) {
+                    this.dispatchEvent(event);
+                }
             },
             onDisconnect: () => {
+                if (this.client !== client || generation !== this.lifecycleGeneration) {
+                    return;
+                }
+                this.clientTarget = undefined;
+                this.remoteUsagesQueryCompatible = false;
                 // 切角色时主动断开旧 client 是预期行为，保留旧 term 直到新连接落地
                 if (this.roleTransitioning === 0) {
                     this.setAuthorityTerm(undefined);
@@ -550,11 +613,12 @@ export class InterInstanceBus {
                 this.scheduleReconnect();
             }
         });
+        this.client = client;
 
         try {
-            await this.client.connect(target.ipcPath);
-            if (!this.initialized || generation !== this.lifecycleGeneration) {
-                await this.client.disconnect();
+            await client.connect(target.ipcPath);
+            if (!this.initialized || generation !== this.lifecycleGeneration || LeaderElectionService.isLeader()) {
+                await client.disconnect();
                 this.client = undefined;
                 return;
             }
@@ -568,25 +632,35 @@ export class InterInstanceBus {
                 StatusLogger.debug(
                     `[InterInstanceBus] Leader changed during connect (target=${target.instanceId}, current=${currentTarget?.instanceId ?? 'none'}), will retry`
                 );
-                await this.client.disconnect();
+                await client.disconnect();
                 this.client = undefined;
                 this.scheduleReconnect();
                 return;
             }
 
             // 任期监听器可能同步发送业务消息，hello 必须先入队。
-            this.client.send({
+            client.send({
                 type: 'remoteInstanceHello',
                 payload: { leaderEligible: !LeaderElectionService.isAgentsWindow() },
                 timestamp: Date.now(),
                 senderInstanceId: this.instanceId ?? 'unknown'
             });
+            this.clientTarget = { ...currentTarget };
             this.setAuthorityTerm(currentTarget.authorityTerm);
+            if (this.reconnectTimer) {
+                clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = undefined;
+            }
             this.reconnectAttempts = 0;
             StatusLogger.info(`[InterInstanceBus] Connected to leader at ${target.ipcPath}`);
         } catch (error) {
             StatusLogger.warn('[InterInstanceBus] Failed to connect to leader IPC', error);
+            await client.disconnect();
             this.client = undefined;
+            this.clientTarget = undefined;
+            if (!this.initialized || generation !== this.lifecycleGeneration) {
+                return;
+            }
             this.setAuthorityTerm(undefined);
             // IPC 连接失败，启用文件 fallback
             this.fallbackActive = true;
@@ -638,6 +712,9 @@ export class InterInstanceBus {
         const baseDelay = 2000;
         const delay = Math.min(baseDelay * 2 ** this.reconnectAttempts, this.MAX_RECONNECT_DELAY_MS);
         this.reconnectAttempts += 1;
+        StatusLogger.debug(
+            `[InterInstanceBus] Reconnect scheduled: attempt=${this.reconnectAttempts}, delayMs=${delay}`
+        );
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = undefined;

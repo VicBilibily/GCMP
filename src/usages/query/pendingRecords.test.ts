@@ -8,7 +8,7 @@ import type { InterInstanceEvent, UsagesQueryCompletedEvent, UsagesQueryRequeste
 import type { StatsRefreshRequestedEvent, TokenUsageUpdatedEvent } from '../../interInstance/eventProtocol';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { DateUtils } from '../fileLogger/dateUtils';
-import type { TokenRequestLog } from '../fileLogger/types';
+import type { LogFilePath, TokenRequestLog } from '../fileLogger/types';
 import type { TokenUsagesManager } from '../usagesManager';
 import type { SessionTitleService } from '../sessionTitleService';
 import type { LogReadManager } from '../fileLogger/logReadManager';
@@ -777,7 +777,7 @@ test('remote usages queries preserve caller pending state without retaining full
                     const initialLogs = await logger.readDateLogs(today);
                     const writer = (
                         logger as unknown as {
-                            writeManager: { writeLogInternal: (log: TokenRequestLog) => Promise<void> };
+                            writeManager: { writeLogInternal: (log: TokenRequestLog) => Promise<LogFilePath> };
                         }
                     ).writeManager;
                     const writeLog = writer.writeLogInternal.bind(writer);
@@ -786,7 +786,7 @@ test('remote usages queries preserve caller pending state without retaining full
                         if (failTerminalWrite && log.status !== 'estimated') {
                             throw new Error('Injected terminal write failure');
                         }
-                        await writeLog(log);
+                        return writeLog(log);
                     });
                     const terminal = {
                         requestId,

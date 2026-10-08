@@ -17,7 +17,14 @@ export interface IpcServerOptions {
     onClientDisconnected?: (instanceId: string) => void;
 }
 
-export type IpcTargetSendResult = 'sent' | 'not-connected' | 'too-large';
+export type IpcTargetSendResult = 'sent' | 'not-connected' | 'too-large' | 'backpressured';
+
+interface SocketBackpressure {
+    timer: ReturnType<typeof setTimeout>;
+    onDrain: () => void;
+    queue: string[];
+    queuedBytes: number;
+}
 
 /**
  * Leader IPC 服务端
@@ -29,10 +36,12 @@ export class IpcServer {
     private options: IpcServerOptions;
     private socketInstanceIds = new Map<net.Socket, string>();
     private leaderEligibleInstanceIds = new Set<string>();
-    private backpressuredSockets = new Map<net.Socket, { timer: ReturnType<typeof setTimeout>; onDrain: () => void }>();
+    private backpressuredSockets = new Map<net.Socket, SocketBackpressure>();
     /** 单连接接收缓冲区上限，防止异常对端持续发送无换行数据导致内存无限增长 */
     private static readonly MAX_BUFFER_BYTES = 1024 * 1024; // 1MB
     private static readonly MAX_TARGET_EVENT_BYTES = 768 * 1024;
+    private static readonly MAX_PENDING_BYTES = 1024 * 1024;
+    private static readonly MAX_QUEUED_EVENTS = 256;
     private static readonly TARGET_DRAIN_TIMEOUT_MS = 2000;
     /** server.close 等待超时，避免挂起连接拖垮 stop */
     private static readonly CLOSE_TIMEOUT_MS = 2000;
@@ -98,16 +107,14 @@ export class IpcServer {
                     if (Buffer.byteLength(buffer, 'utf8') > IpcServer.MAX_BUFFER_BYTES) {
                         // 对端持续发送无法解析的数据，判定为异常连接，直接断开
                         StatusLogger.warn('[IpcServer] Socket buffer exceeded limit, destroying connection');
-                        cleanupSocket();
-                        socket.destroy();
+                        this.disconnectSocket(socket, 'receive-buffer-limit');
                         return;
                     }
                     const { events, remaining } = parseEventsFromBuffer(buffer);
                     buffer = remaining;
                     if (events.length > 0) {
                         if (!this.acceptSocketEvents(socket, events)) {
-                            cleanupSocket();
-                            socket.destroy();
+                            this.disconnectSocket(socket, 'invalid-handshake-or-event');
                             return;
                         }
                         // Leader 本地派发，并把来自 Follower 的消息中继给其他 Follower
@@ -161,22 +168,21 @@ export class IpcServer {
             ) {
                 continue;
             }
-            if (this.backpressuredSockets.has(socket)) {
-                this.disconnectSocket(socket);
-                continue;
-            }
-            try {
-                if (!socket.write(payload)) {
-                    this.trackSocketBackpressure(socket);
-                }
-            } catch (error) {
-                StatusLogger.warn('[IpcServer] Failed to write to socket', error);
-                this.disconnectSocket(socket);
-            }
+            this.writeToSocket(socket, payload);
         }
     }
 
-    sendToInstance(instanceId: string, event: InterInstanceEvent): IpcTargetSendResult {
+    sendToInstance(instanceId: string, event: InterInstanceEvent): IpcTargetSendResult;
+    sendToInstance(
+        instanceId: string,
+        event: InterInstanceEvent,
+        waitForWrite: true
+    ): IpcTargetSendResult | Promise<boolean>;
+    sendToInstance(
+        instanceId: string,
+        event: InterInstanceEvent,
+        waitForWrite = false
+    ): IpcTargetSendResult | Promise<boolean> {
         this.backpressuredSockets ??= new Map();
         const payload = serializeEvent(event);
         if (Buffer.byteLength(payload, 'utf8') > IpcServer.MAX_TARGET_EVENT_BYTES) {
@@ -188,19 +194,17 @@ export class IpcServer {
             if (connectedInstanceId !== instanceId) {
                 continue;
             }
-            if (this.backpressuredSockets.has(socket)) {
-                this.disconnectSocket(socket);
-                continue;
+            if (
+                (waitForWrite || (event.type === 'leaderResigning' && event.payload.reason === 'manual')) &&
+                this.backpressuredSockets.has(socket)
+            ) {
+                StatusLogger.debug('[IpcServer] Manual handoff rejected: reason=backpressured');
+                return 'backpressured';
             }
-            try {
-                if (!socket.write(payload)) {
-                    this.trackSocketBackpressure(socket);
-                }
-                sent = true;
-            } catch (error) {
-                StatusLogger.warn('[IpcServer] Failed to write targeted event', error);
-                this.disconnectSocket(socket);
+            if (waitForWrite) {
+                return this.writeWithCompletion(socket, payload);
             }
+            sent = this.writeToSocket(socket, payload) || sent;
         }
         return sent ? 'sent' : 'not-connected';
     }
@@ -284,7 +288,7 @@ export class IpcServer {
 
     disconnectClients(): void {
         for (const socket of this.sockets) {
-            this.disconnectSocket(socket);
+            this.disconnectSocket(socket, 'leader-term-changed');
         }
     }
 
@@ -309,17 +313,95 @@ export class IpcServer {
         }
     }
 
+    private writeWithCompletion(socket: net.Socket, payload: string): IpcTargetSendResult | Promise<boolean> {
+        let accepted = false;
+        const completion = new Promise<boolean>(resolve => {
+            let settled = false;
+            const finish = (written: boolean): boolean => {
+                if (settled) {
+                    return false;
+                }
+                settled = true;
+                clearTimeout(timer);
+                socket.off('close', onFailure);
+                socket.off('error', onFailure);
+                resolve(written);
+                return true;
+            };
+            const fail = (reason: string) => {
+                if (finish(false) && this.sockets.has(socket)) {
+                    this.disconnectSocket(socket, reason);
+                }
+            };
+            const onFailure = () => fail('handoff-write-failed');
+            const timer = setTimeout(() => fail('handoff-write-timeout'), IpcServer.TARGET_DRAIN_TIMEOUT_MS);
+            socket.once('close', onFailure);
+            socket.once('error', onFailure);
+            accepted = this.writeToSocket(socket, payload, error => {
+                if (error) {
+                    onFailure();
+                } else {
+                    finish(true);
+                }
+            });
+            if (!accepted) {
+                finish(false);
+            }
+        });
+        return accepted ? completion : 'not-connected';
+    }
+
+    private writeToSocket(socket: net.Socket, payload: string, onWritten?: (error?: Error | null) => void): boolean {
+        const state = this.backpressuredSockets.get(socket);
+        const bytes = Buffer.byteLength(payload, 'utf8');
+        if (
+            (socket.writableLength ?? 0) + (state?.queuedBytes ?? 0) + bytes > IpcServer.MAX_PENDING_BYTES ||
+            (state && state.queue.length >= IpcServer.MAX_QUEUED_EVENTS)
+        ) {
+            this.disconnectSocket(socket, 'backpressure-limit');
+            return false;
+        }
+        if (state) {
+            state.queue.push(payload);
+            state.queuedBytes += bytes;
+            return true;
+        }
+        try {
+            if (!socket.write(payload, onWritten)) {
+                this.trackSocketBackpressure(socket);
+            }
+            return true;
+        } catch (error) {
+            StatusLogger.warn('[IpcServer] Failed to write to socket', error);
+            this.disconnectSocket(socket, 'write-error');
+            return false;
+        }
+    }
+
     private trackSocketBackpressure(socket: net.Socket): void {
         this.backpressuredSockets ??= new Map();
         if (this.backpressuredSockets.has(socket)) {
             return;
         }
-        const onDrain = () => this.clearSocketBackpressure(socket);
+        const onDrain = () => {
+            if (this.backpressuredSockets.get(socket) !== state) {
+                return;
+            }
+            const queue = state.queue;
+            this.clearSocketBackpressure(socket);
+            for (const payload of queue) {
+                if (!this.sockets.has(socket) || !this.writeToSocket(socket, payload)) {
+                    return;
+                }
+            }
+        };
         const timer = setTimeout(() => {
-            StatusLogger.warn('[IpcServer] Socket drain timed out, destroying connection');
-            this.disconnectSocket(socket);
+            if (this.backpressuredSockets.get(socket) === state) {
+                this.disconnectSocket(socket, 'drain-timeout');
+            }
         }, IpcServer.TARGET_DRAIN_TIMEOUT_MS);
-        this.backpressuredSockets.set(socket, { timer, onDrain });
+        const state: SocketBackpressure = { timer, onDrain, queue: [], queuedBytes: 0 };
+        this.backpressuredSockets.set(socket, state);
         socket.once('drain', onDrain);
     }
 
@@ -331,10 +413,23 @@ export class IpcServer {
         }
         clearTimeout(state.timer);
         socket.off('drain', state.onDrain);
+        state.queue = [];
+        state.queuedBytes = 0;
         this.backpressuredSockets.delete(socket);
     }
 
-    private disconnectSocket(socket: net.Socket): void {
+    private disconnectSocket(socket: net.Socket, reason: string): void {
+        const state = this.backpressuredSockets.get(socket);
+        const message =
+            `[IpcServer] Disconnecting client: reason=${reason}, ` +
+            `instanceId=${JSON.stringify(this.socketInstanceIds.get(socket) ?? 'unknown')}, ` +
+            `bufferedBytes=${socket.writableLength ?? 0}, queuedBytes=${state?.queuedBytes ?? 0}, ` +
+            `queuedEvents=${state?.queue.length ?? 0}`;
+        if (reason === 'leader-term-changed') {
+            StatusLogger.debug(message);
+        } else {
+            StatusLogger.warn(message);
+        }
         this.removeSocket(socket);
         try {
             socket.destroy();

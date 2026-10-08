@@ -48,6 +48,8 @@ export class LogStatsManager {
         { promise: Promise<TokenUsageStatsFromFile>; forceHourlyRecompute: boolean }
     >();
     private readonly writePermissionGate = new WritePermissionGate();
+    private readonly snapshotVersions = new Map<string, { source: string; stats?: string; pending?: boolean }>();
+    private readonly unchangedStats = new WeakSet<TokenUsageStatsFromFile>();
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
     private _codeVersionTimestamp: number = 0;
     /**
@@ -97,6 +99,7 @@ export class LogStatsManager {
      */
     updateCodeVersionTimestamp(codeVersionTimestamp: number): void {
         this._codeVersionTimestamp = codeVersionTimestamp;
+        this.snapshotVersions.clear();
     }
 
     /**
@@ -128,7 +131,9 @@ export class LogStatsManager {
                     // 最小修复：命中缓存前再读取一次当前文件，避免返回已被更新覆盖的旧快照。
                     const latest = await this.loadStats(dateStr);
                     StatusLogger.debug(`[LogStatsManager] Read stats from cache: ${dateStr}`);
-                    return latest ?? saved;
+                    const stats = latest ?? saved;
+                    this.unchangedStats.add(stats);
+                    return stats;
                 }
                 // 版本变化或缓存过期，需要全量重新计算
                 StatusLogger.debug(`[LogStatsManager] Cache expired, recalculating from scratch: ${dateStr}`);
@@ -215,10 +220,23 @@ export class LogStatsManager {
      */
     private async calculateDateStats(dateStr: string, forceHourlyRecompute: boolean): Promise<TokenUsageStatsFromFile> {
         const calculationStartTime = Date.now();
+        const previousSnapshotVersion = this.snapshotVersions.get(dateStr);
+        const snapshotVersion = this.shouldReadRawJsonl(dateStr) ? undefined : this.getSnapshotSourceVersion(dateStr);
+        this.snapshotVersions.delete(dateStr);
+        if (snapshotVersion !== undefined) {
+            this.snapshotVersions.set(dateStr, { source: snapshotVersion.source, pending: true });
+            if (snapshotVersion.source !== previousSnapshotVersion?.source) {
+                this.snapshotManager.invalidateCache(dateStr);
+            }
+        }
         // 今天/昨天优先从 raw hourly .jsonl 读取，避免读到旧的 requests.jsonl 快照；
         // 更早日期优先从 requests.jsonl 快照读取（缓存命中时零 I/O），全量按小时分桶聚合。
         const snapshotRecords = this.shouldReadRawJsonl(dateStr) ? null : await this.snapshotManager.read(dateStr);
         const existingStats = await this.loadStats(dateStr);
+        const currentSnapshotVersion =
+            snapshotVersion === undefined ? undefined : this.getSnapshotSourceVersion(dateStr);
+        const snapshotSourceUnchanged =
+            snapshotVersion !== undefined && snapshotVersion.source === currentSnapshotVersion?.source;
         const isExistingStatsVersionCompatible =
             existingStats?.versionTimestamp !== undefined &&
             existingStats.versionTimestamp >= this.getCodeVersionTimestamp();
@@ -261,6 +279,10 @@ export class LogStatsManager {
             existingStats.recordSignature === signature &&
             isExistingStatsVersionCompatible
         ) {
+            if (snapshotSourceUnchanged && snapshotVersion.stats === currentSnapshotVersion?.stats) {
+                this.snapshotVersions.set(dateStr, snapshotVersion);
+                this.unchangedStats.add(existingStats);
+            }
             StatusLogger.trace(`[LogStatsManager] Stats unchanged (sig: ${signature}), skip: ${dateStr}`);
             return existingStats;
         }
@@ -594,6 +616,9 @@ export class LogStatsManager {
         }
 
         const result: TokenUsageStatsFromFile = { total, providers, hourly };
+        if (snapshotVersion !== undefined) {
+            result.snapshotSourceVersion = snapshotVersion.source;
+        }
         if (signature) {
             result.recordSignature = signature;
         }
@@ -624,6 +649,7 @@ export class LogStatsManager {
         }
 
         const filePath = this.getStatsFilePath(dateStr);
+        const snapshotVersion = this.snapshotVersions.get(dateStr);
 
         try {
             // 写入版本时间戳
@@ -633,6 +659,16 @@ export class LogStatsManager {
             await AtomicJsonFile.runExclusive(filePath, async () => {
                 await AtomicJsonFile.writeJsonAtomically(filePath, stats);
             });
+
+            if (snapshotVersion && this.snapshotVersions.get(dateStr) === snapshotVersion) {
+                try {
+                    if (this.getSnapshotSourceVersion(dateStr)?.source === snapshotVersion.source) {
+                        snapshotVersion.pending = false;
+                    }
+                } catch {
+                    // 元数据校验失败不应阻断已落盘统计的索引更新。
+                }
+            }
 
             // 更新索引文件
             await this.indexManager.updateIndex(dateStr, stats.total);
@@ -669,6 +705,10 @@ export class LogStatsManager {
                 // 重新计算该日期的统计数据（使用 getDateStats 自动处理计算和保存）
                 const stats = await this.getDateStats(dateStr);
 
+                if (this.unchangedStats.has(stats)) {
+                    continue;
+                }
+
                 // 记录结果
                 results[dateStr] = stats;
                 StatusLogger.debug(`[LogStatsManager] Regenerated stats for date ${dateStr}`);
@@ -692,18 +732,21 @@ export class LogStatsManager {
         const outdatedDates: string[] = [];
 
         if (!fsSync.existsSync(this.baseDir)) {
+            this.snapshotVersions.clear();
             return outdatedDates;
         }
 
         try {
             // 读取所有日期目录
             const entries = await fs.readdir(this.baseDir, { withFileTypes: true });
+            const existingDates = new Set<string>();
 
             for (const entry of entries) {
                 if (entry.isDirectory()) {
                     const dateStr = entry.name;
                     // 检查是否是有效的日期格式
                     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                        existingDates.add(dateStr);
                         // 检查是否需要重新生成
                         if (await this.needsRegeneration(dateStr)) {
                             outdatedDates.push(dateStr);
@@ -712,6 +755,11 @@ export class LogStatsManager {
                 }
             }
 
+            for (const dateStr of this.snapshotVersions.keys()) {
+                if (!existingDates.has(dateStr)) {
+                    this.snapshotVersions.delete(dateStr);
+                }
+            }
             return outdatedDates;
         } catch (err) {
             StatusLogger.error('[LogStatsManager] Failed to get outdated date list', err);
@@ -726,6 +774,35 @@ export class LogStatsManager {
      */
     private getStatsFilePath(dateStr: string): string {
         return path.join(this.baseDir, dateStr, 'stats.json');
+    }
+
+    // 同时绑定快照、残留 raw 和统计文件，避免把读取期间的晚写确认为已处理。
+    private getSnapshotSourceVersion(dateStr: string): { source: string; stats: string } | undefined {
+        const dateFolder = path.join(this.baseDir, dateStr);
+        let files: string[];
+        try {
+            files = fsSync.readdirSync(dateFolder);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return undefined;
+            }
+            throw error;
+        }
+        if (!files.includes('requests.jsonl')) {
+            return undefined;
+        }
+        const fileVersion = (file: string): string => {
+            const source = fsSync.statSync(path.join(dateFolder, file));
+            return `${file}:${source.ino}:${source.size}:${source.mtimeMs}:${source.ctimeMs}`;
+        };
+        return {
+            source: files
+                .filter(file => file === 'requests.jsonl' || /^\d{2}\.jsonl$/.test(file))
+                .sort()
+                .map(fileVersion)
+                .join('|'),
+            stats: files.includes('stats.json') ? fileVersion('stats.json') : 'missing'
+        };
     }
 
     /**
@@ -803,6 +880,26 @@ export class LogStatsManager {
             }
 
             // 步骤4: 检查是否有更新的数据源
+            const validatedVersion = this.snapshotVersions.get(dateStr);
+            const currentVersion =
+                validatedVersion !== undefined || !this.shouldReadRawJsonl(dateStr) ?
+                    this.getSnapshotSourceVersion(dateStr)
+                :   undefined;
+            if (validatedVersion !== undefined) {
+                if (
+                    validatedVersion.pending ||
+                    currentVersion?.source !== validatedVersion.source ||
+                    (validatedVersion.stats !== undefined && currentVersion.stats !== validatedVersion.stats)
+                ) {
+                    return true;
+                }
+                if (validatedVersion.stats !== undefined) {
+                    return false;
+                }
+            }
+            if (currentVersion !== undefined || statsData.snapshotSourceVersion !== undefined) {
+                return currentVersion?.source !== statsData.snapshotSourceVersion;
+            }
             const statsStats = fsSync.statSync(statsFilePath);
             const statsMtime = statsStats.mtimeMs;
             const dateFolder = path.join(this.baseDir, dateStr);

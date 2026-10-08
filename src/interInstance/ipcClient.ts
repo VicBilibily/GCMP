@@ -77,11 +77,13 @@ export class IpcClient {
                 }
             });
 
-            socket.on('close', () => {
+            socket.on('close', hadError => {
                 this.socket = undefined;
                 this.buffer = '';
                 if (!this.disposed) {
-                    StatusLogger.debug('[IpcClient] Connection closed');
+                    StatusLogger.debug(
+                        `[IpcClient] Connection closed: reason=transport-close, hadError=${hadError}, path=${pipePath}`
+                    );
                     this.options.onDisconnect?.();
                 }
             });

@@ -331,6 +331,7 @@ export interface TokenUsageStatsFromFile {
     versionTimestamp?: number;
     /** 记录指纹 - 用于增量判断：records:completed:failed:maxStreamEndTime */
     recordSignature?: string;
+    snapshotSourceVersion?: string;
     /** 总计 */
     total: TokenStats;
     /** 按提供商分组 (直接使用 providerId 作为 key) */

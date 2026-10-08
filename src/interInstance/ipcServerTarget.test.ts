@@ -118,10 +118,11 @@ test('IPC server sends bounded responses only to the requested instance', async 
         const slowSocket = new EventEmitter() as Socket;
         let slowWrites = 0;
         let slowSocketDestroyed = false;
+        let slowWritable = false;
         Object.assign(slowSocket, {
             write: () => {
                 slowWrites += 1;
-                return false;
+                return slowWritable;
             },
             destroy: () => {
                 slowSocketDestroyed = true;
@@ -135,10 +136,14 @@ test('IPC server sends bounded responses only to the requested instance', async 
             'follower-slow'
         );
         assert.equal(server.sendToInstance('follower-slow', event), 'sent');
-        assert.equal(server.sendToInstance('follower-slow', event), 'not-connected');
+        assert.equal(server.sendToInstance('follower-slow', event), 'sent');
         assert.equal(slowWrites, 1);
-        assert.equal(slowSocketDestroyed, true);
-        assert.equal(disconnectedInstanceIds.at(-1), 'follower-slow');
+        assert.equal(slowSocketDestroyed, false);
+        slowWritable = true;
+        slowSocket.emit('drain');
+        assert.equal(slowWrites, 2);
+        assert.equal(slowSocketDestroyed, false);
+        assert.deepEqual(disconnectedInstanceIds, ['follower-failed']);
 
         const oversized: InterInstanceEvent = {
             type: 'statusUpdated',
@@ -465,6 +470,7 @@ test('usage query transport requires a matching leader capability', async t => {
                 LeaderElectionService: {
                     isLeader: () => false,
                     isAgentsWindow: () => agentsWindow,
+                    getOwnedAuthorityTerm: () => undefined,
                     getInstanceId: () => 'follower'
                 }
             };
@@ -803,11 +809,12 @@ test('IPC handoff requires the nominated socket before notifying other followers
         const connectFake = (instanceId: string): Socket => {
             const socket = new EventEmitter() as Socket;
             Object.assign(socket, {
-                write: () => {
+                write: (_payload: string, onWritten?: () => void) => {
                     if (instanceId === 'nominee' && outcome === 'write-error') {
                         throw new Error('write failed');
                     }
                     writes.push(instanceId);
+                    onWritten?.();
                     return true;
                 },
                 destroy: () => socket
@@ -833,7 +840,7 @@ test('IPC handoff requires the nominated socket before notifying other followers
         Object.assign(bus, { server, initialized: true, context: {}, instanceId: 'leader' });
         try {
             assert.equal(
-                InterInstanceBus.publishIpcOnly(
+                await InterInstanceBus.publishIpcOnly(
                     {
                         type: 'leaderResigning',
                         payload: { leaderId: 'leader', nextLeaderId: 'nominee', reason: 'manual' }
