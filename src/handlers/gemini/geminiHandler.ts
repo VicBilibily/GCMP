@@ -964,7 +964,7 @@ export class GeminiHandler {
     }
 
     private extractErrorMessage(bodyText: string, status: number, statusText: string): string {
-        let msg = `API请求失败: ${status} ${statusText}`;
+        let msg = t('API request failed: {0} {1}', 'API 请求失败: {0} {1}', status, statusText);
         const parsed = this.safeJsonParse(bodyText);
         let isExtracted = false;
         if (parsed && typeof parsed === 'object' && 'error' in parsed) {

@@ -1176,34 +1176,6 @@
                 }
             },
             {
-                "name": "gcmp_dashscopeWebSearch",
-                "displayName": "%tool.dashscopeWebSearch.displayName%",
-                "when": "gcmp.tool.dashscopeWebSearch.enabled",
-                "toolReferenceName": "bailianWebSearch",
-                "modelDescription": "%tool.dashscopeWebSearch.modelDescription%",
-                "userDescription": "%tool.dashscopeWebSearch.userDescription%",
-                "canBeReferencedInPrompt": true,
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "%tool.dashscopeWebSearch.input.query.description%"
-                        },
-                        "count": {
-                            "type": "integer",
-                            "description": "%tool.dashscopeWebSearch.input.count.description%",
-                            "minimum": 1,
-                            "maximum": 20,
-                            "default": 10
-                        }
-                    },
-                    "required": [
-                        "query"
-                    ]
-                }
-            },
-            {
                 "name": "gcmp_stepfunWebSearch",
                 "displayName": "%tool.stepfunWebSearch.displayName%",
                 "when": "gcmp.tool.stepfunWebSearch.enabled",

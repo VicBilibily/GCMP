@@ -21,8 +21,11 @@ test('resolveDashscopeBaseUrl maps every China host to its international host', 
 
 test('resolveDashscopeBaseUrl keeps path and query string untouched', () => {
     assert.equal(
-        resolveDashscopeBaseUrl('https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp?x=1&y=2', 'ap-southeast-1'),
-        'https://dashscope-intl.aliyuncs.com/api/v1/mcps/WebSearch/mcp?x=1&y=2'
+        resolveDashscopeBaseUrl(
+            'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions?x=1&y=2',
+            'ap-southeast-1'
+        ),
+        'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions?x=1&y=2'
     );
 });
 

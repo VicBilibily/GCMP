@@ -1,7 +1,7 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  MCP 客户端缓存管理共享工具
- *  为 DashscopeMCPWebSearchClient / StepFunMCPWebSearchClient / ZhipuMCPWebSearchClient
- *  提供 clearCache / getCacheStats / clearStaleInstances 的通用实现，消除三处样板重复
+ *  为 StepFunMCPWebSearchClient / ZhipuMCPWebSearchClient
+ *  提供 clearCache / getCacheStats / clearStaleInstances 的通用实现
  *--------------------------------------------------------------------------------------------*/
 
 import { Logger } from '../../utils/runtime/logger';
@@ -17,7 +17,7 @@ export interface MCPClientInstance {
 /**
  * 按 apiKey 清空缓存中匹配的实例，或清空全部
  * @param cache 各 MCP 客户端类的 clientCache 静态 Map
- * @param logPrefix 日志前缀，如 'DashScope MCP'
+ * @param logPrefix 日志前缀，如 'StepFun MCP'
  * @param apiKey 可选；提供时仅清该 key 对应的实例，否则清空全部
  */
 export async function clearMCPClientCache<T extends MCPClientInstance>(

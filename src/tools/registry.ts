@@ -8,7 +8,6 @@ import { Logger } from '../utils/runtime/logger';
 import { ZhipuSearchTool } from './zhipuSearch';
 import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';
-import { DashscopeSearchTool } from './dashscopeSearch';
 import { StepFunSearchTool } from './stepfunSearch';
 import {
     UiToArtifactTool,
@@ -26,7 +25,6 @@ import { ToolContextManager } from './toolContextManager';
 let zhipuSearchTool: ZhipuSearchTool | undefined;
 let minimaxSearchTool: MiniMaxSearchTool | undefined;
 let kimiSearchTool: KimiSearchTool | undefined;
-let dashscopeSearchTool: DashscopeSearchTool | undefined;
 let stepfunSearchTool: StepFunSearchTool | undefined;
 let visionTools: BaseVisionTool[] | undefined;
 
@@ -61,14 +59,6 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
             prepareInvocation: kimiSearchTool.prepareInvocation.bind(kimiSearchTool)
         });
         context.subscriptions.push(kimiToolDisposable);
-
-        // 注册阿里云百炼联网搜索工具
-        dashscopeSearchTool = new DashscopeSearchTool();
-        const dashscopeToolDisposable = vscode.lm.registerTool('gcmp_dashscopeWebSearch', {
-            invoke: dashscopeSearchTool.invoke.bind(dashscopeSearchTool),
-            prepareInvocation: dashscopeSearchTool.prepareInvocation.bind(dashscopeSearchTool)
-        });
-        context.subscriptions.push(dashscopeToolDisposable);
 
         // 注册阶跃星辰联网搜索工具
         stepfunSearchTool = new StepFunSearchTool();
@@ -109,7 +99,6 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         Logger.debug('ZhipuAI web search tool registered: gcmp_zhipuWebSearch');
         Logger.debug('MiniMax web search tool registered: gcmp_minimaxWebSearch');
         Logger.debug('Kimi web search tool registered: gcmp_kimiWebSearch');
-        Logger.debug('DashScope web search tool registered: gcmp_dashscopeWebSearch');
         Logger.debug('StepFun web search tool registered: gcmp_stepfunWebSearch');
         Logger.debug('Vision toolset registered');
     } catch (error) {
@@ -139,12 +128,6 @@ export async function cleanupAllTools(): Promise<void> {
             await kimiSearchTool.cleanup();
             kimiSearchTool = undefined;
             Logger.info('✅ Kimi web search tool resources cleaned up');
-        }
-
-        if (dashscopeSearchTool) {
-            await dashscopeSearchTool.cleanup();
-            dashscopeSearchTool = undefined;
-            Logger.info('✅ DashScope web search tool resources cleaned up');
         }
 
         if (stepfunSearchTool) {
