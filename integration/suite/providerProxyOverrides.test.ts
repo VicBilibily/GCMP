@@ -201,7 +201,7 @@ async function updateGlobalSetting<K extends 'machineOverrides' | 'providerOverr
 }
 
 suite('machine overrides', () => {
-    test('contributes a machine-scoped nested provider and model setting', () => {
+    test('contributes a machine-scoped nested provider and model setting', async () => {
         const extension = vscode.extensions.getExtension('vicanent.gcmp');
         assert.ok(extension);
 
@@ -217,8 +217,18 @@ suite('machine overrides', () => {
         assert.equal(providerSetting?.scope, 'application');
 
         assertProxyValueSchema(configuration?.properties?.['gcmp.proxy'], true);
-        assertProxyValueSchema(configuration?.properties?.['gcmp.fimCompletion.modelConfig']?.properties?.proxy, true);
-        assertProxyValueSchema(configuration?.properties?.['gcmp.nesCompletion.modelConfig']?.properties?.proxy, true);
+        // FIM/NES 配置声明已拆分至独立扩展 gcmp-fim-nes，从其 manifest 读取（开发宿主中位于仓库子目录）
+        const fimNesManifestPath = join(extension.extensionPath, 'extensions', 'gcmp-fim-nes', 'package.json');
+        const fimNesConfiguration = JSON.parse(await readFile(fimNesManifestPath, 'utf8')).contributes
+            ?.configuration as ConfigurationContribution | undefined;
+        assertProxyValueSchema(
+            fimNesConfiguration?.properties?.['gcmp.fimCompletion.modelConfig']?.properties?.proxy,
+            true
+        );
+        assertProxyValueSchema(
+            fimNesConfiguration?.properties?.['gcmp.nesCompletion.modelConfig']?.properties?.proxy,
+            true
+        );
         assertProxyValueSchema(setting?.additionalProperties?.properties?.proxy, true);
         assertProxyValueSchema(setting?.additionalProperties?.properties?.models?.items?.properties?.proxy, false);
     });

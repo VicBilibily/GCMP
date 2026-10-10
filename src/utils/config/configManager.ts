@@ -96,25 +96,6 @@ export interface DashscopeConfig {
 }
 
 /**
- * NES 补全配置
- */
-export interface NESCompletionConfig {
-    enabled: boolean;
-    debounceMs: number;
-    timeoutMs: number; // 请求超时时间
-    manualOnly: boolean; // 仅手动触发模式
-    modelConfig: {
-        provider: string;
-        baseUrl: string;
-        proxy?: string;
-        model: string;
-        maxTokens: number;
-        extraBody?: Record<string, unknown>;
-    };
-}
-export type FIMCompletionConfig = Omit<NESCompletionConfig, 'manualOnly'>;
-
-/**
  * 请求重试配置
  */
 export interface RequestRetryConfig {
@@ -177,10 +158,6 @@ export interface GCMPConfig {
     xiaomimimo: XiaomimimoConfig;
     /** 阿里云百炼配置 */
     dashscope: DashscopeConfig;
-    /** FIM补全配置 */
-    fimCompletion: FIMCompletionConfig;
-    /** NES补全配置 */
-    nesCompletion: NESCompletionConfig;
     /** Commit 模块配置 */
     commit: CommitConfig;
     /** 全局代理服务器地址 */
@@ -379,37 +356,6 @@ export class ConfigManager {
             },
             dashscope: {
                 endpoint: config.get<DashscopeConfig['endpoint']>('dashscope.endpoint', 'cn-beijing')
-            },
-            fimCompletion: {
-                enabled: config.get<boolean>('fimCompletion.enabled', false),
-                debounceMs: this.validateNESDebounceMs(config.get<number>('fimCompletion.debounceMs', 500)),
-                timeoutMs: this.validateNESTimeoutMs(config.get<number>('fimCompletion.timeoutMs', 5000)),
-                modelConfig: {
-                    provider: config.get<string>('fimCompletion.modelConfig.provider', ''),
-                    baseUrl: config.get<string>('fimCompletion.modelConfig.baseUrl', ''),
-                    proxy: config.get<string>('fimCompletion.modelConfig.proxy'),
-                    model: config.get<string>('fimCompletion.modelConfig.model', ''),
-                    maxTokens: this.validateNESMaxTokens(
-                        config.get<number>('fimCompletion.modelConfig.maxTokens', 200)
-                    ),
-                    extraBody: config.get('fimCompletion.modelConfig.extraBody')
-                }
-            },
-            nesCompletion: {
-                enabled: config.get<boolean>('nesCompletion.enabled', false),
-                debounceMs: this.validateNESDebounceMs(config.get<number>('nesCompletion.debounceMs', 500)),
-                timeoutMs: this.validateNESTimeoutMs(config.get<number>('nesCompletion.timeoutMs', 5000)),
-                manualOnly: config.get<boolean>('nesCompletion.manualOnly', false),
-                modelConfig: {
-                    provider: config.get<string>('nesCompletion.modelConfig.provider', ''),
-                    baseUrl: config.get<string>('nesCompletion.modelConfig.baseUrl', ''),
-                    proxy: config.get<string>('nesCompletion.modelConfig.proxy'),
-                    model: config.get<string>('nesCompletion.modelConfig.model', ''),
-                    maxTokens: this.validateNESMaxTokens(
-                        config.get<number>('nesCompletion.modelConfig.maxTokens', 200)
-                    ),
-                    extraBody: config.get('nesCompletion.modelConfig.extraBody')
-                }
             },
             commit: {
                 // VS Code 会自动应用 package.json configuration contribution 的 default。
@@ -948,20 +894,6 @@ export class ConfigManager {
     }
 
     /**
-     * 获取FIM补全配置
-     */
-    static getFIMConfig(): FIMCompletionConfig {
-        return this.getConfig().fimCompletion;
-    }
-
-    /**
-     * 获取NES补全配置
-     */
-    static getNESConfig(): NESCompletionConfig {
-        return this.getConfig().nesCompletion;
-    }
-
-    /**
      * 获取 Commit 配置对象
      */
     static getCommitConfig(): CommitConfig {
@@ -975,39 +907,6 @@ export class ConfigManager {
         if (isNaN(value) || value < 1 || value > 10) {
             Logger.warn(`Invalid retry.maxAttempts value: ${value}; using default 3`);
             return 3;
-        }
-        return Math.floor(value);
-    }
-
-    /**
-     * 验证防抖延迟时间
-     */
-    private static validateNESDebounceMs(value: number): number {
-        if (isNaN(value) || value < 50 || value > 2000) {
-            Logger.warn(`Invalid debounceMs value: ${value}; using default 500`);
-            return 500;
-        }
-        return Math.floor(value);
-    }
-
-    /**
-     * 验证超时时间
-     */
-    private static validateNESTimeoutMs(value: number): number {
-        if (isNaN(value) || value < 1000 || value > 30000) {
-            Logger.warn(`Invalid timeoutMs value: ${value}; using default 5000`);
-            return 5000;
-        }
-        return Math.floor(value);
-    }
-
-    /**
-     * 验证NES补全的maxTokens参数
-     */
-    private static validateNESMaxTokens(value: number): number {
-        if (isNaN(value) || value < 50 || value > 16000) {
-            Logger.warn(`Invalid NES maxTokens value: ${value}; using default 200`);
-            return 200;
         }
         return Math.floor(value);
     }

@@ -1,0 +1,305 @@
+{
+    "name": "gcmp-fim-nes",
+    "publisher": "vicanent",
+    "displayName": "AI Chat Models - FIM/NES Completion",
+    "description": "%extension.description%",
+    "version": "0.28.4",
+    "license": "MIT",
+    "keywords": [
+        "ai",
+        "copilot",
+        "inline completion",
+        "fim",
+        "nes",
+        "next edit suggestion"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/VicBilibily/GCMP.git"
+    },
+    "engines": {
+        "vscode": ">=1.138.0"
+    },
+    "extensionDependencies": [
+        "vicanent.gcmp"
+    ],
+    "categories": [
+        "AI"
+    ],
+    "icon": "./logo.png",
+    "main": "./dist/extension.js",
+    "activationEvents": [
+        "onStartupFinished",
+        "onFileSystem:gcmp-fim-settings"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "command": "gcmp.nesCompletion.toggleManual",
+                "title": "%command.nesCompletion.toggleManual%",
+                "category": "GCMP"
+            }
+        ],
+        "configuration": {
+            "title": "GCMP FIM/NES Completion",
+            "properties": {
+                "gcmp.fimCompletion.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%setting.fimCompletion.enabled.description%",
+                    "scope": "application"
+                },
+                "gcmp.fimCompletion.debounceMs": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 50,
+                    "maximum": 2000,
+                    "description": "%setting.fimCompletion.debounceMs.description%",
+                    "scope": "application"
+                },
+                "gcmp.fimCompletion.timeoutMs": {
+                    "type": "number",
+                    "default": 5000,
+                    "minimum": 1000,
+                    "maximum": 30000,
+                    "description": "%setting.fimCompletion.timeoutMs.description%",
+                    "scope": "application"
+                },
+                "gcmp.fimCompletion.circuitBreaker": {
+                    "type": "object",
+                    "default": {
+                        "enabled": true,
+                        "failureThreshold": 10,
+                        "cooldownSeconds": 30
+                    },
+                    "description": "%setting.fimCompletion.circuitBreaker.description%",
+                    "scope": "application",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "%setting.fimCompletion.circuitBreaker.enabled.description%"
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "default": 10,
+                            "minimum": 2,
+                            "maximum": 60,
+                            "description": "%setting.fimCompletion.circuitBreaker.failureThreshold.description%"
+                        },
+                        "cooldownSeconds": {
+                            "type": "number",
+                            "default": 30,
+                            "minimum": 10,
+                            "maximum": 300,
+                            "description": "%setting.fimCompletion.circuitBreaker.cooldownSeconds.description%"
+                        }
+                    }
+                },
+                "gcmp.fimCompletion.modelConfig": {
+                    "type": "object",
+                    "default": {
+                        "provider": "",
+                        "baseUrl": "",
+                        "model": ""
+                    },
+                    "description": "%setting.fimCompletion.modelConfig.description%",
+                    "scope": "application",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.provider.description%"
+                        },
+                        "baseUrl": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.baseUrl.description%",
+                            "format": "uri"
+                        },
+                        "proxy": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.proxy.description%",
+                            "anyOf": [
+                                {
+                                    "const": ""
+                                },
+                                {
+                                    "const": "noproxy"
+                                },
+                                {
+                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
+                                }
+                            ]
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "%setting.fimCompletion.modelConfig.model.description%"
+                        },
+                        "maxTokens": {
+                            "type": "number",
+                            "description": "%setting.fimCompletion.modelConfig.maxTokens.description%",
+                            "default": 200,
+                            "minimum": 50,
+                            "maximum": 16000
+                        },
+                        "extraBody": {
+                            "type": "object",
+                            "description": "%setting.modelConfig.extraBody.description%",
+                            "additionalProperties": {
+                                "description": "%setting.modelConfig.extraBody.additionalProperties.description%"
+                            }
+                        }
+                    },
+                    "required": [
+                        "provider",
+                        "baseUrl",
+                        "model"
+                    ]
+                },
+                "gcmp.nesCompletion.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%setting.nesCompletion.enabled.description%",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.debounceMs": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 50,
+                    "maximum": 2000,
+                    "description": "%setting.nesCompletion.debounceMs.description%",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.timeoutMs": {
+                    "type": "number",
+                    "default": 5000,
+                    "minimum": 1000,
+                    "maximum": 30000,
+                    "description": "%setting.nesCompletion.timeoutMs.description%",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.manualOnly": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%setting.nesCompletion.manualOnly.description%",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.circuitBreaker": {
+                    "type": "object",
+                    "default": {
+                        "enabled": true,
+                        "failureThreshold": 5,
+                        "cooldownSeconds": 30
+                    },
+                    "description": "%setting.nesCompletion.circuitBreaker.description%",
+                    "scope": "application",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "%setting.nesCompletion.circuitBreaker.enabled.description%"
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "default": 5,
+                            "minimum": 2,
+                            "maximum": 20,
+                            "description": "%setting.nesCompletion.circuitBreaker.failureThreshold.description%"
+                        },
+                        "cooldownSeconds": {
+                            "type": "number",
+                            "default": 30,
+                            "minimum": 10,
+                            "maximum": 300,
+                            "description": "%setting.nesCompletion.circuitBreaker.cooldownSeconds.description%"
+                        }
+                    }
+                },
+                "gcmp.nesCompletion.modelConfig": {
+                    "type": "object",
+                    "default": {
+                        "provider": "",
+                        "baseUrl": "",
+                        "model": ""
+                    },
+                    "description": "%setting.nesCompletion.modelConfig.description%",
+                    "scope": "application",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.provider.description%"
+                        },
+                        "baseUrl": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.baseUrl.description%",
+                            "format": "uri"
+                        },
+                        "proxy": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.proxy.description%",
+                            "anyOf": [
+                                {
+                                    "const": ""
+                                },
+                                {
+                                    "const": "noproxy"
+                                },
+                                {
+                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
+                                }
+                            ]
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "%setting.nesCompletion.modelConfig.model.description%"
+                        },
+                        "maxTokens": {
+                            "type": "number",
+                            "description": "%setting.nesCompletion.modelConfig.maxTokens.description%",
+                            "default": 200,
+                            "minimum": 50,
+                            "maximum": 16000
+                        },
+                        "extraBody": {
+                            "type": "object",
+                            "description": "%setting.modelConfig.extraBody.description%",
+                            "additionalProperties": {
+                                "description": "%setting.modelConfig.extraBody.additionalProperties.description%"
+                            }
+                        }
+                    },
+                    "required": [
+                        "provider",
+                        "baseUrl",
+                        "model"
+                    ]
+                }
+            }
+        },
+        "jsonValidation": [
+            {
+                "fileMatch": [
+                    "%APP_SETTINGS_HOME%/settings.json",
+                    "%MACHINE_SETTINGS_HOME%/settings.json",
+                    "%APP_SETTINGS_HOME%/profiles/*/settings.json",
+                    "/.vscode/settings.json"
+                ],
+                "url": "gcmp-fim-settings://root/schema.json"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "editor.action.inlineSuggest.trigger",
+                "key": "alt+/",
+                "when": "editorHasCompletionItemProvider && textInputFocus && !editorReadonly && !suggestWidgetVisible"
+            },
+            {
+                "command": "gcmp.nesCompletion.toggleManual",
+                "key": "shift+alt+/"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "node esbuild.config.js",
+        "compile": "node esbuild.config.js",
+        "compile:dev": "node esbuild.config.js --dev",
+        "watch": "node esbuild.config.js --watch --dev"
+    }
+}

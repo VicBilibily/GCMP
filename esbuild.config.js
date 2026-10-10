@@ -7,22 +7,9 @@ const isDev = process.argv.includes('--dev');
 const buildIntegrationTests = process.argv.includes('--integration-tests');
 
 
-//#region 复制 chat-lib 相关的资源文件
-// postinstall.ts 中的资源复制逻辑
-const treeSitterGrammars = [
-    'tree-sitter-c-sharp',
-    'tree-sitter-cpp',
-    'tree-sitter-go',
-    'tree-sitter-javascript', // Also includes jsx support
-    'tree-sitter-python',
-    'tree-sitter-ruby',
-    'tree-sitter-typescript',
-    'tree-sitter-tsx',
-    'tree-sitter-java',
-    'tree-sitter-rust',
-    'tree-sitter-php'
-];
-
+//#region 复制 tokenizer 资源文件（主扩展 tokenCounter 使用）
+// FIM/NES 的 chat-lib 资源（cl100k tiktoken + tree-sitter wasm）已随拆分
+// 移至 extensions/gcmp-fim-nes/esbuild.config.js 的资源复制逻辑
 const REPO_ROOT = path.join(__dirname, '.');
 
 async function fileExists(filePath) {
@@ -32,6 +19,17 @@ async function fileExists(filePath) {
     } catch {
         return false;
     }
+}
+
+async function copyStaticAssets(srcpaths, dst) {
+    await Promise.all(srcpaths.map(async srcpath => {
+        const src = path.join(REPO_ROOT, srcpath);
+        const dest = path.join(REPO_ROOT, dst, path.basename(srcpath));
+        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+        await fs.promises.copyFile(src, dest);
+        const relativeDest = path.relative(REPO_ROOT, dest);
+        console.log(`Copied: ${relativeDest}`);
+    }));
 }
 
 async function platformDir() {
@@ -53,73 +51,17 @@ async function platformDir() {
             return path.relative(REPO_ROOT, distPath);
         }
 
-        console.log('Chat-lib directory not found, skipping tokenizer files');
-        return null;
-    } catch {
-        console.log('Could not resolve @vscode/chat-lib, skipping tokenizer files');
-        return null;
+        throw new Error('Chat-lib tokenizer directory not found');
+    } catch (error) {
+        throw new Error('Required tokenizer assets unavailable', { cause: error });
     }
-}
-
-function treeSitterWasmDir() {
-    try {
-        const modulePath = path.dirname(require.resolve('@vscode/tree-sitter-wasm'));
-        return path.relative(REPO_ROOT, modulePath);
-    } catch {
-        console.warn('Could not resolve @vscode/tree-sitter-wasm, skipping tree-sitter files');
-        return null;
-    }
-}
-
-async function copyStaticAssets(srcpaths, dst) {
-    await Promise.all(srcpaths.map(async srcpath => {
-        const src = path.join(REPO_ROOT, srcpath);
-        const dest = path.join(REPO_ROOT, dst, path.basename(srcpath));
-        try {
-            await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-            await fs.promises.copyFile(src, dest);
-            // 只输出目标文件相对于项目根目录的路径
-            const relativeDest = path.relative(REPO_ROOT, dest);
-            console.log(`Copied: ${relativeDest}`);
-        } catch {
-            console.warn(`Failed to copy ${srcpath}`);
-        }
-    }));
 }
 
 async function copyBuildAssets() {
     console.log('Copying build assets...');
     const platform = await platformDir();
-    const wasm = treeSitterWasmDir();
 
-    const filesToCopy = [];
-
-    // 处理 tokenizer 文件
-    if (platform) {
-        const vendoredTiktokenFiles = [
-            `${platform}/tokenizer/node/cl100k_base.tiktoken`,
-            `${platform}/tokenizer/node/o200k_base.tiktoken`
-        ].filter(file => fs.existsSync(path.join(REPO_ROOT, file)));
-
-        filesToCopy.push(...vendoredTiktokenFiles);
-    }
-
-    // 处理 tree-sitter 文件
-    if (wasm) {
-        const treeSitterFiles = [
-            ...treeSitterGrammars.map(grammar => `${wasm}/${grammar}.wasm`),
-            `${wasm}/tree-sitter.wasm`
-        ].filter(file => fs.existsSync(path.join(REPO_ROOT, file)));
-
-        filesToCopy.push(...treeSitterFiles);
-    }
-
-    if (filesToCopy.length === 0) {
-        console.log('No build assets found to copy');
-        return;
-    }
-
-    await copyStaticAssets(filesToCopy, 'dist');
+    await copyStaticAssets([`${platform}/tokenizer/node/o200k_base.tiktoken`], 'dist');
 }
 //#endregion
 
@@ -171,32 +113,14 @@ const commonOptions = {
 
 // ========================================================================
 // 主扩展构建选项
-// - 不包含 @vscode/chat-lib 相关的重型依赖
-// - 使用轻量级的 InlineCompletionShim 进行延迟加载
+// - FIM/NES 内联补全已拆分至独立扩展 extensions/gcmp-fim-nes
+// - 主扩展不再包含 @vscode/chat-lib 及其延迟加载的 copilot.bundle
 // ========================================================================
 /** @type {import('esbuild').BuildOptions} */
 const extensionBuildOptions = {
     ...commonOptions,
     entryPoints: ['./src/extension.ts'],
-    outfile: 'dist/extension.js',
-    // 排除 copilot.bundle 模块和 @vscode/chat-lib，避免重复打包
-    // 注意：ui/usagesView/index.ts 会被打包到 extension.js 中（后端逻辑）
-    // 只有 ui/usagesView/app.ts 会独立编译成 usagesView.js（前端逻辑）
-    external: [...commonOptions.external, './copilot.bundle', '@vscode/chat-lib']
-};
-
-// ========================================================================
-// Copilot 模块构建选项
-// - 包含 @vscode/chat-lib 和相关重型依赖
-// - 在首次触发补全时延迟加载
-// ========================================================================
-/** @type {import('esbuild').BuildOptions} */
-const copilotBuildOptions = {
-    ...commonOptions,
-    entryPoints: ['./src/copilot/copilot.bundle.ts'],
-    outfile: 'dist/copilot.bundle.js',
-    // 只排除 vscode；undici 需要随 bundle 提供，否则动态加载 copilot.bundle 时无法解析
-    external: ['vscode']
+    outfile: 'dist/extension.js'
 };
 
 // ========================================================================
@@ -340,7 +264,7 @@ async function build() {
     try {
         const buildConfigs = buildIntegrationTests
             ? buildIntegrationTestConfigs()
-            : [extensionBuildOptions, copilotBuildOptions, ...buildUiConfigs()];
+            : [extensionBuildOptions, ...buildUiConfigs()];
 
         if (buildConfigs.length === 0) {
             console.log(buildIntegrationTests ? 'No integration test bundles to build.' : 'No bundles to build.');
@@ -351,7 +275,10 @@ async function build() {
 
         if (isWatch) {
             // Watch 模式
-            console.log('Starting watch mode...');
+            console.log('GCMP_WATCH_START');
+            if (!buildIntegrationTests) {
+                await copyBuildAssets();
+            }
 
             const contexts = [];
 
@@ -362,8 +289,8 @@ async function build() {
                 console.log(`Watching: ${config.outfile}`);
             }
 
-            console.log(`Watching for changes in ${contexts.length} bundles...`);
-            await Promise.all(contexts.map(ctx => ctx.watch()));
+            await Promise.all(contexts.map(ctx => ctx.rebuild()));
+            console.log('GCMP_WATCH_READY');
         } else {
             console.log(`Cleaning ${cleanTarget} directory...`);
             if (fs.existsSync(cleanTarget)) {

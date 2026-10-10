@@ -20,7 +20,7 @@ import {
 } from '@vscode/chat-lib';
 import { CancellationToken } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/cancellation';
 
-import { VersionManager } from '../utils/runtime/versionManager';
+import { VersionManager } from '../utils/versionManager';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { Fetcher } from './fetcher';
 import { AuthenticationService, EndpointProvider, TelemetrySender } from './mockImpl';
@@ -29,9 +29,10 @@ import { DocumentManager } from './documentManager';
 import { MutableObservableWorkspace } from '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/observableWorkspace';
 import { CopilotTextDocument } from '@vscode/chat-lib/dist/src/_internal/extension/completions-core/vscode-node/lib/src/textDocument';
 import { NullTerminalService } from '@vscode/chat-lib/dist/src/_internal/platform/terminal/common/terminalService';
-import { getCompletionLogger, getConfigManager } from './singletons';
+import { completionLogger as CompletionLogger } from '../gcmpServices';
+import { getFIMConfig, getNESConfig } from '../utils/completionConfig';
 import { CompletionCircuitBreaker } from './completionCircuitBreaker';
-import { isCancellationError } from '../utils/text/cancellationError';
+import { isCancellationError } from '../utils/cancellationError';
 
 // ========================================================================
 // 类型定义
@@ -50,6 +51,8 @@ interface CompletionTokens {
  */
 export class InlineCompletionProvider implements vscode.InlineCompletionItemProvider, vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
+    private readonly activeRequests = new Set<vscode.CancellationTokenSource>();
+    private disposed = false;
 
     private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
     readonly onDidChange = this.onDidChangeEmitter.event;
@@ -116,7 +119,6 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return; // 已初始化
         }
 
-        const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionProvider] Lazy loading initialization of FIM/NES providers');
 
         try {
@@ -203,7 +205,6 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     // ========================================================================
 
     activate(): void {
-        const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionProvider.activate] Activation started');
 
         // 不在此处注册 InlineCompletionItemProvider，所有请求均由 InlineCompletionShim 统一入口分发
@@ -216,10 +217,11 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         context: vscode.InlineCompletionContext,
         token: vscode.CancellationToken
     ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | undefined> {
-        const CompletionLogger = getCompletionLogger();
-        const ConfigManager = getConfigManager();
-        const fimConfig = ConfigManager.getFIMConfig();
-        const nesConfig = ConfigManager.getNESConfig();
+        if (this.disposed || token.isCancellationRequested) {
+            return undefined;
+        }
+        const fimConfig = getFIMConfig();
+        const nesConfig = getNESConfig();
         if (!fimConfig.enabled && !nesConfig.enabled) {
             CompletionLogger.trace('[InlineCompletionProvider] Completion feature not enabled');
             return undefined;
@@ -262,6 +264,10 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                     if (this.pendingDebounceRequest?.token === token) {
                         this.debounceTimer = null;
                         this.pendingDebounceRequest = null;
+                        if (this.disposed || token.isCancellationRequested) {
+                            resolve(undefined);
+                            return;
+                        }
 
                         const invocationId = ++this.invocationCount;
                         CompletionLogger.trace(`[InlineCompletionProvider] Request #${invocationId} started`);
@@ -305,7 +311,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             const invocationId = ++this.invocationCount;
             CompletionLogger.trace(`[InlineCompletionProvider] Request #${invocationId} started`);
             // 手动触发直接执行
-            return this._invokeNESProvider(document, { nesCts });
+            return await this._invokeNESProvider(document, { nesCts });
         } finally {
             tokenDisposable.dispose();
             nesCts.dispose();
@@ -320,10 +326,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             completionsCts: vscode.CancellationTokenSource;
         }
     ): Promise<vscode.InlineCompletionList | undefined> {
-        const CompletionLogger = getCompletionLogger();
-        const ConfigManager = getConfigManager();
-        const fimConfig = ConfigManager.getFIMConfig();
-        const nesConfig = ConfigManager.getNESConfig();
+        const fimConfig = getFIMConfig();
+        const nesConfig = getNESConfig();
 
         // 情况1：FIM 和 NES 都启用
         if (fimConfig.enabled && nesConfig.enabled) {
@@ -350,6 +354,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             } else {
                 CompletionLogger.trace('[InlineCompletionProvider] Cursor not at end of line, using NES');
                 const nesResult = await this._invokeNESProvider(document, tokens);
+                if (this.disposed || tokens.coreToken.isCancellationRequested) {
+                    return undefined;
+                }
                 if (nesResult) {
                     // 检查 NES 结果是否为有意义的编辑
                     let isMeaningfulEdit = false;
@@ -447,9 +454,10 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         position: vscode.Position,
         tokens: { completionsCts: vscode.CancellationTokenSource }
     ): Promise<vscode.InlineCompletionList | undefined> {
-        const CompletionLogger = getCompletionLogger();
-        const ConfigManager = getConfigManager();
-        const config = ConfigManager.getFIMConfig();
+        if (this.disposed || tokens.completionsCts.token.isCancellationRequested) {
+            return undefined;
+        }
+        const config = getFIMConfig();
         if (!config.enabled || !this.fimProvider) {
             return undefined;
         }
@@ -464,8 +472,13 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         const startTime = Date.now();
         // 声明在 try 外，确保 catch 能清理（textDoc.create 等提前抛错时为 undefined）
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        let cancellationDisposable: vscode.Disposable | undefined;
+        this.activeRequests.add(tokens.completionsCts);
 
         try {
+            const cancellationPromise = new Promise<null>(resolve => {
+                cancellationDisposable = tokens.completionsCts.token.onCancellationRequested(() => resolve(null));
+            });
             const textDoc = CopilotTextDocument.create(
                 document.uri.toString(),
                 document.languageId,
@@ -488,10 +501,18 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             );
 
             // 处理请求与超时
-            const fimResult = await Promise.race([fimPromise, timeoutPromise]);
+            const fimResult = await Promise.race([fimPromise, timeoutPromise, cancellationPromise]);
             // 请求已返回，清理超时 timer
             if (timeoutHandle) {
                 clearTimeout(timeoutHandle);
+            }
+
+            if (this.disposed) {
+                return undefined;
+            }
+            if (tokens.completionsCts.token.isCancellationRequested) {
+                this.fimCircuitBreaker.recordCancellation();
+                return undefined;
             }
 
             const elapsed = Date.now() - startTime;
@@ -526,10 +547,14 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             if (timeoutHandle) {
                 clearTimeout(timeoutHandle);
             }
+            if (this.disposed) {
+                return undefined;
+            }
             const elapsed = Date.now() - startTime;
 
             if (error instanceof Error && error.message.includes('timed out')) {
                 // 真实超时，记录失败
+                tokens.completionsCts.cancel();
                 this.fimCircuitBreaker.recordFailure();
                 CompletionLogger.warn(`[InlineCompletionProvider] ${error.message}`);
                 return undefined;
@@ -545,6 +570,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             this.fimCircuitBreaker.recordFailure();
             CompletionLogger.error(`[InlineCompletionProvider] FIM request failed (${elapsed}ms):`, error);
             return undefined;
+        } finally {
+            cancellationDisposable?.dispose();
+            this.activeRequests.delete(tokens.completionsCts);
         }
     }
 
@@ -552,9 +580,10 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         document: vscode.TextDocument,
         tokens: { nesCts: vscode.CancellationTokenSource }
     ): Promise<vscode.InlineCompletionList | undefined> {
-        const CompletionLogger = getCompletionLogger();
-        const ConfigManager = getConfigManager();
-        const config = ConfigManager.getNESConfig();
+        if (this.disposed || tokens.nesCts.token.isCancellationRequested) {
+            return undefined;
+        }
+        const config = getNESConfig();
         if (!config.enabled || !this.nesProvider || !this.nesWorkspaceAdapter) {
             return undefined;
         }
@@ -569,8 +598,13 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         const startTime = Date.now();
         // 声明在 try 外，确保 catch 能清理（syncDocument 等提前抛错时为 undefined）
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        let cancellationDisposable: vscode.Disposable | undefined;
+        this.activeRequests.add(tokens.nesCts);
 
         try {
+            const cancellationPromise = new Promise<null>(resolve => {
+                cancellationDisposable = tokens.nesCts.token.onCancellationRequested(() => resolve(null));
+            });
             // 同步文档到 NES 工作区
             this.nesWorkspaceAdapter.syncDocument(document);
 
@@ -588,10 +622,18 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             );
 
             // 处理请求与超时
-            const nesResult = await Promise.race([nesPromise, timeoutPromise]);
+            const nesResult = await Promise.race([nesPromise, timeoutPromise, cancellationPromise]);
             // 请求已返回，清理超时 timer
             if (timeoutHandle) {
                 clearTimeout(timeoutHandle);
+            }
+
+            if (this.disposed) {
+                return undefined;
+            }
+            if (tokens.nesCts.token.isCancellationRequested) {
+                this.nesCircuitBreaker.recordCancellation();
+                return undefined;
             }
 
             const elapsed = Date.now() - startTime;
@@ -631,10 +673,14 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             if (timeoutHandle) {
                 clearTimeout(timeoutHandle);
             }
+            if (this.disposed) {
+                return undefined;
+            }
             const elapsed = Date.now() - startTime;
 
             if (error instanceof Error && error.message.includes('timed out')) {
                 // 真实超时，记录失败
+                tokens.nesCts.cancel();
                 this.nesCircuitBreaker.recordFailure();
                 CompletionLogger.warn(`[InlineCompletionProvider] ${error.message}`);
                 return undefined;
@@ -653,6 +699,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 `[InlineCompletionProvider] NES request failed (${elapsed}ms): ${error instanceof Error ? error.message : String(error)}\n${stack}`
             );
             return undefined;
+        } finally {
+            cancellationDisposable?.dispose();
+            this.activeRequests.delete(tokens.nesCts);
         }
     }
 
@@ -701,8 +750,16 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     // 资源清理
     // ========================================================================
     dispose(): void {
-        const CompletionLogger = getCompletionLogger();
+        if (this.disposed) {
+            return;
+        }
+        this.disposed = true;
         CompletionLogger.trace('[InlineCompletionProvider.dispose] Starting resource cleanup');
+
+        for (const request of this.activeRequests) {
+            request.cancel();
+        }
+        this.activeRequests.clear();
 
         // 清除防抖定时器
         if (this.debounceTimer) {

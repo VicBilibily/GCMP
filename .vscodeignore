@@ -8,6 +8,7 @@ discuss/
 website/**
 integration/**
 docs/**
+extensions/**
 out/**
 src/**
 .gitignore

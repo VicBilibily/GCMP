@@ -19,8 +19,8 @@
                 },
                 "background": {
                     "activeOnStart": true,
-                    "beginsPattern": ".*esbuild.*",
-                    "endsPattern": ".*watching for changes.*"
+                    "beginsPattern": "^GCMP_WATCH_START$",
+                    "endsPattern": "^GCMP_WATCH_READY$"
                 }
             },
             "isBackground": true,
@@ -84,8 +84,8 @@
                 },
                 "background": {
                     "activeOnStart": true,
-                    "beginsPattern": ".*esbuild.*",
-                    "endsPattern": ".*watching for changes.*"
+                    "beginsPattern": "^GCMP_WATCH_START$",
+                    "endsPattern": "^GCMP_WATCH_READY$"
                 }
             },
             "isBackground": true,
@@ -93,6 +93,72 @@
                 "reveal": "silent",
                 "group": "watchers"
             }
+        },
+        {
+            "label": "esbuild: watch-fim-nes",
+            "type": "npm",
+            "script": "watch:fim-nes",
+            "problemMatcher": {
+                "owner": "esbuild-fim-nes",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|info): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^GCMP_WATCH_START$",
+                    "endsPattern": "^GCMP_WATCH_READY$"
+                }
+            },
+            "isBackground": true,
+            "presentation": {
+                "reveal": "silent",
+                "group": "watchers"
+            }
+        },
+        {
+            "label": "esbuild: compile-dev-fim-nes",
+            "type": "npm",
+            "script": "compile:dev:fim-nes",
+            "problemMatcher": {
+                "owner": "esbuild-fim-nes",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|info): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            }
+        },
+        {
+            "label": "esbuild: compile-dev-all",
+            "dependsOn": [
+                {
+                    "type": "npm",
+                    "script": "compile:dev"
+                },
+                {
+                    "type": "npm",
+                    "script": "compile:dev:fim-nes"
+                }
+            ],
+            "dependsOrder": "parallel",
+            "problemMatcher": []
+        },
+        {
+            "label": "esbuild: watch-all",
+            "dependsOn": ["esbuild: watch-dev", "esbuild: watch-fim-nes"],
+            "dependsOrder": "parallel",
+            "isBackground": true,
+            "problemMatcher": []
         }
     ]
 }

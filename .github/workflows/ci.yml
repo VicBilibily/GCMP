@@ -37,6 +37,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run FIM/NES tests
+        run: npm run test:fim-nes
+
       # vscode-test 仅在本地环境运行
       # - name: Download VS Code 1.138.0 test host
       #   run: >-
@@ -54,9 +57,14 @@ jobs:
       - name: Package extension
         run: npm run package
 
+      - name: Package FIM/NES extension
+        run: npm run package:fim-nes
+
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
         with:
           name: extension-package
-          path: ./*.vsix
+          path: |
+            ./*.vsix
+            extensions/gcmp-fim-nes/*.vsix
           retention-days: 7

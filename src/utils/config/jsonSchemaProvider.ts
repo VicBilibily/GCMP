@@ -894,8 +894,8 @@ export class JsonSchemaProvider {
             enumDescriptions: proxyProviderKeysOrdered.map(k => proxyProviderEntries[k])
         };
 
-        // 获取所有可用的提供商ID（用于其它配置项，如 fim/nes/compatibleModels.provider）
-        const { providerIds, enumDescriptions: allProviderDescriptions } = this.getAllAvailableProviders();
+        // 获取兼容模型可用的提供商 ID。
+        const { providerIds } = this.getAllAvailableProviders();
 
         return {
             $schema: 'http://json-schema.org/draft-07/schema#',
@@ -964,38 +964,6 @@ export class JsonSchemaProvider {
                         },
                         additionalProperties: false
                     }
-                },
-                'gcmp.fimCompletion.modelConfig': {
-                    type: 'object',
-                    description: t(
-                        'FIM (Fill-in-the-Middle) completion mode configuration',
-                        'FIM (Fill-in-the-Middle) 补全模式配置'
-                    ),
-                    properties: {
-                        provider: {
-                            type: 'string',
-                            description: t('Provider ID used by FIM completion', 'FIM补全使用的提供商ID'),
-                            enum: providerIds,
-                            enumDescriptions: allProviderDescriptions
-                        }
-                    },
-                    additionalProperties: true
-                },
-                'gcmp.nesCompletion.modelConfig': {
-                    type: 'object',
-                    description: t(
-                        'NES (Next Edit Suggestion) completion mode configuration',
-                        'NES (Next Edit Suggestion) 补全模式配置'
-                    ),
-                    properties: {
-                        provider: {
-                            type: 'string',
-                            description: t('Provider ID used by NES completion', 'NES补全使用的提供商ID'),
-                            enum: providerIds,
-                            enumDescriptions: allProviderDescriptions
-                        }
-                    },
-                    additionalProperties: true
                 },
                 'gcmp.compatibleModels': {
                     type: 'array',
@@ -2879,7 +2847,7 @@ export class JsonSchemaProvider {
      * 获取所有可用的提供商ID（包括内置、已知、自定义和历史提供商）
      * 注意：会过滤掉 CLI 专用的提供商（codex、grok）
      */
-    private static getAllAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] } {
+    static getAllAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] } {
         const providerIds: string[] = [];
         const enumDescriptions: string[] = [];
 

@@ -29,6 +29,15 @@ jobs:
             - name: Run ESLint
               run: npm run lint
 
+            - name: Run typecheck
+              run: npm run typecheck
+
+            - name: Run tests
+              run: npm test
+
+            - name: Run FIM/NES tests
+              run: npm run test:fim-nes
+
             - name: Compile TypeScript
               run: npm run compile
 
@@ -37,59 +46,102 @@ jobs:
 
             - name: Get package info
               id: package
+              env:
+                  RELEASE_TAG: ${{ github.event.release.tag_name }}
               run: |
                   PACKAGE_VERSION=$(node -p "require('./package.json').version")
                   PACKAGE_NAME=$(node -p "require('./package.json').name")
+                  FIM_VERSION=$(node -p "require('./extensions/gcmp-fim-nes/package.json').version")
+                  FIM_NAME=$(node -p "require('./extensions/gcmp-fim-nes/package.json').name")
+                  PUBLISH_FIM=$(node -p "process.env.RELEASE_TAG.replace(/^v/, '') === require('./extensions/gcmp-fim-nes/package.json').version")
+                  VERSIONS=("$PACKAGE_VERSION")
+                  if [ "$PUBLISH_FIM" = "true" ]; then
+                    VERSIONS+=("$FIM_VERSION")
+                  fi
+                  for VERSION in "${VERSIONS[@]}"; do
+                    if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                      echo "::error::Marketplace requires major.minor.patch versions; cannot publish $VERSION"
+                      exit 1
+                    fi
+                  done
                   echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
                   echo "name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
                   echo "filename=${PACKAGE_NAME}-${PACKAGE_VERSION}.vsix" >> $GITHUB_OUTPUT
+                  echo "fim_version=$FIM_VERSION" >> $GITHUB_OUTPUT
+                  echo "fim_name=$FIM_NAME" >> $GITHUB_OUTPUT
+                  echo "fim_filename=${FIM_NAME}-${FIM_VERSION}.vsix" >> $GITHUB_OUTPUT
+                  echo "publish_fim=$PUBLISH_FIM" >> $GITHUB_OUTPUT
+
+            - name: Package FIM/NES extension
+              if: steps.package.outputs.publish_fim == 'true'
+              run: npm run package:fim-nes
+
+            - name: Extract changelog for release
+              env:
+                  RELEASE_TAG: ${{ github.event.release.tag_name }}
+              run: |
+                  VERSION="${RELEASE_TAG#v}"
+                  node scripts/extract-changelog.mjs "$VERSION" > /tmp/release_body.md
 
             - name: Publish to VS Code Marketplace
               id: publish
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  MAIN_PACKAGE: ${{ steps.package.outputs.filename }}
+                  FIM_PACKAGE: extensions/gcmp-fim-nes/${{ steps.package.outputs.fim_filename }}
+                  PUBLISH_FIM: ${{ steps.package.outputs.publish_fim }}
               run: |
                   set +e
                   MAX_ATTEMPTS=3
-                  ATTEMPT=0
                   SKIPPED="false"
-                  while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-                    ATTEMPT=$((ATTEMPT + 1))
-                    echo "::group::Publish attempt $ATTEMPT/$MAX_ATTEMPTS"
-                    OUTPUT=$(npx vsce publish --allow-proposed-apis chatProvider --pat $VSCE_PAT 2>&1)
-                    EXIT_CODE=$?
-                    echo "$OUTPUT"
-                    echo "::endgroup::"
-                    if [ $EXIT_CODE -eq 0 ]; then
-                      break
-                    fi
-                    if echo "$OUTPUT" | grep -qiE "already exists"; then
-                      echo "::warning::Marketplace version already exists, skipping publish but continuing workflow"
-                      SKIPPED="true"
-                      break
-                    fi
-                    if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-                      echo "::warning::Publish failed (exit $EXIT_CODE), retrying ($ATTEMPT/$MAX_ATTEMPTS)..."
-                      sleep 15
+                  PACKAGES=("$MAIN_PACKAGE")
+                  if [ "$PUBLISH_FIM" = "true" ]; then
+                    PACKAGES=("$FIM_PACKAGE" "${PACKAGES[@]}")
+                  fi
+                  for PACKAGE_PATH in "${PACKAGES[@]}"; do
+                    ATTEMPT=0
+                    PUBLISH_ARGS=(--packagePath "$PACKAGE_PATH")
+                    if [ "$PACKAGE_PATH" = "$MAIN_PACKAGE" ]; then
+                      MANIFEST="./package.json"
+                      PUBLISH_ARGS+=(--allow-proposed-apis chatProvider)
                     else
-                      echo "::error::Publish failed after $MAX_ATTEMPTS attempts"
-                      echo "$OUTPUT" >&2
-                      exit $EXIT_CODE
+                      MANIFEST="./extensions/gcmp-fim-nes/package.json"
                     fi
+                    EXTENSION_ID=$(node -p "const p = require('$MANIFEST'); p.publisher + '.' + p.name")
+                    PACKAGE_VERSION=$(node -p "require('$MANIFEST').version")
+                    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                      ATTEMPT=$((ATTEMPT + 1))
+                      echo "::group::Publish $EXTENSION_ID attempt $ATTEMPT/$MAX_ATTEMPTS"
+                      OUTPUT=$(npx vsce publish "${PUBLISH_ARGS[@]}" --pat "$VSCE_PAT" 2>&1)
+                      EXIT_CODE=$?
+                      echo "$OUTPUT"
+                      echo "::endgroup::"
+                      if [ $EXIT_CODE -eq 0 ]; then
+                        break
+                      fi
+                      if echo "$OUTPUT" | grep -Fqi "$EXTENSION_ID v$PACKAGE_VERSION already exists"; then
+                        echo "::warning::Marketplace version already exists, skipping publish but continuing workflow"
+                        SKIPPED="true"
+                        break
+                      fi
+                      if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                        echo "::warning::Publish failed (exit $EXIT_CODE), retrying ($ATTEMPT/$MAX_ATTEMPTS)..."
+                        sleep 15
+                      else
+                        echo "::error::Publish failed after $MAX_ATTEMPTS attempts"
+                        echo "$OUTPUT" >&2
+                        exit $EXIT_CODE
+                      fi
+                    done
                   done
                   echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
-
-            - name: Extract changelog for release
-              run: |
-                  RELEASE_TAG="${{ github.event.release.tag_name }}"
-                  VERSION="${RELEASE_TAG#v}"
-                  node scripts/extract-changelog.mjs "$VERSION" > /tmp/release_body.md
 
             - name: Update release body
               env:
                   GH_TOKEN: ${{ github.token }}
+                  RELEASE_TAG: ${{ github.event.release.tag_name }}
               run: |
-                  gh release edit "${{ github.event.release.tag_name }}" \
+                  gh release edit "$RELEASE_TAG" \
                       --notes-file /tmp/release_body.md
 
             - name: Upload VSIX as release asset
@@ -97,4 +149,12 @@ jobs:
               with:
                   tag_name: ${{ github.event.release.tag_name }}
                   files: ${{ steps.package.outputs.filename }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Upload FIM/NES VSIX as release asset
+              if: steps.package.outputs.publish_fim == 'true'
+              uses: softprops/action-gh-release@v3
+              with:
+                  tag_name: ${{ github.event.release.tag_name }}
+                  files: extensions/gcmp-fim-nes/${{ steps.package.outputs.fim_filename }}
                   token: ${{ secrets.GITHUB_TOKEN }}

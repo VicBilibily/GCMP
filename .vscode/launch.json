@@ -9,7 +9,7 @@
             "name": "Run Extension",
             "type": "extensionHost",
             "request": "launch",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}", "--enable-proposed-api=vicanent.gcmp"],
             "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "preLaunchTask": "npm: compile:dev",
             "sourceMaps": true,
@@ -19,9 +19,63 @@
             "name": "Run Extension (Watch Mode)",
             "type": "extensionHost",
             "request": "launch",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}", "--enable-proposed-api=vicanent.gcmp"],
             "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "preLaunchTask": "esbuild: watch-dev",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"]
+        },
+        {
+            "name": "Run FIM/NES Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/extensions/gcmp-fim-nes",
+                "--enable-proposed-api=vicanent.gcmp"
+            ],
+            "outFiles": ["${workspaceFolder}/extensions/gcmp-fim-nes/dist/**/*.js"],
+            "preLaunchTask": "esbuild: compile-dev-fim-nes",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": ["${workspaceFolder}/extensions/gcmp-fim-nes/**", "!**/node_modules/**"]
+        },
+        {
+            "name": "Run FIM/NES Extension (Watch Mode)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/extensions/gcmp-fim-nes",
+                "--enable-proposed-api=vicanent.gcmp"
+            ],
+            "outFiles": ["${workspaceFolder}/extensions/gcmp-fim-nes/dist/**/*.js"],
+            "preLaunchTask": "esbuild: watch-fim-nes",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": ["${workspaceFolder}/extensions/gcmp-fim-nes/**", "!**/node_modules/**"]
+        },
+        {
+            "name": "Run Both Extensions",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionDevelopmentPath=${workspaceFolder}/extensions/gcmp-fim-nes",
+                "--enable-proposed-api=vicanent.gcmp"
+            ],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js", "${workspaceFolder}/extensions/gcmp-fim-nes/dist/**/*.js"],
+            "preLaunchTask": "esbuild: compile-dev-all",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"]
+        },
+        {
+            "name": "Run Both Extensions (Watch Mode)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionDevelopmentPath=${workspaceFolder}/extensions/gcmp-fim-nes",
+                "--enable-proposed-api=vicanent.gcmp"
+            ],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js", "${workspaceFolder}/extensions/gcmp-fim-nes/dist/**/*.js"],
+            "preLaunchTask": "esbuild: watch-all",
             "sourceMaps": true,
             "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"]
         },

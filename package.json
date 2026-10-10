@@ -45,15 +45,12 @@
         "url": "https://github.com/VicBilibily/GCMP.git"
     },
     "engines": {
-        "vscode": ">=1.125.0",
+        "vscode": ">=1.138.0",
         "node": ">=22.22.3",
         "npm": ">=10.8.2"
     },
     "enabledApiProposals": [
         "chatProvider"
-    ],
-    "extensionDependencies": [
-        "github.copilot-chat"
     ],
     "categories": [
         "AI",
@@ -298,11 +295,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.nesCompletion.toggleManual",
-                "title": "%command.nesCompletion.toggleManual%",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.tokenUsage.showDetails",
                 "title": "%command.tokenUsage.showDetails%",
                 "category": "GCMP"
@@ -512,234 +504,6 @@
                     "maximum": 365,
                     "description": "%setting.usages.retentionDays.description%",
                     "scope": "application"
-                },
-                "gcmp.fimCompletion.enabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "%setting.fimCompletion.enabled.description%",
-                    "scope": "application"
-                },
-                "gcmp.fimCompletion.debounceMs": {
-                    "type": "number",
-                    "default": 500,
-                    "minimum": 50,
-                    "maximum": 1000,
-                    "description": "%setting.fimCompletion.debounceMs.description%",
-                    "scope": "application"
-                },
-                "gcmp.fimCompletion.timeoutMs": {
-                    "type": "number",
-                    "default": 5000,
-                    "minimum": 1000,
-                    "maximum": 30000,
-                    "description": "%setting.fimCompletion.timeoutMs.description%",
-                    "scope": "application"
-                },
-                "gcmp.fimCompletion.circuitBreaker": {
-                    "type": "object",
-                    "default": {
-                        "enabled": true,
-                        "failureThreshold": 10,
-                        "cooldownSeconds": 30
-                    },
-                    "description": "%setting.fimCompletion.circuitBreaker.description%",
-                    "scope": "application",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "%setting.fimCompletion.circuitBreaker.enabled.description%"
-                        },
-                        "failureThreshold": {
-                            "type": "number",
-                            "default": 10,
-                            "minimum": 2,
-                            "maximum": 60,
-                            "description": "%setting.fimCompletion.circuitBreaker.failureThreshold.description%"
-                        },
-                        "cooldownSeconds": {
-                            "type": "number",
-                            "default": 30,
-                            "minimum": 10,
-                            "maximum": 300,
-                            "description": "%setting.fimCompletion.circuitBreaker.cooldownSeconds.description%"
-                        }
-                    }
-                },
-                "gcmp.fimCompletion.modelConfig": {
-                    "type": "object",
-                    "default": {
-                        "provider": "",
-                        "baseUrl": "",
-                        "model": ""
-                    },
-                    "description": "%setting.fimCompletion.modelConfig.description%",
-                    "scope": "application",
-                    "properties": {
-                        "provider": {
-                            "type": "string",
-                            "description": "%setting.modelConfig.provider.description%"
-                        },
-                        "baseUrl": {
-                            "type": "string",
-                            "description": "%setting.modelConfig.baseUrl.description%",
-                            "format": "uri"
-                        },
-                        "proxy": {
-                            "type": "string",
-                            "description": "%setting.modelConfig.proxy.description%",
-                            "anyOf": [
-                                {
-                                    "const": ""
-                                },
-                                {
-                                    "const": "noproxy"
-                                },
-                                {
-                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
-                                }
-                            ]
-                        },
-                        "model": {
-                            "type": "string",
-                            "description": "%setting.fimCompletion.modelConfig.model.description%"
-                        },
-                        "maxTokens": {
-                            "type": "number",
-                            "description": "%setting.fimCompletion.modelConfig.maxTokens.description%",
-                            "default": 200,
-                            "minimum": 50,
-                            "maximum": 16000
-                        },
-                        "extraBody": {
-                            "type": "object",
-                            "description": "%setting.modelConfig.extraBody.description%",
-                            "additionalProperties": {
-                                "description": "%setting.modelConfig.extraBody.additionalProperties.description%"
-                            }
-                        }
-                    },
-                    "required": [
-                        "provider",
-                        "baseUrl",
-                        "model"
-                    ]
-                },
-                "gcmp.nesCompletion.enabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "%setting.nesCompletion.enabled.description%",
-                    "scope": "application"
-                },
-                "gcmp.nesCompletion.debounceMs": {
-                    "type": "number",
-                    "default": 500,
-                    "minimum": 50,
-                    "maximum": 1000,
-                    "description": "%setting.nesCompletion.debounceMs.description%",
-                    "scope": "application"
-                },
-                "gcmp.nesCompletion.timeoutMs": {
-                    "type": "number",
-                    "default": 5000,
-                    "minimum": 1000,
-                    "maximum": 30000,
-                    "description": "%setting.nesCompletion.timeoutMs.description%",
-                    "scope": "application"
-                },
-                "gcmp.nesCompletion.manualOnly": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "%setting.nesCompletion.manualOnly.description%",
-                    "scope": "application"
-                },
-                "gcmp.nesCompletion.circuitBreaker": {
-                    "type": "object",
-                    "default": {
-                        "enabled": true,
-                        "failureThreshold": 5,
-                        "cooldownSeconds": 30
-                    },
-                    "description": "%setting.nesCompletion.circuitBreaker.description%",
-                    "scope": "application",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "%setting.nesCompletion.circuitBreaker.enabled.description%"
-                        },
-                        "failureThreshold": {
-                            "type": "number",
-                            "default": 5,
-                            "minimum": 2,
-                            "maximum": 20,
-                            "description": "%setting.nesCompletion.circuitBreaker.failureThreshold.description%"
-                        },
-                        "cooldownSeconds": {
-                            "type": "number",
-                            "default": 30,
-                            "minimum": 10,
-                            "maximum": 300,
-                            "description": "%setting.nesCompletion.circuitBreaker.cooldownSeconds.description%"
-                        }
-                    }
-                },
-                "gcmp.nesCompletion.modelConfig": {
-                    "type": "object",
-                    "default": {
-                        "provider": "",
-                        "baseUrl": "",
-                        "model": ""
-                    },
-                    "description": "%setting.nesCompletion.modelConfig.description%",
-                    "scope": "application",
-                    "properties": {
-                        "provider": {
-                            "type": "string",
-                            "description": "%setting.modelConfig.provider.description%"
-                        },
-                        "baseUrl": {
-                            "type": "string",
-                            "description": "%setting.modelConfig.baseUrl.description%",
-                            "format": "uri"
-                        },
-                        "proxy": {
-                            "type": "string",
-                            "description": "%setting.modelConfig.proxy.description%",
-                            "anyOf": [
-                                {
-                                    "const": ""
-                                },
-                                {
-                                    "const": "noproxy"
-                                },
-                                {
-                                    "pattern": "^(?:(?:[A-Za-z][A-Za-z\\d+.-]*://)?(?:[^:@/\\s]*(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::0*(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5]))?(?:[/?#][^\\s]*)?)$"
-                                }
-                            ]
-                        },
-                        "model": {
-                            "type": "string",
-                            "description": "%setting.nesCompletion.modelConfig.model.description%"
-                        },
-                        "maxTokens": {
-                            "type": "number",
-                            "description": "%setting.nesCompletion.modelConfig.maxTokens.description%",
-                            "default": 200,
-                            "minimum": 50,
-                            "maximum": 16000
-                        },
-                        "extraBody": {
-                            "type": "object",
-                            "description": "%setting.modelConfig.extraBody.description%",
-                            "additionalProperties": {
-                                "description": "%setting.modelConfig.extraBody.additionalProperties.description%"
-                            }
-                        }
-                    },
-                    "required": [
-                        "provider",
-                        "baseUrl",
-                        "model"
-                    ]
                 },
                 "gcmp.commit.enabled": {
                     "type": "boolean",
@@ -1572,17 +1336,7 @@
                 }
             }
         },
-        "keybindings": [
-            {
-                "command": "editor.action.inlineSuggest.trigger",
-                "key": "alt+/",
-                "when": "editorHasCompletionItemProvider && textInputFocus && !editorReadonly && !suggestWidgetVisible"
-            },
-            {
-                "command": "gcmp.nesCompletion.toggleManual",
-                "key": "shift+alt+/"
-            }
-        ],
+        "keybindings": [],
         "menus": {
             "scm/title": [
                 {
@@ -1610,7 +1364,7 @@
         "compile": "node esbuild.config.js",
         "compile:dev": "node esbuild.config.js --dev",
         "compile:vscode-test": "node esbuild.config.js --integration-tests --dev",
-        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json && tsc --noEmit -p extensions/gcmp-fim-nes/tsconfig.json",
         "typecheck:vscode-test": "tsc --noEmit -p tsconfig.vscode-test.json",
         "clean": "rimraf dist",
         "lint": "eslint",
@@ -1618,6 +1372,12 @@
         "format": "prettier --write \"src/**/*.{ts,json}\"",
         "format:check": "prettier --check \"src/**/*.{ts,json}\"",
         "watch": "node esbuild.config.js --watch --dev",
+        "compile:fim-nes": "node extensions/gcmp-fim-nes/esbuild.config.js",
+        "compile:dev:fim-nes": "node extensions/gcmp-fim-nes/esbuild.config.js --dev",
+        "watch:fim-nes": "node extensions/gcmp-fim-nes/esbuild.config.js --watch --dev",
+        "typecheck:fim-nes": "tsc --noEmit -p extensions/gcmp-fim-nes/tsconfig.json",
+        "test:fim-nes": "node --import=tsx --test extensions/gcmp-fim-nes/src/**/*.test.ts",
+        "package:fim-nes": "cd extensions/gcmp-fim-nes && vsce package --no-dependencies",
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
@@ -1643,7 +1403,7 @@
         "@types/json-schema": "^7.0.15",
         "@types/mocha": "^10.0.10",
         "@types/node": "^20.0.0",
-        "@types/vscode": "^1.125.0",
+        "@types/vscode": "^1.138.0",
         "@vscode/test-cli": "^0.0.12",
         "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^3.9.2",

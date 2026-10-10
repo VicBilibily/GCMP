@@ -3,9 +3,9 @@
  *  实现 IFetcher 接口，处理 API 请求
  *--------------------------------------------------------------------------------------------*/
 
-import { VersionManager } from '../utils/runtime/versionManager';
-import type { DashscopeConfig, NESCompletionConfig } from '../utils/config/configManager';
-import { isDashscopeProviderSlot, resolveDashscopeBaseUrl } from '../utils/net/dashscopeEndpoint';
+import { VersionManager } from '../utils/versionManager';
+import type { NESCompletionConfig } from '../types';
+import { getFIMConfig, getNESConfig } from '../utils/completionConfig';
 import {
     FetchOptions,
     PaginationOptions,
@@ -15,26 +15,12 @@ import {
     HeadersImpl
 } from '@vscode/chat-lib/dist/src/_internal/platform/networking/common/fetcherService';
 import { IFetcher } from '@vscode/chat-lib/dist/src/_internal/platform/networking/common/networking';
-import { StatusBarManager } from '../status';
-import { configProviders } from '../providers/config';
-import { getCompletionLogger, getApiKeyManager, getConfigManager } from './singletons';
-import { closeProxyAgents } from '../utils/net/proxyAgent';
+import { closeProxyAgents, completionLogger as logger, getApiKeyManager, getConfigManager } from '../gcmpServices';
 
 // ============================================================================
 // Fetcher - 实现 IFetcher 接口
 // 参考: nesProvider.spec.ts 中的 TestFetcher
 // ============================================================================
-
-/**
- * FIM / NES 使用用户自定义的 baseUrl，百炼槽位（含套餐变体）需按接入点替换主机
- */
-function resolveCompletionBaseUrl(
-    modelConfig: NESCompletionConfig['modelConfig'],
-    endpoint: DashscopeConfig['endpoint']
-): string {
-    const baseUrl = modelConfig.baseUrl ?? '';
-    return isDashscopeProviderSlot(modelConfig.provider) ? resolveDashscopeBaseUrl(baseUrl, endpoint) : baseUrl;
-}
 
 /**
  * 自定义 Fetcher 实现
@@ -49,8 +35,6 @@ export class Fetcher implements IFetcher {
     }
 
     async fetch(url: string, options: FetchOptions): Promise<Response> {
-        // 优先使用 globalThis 中的单例实例（确保跨 bundle 的单例性）
-        const logger = getCompletionLogger();
         const keyManager = getApiKeyManager();
 
         if (options?.method === 'GET' && url.endsWith('/models')) {
@@ -98,20 +82,20 @@ export class Fetcher implements IFetcher {
         const ConfigManager = getConfigManager();
         let modelConfig: NESCompletionConfig['modelConfig'];
         if (url.endsWith('/chat/completions')) {
-            modelConfig = ConfigManager.getNESConfig().modelConfig;
+            modelConfig = getNESConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
                 logger.error('[Fetcher] NES model configuration missing');
                 throw new Error('NES model configuration is missing');
             }
-            url = `${resolveCompletionBaseUrl(modelConfig, ConfigManager.getDashscopeEndpoint())}/chat/completions`;
+            url = `${modelConfig.baseUrl}/chat/completions`;
         } else if (url.endsWith('/completions')) {
-            modelConfig = ConfigManager.getFIMConfig().modelConfig;
+            modelConfig = getFIMConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
                 logger.error('[Fetcher] FIM model configuration missing');
                 throw new Error('FIM model configuration is missing');
             }
             isFimRequest = true;
-            url = `${resolveCompletionBaseUrl(modelConfig, ConfigManager.getDashscopeEndpoint())}/completions`;
+            url = `${modelConfig.baseUrl}/completions`;
             if (modelConfig.provider === 'dashscope') {
                 const { prompt, suffix } = requestBody;
                 if (prompt && suffix) {
@@ -324,12 +308,6 @@ export class Fetcher implements IFetcher {
                 );
             }
             throw error;
-        } finally {
-            if (Object.keys(configProviders).includes(provider)) {
-                StatusBarManager.getStatusBar(provider)?.delayedUpdate(200);
-            } else {
-                StatusBarManager.compatible?.delayedUpdate(provider, 200);
-            }
         }
     }
 

@@ -8,7 +8,7 @@ import { StringText } from '@vscode/chat-lib/dist/src/_internal/util/vs/editor/c
 import { DocumentId } from '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/dataTypes/documentId';
 import { LanguageId } from '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/dataTypes/languageId';
 import { URI } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/uri';
-import { getCompletionLogger } from './singletons';
+import { completionLogger as CompletionLogger } from '../gcmpServices';
 
 /**
  * VS Code 文档到 ObservableWorkspace 的适配器
@@ -42,7 +42,6 @@ export class WorkspaceAdapter implements vscode.Disposable {
         // 监听文档关闭
         this.disposables.push(
             vscode.workspace.onDidCloseTextDocument(doc => {
-                const CompletionLogger = getCompletionLogger();
                 const uriStr = doc.uri.toString();
                 const docToRemove = this.documentMap.get(uriStr);
                 if (docToRemove) {
@@ -90,7 +89,6 @@ export class WorkspaceAdapter implements vscode.Disposable {
      * 同步 VS Code 文档到 ObservableWorkspace
      */
     syncDocument(vscodeDoc: vscode.TextDocument): MutableObservableDocument {
-        const CompletionLogger = getCompletionLogger();
         const uriStr = vscodeDoc.uri.toString();
 
         // 如果文档已存在，更新内容

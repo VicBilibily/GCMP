@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
-import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger } from './utils/runtime/logger';
 import { StatusLogger } from './utils/runtime/statusLogger';
-import { CompletionLogger } from './utils/runtime/completionLogger';
 import { ApiKeyManager } from './utils/config/apiKeyManager';
 import { ConfigManager } from './utils/config/configManager';
 import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
@@ -39,37 +37,76 @@ import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityMo
 import { registerVisionModelCommand } from './wizards/visionWizard';
 import { registerAuxiliaryModelSettingsCommands } from './ui/auxiliaryModelSettings';
 
-// 内联补全提供商实例（使用轻量级 Shim，延迟加载真正的补全引擎）
-let inlineCompletionProvider: InlineCompletionShim | undefined;
+// 注入仅限同一扩展宿主内的白名单实例，不发布全局服务对象。
 
-/**
- * 激活内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
- */
-async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
-    try {
-        Logger.trace('Registering inline completion provider (shim mode)...');
-        const providerStartTime = Date.now();
+/** 允许消费补全服务的扩展 ID 白名单 */
+const COMPLETION_SERVICES_CONSUMERS: ReadonlySet<string> = new Set(['vicanent.gcmp-fim-nes']);
 
-        // 创建并激活轻量级 Shim（不包含 @vscode/chat-lib 依赖）
-        const result = InlineCompletionShim.createAndActivate(context);
-        inlineCompletionProvider = result.provider;
+/** 补全服务最小能力集（与 gcmp-fim-nes 的 GcmpCompletionServices 结构一致；补全日志通道已由其自建） */
+interface CompletionServices {
+    ApiKeyManager: { getApiKey(provider: string): Promise<string | undefined> };
+    ConfigManager: {
+        fetchWithProxy(
+            input: string | URL | Request,
+            init?: RequestInit,
+            options?: {
+                modelConfig?: { id?: string; model?: string; proxy?: string; provider?: string };
+                providerKey?: string;
+                proxyUrl?: string;
+                skipHar?: boolean;
+            }
+        ): Promise<Response>;
+    };
+    closeProxyAgents(): Promise<void>;
+    getAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] };
+}
 
-        const providerTime = Date.now() - providerStartTime;
-        Logger.debug(`Inline completion provider registered successfully in shim mode (${providerTime}ms)`);
-    } catch (error) {
-        Logger.error('Failed to register inline completion provider:', error);
-    }
+/** 白名单子扩展需在 activate() exports 上暴露的注入入口 */
+interface CompletionConsumerExports {
+    acceptCompletionServices?(services: CompletionServices): void;
+}
+
+/** 主扩展 exports：子扩展就绪通知与注入验证，两者均不返回任何敏感数据 */
+interface GcmpExports {
+    notifyConsumerReady(consumerId: string): void;
+    verifyCompletionServices(candidate: object): boolean;
 }
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export async function activate(context: vscode.ExtensionContext) {
-    // 将单例实例存储到 globalThis，供 copilot.bundle.js 中的模块使用
-    globalThis.__gcmp_singletons = {
-        CompletionLogger,
-        ApiKeyManager,
-        StatusBarManager,
-        ConfigManager
+export async function activate(context: vscode.ExtensionContext): Promise<GcmpExports> {
+    // 补全服务最小能力集（bind 到类以保持静态方法的 this 语义）
+    const completionServices: CompletionServices = {
+        ApiKeyManager: { getApiKey: ApiKeyManager.getApiKey.bind(ApiKeyManager) },
+        ConfigManager: {
+            fetchWithProxy: ConfigManager.fetchWithProxy.bind(ConfigManager)
+        },
+        closeProxyAgents,
+        getAvailableProviders: JsonSchemaProvider.getAllAvailableProviders.bind(JsonSchemaProvider)
+    };
+
+    // 白名单检测并注入；正常时序（extensionDependencies 先主后子）下子扩展此时未激活，
+    // 注入由其 activate 完成后的就绪通知触发，此处兜底覆盖子扩展已先激活的场景
+    const injectCompletionServices = (consumerId: string): void => {
+        if (!COMPLETION_SERVICES_CONSUMERS.has(consumerId)) {
+            Logger.warn(`Completion services injection rejected unknown consumer: ${consumerId}`);
+            return;
+        }
+        const consumer = vscode.extensions.getExtension<CompletionConsumerExports>(consumerId);
+        if (!consumer) {
+            Logger.trace(`Completion consumer ${consumerId} is not installed`);
+            return;
+        }
+        if (!consumer.isActive) {
+            Logger.trace(`Completion consumer ${consumerId} is not active yet; waiting for readiness notification`);
+            return;
+        }
+        try {
+            consumer.exports?.acceptCompletionServices?.(completionServices);
+            Logger.trace(`Completion services injected into ${consumerId}`);
+        } catch (error) {
+            Logger.warn(`Failed to inject completion services into ${consumerId}:`, error);
+        }
     };
 
     const activationStartTime = Date.now();
@@ -77,7 +114,7 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
         Logger.initialize('GitHub Copilot Models Provider (GCMP)'); // 初始化日志管理器
         StatusLogger.initialize('GitHub Copilot Models Provider Status'); // 初始化高频状态日志管理器
-        CompletionLogger.initialize('GitHub Copilot Inline Completion via GCMP'); // 初始化高频内联补全日志管理器
+        // FIM/NES 补全日志通道已随拆分迁移至 gcmp-fim-nes 扩展自建
 
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         Logger.debug(`GCMP extension mode: ${isDevelopment ? 'Development' : 'Production'}`);
@@ -179,12 +216,7 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`Tools registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤5: 注册内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
-        stepStartTime = Date.now();
-        await activateInlineCompletionProvider(context);
-        Logger.trace(`NES inline completion provider registered (${Date.now() - stepStartTime}ms)`);
-
-        // 步骤6: 注册Token用量统计命令
+        // 步骤6: 注册Token用量统计命令（步骤5 的内联补全已拆分至独立扩展 gcmp-fim-nes）
         stepStartTime = Date.now();
         registerTokenUsageCommands(context);
         Logger.trace(`Token usage details command registered (${Date.now() - stepStartTime}ms)`);
@@ -229,6 +261,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`GCMP extension activated successfully (${totalActivationTime}ms)`);
+
+        // 主动注入兜底（覆盖子扩展已先激活的场景；正常时序由子扩展就绪通知触发）
+        for (const consumerId of COMPLETION_SERVICES_CONSUMERS) {
+            injectCompletionServices(consumerId);
+        }
+
+        // 子扩展就绪通知触发注入；verifyCompletionServices 供其校验注入来源为本扩展
+        return {
+            notifyConsumerReady: consumerId => injectCompletionServices(consumerId),
+            verifyCompletionServices: candidate => candidate === completionServices
+        };
     } catch (error) {
         const errorMessage = `GCMP extension activation failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         Logger.error(errorMessage, error instanceof Error ? error : undefined);
@@ -260,7 +303,6 @@ export async function deactivate() {
         }
         try {
             StatusLogger.dispose(); // 清理状态日志管理器
-            CompletionLogger.dispose(); // 清理内联补全日志管理器
             Logger.dispose(); // 在扩展销毁时才 dispose Logger
         } catch (error) {
             console.warn('Failed to dispose loggers during deactivation:', error);
@@ -295,12 +337,6 @@ export async function deactivate() {
             } catch (error) {
                 Logger.warn(`Failed to dispose resources for provider ${providerKey}:`, error);
             }
-        }
-
-        // 清理内联补全提供商
-        if (inlineCompletionProvider) {
-            inlineCompletionProvider.dispose();
-            Logger.trace('Inline completion provider disposed');
         }
 
         clearRegisteredProviders();

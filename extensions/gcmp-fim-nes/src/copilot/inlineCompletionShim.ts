@@ -8,8 +8,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { t } from '../utils/runtime/l10n';
-import { getCompletionLogger } from './singletons';
+import { t } from '../utils/l10n';
+import { completionLogger as CompletionLogger, isGcmpServicesAvailable } from '../gcmpServices';
+
+// ========================================================================
+// 模块级状态
+// ========================================================================
+
+/** 主扩展不可用的用户提示只弹出一次 */
+let mainExtensionWarningShown = false;
 
 // ========================================================================
 // 类型定义
@@ -37,6 +44,7 @@ interface CopilotModule {
  */
 export class InlineCompletionShim implements vscode.InlineCompletionItemProvider, vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
+    private disposed = false;
 
     private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
     readonly onDidChange = this.onDidChangeEmitter.event;
@@ -78,6 +86,9 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
      * 延迟加载完整的 copilot 模块
      */
     private async loadRealProvider(): Promise<IInlineCompletionProvider | null> {
+        if (this.disposed) {
+            return null;
+        }
         if (this._realProvider) {
             return this._realProvider;
         }
@@ -87,9 +98,25 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
             return this._loadingPromise;
         }
 
+        // 主扩展提供密钥和代理服务，不可用时禁止加载重型补全引擎。
+        if (!isGcmpServicesAvailable()) {
+            CompletionLogger.warn(
+                '[InlineCompletionShim] GCMP main extension services unavailable, skip loading copilot module'
+            );
+            if (!mainExtensionWarningShown) {
+                mainExtensionWarningShown = true;
+                void vscode.window.showWarningMessage(
+                    t(
+                        'FIM/NES completion requires the GCMP main extension (vicanent.gcmp). Install or enable it and reload the window.',
+                        'FIM/NES 补全依赖 GCMP 主扩展 (vicanent.gcmp)，请安装或启用后重新加载窗口。'
+                    )
+                );
+            }
+            return null;
+        }
+
         this._loadingPromise = (async () => {
             try {
-                const CompletionLogger = getCompletionLogger();
                 const startTime = Date.now();
                 CompletionLogger.trace('[InlineCompletionShim] Loading copilot module...');
 
@@ -114,8 +141,9 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
 
                 return this._realProvider;
             } catch (error) {
-                const CompletionLogger = getCompletionLogger();
-                CompletionLogger.error('[InlineCompletionShim] Failed to load copilot module:', error);
+                if (!this.disposed) {
+                    CompletionLogger.error('[InlineCompletionShim] Failed to load copilot module:', error);
+                }
                 this._loadingPromise = null;
                 return null;
             }
@@ -129,7 +157,6 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
     // ========================================================================
 
     activate(): void {
-        const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionShim] Activating lightweight agent (lazy load mode)');
 
         try {
@@ -140,13 +167,15 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
             // 注册命令（这些命令不依赖 chat-lib，直接在 shim 中处理）
             this.disposables.push(
                 vscode.commands.registerCommand('gcmp.nesCompletion.toggleManual', async () => {
-                    const CompletionLogger = getCompletionLogger();
                     const config = vscode.workspace.getConfiguration('gcmp.nesCompletion');
                     const currentState = config.get('manualOnly', false);
                     const newState = !currentState;
                     await vscode.workspace
                         .getConfiguration('gcmp.nesCompletion')
                         .update('manualOnly', newState, vscode.ConfigurationTarget.Global);
+                    if (this.disposed) {
+                        return;
+                    }
                     const modeText = newState ? t('Manual trigger', '手动触发') : t('Automatic trigger', '自动触发');
                     vscode.window.showInformationMessage(
                         t(
@@ -164,6 +193,7 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
             CompletionLogger.info('[InlineCompletionShim] ✅ Activated (using lazy load strategy)');
         } catch (error) {
             CompletionLogger.error('[InlineCompletionShim] Activation failed:', error);
+            this.dispose();
             throw error;
         }
     }
@@ -178,6 +208,9 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
         context: vscode.InlineCompletionContext,
         token: vscode.CancellationToken
     ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | undefined> {
+        if (this.disposed || token.isCancellationRequested) {
+            return undefined;
+        }
         // 开关检测：如果 FIM 和 NES 都未启用，直接返回
         if (!this.isFIMEnabled() && !this.isNESEnabled()) {
             return undefined;
@@ -191,13 +224,17 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
         // 加载真实的 provider 并委托给它
         // shim 层不进行防抖，防抖逻辑由真实的 InlineCompletionProvider 处理
         const realProvider = await this.loadRealProvider();
-        if (realProvider && !token.isCancellationRequested) {
+        if (!this.disposed && realProvider && !token.isCancellationRequested) {
             try {
                 const result = await realProvider.provideInlineCompletionItems(document, position, context, token);
+                if (this.disposed || token.isCancellationRequested) {
+                    return undefined;
+                }
                 return result ?? undefined;
             } catch (error) {
-                const CompletionLogger = getCompletionLogger();
-                CompletionLogger.error('[InlineCompletionShim] Completion request failed:', error);
+                if (!this.disposed) {
+                    CompletionLogger.error('[InlineCompletionShim] Completion request failed:', error);
+                }
                 return undefined;
             }
         }
@@ -209,7 +246,10 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
     // ========================================================================
 
     dispose(): void {
-        const CompletionLogger = getCompletionLogger();
+        if (this.disposed) {
+            return;
+        }
+        this.disposed = true;
         CompletionLogger.trace('[InlineCompletionShim] Starting resource cleanup');
 
         // 释放真实的 provider
@@ -223,7 +263,6 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
             try {
                 d.dispose();
             } catch (error) {
-                const CompletionLogger = getCompletionLogger();
                 CompletionLogger.warn('[InlineCompletionShim] Error during resource cleanup:', error);
             }
         });
