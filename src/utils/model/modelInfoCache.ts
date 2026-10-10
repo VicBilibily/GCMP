@@ -1,14 +1,13 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  模型信息缓存管理器
- *  提供模型信息的持久化缓存功能，加速扩展激活时的模型选择器显示
- *  参考: Microsoft vscode-copilot-chat LanguageModelAccessPromptBaseCountCache
+ *  提供模型信息的进程内缓存，避免同一进程内重复构建模型元数据
+ *  模型清单的持久化由 RemoteModelsService 的磁盘缓存承担
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { LanguageModelChatInformation } from 'vscode';
 import { Logger } from '../runtime/logger';
-import { configProviders } from '../../providers/config';
 
 /**
  * 已保存的模型选择信息
@@ -28,28 +27,23 @@ interface SavedModelSelection {
 interface CachedModelInfo {
     /** 模型信息列表 */
     models: LanguageModelChatInformation[];
-    /** 缓存时创建的扩展版本（用于版本检查失效） */
-    extensionVersion: string;
-    /** 缓存创建时间戳 */
-    timestamp: number;
-    /** API 密钥的哈希值（用于密钥变更检查） */
+    /** API 密钥哈希（仅作漏调失效时的兜底校验） */
     apiKeyHash: string;
 }
 
 /**
  * 模型信息缓存管理器
  *
- * 采用 VS Code globalState 持久化缓存，支持：
- * - 跨激活会话缓存持久化
- * - 自动版本检查失效
- * - API 密钥变更检测
- * - 24小时时间过期
- * - 全局模型选择持久化（保存用户上次选择的模型，跨所有提供商）
+ * 模型列表只做进程内缓存：模型清单的持久化与跨实例同步已由 RemoteModelsService
+ * 的磁盘缓存（含内容哈希校验）承担，此处仅避免同一进程内重复构建
+ * LanguageModelChatInformation；失效由各变更路径显式调用 invalidateCache，
+ * apiKeyHash 仅作兜底校验。
+ * 用户上次选择的模型仍持久化到 globalState（需跨会话保留）。
  */
 export class ModelInfoCache {
     private readonly context: vscode.ExtensionContext;
-    private readonly cacheVersion = '1';
-    private readonly cacheExpiryMs = 24 * 60 * 60 * 1000; // 24 hours
+    /** 进程内模型信息缓存（键 = providerKey / slot） */
+    private static readonly memoryCache = new Map<string, CachedModelInfo>();
     private static readonly SELECTED_MODEL_KEY = 'gcmp_selected_model'; // 全局模型选择存储键
 
     constructor(context: vscode.ExtensionContext) {
@@ -59,104 +53,39 @@ export class ModelInfoCache {
     /**
      * 获取缓存的模型信息
      *
-     * 快速检查缓存是否有效。检查项目：
-     * - 缓存存在性
-     * - 扩展版本匹配
-     * - API 密钥哈希匹配
-     * - 缓存时间未过期
+     * 检查缓存存在性与 API 密钥哈希匹配；内容是否过期由各变更路径显式
+     * invalidateCache 决定。
      *
      * @param providerKey 提供商标识符（如 'zhipu', 'kimi'）
      * @param apiKeyHash API 密钥的哈希值
      * @returns 有效的模型信息列表，或 null（表示缓存无效或不存在）
      */
     async getCachedModels(providerKey: string, apiKeyHash: string): Promise<LanguageModelChatInformation[] | null> {
-        try {
-            // 开发模式下始终返回 null，强制重新获取模型列表
-            const isDevelopment = this.context.extensionMode === vscode.ExtensionMode.Development;
-            if (isDevelopment) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: skipping cache in development mode`);
-                return null;
-            }
-
-            const cacheKey = this.getCacheKey(providerKey);
-            const cached = this.context.globalState.get<CachedModelInfo>(cacheKey);
-
-            if (!cached) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: no cache`);
-                return null;
-            }
-
-            // 检查 1: 版本匹配
-            const currentVersion = vscode.extensions.getExtension('vicanent.gcmp')?.packageJSON.version || '';
-            if (cached.extensionVersion !== currentVersion) {
-                Logger.trace(
-                    `[ModelInfoCache] ${providerKey}: version mismatch ` +
-                        `(cached: ${cached.extensionVersion}, current: ${currentVersion})`
-                );
-                return null;
-            }
-
-            // 检查 2: API 密钥匹配
-            if (cached.apiKeyHash !== apiKeyHash) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: API key changed`);
-                return null;
-            }
-
-            // 检查 3: 时间未过期
-            const now = Date.now();
-            const ageMs = now - cached.timestamp;
-            if (ageMs > this.cacheExpiryMs) {
-                const ageHours = (ageMs / (60 * 60 * 1000)).toFixed(1);
-                Logger.trace(`[ModelInfoCache] ${providerKey}: cache expired ` + `(${ageHours}h ago)`);
-                return null;
-            }
-
-            Logger.trace(
-                `[ModelInfoCache] ${providerKey}: cache hit ` +
-                    `(${cached.models.length} models, age ${(ageMs / 1000).toFixed(1)}s)`
-            );
-            return cached.models;
-        } catch (err) {
-            // 缓存读取错误不应该影响扩展运行
-            Logger.warn(
-                `[ModelInfoCache] Failed to read cache for ${providerKey}:`,
-                err instanceof Error ? err.message : String(err)
-            );
+        const cached = ModelInfoCache.memoryCache.get(providerKey);
+        if (!cached) {
+            Logger.trace(`[ModelInfoCache] ${providerKey}: no cache`);
             return null;
         }
+        if (cached.apiKeyHash !== apiKeyHash) {
+            Logger.trace(`[ModelInfoCache] ${providerKey}: API key changed`);
+            return null;
+        }
+        Logger.trace(`[ModelInfoCache] ${providerKey}: cache hit (${cached.models.length} models)`);
+        return cached.models;
     }
 
     /**
      * 缓存模型信息
      *
-     * 异步存储模型信息到 globalState。这个操作不应该阻塞返回流程。
+     * 写入进程内缓存，供同一进程内后续请求复用。
      *
      * @param providerKey 提供商标识符
      * @param models 要缓存的模型信息列表
      * @param apiKeyHash API 密钥的哈希值
      */
     async cacheModels(providerKey: string, models: LanguageModelChatInformation[], apiKeyHash: string): Promise<void> {
-        try {
-            const currentVersion = vscode.extensions.getExtension('vicanent.gcmp')?.packageJSON.version || '';
-
-            const cacheData: CachedModelInfo = {
-                models,
-                extensionVersion: currentVersion,
-                timestamp: Date.now(),
-                apiKeyHash
-            };
-
-            const cacheKey = this.getCacheKey(providerKey);
-            await this.context.globalState.update(cacheKey, cacheData);
-
-            Logger.trace(`[ModelInfoCache] ${providerKey}: cache saved ` + `(${models.length} models)`);
-        } catch (err) {
-            // 缓存失败不应该阻塞扩展
-            Logger.warn(
-                `[ModelInfoCache] Failed to save cache for ${providerKey}:`,
-                err instanceof Error ? err.message : String(err)
-            );
-        }
+        ModelInfoCache.memoryCache.set(providerKey, { models, apiKeyHash });
+        Logger.trace(`[ModelInfoCache] ${providerKey}: cache saved ` + `(${models.length} models)`);
     }
 
     /**
@@ -170,16 +99,8 @@ export class ModelInfoCache {
      * @param providerKey 提供商标识符
      */
     async invalidateCache(providerKey: string): Promise<void> {
-        try {
-            const cacheKey = this.getCacheKey(providerKey);
-            await this.context.globalState.update(cacheKey, undefined);
-            Logger.trace(`[ModelInfoCache] ${providerKey}: cache cleared`);
-        } catch (err) {
-            Logger.warn(
-                `[ModelInfoCache] Failed to clear cache for ${providerKey}:`,
-                err instanceof Error ? err.message : String(err)
-            );
-        }
+        ModelInfoCache.memoryCache.delete(providerKey);
+        Logger.trace(`[ModelInfoCache] ${providerKey}: cache cleared`);
     }
 
     /**
@@ -188,24 +109,9 @@ export class ModelInfoCache {
      * 在扩展卸载或用户请求时调用
      */
     async clearAll(): Promise<void> {
-        // 从配置文件动态获取所有提供商 key，最后加入 'compatible'
-        const allProviderKeys = [...Object.keys(configProviders), 'compatible'];
-
-        let clearedCount = 0;
-        for (const key of allProviderKeys) {
-            try {
-                await this.invalidateCache(key);
-                clearedCount++;
-            } catch (err) {
-                // 继续清除其他缓存，不中断流程
-                Logger.warn(
-                    `[ModelInfoCache] Error clearing cache for ${key}:`,
-                    err instanceof Error ? err.message : String(err)
-                );
-            }
-        }
-
-        Logger.info(`[ModelInfoCache] Cleared all caches (${clearedCount}/${allProviderKeys.length})`);
+        const clearedCount = ModelInfoCache.memoryCache.size;
+        ModelInfoCache.memoryCache.clear();
+        Logger.info(`[ModelInfoCache] Cleared all cached providers (${clearedCount})`);
     }
 
     /**
@@ -225,16 +131,6 @@ export class ModelInfoCache {
             // 如果哈希失败，返回固定值（此时将无法验证密钥变更）
             return 'hash-error';
         }
-    }
-
-    /**
-     * 获取缓存的存储键
-     *
-     * 格式: gcmp_modelinfo_cache_<version>_<providerKey>
-     * 这样不同版本的缓存不会冲突
-     */
-    private getCacheKey(providerKey: string): string {
-        return `gcmp_modelinfo_cache_${this.cacheVersion}_${providerKey}`;
     }
 
     /**

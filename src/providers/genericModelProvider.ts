@@ -551,46 +551,33 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
+        // 同一次调用内只读取一次密钥哈希，供缓存读取与写入共用
+        const apiKeyHash = await this.getApiKeyHash();
+
         // 快速路径：检查缓存
-        try {
-            const apiKeyHash = await this.getApiKeyHash();
-            const cachedModels = await this.modelInfoCache?.getCachedModels(this.providerKey, apiKeyHash);
+        const cachedModels = await this.modelInfoCache?.getCachedModels(this.providerKey, apiKeyHash);
+        if (cachedModels) {
+            Logger.trace(`✓ [${this.providerKey}] Returning model list from cache (${cachedModels.length} models)`);
 
-            if (cachedModels) {
-                Logger.trace(`✓ [${this.providerKey}] Returning model list from cache (${cachedModels.length} models)`);
-
-                return cachedModels;
-            }
-        } catch (err) {
-            Logger.warn(
-                `[${this.providerKey}] Cache lookup failed, falling back to direct logic:`,
-                err instanceof Error ? err.message : String(err)
-            );
+            return cachedModels;
         }
 
         // 将配置中的模型转换为VS Code所需的格式
         const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
 
         // 异步缓存结果（不阻塞返回）
-        try {
-            const apiKeyHash = await this.getApiKeyHash();
-            this.updateModelCacheAsync(apiKeyHash);
-        } catch (err) {
-            Logger.warn(`[${this.providerKey}] Failed to save cache:`, err);
-        }
+        this.updateModelCacheAsync(models, apiKeyHash);
 
         return models;
     }
 
     /**
-     * 异步更新模型缓存（不阻塞调用者）
+     * 异步更新模型缓存（不阻塞调用者），复用调用方已构建的模型信息
      */
-    protected updateModelCacheAsync(apiKeyHash: string): void {
+    protected updateModelCacheAsync(models: LanguageModelChatInformation[], apiKeyHash: string): void {
         // 使用 Promise 在后台执行，不等待结果
         (async () => {
             try {
-                const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-
                 await this.modelInfoCache?.cacheModels(this.providerKey, models, apiKeyHash);
             } catch (err) {
                 // 后台更新失败不应影响扩展运行

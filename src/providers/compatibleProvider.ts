@@ -222,13 +222,11 @@ export class CompatibleProvider extends GenericModelProvider {
             if (options.silent && cachedModels) {
                 Logger.trace(`✓ Compatible Provider cache hit: ${cachedModels.length} models`);
 
-                // 后台异步更新缓存
-                this.updateModelCacheAsync(apiKeyHash);
                 return cachedModels;
             }
 
             // 获取最新的动态配置
-            const currentConfig = this.providerConfig;
+            let currentConfig = this.providerConfig;
             // 如果没有模型，直接返回空列表
             if (currentConfig.models.length === 0) {
                 // 异步触发新增模型流程，但不阻塞配置获取
@@ -244,29 +242,14 @@ export class CompatibleProvider extends GenericModelProvider {
                 return [];
             } else if (options.silent === false) {
                 await CompatibleModelManager.configureModelOrUpdateAPIKey();
+                currentConfig = this.providerConfig;
             }
 
             // 将最新配置中的模型转换为 VS Code 所需的格式
-            const modelInfos = currentConfig.models.map(model => {
-                const info = this.modelConfigToInfo(model);
-                const sdkModeDisplay = CompatibleModelManager.getSdkModeLabel(model.sdkMode);
+            const modelInfos = this.buildModelInfos(currentConfig.models);
 
-                if (model.provider) {
-                    const knownProvider = KnownProviders[model.provider];
-                    if (knownProvider?.displayName) {
-                        return { ...info, detail: knownProvider.displayName };
-                    }
-                    const provider = configProviders[model.provider as keyof typeof configProviders];
-                    if (provider?.displayName) {
-                        return { ...info, detail: provider.displayName };
-                    }
-                }
-
-                return { ...info, detail: `${sdkModeDisplay} Compatible` };
-            });
-
-            Logger.debug(`Compatible Provider returned ${modelInfos.length} model info entries`); // Update cache asynchronously in the background
-            this.updateModelCacheAsync(apiKeyHash);
+            Logger.debug(`Compatible Provider returned ${modelInfos.length} model info entries`);
+            this.updateModelCacheAsync(modelInfos, apiKeyHash);
 
             return modelInfos;
         } catch (error) {
@@ -275,41 +258,22 @@ export class CompatibleProvider extends GenericModelProvider {
         }
     }
 
-    /**
-     * 重写：异步更新模型缓存
-     * 需要正确设置 detail 字段以显示 SDK 模式
-     */
-    protected override updateModelCacheAsync(apiKeyHash: string): void {
-        (async () => {
-            try {
-                const currentConfig = this.providerConfig;
-
-                const models = currentConfig.models.map(model => {
-                    const info = this.modelConfigToInfo(model);
-                    const sdkModeDisplay = CompatibleModelManager.getSdkModeLabel(model.sdkMode);
-
-                    if (model.provider) {
-                        const knownProvider = KnownProviders[model.provider];
-                        if (knownProvider?.displayName) {
-                            return { ...info, detail: knownProvider.displayName };
-                        }
-                        const provider = configProviders[model.provider as keyof typeof configProviders];
-                        if (provider?.displayName) {
-                            return { ...info, detail: provider.displayName };
-                        }
-                    }
-
-                    return { ...info, detail: `${sdkModeDisplay} Compatible` };
-                });
-
-                await this.modelInfoCache?.cacheModels(CompatibleProvider.PROVIDER_KEY, models, apiKeyHash);
-            } catch (err) {
-                Logger.trace(
-                    '[compatible] Background cache update failed:',
-                    err instanceof Error ? err.message : String(err)
-                );
+    /** 构建模型信息，detail 优先取已知提供商显示名，否则回退到 SDK 模式文案 */
+    private buildModelInfos(models: readonly ModelConfig[]): LanguageModelChatInformation[] {
+        return models.map(model => {
+            const info = this.modelConfigToInfo(model);
+            if (model.provider) {
+                const knownProvider = KnownProviders[model.provider];
+                if (knownProvider?.displayName) {
+                    return { ...info, detail: knownProvider.displayName };
+                }
+                const provider = configProviders[model.provider as keyof typeof configProviders];
+                if (provider?.displayName) {
+                    return { ...info, detail: provider.displayName };
+                }
             }
-        })();
+            return { ...info, detail: `${CompatibleModelManager.getSdkModeLabel(model.sdkMode)} Compatible` };
+        });
     }
 
     /**
