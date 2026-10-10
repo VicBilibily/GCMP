@@ -5,6 +5,21 @@
     "codingKeyTemplate": "sk-cp-xxxx-CP-xxxxxxxx-xxxxxx",
     "models": [
         {
+            "id": "MiniMax-M3.1-Flash-Preview-Token-Plan",
+            "name": "MiniMax-M3.1-Flash-Preview (TokenPlan)",
+            "model": "MiniMax-M3.1-Flash-Preview",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "MiniMax-M3.1-Flash-Preview - 原生多模态、1M 上下文的 Frontier Coding 模型，思考深度可调",
+            "provider": "minimax-token",
+            "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
+            "reasoningDefault": "max",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "MiniMax-M3-Token-Plan",
             "name": "MiniMax-M3 (TokenPlan)",
             "model": "MiniMax-M3",

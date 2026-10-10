@@ -45,12 +45,16 @@
         "url": "https://github.com/VicBilibily/GCMP.git"
     },
     "engines": {
+        "github.copilot-chat": ">=0.66.0",
         "vscode": ">=1.138.0",
         "node": ">=22.22.3",
         "npm": ">=10.8.2"
     },
     "enabledApiProposals": [
         "chatProvider"
+    ],
+    "extensionDependencies": [
+        "github.copilot-chat"
     ],
     "categories": [
         "AI",

@@ -583,7 +583,7 @@
         {
             "id": "deepseek-v4.1-flash",
             "name": "DeepSeek-V4.1-Flash",
-            "model": "deepseek-v4.1-flash",
+            "model": "deepseek-v4-1-flash-260910",
             "tooltip": "DeepSeek 全新架构系列中的轻量旗舰模型，在多项基准上超越包括 DeepSeek-V4-Pro 在内的主流旗舰模型，原生具备多模态视觉理解能力。",
             "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
