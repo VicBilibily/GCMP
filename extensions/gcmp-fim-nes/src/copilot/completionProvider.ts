@@ -177,6 +177,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 telemetrySender: this._telemetrySender,
                 logTarget: this._logTarget,
                 terminalService: new NullTerminalService(),
+                editorInfo: { name: 'vscode', version: vscode.version },
+                editorPluginInfo: { name: 'gcmp', version: VersionManager.getVersion() },
                 waitForTreatmentVariables: false
             });
 

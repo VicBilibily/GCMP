@@ -907,3 +907,66 @@ for (const suffix of ['/completions', '/chat/completions']) {
         assert.equal(await new Response(response.body).text(), 'data: [DONE]\n\n');
     });
 }
+
+test('FIM and NES initialization receive the editor and main-extension plugin identities', () => {
+    const f = fixture();
+    Object.assign(f.vscode, { version: '1.138.0' });
+    type Metadata = Pick<import('@vscode/chat-lib').INESProviderOptions, 'editorInfo' | 'editorPluginInfo'>;
+    const options: Metadata[] = [];
+    class Service {
+        getWorkspace(): object {
+            return {};
+        }
+        resetCopilotToken(): void {}
+        dispose(): void {}
+    }
+    const createProvider = (metadata: Metadata) => {
+        options.push(metadata);
+        return new Service();
+    };
+    const dependencies: Record<string, unknown> = {
+        '@vscode/chat-lib': {
+            createInlineCompletionsProvider: createProvider,
+            createNESProvider: createProvider
+        },
+        '../utils/versionManager': { VersionManager: { getVersion: () => '0.28.5-p47' } },
+        '../gcmpServices': f.bridge,
+        '../utils/completionConfig': {},
+        '../utils/cancellationError': {},
+        './workspaceAdapter': { WorkspaceAdapter: Service },
+        './fetcher': { Fetcher: Service },
+        './mockImpl': { AuthenticationService: Service, EndpointProvider: Service, TelemetrySender: Service },
+        './logTarget': { CopilotLogTarget: Service },
+        './documentManager': { DocumentManager: Service },
+        './completionCircuitBreaker': { CompletionCircuitBreaker: Service },
+        '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/observableWorkspace': {
+            MutableObservableWorkspace: Service
+        },
+        '@vscode/chat-lib/dist/src/_internal/extension/completions-core/vscode-node/lib/src/textDocument': {},
+        '@vscode/chat-lib/dist/src/_internal/platform/terminal/common/terminalService': { NullTerminalService: Service }
+    };
+    const runtime = f.load<{
+        InlineCompletionProvider: new (context: ActivationContext) => {
+            initializeProviders(): void;
+            dispose(): void;
+        };
+    }>(resolve(child, 'src/copilot/completionProvider.ts'), id => {
+        assert.ok(id in dependencies, `Unexpected import: ${id}`);
+        return dependencies[id];
+    });
+    const provider = new runtime.InlineCompletionProvider({ subscriptions: [] });
+    try {
+        provider.initializeProviders();
+        assert.equal(options.length, 2);
+        for (const metadata of options) {
+            assert.equal(JSON.stringify(metadata.editorInfo), JSON.stringify({ name: 'vscode', version: '1.138.0' }));
+            assert.equal(
+                JSON.stringify(metadata.editorPluginInfo),
+                JSON.stringify({ name: 'gcmp', version: '0.28.5-p47' })
+            );
+        }
+    } finally {
+        provider.dispose();
+        f.channels.forEach(channel => channel.dispose());
+    }
+});
