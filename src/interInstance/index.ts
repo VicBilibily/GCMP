@@ -48,4 +48,9 @@ export {
     parseEventsFromBuffer
 } from './eventProtocol';
 export { resolveIpcPath, isNamedPipePath, isIpcPathLengthSafe } from './pathResolver';
+export {
+    type LeaderLivenessRequestedEvent,
+    type LeaderLivenessConfirmedEvent,
+    LEADER_LIVENESS_PROTOCOL_VERSION
+} from './liveness/protocol';
 export { FallbackTransport, type FallbackTransportOptions } from './fallbackTransport';

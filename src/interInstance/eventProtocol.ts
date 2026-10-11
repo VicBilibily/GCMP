@@ -11,6 +11,11 @@ import type {
     RateLimitStoreSnapshot
 } from '../rateLimit/rateLimitStore';
 import type { UsagesPendingRecord, UsagesQuery, UsagesQueryResult } from '../usages/query/types';
+import {
+    isLeaderLivenessPayload,
+    type LeaderLivenessRequestedEvent,
+    type LeaderLivenessConfirmedEvent
+} from './liveness/protocol';
 
 export const USAGES_QUERY_PROTOCOL_VERSION = 1;
 
@@ -342,6 +347,7 @@ export interface RemoteInstanceCapabilitiesEvent extends InterInstanceEventBase 
         targetInstanceId: string;
         extensionVersion: string;
         usagesQueryProtocolVersion: number;
+        leaderLivenessProtocolVersion?: number;
         authorityTerm?: string;
     };
 }
@@ -594,6 +600,8 @@ export type InterInstanceEvent =
     | RemoteMetadataUpdatedEvent
     | LeaderChangedEvent
     | LeaderResigningEvent
+    | LeaderLivenessRequestedEvent
+    | LeaderLivenessConfirmedEvent
     | LiveMetricsUpdatedEvent
     | LiveMetricsSnapshotRequestedEvent
     | LiveMetricsSnapshotSyncEvent
@@ -634,6 +642,8 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'remoteMetadataUpdated',
     'leaderChanged',
     'leaderResigning',
+    'leaderLivenessRequested',
+    'leaderLivenessConfirmed',
     'liveMetricsUpdated',
     'liveMetricsSnapshotRequested',
     'liveMetricsSnapshotSync',
@@ -665,6 +675,7 @@ const AUTHORITY_EVENT_TYPES = new Set<InterInstanceEventType>([
     'remoteMetadataUpdated',
     'leaderChanged',
     'leaderResigning',
+    'leaderLivenessConfirmed',
     'liveMetricsSnapshotSync',
     'remoteInstanceCapabilities',
     'remoteInstanceDisconnected',
@@ -684,6 +695,12 @@ export function isInterInstanceEvent(value: unknown): value is InterInstanceEven
         return false;
     }
     const event = value as Record<string, unknown>;
+    if (
+        (event.type === 'leaderLivenessRequested' || event.type === 'leaderLivenessConfirmed') &&
+        !isLeaderLivenessPayload(event.payload)
+    ) {
+        return false;
+    }
     return (
         typeof event.type === 'string' &&
         INTER_INSTANCE_EVENT_TYPE_SET.has(event.type) &&

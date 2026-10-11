@@ -38,6 +38,8 @@ interface ElectionInternals {
     agentsWindow: boolean;
     _isLeader: boolean;
     ownElectedAt: number;
+    lastCandidateElectedAt: number;
+    ownedCandidateAuthority: unknown;
     electionPausedUntil: number;
     resignationPromise: Promise<ResignationResult> | undefined;
     lastLeaderIdentityKey: string | undefined;
@@ -86,6 +88,8 @@ suite('Manual leader resignation', () => {
         | 'agentsWindow'
         | '_isLeader'
         | 'ownElectedAt'
+        | 'lastCandidateElectedAt'
+        | 'ownedCandidateAuthority'
         | 'electionPausedUntil'
         | 'resignationPromise'
         | 'lastLeaderIdentityKey'
@@ -119,6 +123,8 @@ suite('Manual leader resignation', () => {
             agentsWindow: election.agentsWindow,
             _isLeader: election._isLeader,
             ownElectedAt: election.ownElectedAt,
+            lastCandidateElectedAt: election.lastCandidateElectedAt,
+            ownedCandidateAuthority: election.ownedCandidateAuthority,
             electionPausedUntil: election.electionPausedUntil,
             resignationPromise: election.resignationPromise,
             lastLeaderIdentityKey: election.lastLeaderIdentityKey,
@@ -163,6 +169,8 @@ suite('Manual leader resignation', () => {
             agentsWindow: false,
             _isLeader: true,
             ownElectedAt: now,
+            lastCandidateElectedAt: 0,
+            ownedCandidateAuthority: undefined,
             electionPausedUntil: 0,
             resignationPromise: undefined,
             lastLeaderIdentityKey: undefined,

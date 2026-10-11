@@ -35,6 +35,8 @@ interface ElectionState {
     agentsWindow: boolean;
     _isLeader: boolean;
     ownElectedAt: number;
+    lastCandidateElectedAt: number;
+    ownedCandidateAuthority: unknown;
     electionPausedUntil: number;
     lastLeaderIdentityKey: string | undefined;
 }
@@ -78,6 +80,8 @@ suite('Leader election authority readiness', () => {
             agentsWindow: election.agentsWindow,
             _isLeader: election._isLeader,
             ownElectedAt: election.ownElectedAt,
+            lastCandidateElectedAt: election.lastCandidateElectedAt,
+            ownedCandidateAuthority: election.ownedCandidateAuthority,
             electionPausedUntil: election.electionPausedUntil,
             lastLeaderIdentityKey: election.lastLeaderIdentityKey
         };
@@ -102,6 +106,8 @@ suite('Leader election authority readiness', () => {
             agentsWindow: false,
             _isLeader: false,
             ownElectedAt: 0,
+            lastCandidateElectedAt: 0,
+            ownedCandidateAuthority: undefined,
             electionPausedUntil: 0,
             lastLeaderIdentityKey: undefined
         });

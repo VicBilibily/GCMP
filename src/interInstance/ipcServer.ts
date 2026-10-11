@@ -219,6 +219,8 @@ export class IpcServer {
         for (const event of events) {
             if (
                 event.type === 'remoteInstanceCapabilities' ||
+                event.type === 'leaderLivenessRequested' ||
+                event.type === 'leaderLivenessConfirmed' ||
                 event.type === 'usagesQueryRequested' ||
                 event.type === 'usagesQueryCompleted'
             ) {

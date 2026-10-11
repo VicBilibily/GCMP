@@ -1,16 +1,34 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { t } from '../utils/runtime/l10n';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus, type LeaderResigningEvent } from '../interInstance';
 import type { RateLimitStoreSnapshot } from '../rateLimit/rateLimitStore';
 import type { ApiKeyBalanceLeaseHandoff } from '../interInstance/eventProtocol';
+import { LeaderElectionDiagnostics, type ElectionUpdateObservation } from './election/leaderElectionDiagnostics';
 
 interface LeaderInfo {
     instanceId: string;
     lastHeartbeat: number;
     electedAt: number; // 竞选成功的时间戳，用于解决竞态条件
+}
+
+interface LeaderResignationAuthority {
+    authorityTerm: string | undefined;
+    storageTerm: string | undefined;
+    ipcAuthority: ReturnType<typeof InterInstanceBus.getConfirmedLeaderAuthority>;
+}
+
+interface LeaderCandidateAuthority {
+    instanceId: string;
+    electedAt: number;
+    generation: number;
+    decision: number;
+    writePending: boolean;
+    ipcAuthority: ReturnType<typeof InterInstanceBus.getConfirmedLeaderAuthority>;
+    retryAuthority?: LeaderResignationAuthority;
 }
 
 export interface LeaderIdentity {
@@ -42,9 +60,14 @@ export class LeaderElectionService {
     /** 本实例当选时的 electedAt。心跳写入必须用它而非从共享记录回读，
      * 否则双 Leader 期间会继承对方的 electedAt，污染 authorityTerm 判定 */
     private static ownElectedAt = 0;
+    private static lastCandidateElectedAt = 0;
     private static initialized = false;
     private static stopping = false;
     private static lifecycleGeneration = 0;
+    private static decisionGeneration = 0;
+    private static candidateAuthority: LeaderCandidateAuthority | undefined;
+    private static ownedCandidateAuthority: LeaderCandidateAuthority | undefined;
+    private static readonly diagnostics = new LeaderElectionDiagnostics();
     private static electionPausedUntil = 0;
     private static resignationPromise: Promise<ResignationResult> | undefined;
     /**
@@ -92,6 +115,9 @@ export class LeaderElectionService {
         }
 
         this.lifecycleGeneration++;
+        this.diagnostics.reset();
+        this.candidateAuthority = undefined;
+        this.ownedCandidateAuthority = undefined;
         this.periodicTasks = [];
         this.electionPausedUntil = 0;
 
@@ -100,6 +126,8 @@ export class LeaderElectionService {
         });
 
         this.instanceId = crypto.randomUUID();
+        this.ownElectedAt = 0;
+        this.lastCandidateElectedAt = 0;
         this.context = context;
         // Agents 窗体检测（复刻 VS Code 内部判定，不依赖提案 API）：
         // Agents 窗口打开的是主进程约定的合成工作区文件
@@ -145,7 +173,13 @@ export class LeaderElectionService {
         }
 
         this.checkLeader();
-        this.heartbeatTimer = setInterval(() => this.checkLeader(), this.HEARTBEAT_INTERVAL);
+        let nextHeartbeatAt = performance.now() + this.HEARTBEAT_INTERVAL;
+        this.heartbeatTimer = setInterval(() => {
+            const now = performance.now();
+            this.diagnostics.recordHeartbeatDelay(Math.max(0, now - nextHeartbeatAt));
+            nextHeartbeatAt = now + this.HEARTBEAT_INTERVAL;
+            void this.checkLeader();
+        }, this.HEARTBEAT_INTERVAL);
 
         // 启动周期性任务检查
         this.taskTimer = setInterval(() => {
@@ -205,6 +239,7 @@ export class LeaderElectionService {
         }
 
         this.electionPausedUntil = Number.POSITIVE_INFINITY;
+        this.decisionGeneration++;
         const generation = this.lifecycleGeneration;
         const resignation = this.handoffLeadership(nextLeaderId);
         this.resignationPromise = resignation;
@@ -228,6 +263,7 @@ export class LeaderElectionService {
     public static async stop(): Promise<void> {
         this.stopping = true;
         this.lifecycleGeneration++;
+        InterInstanceBus.cancelLeaderLiveness();
         if (this.startTimer) {
             clearTimeout(this.startTimer);
             this.startTimer = undefined;
@@ -409,8 +445,24 @@ export class LeaderElectionService {
         if (value && (!this.isElectionCurrent(this.lifecycleGeneration) || Date.now() < this.electionPausedUntil)) {
             return;
         }
+        if (value) {
+            const current = this.getLeaderIdentity();
+            if (
+                this.ownElectedAt <= 0 ||
+                current?.instanceId !== this.instanceId ||
+                current.electedAt !== this.ownElectedAt
+            ) {
+                return;
+            }
+        } else {
+            // 同一生命周期内的落选也必须作废旧续体，包括尚未升主的候选。
+            this.decisionGeneration++;
+        }
         if (this._isLeader === value) {
             return;
+        }
+        if (value) {
+            this.decisionGeneration++;
         }
         this._isLeader = value;
         StatusLogger.info(`[LeaderElectionService] Leader state changed: isLeader=${value}`);
@@ -425,6 +477,7 @@ export class LeaderElectionService {
             return;
         }
         this.lastLeaderIdentityKey = key;
+        this.decisionGeneration++;
         this.leaderIdentityChangedEmitter.fire(identity);
     }
 
@@ -477,7 +530,12 @@ export class LeaderElectionService {
     }
 
     public static getOwnedAuthorityTerm(): string | undefined {
-        if (!this._isLeader || !this.instanceId || this.ownElectedAt <= 0) {
+        if (
+            !this._isLeader ||
+            !this.instanceId ||
+            this.ownElectedAt <= 0 ||
+            this.ownedCandidateAuthority?.decision === -1
+        ) {
             return undefined;
         }
         const current = this.getLeaderIdentity();
@@ -517,12 +575,18 @@ export class LeaderElectionService {
         }
         this.context.subscriptions.push(
             InterInstanceBus.subscribe('leaderResigning', event => {
-                const { leaderId: resigningLeaderId, nextLeaderId } = (event as LeaderResigningEvent).payload;
+                const {
+                    leaderId: resigningLeaderId,
+                    nextLeaderId,
+                    sourceAuthorityTerm
+                } = (event as LeaderResigningEvent).payload;
                 const now = Date.now();
+                const authority = this.captureLeaderResignationAuthority();
                 if (
                     resigningLeaderId === this.instanceId ||
                     resigningLeaderId !== event.senderInstanceId ||
                     resigningLeaderId !== this.getLeaderId() ||
+                    (sourceAuthorityTerm !== undefined && sourceAuthorityTerm !== authority.authorityTerm) ||
                     !Number.isFinite(event.timestamp) ||
                     now - event.timestamp > 10_000 ||
                     event.timestamp - now > 1_000
@@ -539,7 +603,7 @@ export class LeaderElectionService {
                 // 如果当前实例被提名为下一任 Leader，立即尝试接管，不等待心跳超时。
                 // 最多重试 3 次，全部失败后退回到常规竞选。
                 if (nextLeaderId === this.instanceId) {
-                    void this.takeoverAsNominated().catch(error =>
+                    void this.takeoverAsNominated(authority).catch(error =>
                         StatusLogger.warn('[LeaderElectionService] Nominated takeover failed', error)
                     );
                     return;
@@ -548,14 +612,14 @@ export class LeaderElectionService {
                 // 已指定下一任 Leader 时，非提名实例等待几次确认新 Leader 是否已接管，
                 // 若接管成功则无需竞争；若超时未接管再进入竞选。
                 if (nextLeaderId) {
-                    void this.waitForNominatedTakeover(nextLeaderId, resigningLeaderId).catch(error =>
+                    void this.waitForNominatedTakeover(nextLeaderId, resigningLeaderId, authority).catch(error =>
                         StatusLogger.warn('[LeaderElectionService] Waiting for nominated takeover failed', error)
                     );
                     return;
                 }
 
                 // 未指定下一任 Leader 时，直接基于卸任信号快速接管，不再受旧心跳 freshness 阻塞
-                void this.recoverAfterLeaderResigning(resigningLeaderId).catch(error =>
+                void this.recoverAfterLeaderResigning(resigningLeaderId, authority).catch(error =>
                     StatusLogger.warn('[LeaderElectionService] Fast takeover after resigning failed', error)
                 );
             })
@@ -588,18 +652,146 @@ export class LeaderElectionService {
         return this.initialized && !this.stopping && !this.agentsWindow && generation === this.lifecycleGeneration;
     }
 
+    private static isDecisionCurrent(generation: number, decision: number): boolean {
+        return (
+            this.isElectionCurrent(generation) &&
+            decision === this.decisionGeneration &&
+            Date.now() >= this.electionPausedUntil
+        );
+    }
+
+    private static captureLeaderResignationAuthority(): LeaderResignationAuthority {
+        const storage = this.getLeaderIdentity();
+        const ipcAuthority = InterInstanceBus.getConfirmedLeaderAuthority();
+        const confirmedTerm = ipcAuthority.authorityTerm;
+        const storageTerm =
+            (
+                !confirmedTerm ||
+                (storage &&
+                    confirmedTerm.startsWith(`${storage.instanceId}:`) &&
+                    storage.electedAt <= Number(confirmedTerm.slice(storage.instanceId.length + 1)))
+            ) ?
+                storage?.authorityTerm
+            :   undefined;
+        return { authorityTerm: confirmedTerm ?? storageTerm, storageTerm, ipcAuthority };
+    }
+
+    private static isLeaderResignationAuthorityCurrent(
+        authority: LeaderResignationAuthority,
+        observedTerm: string | undefined
+    ): boolean {
+        return (
+            InterInstanceBus.isLeaderResignationAuthorityCurrent(authority.ipcAuthority) &&
+            (observedTerm === undefined ||
+                observedTerm === authority.authorityTerm ||
+                observedTerm === authority.storageTerm)
+        );
+    }
+
+    private static isCandidateAuthorityCurrent(expected: Pick<LeaderInfo, 'instanceId' | 'electedAt'>): boolean {
+        if (
+            this.ownedCandidateAuthority?.decision === -1 &&
+            expected.instanceId === this.ownedCandidateAuthority.instanceId &&
+            expected.electedAt === this.ownedCandidateAuthority.electedAt
+        ) {
+            return false;
+        }
+        const candidate = this.candidateAuthority;
+        if (!candidate || candidate.instanceId !== expected.instanceId || expected.electedAt > candidate.electedAt) {
+            return true;
+        }
+        if (
+            expected.electedAt !== candidate.electedAt ||
+            !this.isElectionCurrent(candidate.generation) ||
+            candidate.decision < 0
+        ) {
+            return false;
+        }
+        if (this._isLeader && this.ownElectedAt === expected.electedAt) {
+            return true;
+        }
+        if (!this.isDecisionCurrent(candidate.generation, candidate.decision)) {
+            return false;
+        }
+        if (candidate.retryAuthority) {
+            return this.isLeaderResignationAuthorityCurrent(candidate.retryAuthority, undefined);
+        }
+        const current = InterInstanceBus.getConfirmedLeaderAuthority();
+        return (
+            current.generation === candidate.ipcAuthority.generation &&
+            current.authorityTerm === candidate.ipcAuthority.authorityTerm
+        );
+    }
+
+    private static revokeFailedCandidateLeadership(generation: number): void {
+        if (
+            this._isLeader &&
+            this.isElectionCurrent(generation) &&
+            this.ownedCandidateAuthority?.decision === -1 &&
+            (!this.candidateAuthority || !this.isCandidateAuthorityCurrent(this.candidateAuthority))
+        ) {
+            this.setLeaderState(false);
+        }
+    }
+
+    private static confirmLeadership(
+        expected: Pick<LeaderInfo, 'instanceId' | 'electedAt'>,
+        generation: number,
+        decision: number
+    ): boolean {
+        if (
+            !this.isDecisionCurrent(generation, decision) ||
+            !this.isCandidateAuthorityCurrent(expected) ||
+            expected.electedAt < this.ownElectedAt
+        ) {
+            return false;
+        }
+        const current = this.context?.globalState.get<LeaderInfo>(this.LEADER_KEY);
+        if (
+            current?.instanceId !== this.instanceId ||
+            current.instanceId !== expected.instanceId ||
+            current.electedAt !== expected.electedAt
+        ) {
+            return false;
+        }
+        const candidate = this.candidateAuthority;
+        const termChanged = this.ownElectedAt !== current.electedAt;
+        const wasLeader = this._isLeader;
+        if (termChanged) {
+            this.decisionGeneration++;
+            this.ownElectedAt = current.electedAt;
+            this.ownedCandidateAuthority = candidate?.electedAt === current.electedAt ? candidate : undefined;
+        }
+        this.setLeaderState(true);
+        if (termChanged && wasLeader) {
+            this.emitLeaderIdentityChanged();
+        }
+        const confirmed = this.getOwnedAuthorityTerm() === `${current.instanceId}:${current.electedAt}`;
+        if (confirmed && !candidate?.writePending && this.candidateAuthority === candidate) {
+            this.candidateAuthority = undefined;
+        }
+        return confirmed;
+    }
+
     private static async checkLeader(): Promise<void> {
         const generation = this.lifecycleGeneration;
         if (!this.context || !this.isElectionCurrent(generation)) {
             return;
         }
 
+        this.revokeFailedCandidateLeadership(generation);
         const now = Date.now();
         const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
-        this.emitLeaderIdentityChanged();
+        if (
+            leaderInfo?.instanceId !== this.instanceId ||
+            (this._isLeader && this.ownElectedAt === leaderInfo.electedAt)
+        ) {
+            this.emitLeaderIdentityChanged();
+        }
         if (!this.isElectionCurrent(generation) || now < this.electionPausedUntil) {
             return;
         }
+        const decision = this.decisionGeneration;
         StatusLogger.trace(
             `[LeaderElectionService] Heartbeat check: leaderInfo=${leaderInfo ? `instanceId=${leaderInfo.instanceId}, lastHeartbeat=${leaderInfo.lastHeartbeat}` : 'null'}`
         );
@@ -614,14 +806,22 @@ export class LeaderElectionService {
         if (leaderInfo.instanceId === this.instanceId) {
             // 我是 Leader，更新心跳
             StatusLogger.trace('[LeaderElectionService] Confirmed as Leader, updating heartbeat');
-            await this.updateHeartbeat();
-            if (!this.isElectionCurrent(generation)) {
-                return;
-            }
-            if (!this._isLeader) {
-                this.ownElectedAt = leaderInfo.electedAt;
-                this.setLeaderState(true);
-                StatusLogger.info('[LeaderElectionService] Current instance has become the leader');
+            const wasLeader = this._isLeader;
+            const electedAt = wasLeader ? Math.max(this.ownElectedAt, leaderInfo.electedAt) : leaderInfo.electedAt;
+            await this.updateHeartbeat(electedAt);
+            if (this.confirmLeadership({ instanceId: this.instanceId, electedAt }, generation, decision)) {
+                if (!wasLeader) {
+                    StatusLogger.info('[LeaderElectionService] Current instance has become the leader');
+                }
+            } else if (this.isDecisionCurrent(generation, decision)) {
+                const current = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
+                if (
+                    current?.instanceId === this.instanceId &&
+                    current.electedAt === leaderInfo.electedAt &&
+                    Date.now() - current.lastHeartbeat > this.LEADER_TIMEOUT
+                ) {
+                    await this.becomeLeader();
+                }
             }
         } else {
             // 别人是 Leader
@@ -643,11 +843,12 @@ export class LeaderElectionService {
                     StatusLogger.warn(
                         `[LeaderElectionService] Instance ${leaderInfo.instanceId} was elected earlier, reclaiming leadership`
                     );
-                    await this.updateHeartbeat();
-                    if (!this.isElectionCurrent(generation)) {
-                        return;
+                    const electedAt = this.ownElectedAt;
+                    await this.updateHeartbeat(electedAt);
+                    if (this.confirmLeadership({ instanceId: this.instanceId, electedAt }, generation, decision)) {
+                        InterInstanceBus.syncLeaderAuthority();
                     }
-                    this.setLeaderState(true);
+                    return;
                 }
             }
 
@@ -657,8 +858,8 @@ export class LeaderElectionService {
                 `[LeaderElectionService] Leader heartbeat age: ${heartbeatAge}ms (timeout threshold: ${this.LEADER_TIMEOUT}ms)`
             );
             if (heartbeatAge > this.LEADER_TIMEOUT) {
-                StatusLogger.info(
-                    `[LeaderElectionService] Leader ${leaderInfo.instanceId} heartbeat timed out, attempting takeover...`
+                StatusLogger.trace(
+                    `[LeaderElectionService] Leader ${leaderInfo.instanceId} heartbeat is stale, checking takeover eligibility...`
                 );
                 await this.becomeLeader();
             }
@@ -669,22 +870,38 @@ export class LeaderElectionService {
      * 被提名实例尝试接管 Leader 身份，最多重试 NOMINATED_TAKEOVER_ATTEMPTS 次。
      * 每次失败后等待 NOMINATED_TAKEOVER_DELAY_MS 再重试，全部失败后退回到常规竞选。
      */
-    private static async takeoverAsNominated(): Promise<void> {
+    private static async takeoverAsNominated(
+        authority: LeaderResignationAuthority = this.captureLeaderResignationAuthority()
+    ): Promise<void> {
         const generation = this.lifecycleGeneration;
+        let decision = this.decisionGeneration;
         const NOMINATED_TAKEOVER_ATTEMPTS = 3;
         const NOMINATED_TAKEOVER_DELAY_MS = 200;
 
         for (let attempt = 1; attempt <= NOMINATED_TAKEOVER_ATTEMPTS; attempt++) {
-            if (!this.isElectionCurrent(generation) || this._isLeader) {
+            const currentTerm = this.getAuthorityTerm();
+            if (
+                !this.isDecisionCurrent(generation, decision) ||
+                this._isLeader ||
+                !this.isLeaderResignationAuthorityCurrent(authority, currentTerm)
+            ) {
                 return;
             }
 
             StatusLogger.info(
                 `[LeaderElectionService] Attempting nominated takeover, attempt ${attempt}/${NOMINATED_TAKEOVER_ATTEMPTS}`
             );
-            await this.becomeLeader(true);
+            const retryDecision = await this.becomeLeader(true, authority);
+            if (retryDecision !== undefined) {
+                decision = retryDecision;
+            }
 
-            if (!this.isElectionCurrent(generation) || this._isLeader) {
+            const confirmedTerm = this.getAuthorityTerm();
+            if (
+                !this.isDecisionCurrent(generation, decision) ||
+                this._isLeader ||
+                !this.isLeaderResignationAuthorityCurrent(authority, confirmedTerm)
+            ) {
                 return;
             }
 
@@ -705,14 +922,16 @@ export class LeaderElectionService {
      */
     private static async waitForNominatedTakeover(
         nominatedNextLeaderId: string,
-        resigningLeaderId: string
+        resigningLeaderId: string,
+        authority: LeaderResignationAuthority = this.captureLeaderResignationAuthority()
     ): Promise<void> {
         const generation = this.lifecycleGeneration;
+        const decision = this.decisionGeneration;
         const NOMINATED_TAKEOVER_ATTEMPTS = 3;
         const NOMINATED_TAKEOVER_DELAY_MS = 200;
 
         for (let attempt = 1; attempt <= NOMINATED_TAKEOVER_ATTEMPTS; attempt++) {
-            if (!this.isElectionCurrent(generation)) {
+            if (!this.isDecisionCurrent(generation, decision)) {
                 return;
             }
             const currentInfo = this.context?.globalState.get<LeaderInfo>(this.LEADER_KEY);
@@ -721,6 +940,15 @@ export class LeaderElectionService {
                 StatusLogger.info(
                     `[LeaderElectionService] Nominated takeover observed: new leader ${currentInfo.instanceId} at attempt ${attempt}`
                 );
+                return;
+            }
+
+            if (
+                !this.isLeaderResignationAuthorityCurrent(
+                    authority,
+                    currentInfo && this.toLeaderIdentity(currentInfo).authorityTerm
+                )
+            ) {
                 return;
             }
 
@@ -735,12 +963,20 @@ export class LeaderElectionService {
         StatusLogger.info(
             '[LeaderElectionService] Nominated takeover did not happen in time, falling back to election'
         );
-        await this.recoverAfterLeaderResigning(resigningLeaderId);
+        await this.recoverAfterLeaderResigning(resigningLeaderId, authority);
     }
 
-    private static async recoverAfterLeaderResigning(resigningLeaderId: string): Promise<void> {
+    private static async recoverAfterLeaderResigning(
+        resigningLeaderId: string,
+        authority: LeaderResignationAuthority = this.captureLeaderResignationAuthority()
+    ): Promise<void> {
         const generation = this.lifecycleGeneration;
-        if (!this.isElectionCurrent(generation)) {
+        let decision = this.decisionGeneration;
+        if (!this.isDecisionCurrent(generation, decision)) {
+            return;
+        }
+
+        if (!this.isLeaderResignationAuthorityCurrent(authority, this.getAuthorityTerm())) {
             return;
         }
         const currentInfo = this.context?.globalState.get<LeaderInfo>(this.LEADER_KEY);
@@ -754,17 +990,42 @@ export class LeaderElectionService {
         StatusLogger.info(
             `[LeaderElectionService] Attempting fast takeover after leaderResigning from ${resigningLeaderId}`
         );
-        await this.becomeLeader(true);
-        if (this.isElectionCurrent(generation) && !this._isLeader) {
+        const retryDecision = await this.becomeLeader(true, authority);
+        if (retryDecision !== undefined) {
+            decision = retryDecision;
+        }
+        if (
+            this.isDecisionCurrent(generation, decision) &&
+            !this._isLeader &&
+            this.isLeaderResignationAuthorityCurrent(authority, this.getAuthorityTerm())
+        ) {
             await this.checkLeader();
         }
     }
 
-    private static async becomeLeader(force: boolean = false): Promise<void> {
+    private static async becomeLeader(
+        force: boolean = false,
+        retryAuthority?: LeaderResignationAuthority
+    ): Promise<number | undefined> {
         const generation = this.lifecycleGeneration;
         if (!this.context || !this.isElectionCurrent(generation) || Date.now() < this.electionPausedUntil) {
             return;
         }
+        const decision = this.decisionGeneration;
+
+        if (retryAuthority && !this.isLeaderResignationAuthorityCurrent(retryAuthority, this.getAuthorityTerm())) {
+            return;
+        }
+        const ipcAuthority = retryAuthority?.ipcAuthority ?? InterInstanceBus.getConfirmedLeaderAuthority();
+        const isAuthorityCurrent = () => {
+            if (retryAuthority) {
+                return this.isLeaderResignationAuthorityCurrent(retryAuthority, undefined);
+            }
+            const current = InterInstanceBus.getConfirmedLeaderAuthority();
+            return (
+                current.generation === ipcAuthority.generation && current.authorityTerm === ipcAuthority.authorityTerm
+            );
+        };
 
         StatusLogger.trace('[LeaderElectionService] Starting election process...');
         // 读取当前 Leader 信息
@@ -780,28 +1041,81 @@ export class LeaderElectionService {
                 );
                 return;
             }
+            const identity = this.toLeaderIdentity(existingLeader);
+            const liveness = await InterInstanceBus.confirmLeaderLiveness(identity);
+            if (!this.isDecisionCurrent(generation, decision) || liveness === 'invalidated') {
+                return;
+            }
+            const current = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
+            if (
+                !current ||
+                current.instanceId !== identity.instanceId ||
+                current.electedAt !== identity.electedAt ||
+                Date.now() - current.lastHeartbeat <= this.LEADER_TIMEOUT
+            ) {
+                return;
+            }
+            if (liveness === 'alive') {
+                StatusLogger.trace(
+                    `[LeaderElectionService] Leader ${identity.authorityTerm} responded to liveness probe, skipping takeover`
+                );
+                return;
+            }
         }
 
+        if (!this.isDecisionCurrent(generation, decision) || !isAuthorityCurrent()) {
+            return;
+        }
         const now = Date.now();
         const info: LeaderInfo = {
             instanceId: this.instanceId,
             lastHeartbeat: now,
-            electedAt: now
+            electedAt: Math.max(now, this.ownElectedAt + 1, this.lastCandidateElectedAt + 1)
         };
+        this.lastCandidateElectedAt = info.electedAt;
 
         StatusLogger.trace(
-            `[LeaderElectionService] Writing election info: instanceId=${this.instanceId}, electedAt=${now}`
+            `[LeaderElectionService] Writing election info: instanceId=${this.instanceId}, electedAt=${info.electedAt}`
         );
         // 尝试写入
-        await this.context.globalState.update(this.LEADER_KEY, info);
-        if (!this.isElectionCurrent(generation)) {
+        const candidate: LeaderCandidateAuthority = {
+            instanceId: info.instanceId,
+            electedAt: info.electedAt,
+            generation,
+            decision,
+            writePending: true,
+            ipcAuthority,
+            retryAuthority
+        };
+        // 写入回执前记录已可见，提前心跳也必须校验同一候选资格。
+        this.candidateAuthority = candidate;
+        try {
+            await this.writeLeaderInfo(info, 'election');
+        } catch (error) {
+            candidate.writePending = false;
+            candidate.decision = -1;
+            this.revokeFailedCandidateLeadership(generation);
+            throw error;
+        }
+        candidate.writePending = false;
+        if (
+            this.candidateAuthority === candidate &&
+            this.isElectionCurrent(generation) &&
+            this._isLeader &&
+            this.ownElectedAt === candidate.electedAt
+        ) {
+            this.candidateAuthority = undefined;
+        }
+        if (!this.isDecisionCurrent(generation, decision) || !isAuthorityCurrent()) {
+            this.revokeFailedCandidateLeadership(generation);
             return;
         }
 
         // 等待一小段时间，让其他竞争者也完成写入
         StatusLogger.trace('[LeaderElectionService] Waiting for other contenders to write...');
         await new Promise(resolve => setTimeout(resolve, 100));
-        if (!this.isElectionCurrent(generation)) {
+        if (!this.isDecisionCurrent(generation, decision) || !isAuthorityCurrent()) {
+            this.revokeFailedCandidateLeadership(generation);
             return;
         }
 
@@ -822,9 +1136,8 @@ export class LeaderElectionService {
             (currentInfo.electedAt === info.electedAt && currentInfo.instanceId < this.instanceId);
 
         if (isWinner && currentInfo.instanceId === this.instanceId) {
-            if (!this._isLeader) {
-                this.ownElectedAt = currentInfo.electedAt;
-                this.setLeaderState(true);
+            const wasLeader = this._isLeader;
+            if (this.confirmLeadership(currentInfo, generation, decision) && !wasLeader) {
                 StatusLogger.info('[LeaderElectionService] Election succeeded, current instance is the leader');
             }
         } else {
@@ -832,19 +1145,32 @@ export class LeaderElectionService {
                 `[LeaderElectionService] Election lost, instance ${currentInfo.instanceId} became the leader (electedAt: ${currentInfo.electedAt})`
             );
             // 如果之前误以为自己是 Leader，现在退位
-            if (this._isLeader) {
-                this.setLeaderState(false);
+            const wasLeader = this._isLeader;
+            this.setLeaderState(false);
+            if (wasLeader) {
                 StatusLogger.info(
                     `[LeaderElectionService] Election lost, instance ${currentInfo.instanceId} became the leader`
                 );
+            } else if (
+                retryAuthority &&
+                this.isLeaderResignationAuthorityCurrent(
+                    retryAuthority,
+                    this.toLeaderIdentity(currentInfo).authorityTerm
+                )
+            ) {
+                // 只为确认时仍是原卸任任期的落选交还重试代次。
+                return decision + 1;
             }
         }
     }
 
-    private static async updateHeartbeat(): Promise<void> {
+    private static async updateHeartbeat(expectedElectedAt: number = this.ownElectedAt): Promise<void> {
         if (
             !this._isLeader ||
             !this.context ||
+            this.ownElectedAt <= 0 ||
+            this.ownedCandidateAuthority?.decision === -1 ||
+            expectedElectedAt !== this.ownElectedAt ||
             !this.isElectionCurrent(this.lifecycleGeneration) ||
             Date.now() < this.electionPausedUntil
         ) {
@@ -856,10 +1182,45 @@ export class LeaderElectionService {
         const info: LeaderInfo = {
             instanceId: this.instanceId,
             lastHeartbeat: newHeartbeat,
-            electedAt: this.ownElectedAt || newHeartbeat
+            electedAt: this.ownElectedAt
         };
         StatusLogger.trace(`[LeaderElectionService] Updating heartbeat: lastHeartbeat=${newHeartbeat}`);
-        await this.context.globalState.update(this.LEADER_KEY, info);
+        await this.writeLeaderInfo(info, 'heartbeat');
+    }
+
+    private static async writeLeaderInfo(
+        info: LeaderInfo,
+        operation: ElectionUpdateObservation['operation']
+    ): Promise<void> {
+        const context = this.context!;
+        const observedTerm = () => {
+            const current = context.globalState.get<LeaderInfo>(this.LEADER_KEY);
+            return current ? `${current.instanceId}:${current.electedAt}` : undefined;
+        };
+        const before: ElectionUpdateObservation = {
+            operation,
+            requestedTerm: `${info.instanceId}:${info.electedAt}`,
+            observedTerm: observedTerm(),
+            leader: this._isLeader,
+            lifecycle: this.lifecycleGeneration
+        };
+        const startedAt = this.diagnostics.beginUpdate(before);
+        let failed = true;
+        try {
+            await context.globalState.update(this.LEADER_KEY, info);
+            failed = false;
+        } finally {
+            this.diagnostics.finishUpdate(
+                startedAt,
+                before,
+                {
+                    observedTerm: observedTerm(),
+                    leader: this._isLeader,
+                    lifecycle: this.lifecycleGeneration
+                },
+                failed
+            );
+        }
     }
 
     private static async resignLeader(): Promise<void> {

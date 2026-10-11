@@ -69,7 +69,9 @@ interface QueuedWaiter<TResult> {
 
 type PendingWaiter = QueuedWaiter<PendingGrant | undefined>;
 
-type LeaderPendingWaiter = QueuedWaiter<PendingGrant | 'role-changed' | undefined>;
+type LeaderGrant = PendingGrant & { authorityTerm: string };
+
+type LeaderPendingWaiter = QueuedWaiter<LeaderGrant | 'role-changed' | undefined>;
 
 interface DeferredLeaderOperation {
     action: () => void;
@@ -99,6 +101,7 @@ export class RateLimiter {
     /** Leader 权威桶（仅本实例为 Leader 时使用；角色变更时重建） */
     private static leaderStore = new RateLimitStore();
     private static leaderRestoreReady: Promise<void> | undefined;
+    private static leaderRestoreAuthorityTerm: string | undefined;
     private static deferredLeaderOperations: DeferredLeaderOperation[] = [];
     private static handoffGrantingPaused = false;
     /** 本地降级桶（Follower 在 IPC 不可用/回执超时时使用） */
@@ -206,6 +209,7 @@ export class RateLimiter {
             this.clearPendingDisconnectReclaims();
             this.leaderStore = new RateLimitStore();
             this.deferredLeaderOperations = [];
+            this.leaderRestoreAuthorityTerm = undefined;
             this.pendingLeaderHandoff = undefined;
             this.resetLeaderHandoffPersistState();
             StatusLogger.info('[RateLimiter] Lost leader role, pending leader waiters will reacquire');
@@ -217,8 +221,8 @@ export class RateLimiter {
         context.subscriptions.push(
             LeaderElectionService.onHandoffStateChanged(paused => {
                 this.handoffGrantingPaused = paused;
-                this.leaderStore.setGrantingPaused(paused);
-                if (!paused && !this.leaderRestoreReady && LeaderElectionService.getOwnedAuthorityTerm()) {
+                const authorityTerm = this.synchronizeLeaderGranting();
+                if (!paused && !this.leaderRestoreReady && authorityTerm) {
                     this.distributeLeaderGrants(this.leaderStore.sweep(Date.now()));
                 }
             }),
@@ -241,6 +245,7 @@ export class RateLimiter {
                     this.pendingLeaderHandoff = undefined;
                     this.leaderStore = new RateLimitStore();
                     this.deferredLeaderOperations = [];
+                    this.leaderRestoreAuthorityTerm = undefined;
                     this.handoffGrantingPaused = false;
                     this.resetLeaderHandoffPersistState();
                     LeaderElectionService.setRateLimitSnapshotProvider(undefined);
@@ -349,7 +354,8 @@ export class RateLimiter {
      * dims 以 Leader 本机配置重算为准（保证配置热更新生效），请求侧 dims 仅兼容旧版本协议
      */
     static handleAcquireRequest(payload: RateLimitAcquireRequestedEvent['payload'], senderInstanceId?: string): void {
-        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (!authorityTerm || payload.authorityTerm !== authorityTerm) {
             return;
         }
         if (this.deferLeaderOperation(() => this.handleAcquireRequest(payload, senderInstanceId))) {
@@ -541,7 +547,17 @@ export class RateLimiter {
 
     // ==================== 内部实现 ====================
 
+    private static synchronizeLeaderGranting(): string | undefined {
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (this.leaderRestoreReady && authorityTerm && this.leaderRestoreAuthorityTerm !== authorityTerm) {
+            this.becomeLeaderWithFreshState(true);
+        }
+        this.leaderStore.setGrantingPaused(this.handoffGrantingPaused || !!this.leaderRestoreReady || !authorityTerm);
+        return authorityTerm;
+    }
+
     private static deferLeaderOperation(action: () => void, renewal?: DeferredLeaderOperation['renewal']): boolean {
+        this.synchronizeLeaderGranting();
         if (!this.leaderRestoreReady) {
             return false;
         }
@@ -597,12 +613,27 @@ export class RateLimiter {
         options?: RateLimitAcquireOptions,
         authorityChangeAttempts: number = 0
     ): Promise<RateLimitHandle | undefined> {
+        const authorityTerm = this.synchronizeLeaderGranting();
+        if (!authorityTerm) {
+            return this.acquireViaLocalStore(bucketKey, dims, costs, options, authorityChangeAttempts);
+        }
         if (this.leaderRestoreReady) {
             const store = this.leaderStore;
-            const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
             const waiting = this.waitForLeaderRestore(options?.token);
             options?.onWaiting?.({ waitScope: 'leader', requestStartTime: Date.now() });
-            await waiting;
+            try {
+                await waiting;
+            } catch (error) {
+                if (
+                    !(error instanceof vscode.CancellationError) &&
+                    this.initialized &&
+                    LeaderElectionService.getLeaderId() === LeaderElectionService.getInstanceId() &&
+                    (store !== this.leaderStore || authorityTerm !== LeaderElectionService.getOwnedAuthorityTerm())
+                ) {
+                    return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts + 1);
+                }
+                throw error;
+            }
             if (!this.initialized) {
                 return undefined;
             }
@@ -629,7 +660,7 @@ export class RateLimiter {
                 grantId: result.grantId,
                 costs,
                 leaseMs,
-                authorityTerm: LeaderElectionService.getAuthorityTerm(),
+                authorityTerm,
                 authoritative: true
             };
             this.startLeaseHeartbeat(handle);
@@ -640,7 +671,8 @@ export class RateLimiter {
                 bucketKey,
                 dims,
                 options,
-                authorityChangeAttempts
+                authorityChangeAttempts,
+                true
             );
         }
 
@@ -667,7 +699,7 @@ export class RateLimiter {
             grantId: grant.grantId,
             costs,
             leaseMs,
-            authorityTerm: LeaderElectionService.getAuthorityTerm(),
+            authorityTerm: grant.authorityTerm,
             authoritative: true
         };
         this.startLeaseHeartbeat(handle);
@@ -678,7 +710,8 @@ export class RateLimiter {
             bucketKey,
             dims,
             options,
-            authorityChangeAttempts
+            authorityChangeAttempts,
+            true
         );
     }
 
@@ -835,7 +868,7 @@ export class RateLimiter {
         bucketKey: string,
         token?: vscode.CancellationToken,
         onWaiting?: (event: RateLimitWaitingEvent) => void
-    ): Promise<PendingGrant | 'role-changed' | undefined> {
+    ): Promise<LeaderGrant | 'role-changed' | undefined> {
         return this.waitForGrant(requestId, token, onWaiting, this.leaderWaiters, () => {
             this.leaderStore.cancelPending(bucketKey, requestId);
             this.notifyQueuePositionUpdates(
@@ -929,13 +962,27 @@ export class RateLimiter {
         bucketKey?: string,
         dims?: RateLimitDimensions,
         options?: RateLimitAcquireOptions,
-        authorityChangeAttempts: number = 0
+        authorityChangeAttempts: number = 0,
+        requireOwnedAuthority = false
     ): Promise<RateLimitHandle | undefined> {
-        if (waitMs <= 0) {
-            return handle;
-        }
+        const assertAuthority = (): void => {
+            if (token?.isCancellationRequested) {
+                throw new vscode.CancellationError();
+            }
+            if (
+                handle.authoritative &&
+                (requireOwnedAuthority || LeaderElectionService.isLeader()) &&
+                (!handle.authorityTerm || handle.authorityTerm !== LeaderElectionService.getOwnedAuthorityTerm())
+            ) {
+                throw new AuthorityChangedError();
+            }
+        };
         try {
-            await this.sleep(waitMs, token, handle.authorityTerm);
+            assertAuthority();
+            if (waitMs > 0) {
+                await this.sleep(waitMs, token, handle.authorityTerm);
+                assertAuthority();
+            }
             return handle;
         } catch (error) {
             if (error instanceof AuthorityChangedError && bucketKey && dims) {
@@ -1281,6 +1328,7 @@ export class RateLimiter {
         if (
             !this.initialized ||
             !LeaderElectionService.isLeader() ||
+            !authorityTerm ||
             this.leaderStore !== store ||
             LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm
         ) {
@@ -1301,17 +1349,20 @@ export class RateLimiter {
         }
     }
 
-    private static becomeLeaderWithFreshState(): void {
+    private static becomeLeaderWithFreshState(preserveDeferredOperations = false): void {
         const previousRestore = this.leaderRestoreReady;
         this.clientCore?.settlePendingAsDegraded();
         this.clearPendingDisconnectReclaims();
         this.leaderStore = new RateLimitStore();
-        this.leaderStore.setGrantingPaused(this.handoffGrantingPaused);
-        this.deferredLeaderOperations = [];
+        this.leaderStore.setGrantingPaused(true);
+        if (!preserveDeferredOperations) {
+            this.deferredLeaderOperations = [];
+        }
         const handoff = this.consumePendingLeaderHandoff();
         this.exitDegraded('became leader');
         const store = this.leaderStore;
         const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        this.leaderRestoreAuthorityTerm = authorityTerm;
         const restore =
             previousRestore ?
                 previousRestore
@@ -1335,7 +1386,9 @@ export class RateLimiter {
             if (
                 this.initialized &&
                 LeaderElectionService.isLeader() &&
-                (this.leaderStore !== store || LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm)
+                (!authorityTerm ||
+                    this.leaderStore !== store ||
+                    LeaderElectionService.getOwnedAuthorityTerm() !== authorityTerm)
             ) {
                 throw new Error('Leader authority changed during rate-limit recovery');
             }
@@ -1350,7 +1403,7 @@ export class RateLimiter {
             ) {
                 return;
             }
-            this.leaderStore.setGrantingPaused(this.handoffGrantingPaused);
+            this.synchronizeLeaderGranting();
             for (const operation of operations) {
                 operation.action();
             }
@@ -1408,25 +1461,31 @@ export class RateLimiter {
 
     private static sweep(): void {
         const now = Date.now();
+        const authorityTerm = this.synchronizeLeaderGranting();
         if (LeaderElectionService.isLeader() && !this.leaderRestoreReady) {
             this.distributeLeaderGrants(this.leaderStore.sweep(now));
-            void this.persistLeaderHandoffSnapshot(
-                LeaderElectionService.getInstanceId(),
-                this.leaderStore.exportSnapshot(now)
-            );
+            if (authorityTerm) {
+                void this.persistLeaderHandoffSnapshot(
+                    LeaderElectionService.getInstanceId(),
+                    this.leaderStore.exportSnapshot(now)
+                );
+            }
         }
         this.distributeLocalGrants(this.localStore.sweep(now));
     }
 
     /** pending 授予分发：Leader 本地等待者优先，其余广播回执 */
     private static distributeLeaderGrants(granted: PendingGrant[]): void {
-        const authorityTerm = LeaderElectionService.getAuthorityTerm();
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
+        if (!authorityTerm) {
+            return;
+        }
         const affectedBuckets = new Set<string>();
         for (const grant of granted) {
             const waiter = this.leaderWaiters.get(grant.requestId);
             if (waiter) {
                 this.leaderWaiters.delete(grant.requestId);
-                waiter.resolve(grant);
+                waiter.resolve({ ...grant, authorityTerm });
             } else {
                 if (authorityTerm) {
                     this.publishGranted(authorityTerm, grant.requestId, grant.waitMs, grant.grantId);
@@ -1480,7 +1539,7 @@ export class RateLimiter {
     }
 
     private static publishQueuePositionUpdates(pending: PendingPosition[]): void {
-        const authorityTerm = LeaderElectionService.getAuthorityTerm();
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
         if (!authorityTerm) {
             return;
         }

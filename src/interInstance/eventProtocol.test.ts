@@ -65,6 +65,8 @@ test('authority event types exclude follower requests', () => {
     assert.equal(isAuthorityEventType('cliAuthRefreshCompleted'), true);
     assert.equal(isAuthorityEventType('rateLimitAcquireRequested'), false);
     assert.equal(isAuthorityEventType('statsRefreshRequested'), false);
+    assert.equal(isAuthorityEventType('leaderLivenessRequested'), false);
+    assert.equal(isAuthorityEventType('leaderLivenessConfirmed'), true);
 });
 
 test('API key failover toggle event is registered and parses', () => {
@@ -105,6 +107,8 @@ test('rate limit event types are registered in the event type set', () => {
         'remoteInstanceHello',
         'remoteInstanceCapabilities',
         'remoteInstanceDisconnected',
+        'leaderLivenessRequested',
+        'leaderLivenessConfirmed',
         'usagesQueryRequested',
         'usagesQueryCompleted',
         'rateLimitAcquireRequested',

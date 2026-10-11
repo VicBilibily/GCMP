@@ -17,8 +17,10 @@ import { IpcClient } from './ipcClient';
 import { FallbackTransport } from './fallbackTransport';
 import { resolveIpcPath } from './pathResolver';
 import { LeaderFilePublisher, readLeaderFile } from './leaderFile';
-import { LeaderElectionService } from '../status/leaderElectionService';
+import { LeaderElectionService, type LeaderIdentity } from '../status/leaderElectionService';
 import { StatusLogger } from '../utils/runtime/statusLogger';
+import { LeaderLivenessProbe, type LeaderLivenessResult } from './liveness/probe';
+import { LEADER_LIVENESS_PROTOCOL_VERSION, isLeaderLivenessPayload } from './liveness/protocol';
 
 /**
  * 跨实例总线配置选项
@@ -62,6 +64,18 @@ export class InterInstanceBus {
     private static fallbackActive = false;
     private static extensionVersion = '';
     private static remoteUsagesQueryCompatible = false;
+    private static remoteLeaderLivenessCompatible = false;
+    private static confirmedLeaderAuthorityTerm: string | undefined;
+    private static acceptedLeaderResignation:
+        | {
+              authority: { authorityTerm: string; generation: number };
+              client: IpcClient;
+              expiresAt: number;
+              closedGeneration?: number;
+          }
+        | undefined;
+    private static readonly leaderLivenessProbe = new LeaderLivenessProbe();
+    private static leaderLivenessGeneration = 0;
 
     private static handlers = new Map<string, Set<InterInstanceEventHandler<InterInstanceEvent>>>();
     private static leaderChangeDisposable: vscode.Disposable | undefined;
@@ -89,7 +103,9 @@ export class InterInstanceBus {
         this.context = context;
         const extensionVersion = context.extension?.packageJSON?.version;
         this.extensionVersion = typeof extensionVersion === 'string' ? extensionVersion : '';
+        this.confirmedLeaderAuthorityTerm = undefined;
         this.remoteUsagesQueryCompatible = false;
+        this.remoteLeaderLivenessCompatible = false;
 
         // 远程开发环境（Remote/SSH/WSL/Container）下禁用 IPC，仅使用文件系统降级通道
         const isLocalHost = typeof vscode.env.remoteName === 'undefined';
@@ -107,17 +123,21 @@ export class InterInstanceBus {
 
         // 监听 Leader 变化（角色切换经串行链执行，避免并发交错）
         this.leaderChangeDisposable = LeaderElectionService.onLeaderChanged(isLeader => {
+            this.cancelLeaderLiveness();
             StatusLogger.info(`[InterInstanceBus] Leader changed: isLeader=${isLeader}`);
             this.enqueueRoleSwitch(isLeader);
         });
         context.subscriptions.push(
-            LeaderElectionService.onLeaderIdentityChanged(() => {
+            LeaderElectionService.onLeaderIdentityChanged(identity => {
                 if (!this.initialized) {
                     return;
                 }
+                if (identity?.authorityTerm !== this.clientTarget?.authorityTerm) {
+                    this.cancelLeaderLiveness();
+                }
                 if (LeaderElectionService.isLeader()) {
                     const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm();
-                    this.setAuthorityTerm(authorityTerm);
+                    this.syncLeaderAuthority();
                     if (
                         authorityTerm &&
                         this.options.enabled &&
@@ -152,6 +172,9 @@ export class InterInstanceBus {
         // 先使所有已排队/执行中的角色切换与重连任务失效，再等待切换链排空。
         this.initialized = false;
         this.lifecycleGeneration++;
+        this.cancelLeaderLiveness();
+        this.remoteLeaderLivenessCompatible = false;
+        this.confirmedLeaderAuthorityTerm = undefined;
 
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -366,6 +389,68 @@ export class InterInstanceBus {
         return this.client?.isConnected() === true && this.remoteUsagesQueryCompatible;
     }
 
+    static syncLeaderAuthority(): void {
+        // 恢复任期不应提前启动已退避的IPC恢复。
+        if (this.initialized && LeaderElectionService.isLeader()) {
+            this.setAuthorityTerm(LeaderElectionService.getOwnedAuthorityTerm());
+        }
+    }
+
+    static cancelLeaderLiveness(): void {
+        // 取消也必须作废已结算但尚未恢复的续体。
+        this.acceptedLeaderResignation = undefined;
+        this.leaderLivenessGeneration++;
+        this.leaderLivenessProbe.cancel();
+    }
+
+    static async confirmLeaderLiveness(identity: LeaderIdentity): Promise<LeaderLivenessResult> {
+        const client = this.client;
+        const generation = this.lifecycleGeneration;
+        const livenessGeneration = this.leaderLivenessGeneration;
+        const authorityTerm = this.authorityTerm;
+        const targetTerm = this.clientTarget?.authorityTerm;
+        if (
+            !this.initialized ||
+            !this.options.enabled ||
+            LeaderElectionService.isLeader() ||
+            !this.instanceId ||
+            !client?.isConnected() ||
+            !this.remoteLeaderLivenessCompatible ||
+            this.clientTarget?.instanceId !== identity.instanceId ||
+            !authorityTerm ||
+            this.getAuthorityInstanceId() !== identity.instanceId
+        ) {
+            return 'unconfirmed';
+        }
+        // 发现记录可能陈旧，探测任期以当前IPC握手为准。
+        const result = await this.leaderLivenessProbe.confirm(
+            client,
+            { instanceId: identity.instanceId, authorityTerm },
+            this.instanceId
+        );
+        if (
+            !this.initialized ||
+            !this.remoteLeaderLivenessCompatible ||
+            generation !== this.lifecycleGeneration ||
+            livenessGeneration !== this.leaderLivenessGeneration ||
+            LeaderElectionService.isLeader() ||
+            this.client !== client ||
+            !client.isConnected() ||
+            this.clientTarget?.instanceId !== identity.instanceId ||
+            this.clientTarget.authorityTerm !== targetTerm ||
+            this.authorityTerm !== authorityTerm
+        ) {
+            return 'invalidated';
+        }
+        if (result === 'alive' && authorityTerm !== identity.authorityTerm) {
+            StatusLogger.trace(
+                `[InterInstanceBus] Leader confirmed ${authorityTerm}, invalidating stale election ${identity.authorityTerm}`
+            );
+            return 'invalidated';
+        }
+        return result;
+    }
+
     /** 角色/连接切换中：term 可能尚未更新，调用方不应把短暂缺失当成权威不可用 */
     static isAuthorityTransitioning(): boolean {
         return this.roleTransitioning > 0;
@@ -387,8 +472,46 @@ export class InterInstanceBus {
         return this.authorityTerm;
     }
 
+    static getConfirmedLeaderAuthority(): { authorityTerm: string | undefined; generation: number } {
+        const authorityTerm = this.confirmedLeaderAuthorityTerm;
+        return {
+            authorityTerm:
+                (
+                    !LeaderElectionService.isLeader() &&
+                    authorityTerm === this.authorityTerm &&
+                    this.clientTarget?.instanceId === this.getAuthorityInstanceId()
+                ) ?
+                    authorityTerm
+                :   undefined,
+            generation: this.leaderLivenessGeneration
+        };
+    }
+
     static onAuthorityChanged(listener: (authorityTerm: string | undefined) => void): vscode.Disposable {
         return this.authorityChangedEmitter.event(listener);
+    }
+
+    static isLeaderResignationAuthorityCurrent(
+        authority: ReturnType<typeof this.getConfirmedLeaderAuthority>
+    ): boolean {
+        const current = this.getConfirmedLeaderAuthority();
+        if (current.generation === authority.generation && current.authorityTerm === authority.authorityTerm) {
+            return true;
+        }
+        const accepted = this.acceptedLeaderResignation;
+        return !!(
+            this.initialized &&
+            !LeaderElectionService.isLeader() &&
+            accepted &&
+            accepted.authority.generation === authority.generation &&
+            accepted.authority.authorityTerm === authority.authorityTerm &&
+            accepted.closedGeneration === current.generation &&
+            Date.now() < accepted.expiresAt &&
+            !this.authorityTerm &&
+            !current.authorityTerm &&
+            this.client === accepted.client &&
+            !this.client.isConnected()
+        );
     }
 
     /**
@@ -432,6 +555,8 @@ export class InterInstanceBus {
         }
 
         const generation = this.lifecycleGeneration;
+        this.cancelLeaderLiveness();
+        this.confirmedLeaderAuthorityTerm = undefined;
         const ipcPath = resolveIpcPath(LeaderElectionService.getInstanceId());
         let server = this.server;
         let reconnectFollowers = false;
@@ -442,7 +567,7 @@ export class InterInstanceBus {
                 this.client = undefined;
                 this.clientTarget = undefined;
                 server = new IpcServer({
-                    onMessage: event => this.dispatchEvent(event),
+                    onMessage: event => this.dispatchEvent(event, 'ipc'),
                     onClientDisconnected: instanceId => this.handleRemoteInstanceDisconnected(instanceId)
                 });
                 await server.start(ipcPath);
@@ -553,6 +678,7 @@ export class InterInstanceBus {
         const generation = this.lifecycleGeneration;
         const target = this.getLeaderConnectionTarget();
         if (!target) {
+            this.acceptedLeaderResignation = undefined;
             if (LeaderElectionService.isAgentsWindow()) {
                 this.setAuthorityTerm(undefined);
             }
@@ -584,10 +710,14 @@ export class InterInstanceBus {
                 `instanceId=${JSON.stringify(target.instanceId)}, authorityTerm=${JSON.stringify(target.authorityTerm)}`
         );
         // 先断开可能残留的旧连接，避免断线事件与重连竞态导致旧 socket 被遗弃后继续派发事件
-        await this.client?.disconnect();
+        this.cancelLeaderLiveness();
+        this.remoteLeaderLivenessCompatible = false;
+        this.confirmedLeaderAuthorityTerm = undefined;
+        const oldClient = this.client;
         this.client = undefined;
         this.clientTarget = undefined;
         this.remoteUsagesQueryCompatible = false;
+        await oldClient?.disconnect();
         if (!this.initialized || generation !== this.lifecycleGeneration || LeaderElectionService.isLeader()) {
             return;
         }
@@ -595,18 +725,45 @@ export class InterInstanceBus {
         const client = new IpcClient({
             onMessage: event => {
                 if (this.client === client && generation === this.lifecycleGeneration) {
-                    this.dispatchEvent(event);
+                    this.dispatchEvent(event, 'ipc');
                 }
             },
             onDisconnect: () => {
                 if (this.client !== client || generation !== this.lifecycleGeneration) {
                     return;
                 }
+                const accepted = this.acceptedLeaderResignation;
+                const current = this.getConfirmedLeaderAuthority();
+                const preserve =
+                    accepted?.client === client &&
+                    accepted.authority.authorityTerm === current.authorityTerm &&
+                    accepted.authority.generation === current.generation &&
+                    Date.now() < accepted.expiresAt &&
+                    !LeaderElectionService.isLeader();
+                const closedGeneration =
+                    current.generation + 1 + (this.roleTransitioning === 0 && this.authorityTerm !== undefined ? 1 : 0);
+                this.cancelLeaderLiveness();
+                this.remoteLeaderLivenessCompatible = false;
+                this.confirmedLeaderAuthorityTerm = undefined;
                 this.clientTarget = undefined;
                 this.remoteUsagesQueryCompatible = false;
                 // 切角色时主动断开旧 client 是预期行为，保留旧 term 直到新连接落地
                 if (this.roleTransitioning === 0) {
                     this.setAuthorityTerm(undefined);
+                }
+                // 仅保留此次正常关闭自身造成的代次变化，不吸收同步监听器的新撤销。
+                if (
+                    preserve &&
+                    accepted &&
+                    this.initialized &&
+                    generation === this.lifecycleGeneration &&
+                    !LeaderElectionService.isLeader() &&
+                    this.client === client &&
+                    !this.authorityTerm &&
+                    !this.confirmedLeaderAuthorityTerm &&
+                    this.leaderLivenessGeneration === closedGeneration
+                ) {
+                    this.acceptedLeaderResignation = { ...accepted, closedGeneration };
                 }
                 // 基础事件为非关键通知；断线后无需补历史，仅尽快重连。
                 // 但 publish() 会基于真实连接状态选择 fallback，从而减少重连窗口内的静默丢失。
@@ -746,9 +903,29 @@ export class InterInstanceBus {
         }
     }
 
-    private static dispatchEvent(event: InterInstanceEvent): void {
+    private static dispatchEvent(event: InterInstanceEvent, source?: 'ipc'): void {
         // 跳过自己发送的事件
         if (event.senderInstanceId === this.instanceId) {
+            return;
+        }
+        if (event.type === 'leaderLivenessRequested' || event.type === 'leaderLivenessConfirmed') {
+            if (source !== 'ipc' || !isLeaderLivenessPayload(event.payload)) {
+                return;
+            }
+            if (event.type === 'leaderLivenessRequested') {
+                if (
+                    LeaderElectionService.isLeader() &&
+                    event.payload.targetInstanceId === this.instanceId &&
+                    LeaderElectionService.getOwnedAuthorityTerm() === event.payload.authorityTerm
+                ) {
+                    this.publishToInstance(event.senderInstanceId, {
+                        type: 'leaderLivenessConfirmed',
+                        payload: { ...event.payload, targetInstanceId: event.senderInstanceId }
+                    });
+                }
+            } else if (this.client && !LeaderElectionService.isLeader()) {
+                this.leaderLivenessProbe.accept(event, this.client);
+            }
             return;
         }
 
@@ -766,6 +943,7 @@ export class InterInstanceBus {
                     targetInstanceId: event.senderInstanceId,
                     extensionVersion: this.extensionVersion,
                     usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
+                    leaderLivenessProtocolVersion: LEADER_LIVENESS_PROTOCOL_VERSION,
                     authorityTerm: LeaderElectionService.getOwnedAuthorityTerm()
                 }
             });
@@ -784,17 +962,64 @@ export class InterInstanceBus {
                     typeof authorityTerm === 'string' ?
                         Number(authorityTerm.slice(event.senderInstanceId.length + 1))
                     :   0;
-                if (
+                const validAuthorityTerm =
+                    typeof authorityTerm === 'string' &&
                     Number.isSafeInteger(electedAt) &&
                     electedAt > 0 &&
-                    authorityTerm === `${event.senderInstanceId}:${electedAt}`
-                ) {
+                    authorityTerm === `${event.senderInstanceId}:${electedAt}`;
+                const previousConfirmedTerm = this.confirmedLeaderAuthorityTerm;
+                const previousCompatible = this.remoteLeaderLivenessCompatible;
+                if (validAuthorityTerm) {
                     this.setAuthorityTerm(authorityTerm);
                 }
                 this.remoteUsagesQueryCompatible = isUsagesQueryCapabilityCompatible(this.extensionVersion, payload);
+                if (source === 'ipc') {
+                    this.confirmedLeaderAuthorityTerm =
+                        this.clientTarget?.instanceId === event.senderInstanceId && validAuthorityTerm ?
+                            authorityTerm
+                        :   undefined;
+                    this.remoteLeaderLivenessCompatible =
+                        (payload as { leaderLivenessProtocolVersion?: unknown }).leaderLivenessProtocolVersion ===
+                            LEADER_LIVENESS_PROTOCOL_VERSION &&
+                        this.clientTarget?.instanceId === event.senderInstanceId &&
+                        validAuthorityTerm;
+                    if (
+                        previousConfirmedTerm !== this.confirmedLeaderAuthorityTerm ||
+                        previousCompatible !== this.remoteLeaderLivenessCompatible
+                    ) {
+                        this.cancelLeaderLiveness();
+                    }
+                }
             }
         }
 
+        if (
+            source === 'ipc' &&
+            event.type === 'leaderResigning' &&
+            this.initialized &&
+            !LeaderElectionService.isLeader() &&
+            this.client?.isConnected() &&
+            this.clientTarget?.instanceId === event.senderInstanceId
+        ) {
+            const authority = this.getConfirmedLeaderAuthority();
+            const now = Date.now();
+            if (
+                authority.authorityTerm &&
+                event.payload.leaderId === event.senderInstanceId &&
+                event.payload.leaderId === LeaderElectionService.getLeaderId() &&
+                (event.payload.sourceAuthorityTerm === undefined ||
+                    event.payload.sourceAuthorityTerm === authority.authorityTerm) &&
+                Number.isFinite(event.timestamp) &&
+                now - event.timestamp <= 10_000 &&
+                event.timestamp - now <= 1_000
+            ) {
+                this.acceptedLeaderResignation = {
+                    authority: { ...authority, authorityTerm: authority.authorityTerm },
+                    client: this.client,
+                    expiresAt: Math.min(now + 10_000, event.timestamp + 10_000)
+                };
+            }
+        }
         this.invokeHandlers(event);
     }
 
@@ -852,6 +1077,9 @@ export class InterInstanceBus {
         if (this.authorityTerm === authorityTerm) {
             return;
         }
+        this.cancelLeaderLiveness();
+        this.confirmedLeaderAuthorityTerm = undefined;
+        this.remoteLeaderLivenessCompatible = false;
         this.authorityTerm = authorityTerm;
         this.remoteUsagesQueryCompatible = false;
         this.authorityChangedEmitter.fire(authorityTerm);

@@ -25,6 +25,7 @@ interface RateLimiterInternals {
     handleRemoteAcquireCancelled: typeof RateLimiter.handleRemoteAcquireCancelled;
     leaderStore: RateLimitStore;
     leaderRestoreReady: Promise<void> | undefined;
+    leaderRestoreAuthorityTerm: string | undefined;
     clientCore:
         | {
               settlePendingAsDegraded?: () => void;
@@ -99,6 +100,14 @@ function makeTempHandoffFilePath(name: string): string {
 }
 
 suite('RateLimiter authority change', () => {
+    let originalRestoreAuthorityTerm: string | undefined;
+    setup(() => {
+        originalRestoreAuthorityTerm = (RateLimiter as unknown as RateLimiterInternals).leaderRestoreAuthorityTerm;
+    });
+    teardown(() => {
+        (RateLimiter as unknown as RateLimiterInternals).leaderRestoreAuthorityTerm = originalRestoreAuthorityTerm;
+    });
+
     test('sleepOrRefund returns the reacquired handle after authority change', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedBus = InterInstanceBus as unknown as PatchedInterInstanceBus;
@@ -424,6 +433,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('graceful leader handoff restores authoritative bucket instead of empty start', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const handoffFilePath = makeTempHandoffFilePath('memory-restore');
@@ -451,6 +461,7 @@ suite('RateLimiter authority change', () => {
         let settledPending = 0;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             patchedLeaderElection.isLeader = () => true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
@@ -485,6 +496,7 @@ suite('RateLimiter authority change', () => {
             const released = rateLimiter.leaderStore.release(granted.grantId, undefined, now + 100);
             assert.equal(released.length, 0);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             patchedLeaderElection.isLeader = originalIsLeader;
@@ -499,6 +511,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('graceful leader handoff accepts previous-term release for imported grant', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const handoffFilePath = makeTempHandoffFilePath('memory-release');
@@ -519,6 +532,7 @@ suite('RateLimiter authority change', () => {
         const originalInitialized = rateLimiter.initialized;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
@@ -542,6 +556,7 @@ suite('RateLimiter authority change', () => {
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
@@ -554,6 +569,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('graceful leader handoff preserves old leader local grants until previous-term release', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const handoffFilePath = makeTempHandoffFilePath('memory-local-release');
@@ -578,6 +594,7 @@ suite('RateLimiter authority change', () => {
         const originalInitialized = rateLimiter.initialized;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
@@ -610,6 +627,7 @@ suite('RateLimiter authority change', () => {
 
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
@@ -622,6 +640,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('graceful leader handoff eventually drops old leader local grants without release', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const handoffFilePath = makeTempHandoffFilePath('memory-local-expiry');
@@ -646,6 +665,7 @@ suite('RateLimiter authority change', () => {
         const originalIsLeader = patchedLeaderElection.isLeader;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             patchedLeaderElection.isLeader = () => true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
@@ -670,6 +690,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.leaderStore.sweep(now + 6_000);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight ?? 0, 0);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             patchedLeaderElection.isLeader = originalIsLeader;
@@ -682,6 +703,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('graceful leader handoff binds local grant renewal to the previous leader', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const handoffFilePath = makeTempHandoffFilePath('memory-local-renewal');
@@ -706,6 +728,7 @@ suite('RateLimiter authority change', () => {
         const originalInitialized = rateLimiter.initialized;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             rateLimiter.leaderStore = new RateLimitStore('before');
@@ -740,6 +763,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.leaderStore.sweep(now + 6_000);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight, 1);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
@@ -833,6 +857,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('leader takeover restores persisted handoff after restart-like gap', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const handoffFilePath = makeTempHandoffFilePath('persisted-restart');
         const source = new RateLimitStore('leader-a');
@@ -858,6 +883,7 @@ suite('RateLimiter authority change', () => {
         let settledPending = 0;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             await writeRateLimitLeaderHandoff({
@@ -883,6 +909,7 @@ suite('RateLimiter authority change', () => {
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
@@ -895,6 +922,7 @@ suite('RateLimiter authority change', () => {
     });
 
     test('failed in-memory handoff falls back to persisted handoff file', async () => {
+        const originalOwnedAuthority = LeaderElectionService.getOwnedAuthorityTerm;
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const handoffFilePath = makeTempHandoffFilePath('fallback-after-invalid-memory');
         const source = new RateLimitStore('leader-b');
@@ -915,6 +943,7 @@ suite('RateLimiter authority change', () => {
         const originalIsLeader = patchedLeaderElection.isLeader;
 
         try {
+            LeaderElectionService.getOwnedAuthorityTerm = () => 'successor:2';
             rateLimiter.initialized = true;
             setRateLimitHandoffFilePathOverride(handoffFilePath);
             await writeRateLimitLeaderHandoff({
@@ -941,6 +970,7 @@ suite('RateLimiter authority change', () => {
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
         } finally {
+            LeaderElectionService.getOwnedAuthorityTerm = originalOwnedAuthority;
             await rateLimiter.leaderRestoreReady?.catch(() => {});
             rateLimiter.initialized = originalInitialized;
             setRateLimitHandoffFilePathOverride();
