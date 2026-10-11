@@ -29,6 +29,7 @@ export class IpcClient {
     private disposed = false;
     /** 接收缓冲区上限，防止异常对端持续发送无换行数据导致内存无限增长 */
     private static readonly MAX_BUFFER_BYTES = 1024 * 1024; // 1MB
+    private static readonly DISCONNECT_TIMEOUT_MS = 1000;
 
     constructor(options: IpcClientOptions) {
         this.options = options;
@@ -116,9 +117,16 @@ export class IpcClient {
             const socket = this.socket;
             this.socket = undefined;
             await new Promise<void>(resolve => {
-                socket.once('close', () => resolve());
+                // destroySoon 会等待积压写入，必须另设强制关闭期限。
+                const timeout = setTimeout(() => {
+                    StatusLogger.warn('[IpcClient] Destroying connection: reason=disconnect-timeout');
+                    socket.destroy();
+                }, IpcClient.DISCONNECT_TIMEOUT_MS);
+                socket.once('close', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                });
                 socket.end();
-                // 如果对方无响应，destroy 会触发 close 事件
                 socket.destroySoon();
             });
         }
