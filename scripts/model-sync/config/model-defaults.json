@@ -436,5 +436,23 @@
             "name": "Laguna-S-2.1",
             "template": ["256k", "text"]
         }
+    },
+    "mistral": {
+        "mistral-large-4": {
+            "name": "Mistral-Large-4",
+            "template": ["1m", "vision"],
+            "extraBody": { "reasoning_effort": "high" }
+        }
+    },
+    "anthropic": {
+        // Haiku 5.5 仅支持 adaptive/disabled 两种 thinking.type（enabled 会 400）；思考深度由 effort 控制，disabled 仅 ≤high 档可用
+        "claude-haiku-5-5": {
+            "name": "Claude-Haiku-5.5",
+            "template": ["1m", "vision"],
+            "sdkMode": "anthropic",
+            "reasoningEffort": ["medium", "high", "max", "low", "none"],
+            "reasoningDefault": "medium",
+            "extraBody": { "thinking": { "type": "adaptive" } }
+        }
     }
 }

@@ -504,6 +504,32 @@
             }
         },
         {
+            "id": "claude-haiku-5-5-go",
+            "name": "Claude-Haiku-5.5 (Go)",
+            "model": "claude-haiku-5-5",
+            "baseUrl": "https://opencode.ai/zen/go",
+            "tooltip": "OpenCode Go 套餐 — Claude-Haiku-5.5。",
+            "sdkMode": "anthropic",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["medium", "high", "max", "low", "none"],
+            "reasoningDefault": "medium",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "thinking": { "type": "adaptive" }
+            },
+            "tokenPricing": {
+                "pricing": [0.1, 0.5, 0.01, 0.125],
+                "tiers": [
+                    {
+                        "contextSizeMin": 100001,
+                        "pricing": [0.5, 2.5, 0.05, 0.625]
+                    }
+                ]
+            }
+        },
+        {
             "id": "deepseek-v4.1-flash-zen",
             "name": "DeepSeek-V4.1-Flash (Zen)",
             "model": "deepseek-v4.1-flash",
@@ -557,7 +583,8 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high", "low"],
             "reasoningDefault": "max",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
             "id": "glm-5.3-flash-zen",
@@ -570,7 +597,8 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high", "low"],
             "reasoningDefault": "max",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.15, 0.5, 0.03]
         },
         {
             "id": "glm-5.2-zen",
@@ -715,6 +743,7 @@
             "reasoningDefault": "high",
             "thinkingFormat": "effort-only",
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.25, 4.25, 0.15],
             "extraBody": {
                 "store": false,
                 "include": ["reasoning.encrypted_content"],
@@ -734,11 +763,25 @@
             "reasoningDefault": "high",
             "thinkingFormat": "effort-only",
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.25, 4.25, 0.15],
             "extraBody": {
                 "store": false,
                 "include": ["reasoning.encrypted_content"],
                 "reasoning": { "effort": "high", "summary": "auto" }
             }
+        },
+        {
+            "id": "mistral-large-4-zen",
+            "name": "Mistral-Large-4 (Zen)",
+            "model": "mistral-large-4",
+            "tooltip": "OpenCode — Mistral-Large-4。",
+            "sdkMode": "openai-sse",
+            "contextSize": [512000, 400000, 256000, 192000],
+            "maxInputTokens": 448000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.68, 2.09, 0.07],
+            "extraBody": { "reasoning_effort": "high" }
         }
     ]
 }

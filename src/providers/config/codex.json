@@ -18,7 +18,10 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2.5, 15, 0.25],
-                "tiers": [{ "serviceTier": "priority", "pricing": [5, 30, 0.5] }]
+                "tiers": [
+                    { "serviceTier": "priority", "pricing": [5, 30, 0.5] },
+                    { "contextSizeMin": 272001, "pricing": [5, 22.5, 0.5] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -65,7 +68,10 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [5, 30, 0.5],
-                "tiers": [{ "serviceTier": "priority", "pricing": [12.5, 75, 1.25] }]
+                "tiers": [
+                    { "serviceTier": "priority", "pricing": [12.5, 75, 1.25] },
+                    { "contextSizeMin": 272001, "pricing": [10, 45, 1] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -91,7 +97,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [5, 30, 0.5],
-                "tiers": [{ "serviceTier": "priority", "pricing": [10, 60, 1] }]
+                "tiers": [
+                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [20, 90, 2] },
+                    { "serviceTier": "priority", "pricing": [10, 60, 1] },
+                    { "contextSizeMin": 272001, "pricing": [10, 45, 1] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -117,7 +127,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 12, 0.2],
-                "tiers": [{ "serviceTier": "priority", "pricing": [4, 24, 0.4] }]
+                "tiers": [
+                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [8, 36, 0.8] },
+                    { "serviceTier": "priority", "pricing": [4, 24, 0.4] },
+                    { "contextSizeMin": 272001, "pricing": [4, 18, 0.4] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -143,7 +157,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.2, 1.2, 0.02],
-                "tiers": [{ "serviceTier": "priority", "pricing": [0.4, 2.4, 0.04] }]
+                "tiers": [
+                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [0.8, 3.6, 0.08] },
+                    { "serviceTier": "priority", "pricing": [0.4, 2.4, 0.04] },
+                    { "contextSizeMin": 272001, "pricing": [0.4, 1.8, 0.04] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -169,7 +187,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [10, 50, 1, 12.5],
-                "tiers": [{ "serviceTier": "priority", "pricing": [20, 100, 2, 25] }]
+                "tiers": [
+                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [40, 150, 4, 50] },
+                    { "serviceTier": "priority", "pricing": [20, 100, 2, 25] },
+                    { "contextSizeMin": 272001, "pricing": [20, 75, 2, 25] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -195,7 +217,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 10, 0.2, 2.5],
-                "tiers": [{ "serviceTier": "priority", "pricing": [4, 20, 0.4, 5] }]
+                "tiers": [
+                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [8, 30, 0.8, 10] },
+                    { "serviceTier": "priority", "pricing": [4, 20, 0.4, 5] },
+                    { "contextSizeMin": 272001, "pricing": [4, 15, 0.4, 5] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -221,7 +247,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.1, 0.5, 0.01, 0.125],
-                "tiers": [{ "serviceTier": "priority", "pricing": [0.2, 1, 0.02, 0.25] }]
+                "tiers": [
+                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [0.4, 1.5, 0.04, 0.5] },
+                    { "serviceTier": "priority", "pricing": [0.2, 1, 0.02, 0.25] },
+                    { "contextSizeMin": 272001, "pricing": [0.2, 0.75, 0.02, 0.25] }
+                ]
             },
             "extraBody": {
                 "store": false,
@@ -237,7 +267,7 @@
             "name": "GPT-6.1-Sol (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "GPT-6 Sol 升级版，复杂编程、电脑操作与专业工作流上性能接近旗舰 GPT-6 Astra，而标准价格仅为其五分之一，缓存输入再降 50%",
-            "contextSize": [400000, 1000000],
+            "contextSize": [600000, 400000, 1000000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "webSearchTool": true,

@@ -63,7 +63,8 @@
             "muse-spark-1.2": { "ref": "meta/muse-spark-1.2" },
             "glm-5.3": { "ref": "zhipu/glm-5.3" },
             "glm-5.3-flash": { "ref": "zhipu/glm-5.3-flash" },
-            "deepseek-v4.1-flash": { "ref": "deepseek/deepseek-v4.1-flash" }
+            "deepseek-v4.1-flash": { "ref": "deepseek/deepseek-v4.1-flash" },
+            "mistral-large-4": { "ref": "mistral/mistral-large-4" }
         }
     },
     "opencode-go": {
@@ -74,26 +75,24 @@
         "tooltipPrefix": "OpenCode Go 套餐",
         "localIdSuffix": "-go",
         "excludedModelIds": [],
-        "excludedModelIdPrefixes": [
-            "minimax-m2.5",
-            "mimo-v2-pro",
-            "mimo-v2-omni",
-            "hy3-preview",
-            "omen-alpha",
-            "deepseek-flash",
-            "kimi-k2.5",
-            "qwen3.5-plus",
-            "grok-4.5",
-            // 已在 go 下线但仍挂在远端列表（$ 精确匹配，避免误伤 glm-5.2/5.3）
-            "glm-5$",
-            "glm-5.1$"
-        ],
+        "excludedModelIdPrefixes": ["minimax-m2.5", "deepseek-flash", "glm-5.1"],
         // 免费模型不入预置，-free 后缀一律过滤（与 zen 一致）
-        "excludedModelIdSuffixes": ["-free"],
+        "excludedModelIdSuffixes": ["-free", "-alpha"],
         "defaults": {
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1"
         },
+        "modelRules": [
+            {
+                // Claude 系列走 Anthropic 端点，baseUrl 不带 /v1
+                "idPrefix": "claude-",
+                "overrides": {
+                    "baseUrl": "https://opencode.ai/zen/go",
+                    "sdkMode": "anthropic",
+                    "extraBody": { "thinking": { "type": "adaptive" } }
+                }
+            }
+        ],
         "models": {
             "mimo-v2.6-pro": { "ref": "xiaomi/mimo-v2.6-pro" },
             "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" },
@@ -121,6 +120,7 @@
             "inclusionai/", // ling-3.0-flash-sante 为医疗调优模型
             "Qwen/Qwen3.8-Omni" // 全模态模型，暂未完整支持接入
         ],
+        "excludedModelIdSuffixes": [":free"], // 限时免费的隐身预览模型默认过滤（数据可能用于训练）
         "defaults": {
             "sdkMode": "openai-sse"
         },
@@ -156,8 +156,8 @@
             "xiaomi/mimo-v2.6-pro-ultraspeed": { "localId": "mimo-v2.6-pro-ultraspeed" },
             "z-ai/glm-5.3-flashx": { "ref": "zhipu/glm-5.3-flashx", "localId": "glm-5.3-flashx" },
             "stepfun/Step-5-Preview": { "ref": "stepfun/step-5-preview", "localId": "step-5-preview" },
-            // 规格继承 deepseek-v4.1-flash 变体；价格按官方 off-peak 价目，高峰（01–04 & 06–10 UTC 工作日）2×
-            "deepseek/deepseek-v4.1-flash-fast": { "localId": "deepseek-v4.1-flash-fast" }
+            "deepseek/deepseek-v4.1-flash-fast": { "localId": "deepseek-v4.1-flash-fast" },
+            "mistral/mistral-large-4": { "localId": "mistral-large-4" }
         }
     },
     // ClinePass：成员与规格均取自 models.dev 的 cline-pass 目录（端点与 provider baseUrl 不同源，用 localBaseUrl 归属）；

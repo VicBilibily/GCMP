@@ -651,6 +651,19 @@
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [1, 2.7, 0.05]
+        },
+        {
+            "id": "mistral-large-4",
+            "name": "Mistral-Large-4 (CmdC)",
+            "model": "mistral/mistral-large-4",
+            "tooltip": "CommandCode GOAT Plan — Mistral-Large-4。",
+            "sdkMode": "openai-sse",
+            "contextSize": [512000, 400000, 256000, 192000],
+            "maxInputTokens": 448000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.36, 4.18, 0.14],
+            "extraBody": { "reasoning_effort": "high" }
         }
     ]
 }
