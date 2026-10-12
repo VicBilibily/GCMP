@@ -331,16 +331,24 @@ test('usage refresh completion and multi-day feedback regressions', async suite 
             }
         });
 
-        await suite.test('today refresh and periodic refresh keep publishing updates', async context => {
-            const { follower, register } = await fixture(context);
+        await suite.test('today refresh and periodic refresh publish changed statistics', async context => {
+            const { follower, stats, register } = await fixture(context);
+            stats.total.requests = 1;
             register();
             await host.run('follower', () => follower.internals.doRefreshCurrentStats());
             await nextTurn();
             assert.equal(host.events.filter(item => item.event.type === 'tokenUsageUpdated').length, 1);
             assert.equal(host.periodic.length, 1);
+            stats.total.requests = 2;
             await host.run('leader', () => host.periodic[0]());
             await nextTurn();
             assert.equal(host.events.filter(item => item.event.type === 'tokenUsageUpdated').length, 2);
+            assert.deepEqual(
+                host.events.flatMap(item =>
+                    item.event.type === 'tokenUsageUpdated' ? [item.event.payload.totalRequests] : []
+                ),
+                [1, 2]
+            );
         });
     } finally {
         host.restore();

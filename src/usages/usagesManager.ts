@@ -8,6 +8,7 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
+import type { StatsRefreshResult } from './fileLogger/refresh/statsRefreshQueue';
 import { SessionTitleService } from './sessionTitleService';
 import { InterInstanceBus } from '../interInstance';
 import { LeaderElectionService } from '../status/leaderElectionService';
@@ -110,6 +111,11 @@ export class TokenUsagesManager {
     >();
     private backgroundSessionTitleIds = new Set<string>();
     private backgroundSessionTitleHydration: Promise<void> | undefined;
+    private readonly statsNotifications = new Map<
+        string,
+        { promise: Promise<StatsRefreshResult | undefined>; force: boolean }
+    >();
+    private readonly publishedStats = new WeakSet<StatsRefreshResult>();
 
     private constructor() {
         this.eventEmitter = new EventEmitter();
@@ -270,10 +276,11 @@ export class TokenUsagesManager {
         const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const timestamp = params.timestamp ?? Date.now();
         const recordDate = DateUtils.formatDate(new Date(timestamp));
+        const fileLogger = this.fileLogger;
 
         try {
             // 记录到文件日志系统（不等待结果）
-            this.fileLogger
+            fileLogger
                 .recordEstimatedTokens({
                     requestId,
                     providerKey: params.providerKey,
@@ -295,9 +302,12 @@ export class TokenUsagesManager {
                     timestamp
                 })
                 .finally(() => {
+                    if (!this.initialized || this.fileLogger !== fileLogger) {
+                        return;
+                    }
                     this.clearDateRecordsCache(recordDate);
                     // 通知更新
-                    this.notifyUpdate();
+                    this.notifyUpdate(recordDate);
                 });
 
             StatusLogger.debug(
@@ -323,11 +333,13 @@ export class TokenUsagesManager {
         }
 
         try {
+            const fileLogger = this.fileLogger;
             const pendingLog = this.fileLogger.getPendingLogs().find(log => log.requestId === params.requestId);
             const recordDate =
                 pendingLog ?
                     DateUtils.formatDate(new Date(pendingLog.timestamp))
                 :   this.getRequestDate(params.requestId);
+            let writtenDate = recordDate;
             // 将 rawUsage 中的 null 值转换为 undefined（适配 fileLogger 的期望类型）
             let normalizedUsage: GenericUsageData | undefined;
             if (params.rawUsage) {
@@ -342,24 +354,39 @@ export class TokenUsagesManager {
             }
 
             // 更新文件日志系统（不等待结果）
-            this.fileLogger
-                .updateActualTokens({
-                    requestId: params.requestId,
-                    sessionId: params.sessionId,
-                    sessionTitle: currentSessionTitle,
-                    rawUsage: normalizedUsage,
-                    status: params.status,
-                    requestMetricStartTime: params.requestMetricStartTime,
-                    wasThrottled: params.wasThrottled,
-                    streamStartTime: params.streamStartTime,
-                    streamEndTime: params.streamEndTime,
-                    estimatedCost: params.estimatedCost,
-                    costBreakdown: params.costBreakdown
-                })
-                .finally(() => {
+            fileLogger
+                .updateActualTokens(
+                    {
+                        requestId: params.requestId,
+                        sessionId: params.sessionId,
+                        sessionTitle: currentSessionTitle,
+                        rawUsage: normalizedUsage,
+                        status: params.status,
+                        requestMetricStartTime: params.requestMetricStartTime,
+                        wasThrottled: params.wasThrottled,
+                        streamStartTime: params.streamStartTime,
+                        streamEndTime: params.streamEndTime,
+                        estimatedCost: params.estimatedCost,
+                        costBreakdown: params.costBreakdown
+                    },
+                    date => {
+                        writtenDate = date;
+                    }
+                )
+                .then(() => {
+                    if (!this.initialized || this.fileLogger !== fileLogger) {
+                        return;
+                    }
                     this.clearDateRecordsCache(recordDate);
+                    this.clearDateRecordsCache(writtenDate);
                     // 通知更新
-                    this.notifyUpdate();
+                    this.notifyUpdate(writtenDate);
+                })
+                .catch(error => {
+                    StatusLogger.warn('[Usages] Failed to update actual tokens:', error);
+                    if (this.initialized && this.fileLogger === fileLogger) {
+                        this.notifyUpdate(recordDate);
+                    }
                 });
 
             // 计算流耗时信息（如果有）
@@ -408,8 +435,13 @@ export class TokenUsagesManager {
             return existing;
         }
 
+        const leaderId = LeaderElectionService.getLeaderId();
+        if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
+            this.notifyUpdate(date, false);
+        }
+
         const read = this.fileLogger
-            .getDateStats(date)
+            .getDateStats(date, false, true)
             .then(stats => ({
                 ...stats,
                 date,
@@ -429,12 +461,7 @@ export class TokenUsagesManager {
      * 适用于详情界面,确保显示最新的准确数据
      */
     async getDateStatsFromFile(date: string): Promise<TokenUsageStatsFromFile & { date: string; lastUpdated: number }> {
-        const stats = await this.fileLogger.getDateStatsFromFile(date);
-        return {
-            ...stats,
-            date,
-            lastUpdated: Date.now()
-        };
+        return this.getDateStats(date);
     }
 
     /**
@@ -1135,21 +1162,29 @@ export class TokenUsagesManager {
     /**
      * 通知统计更新
      */
-    private notifyUpdate() {
-        this.eventEmitter.emit('update');
-
-        // 异步广播跨实例 Token 用量更新
-        const today = DateUtils.getTodayDateString();
-        void this.getDateStats(today)
-            .then(stats => {
-                InterInstanceBus.publish({
-                    type: 'tokenUsageUpdated',
-                    payload: {
-                        date: today,
-                        totalTokens: (stats.total.actualInput ?? 0) + (stats.total.outputTokens ?? 0),
-                        totalRequests: stats.total.requests ?? 0
-                    }
-                });
+    private notifyUpdate(date = DateUtils.getTodayDateString(), force = true): void {
+        if (!this.initialized) {
+            return;
+        }
+        const fileLogger = this.fileLogger;
+        const promise = fileLogger.refreshStats(date);
+        const existing = this.statsNotifications.get(date);
+        if (existing?.promise === promise) {
+            existing.force ||= force;
+            return;
+        }
+        const notification = { promise, force };
+        this.statsNotifications.set(date, notification);
+        void promise
+            .then(result => {
+                if (result && this.initialized && this.fileLogger === fileLogger) {
+                    this.notifyStatsUpdate(result, notification.force);
+                }
+            })
+            .finally(() => {
+                if (this.statsNotifications.get(date) === notification) {
+                    this.statsNotifications.delete(date);
+                }
             })
             .catch(error => {
                 StatusLogger.trace(`[UsagesManager] Failed to publish token usage update: ${error}`);
@@ -1160,8 +1195,28 @@ export class TokenUsagesManager {
      * 对外暴露的统计更新通知入口
      * 供跨实例协调场景调用（如主实例收到 statsRefreshRequested 完成刷新后广播）
      */
-    notifyStatsUpdate(): void {
-        this.notifyUpdate();
+    notifyStatsUpdate(result?: StatsRefreshResult, force = false): void {
+        if (!result) {
+            this.notifyUpdate();
+            return;
+        }
+        if (!this.initialized || this.publishedStats.has(result) || (!result.changed && !force)) {
+            return;
+        }
+        this.publishedStats.add(result);
+        this.clearDateRecordsCache(result.date);
+        this.eventEmitter.emit('update');
+        if (!result.delegated) {
+            InterInstanceBus.publish({
+                type: 'tokenUsageUpdated',
+                payload: {
+                    date: result.date,
+                    totalTokens: (result.stats.total.actualInput ?? 0) + (result.stats.total.outputTokens ?? 0),
+                    totalRequests: result.stats.total.requests ?? 0
+                }
+            });
+            this.fileLogger.markStatsPublished(result);
+        }
     }
 
     /**
@@ -1229,6 +1284,8 @@ export class TokenUsagesManager {
         if (!this.initialized) {
             return;
         }
+        this.initialized = false;
+        this.statsNotifications.clear();
         this.usagesQueryCoordinator?.dispose();
         this.usagesQueryCoordinator = undefined;
         this.leaderChangeDisposable?.dispose();
@@ -1240,6 +1297,5 @@ export class TokenUsagesManager {
         this.dateStatsReads.clear();
         this.backgroundSessionTitleIds.clear();
         await this.fileLogger.dispose();
-        this.initialized = false;
     }
 }

@@ -24,8 +24,8 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
             const fileLogger = TokenUsagesManager.instance.getFileLogger();
             void (async () => {
                 try {
-                    await fileLogger.flush();
                     if (payload.regenerateAll) {
+                        await fileLogger.flush();
                         const results = await fileLogger.regenerateOutdatedStats();
                         const regeneratedDates = Object.keys(results);
                         InterInstanceBus.publish(
@@ -35,22 +35,29 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
                             },
                             { alsoFallback: true }
                         );
-                        if (regeneratedDates.length > 0) {
-                            TokenUsagesManager.instance.notifyStatsUpdate();
+                        for (const date of regeneratedDates) {
+                            TokenUsagesManager.instance.notifyStatsUpdate({
+                                date,
+                                stats: results[date],
+                                changed: true,
+                                delegated: false
+                            });
                         }
                         return;
                     }
 
                     const dateStr = payload.date ?? DateUtils.getTodayDateString();
-                    await fileLogger.getDateStats(dateStr);
+                    const result = await fileLogger.refreshStats(dateStr, true);
                     InterInstanceBus.publish(
                         {
                             type: 'statsRefreshCompleted',
-                            payload: { requestId: payload.requestId, regeneratedDates: [dateStr] }
+                            payload: { requestId: payload.requestId, regeneratedDates: result ? [dateStr] : [] }
                         },
                         { alsoFallback: true }
                     );
-                    TokenUsagesManager.instance.notifyStatsUpdate();
+                    if (result) {
+                        TokenUsagesManager.instance.notifyStatsUpdate(result);
+                    }
                 } catch (error) {
                     Logger.warn(`[InterInstanceBus] Failed to refresh stats: ${error}`);
                     InterInstanceBus.publish(
@@ -69,9 +76,14 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
         try {
             const fileLogger = TokenUsagesManager.instance.getFileLogger();
             const today = DateUtils.getTodayDateString();
-            await fileLogger.flush();
-            await fileLogger.getDateStats(today);
-            TokenUsagesManager.instance.notifyStatsUpdate();
+            const result = await fileLogger.refreshStats(today);
+            if (result) {
+                TokenUsagesManager.instance.notifyStatsUpdate(result);
+            }
+            await fileLogger.recoverStatsPublications(
+                pending => TokenUsagesManager.instance.notifyStatsUpdate(pending),
+                [today]
+            );
         } catch (error) {
             Logger.trace(`[LeaderTask] Failed to refresh today stats: ${error}`);
         }

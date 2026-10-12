@@ -343,17 +343,22 @@ test('remote usages queries preserve caller pending state without retaining full
                 const { requestId } = await addPending(sessionA);
                 await logger.updateActualTokens({ requestId, status: 'completed' });
                 const internals = logger as unknown as {
-                    statsRefreshTimer: (NodeJS.Timeout & { _onTimeout: (() => void) | null }) | null;
+                    statsRefreshQueue: {
+                        dates: Map<
+                            string,
+                            { pending?: { timer?: NodeJS.Timeout & { _onTimeout: (() => void) | null } } }
+                        >;
+                    };
                     pendingStatsRefreshRequests: { size: number };
                     doRefreshCurrentStats(): Promise<void>;
                 };
-                const timer = internals.statsRefreshTimer;
+                const timer = internals.statsRefreshQueue.dates.get(today)?.pending?.timer;
                 assert.ok(timer);
                 const clearTimer = context.mock.method(globalThis, 'clearTimeout');
                 if (action === 'dispose') {
                     await follower.dispose();
                     assert.ok(clearTimer.mock.calls.some(call => call.arguments[0] === timer));
-                    assert.equal(internals.statsRefreshTimer, null);
+                    assert.equal(internals.statsRefreshQueue.dates.size, 0);
                     assert.equal(internals.pendingStatsRefreshRequests.size, 0);
                     assert.deepEqual(statsRefreshRequests, []);
                     return;
@@ -370,7 +375,8 @@ test('remote usages queries preserve caller pending state without retaining full
                 callback();
                 assert.ok(refreshing);
                 await refreshing;
-                assert.equal(internals.statsRefreshTimer, null);
+                await new Promise<void>(resolve => setImmediate(resolve));
+                assert.equal(internals.statsRefreshQueue.dates.size, 0);
                 assert.equal(internals.pendingStatsRefreshRequests.size, 0);
                 assert.equal(statsRefreshRequests.length, 1);
                 assert.ok(statsRefreshRequests[0].requestId);

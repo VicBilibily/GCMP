@@ -9,7 +9,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
-import { AtomicJsonFile } from '../atomicJsonFile';
+import { AtomicJsonFile, WritePermissionLostError } from '../atomicJsonFile';
 import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile, TokenStats } from './types';
 
 /**
@@ -122,17 +122,19 @@ export class LogIndexManager {
         }
     }
 
-    private async saveIndexUnlocked(indexPath: string, index: DateIndex): Promise<void> {
+    private async saveIndexUnlocked(indexPath: string, index: DateIndex, canWrite?: () => boolean): Promise<void> {
         try {
             // 确保基础目录存在
             await this.ensureDirectoryExists(this.baseDir);
 
             // 写入索引文件
-            await AtomicJsonFile.writeJsonAtomically(indexPath, index);
+            await AtomicJsonFile.writeJsonAtomically(indexPath, index, undefined, canWrite);
             StatusLogger.debug(`[LogIndexManager] Saved date index with ${Object.keys(index.dates).length} dates`);
         } catch (err) {
             this.needsRecovery = true;
-            StatusLogger.warn('[LogIndexManager] Failed to save date index', err);
+            if (!(err instanceof WritePermissionLostError)) {
+                StatusLogger.warn('[LogIndexManager] Failed to save date index', err);
+            }
             throw err;
         }
     }
@@ -168,11 +170,15 @@ export class LogIndexManager {
      * 更新日期索引
      * 在保存统计数据后调用，更新索引文件
      */
-    async updateIndex(dateStr: string, total: TokenStats): Promise<void> {
+    async updateIndex(dateStr: string, total: TokenStats, canWrite?: () => boolean): Promise<void> {
         const indexPath = this.getIndexPath();
 
         try {
             await AtomicJsonFile.runExclusive(indexPath, async () => {
+                if (canWrite && !canWrite()) {
+                    this.needsRecovery = true;
+                    return;
+                }
                 let index = await this.readIndexFile(indexPath);
                 if (!index) {
                     index = { dates: {} };
@@ -181,9 +187,12 @@ export class LogIndexManager {
 
                 index.dates[dateStr] = this.buildDateIndexEntry(total);
 
-                await this.saveIndexUnlocked(indexPath, index);
+                await this.saveIndexUnlocked(indexPath, index, canWrite);
             });
         } catch (err) {
+            if (err instanceof WritePermissionLostError) {
+                return;
+            }
             StatusLogger.warn(`[LogIndexManager] Failed to update date index: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
         }

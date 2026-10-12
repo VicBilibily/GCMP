@@ -9,7 +9,7 @@
  * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
  * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
  */
-const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-10-06T00:00:00+08:00').getTime();
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-10-11T00:00:00+08:00').getTime();
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
@@ -20,6 +20,8 @@ import { LogReadManager } from './logReadManager';
 import { LogCleanupManager } from './logCleanupManager';
 import { LogIndexManager } from './logIndexManager';
 import { LogStatsManager } from './logStatsManager';
+import { StatsCalculator } from './statsCalculator';
+import { StatsRefreshQueue, type StatsRefreshResult } from './refresh/statsRefreshQueue';
 import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
 import { EventEmitter } from 'events';
@@ -61,9 +63,10 @@ export class TokenFileLogger {
     private readonly pendingLogsTTL: number = 5 * 60 * 1000; // 5分钟 TTL
     private readonly pendingLogsCleanupInterval: number = 60 * 1000; // 1分钟检查一次
 
-    // refreshCurrentStats 防抖：突发完成时合并为一次重算
-    private statsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-    private readonly statsRefreshDebounceMs = 1000; // 1秒防抖窗口
+    private readonly statsRefreshQueue = new StatsRefreshQueue(date => this.doRefreshCurrentStats(date));
+    private readonly fallbackPublicationPermissions = new WeakMap<StatsRefreshResult, () => boolean>();
+    private publicationRecovery: Promise<void> | undefined;
+    private disposed = false;
 
     // 跨实例 statsRefreshCompleted 等待：Follower 调 regenerateOutdatedStats 时同步等待 Leader 完成回执
     private readonly statsRefreshCompletedDisposable: vscode.Disposable;
@@ -373,6 +376,7 @@ export class TokenFileLogger {
         // 写入文件
         const logPath = await this.writeManager.appendLog(log);
         this.invalidateDetailCaches(logPath.date, logPath.hour);
+        this.refreshCurrentStats(logPath.date);
 
         // 通知状态栏有新的预估请求
         this.notifyUpdate();
@@ -386,25 +390,28 @@ export class TokenFileLogger {
      * 更新实际token(请求完成后调用)
      * 只有当前实例在请求完成时才计算统计并保存
      */
-    async updateActualTokens(params: {
-        requestId: string;
-        sessionId?: string;
-        sessionTitle?: string;
-        rawUsage?: TokenRequestLog['rawUsage'];
-        status: 'completed' | 'failed' | 'cancelled';
-        /** 实际发起上游请求的时间戳（不含限流排队） */
-        requestMetricStartTime?: number;
-        /** 本次请求是否经历过限流排队/等待 */
-        wasThrottled?: boolean;
-        /** 流开始时间 (毫秒时间戳) */
-        streamStartTime?: number;
-        /** 流结束时间 (毫秒时间戳) */
-        streamEndTime?: number;
-        /** 客户端预估成本，由 Handler 通过 calculateCostWithBreakdown 计算，单位 USD */
-        estimatedCost?: number;
-        /** 成本计算明细（命中单价、成本组成等），用于最终日志记录完整成本分解 */
-        costBreakdown?: TokenRequestLog['costBreakdown'];
-    }): Promise<void> {
+    async updateActualTokens(
+        params: {
+            requestId: string;
+            sessionId?: string;
+            sessionTitle?: string;
+            rawUsage?: TokenRequestLog['rawUsage'];
+            status: 'completed' | 'failed' | 'cancelled';
+            /** 实际发起上游请求的时间戳（不含限流排队） */
+            requestMetricStartTime?: number;
+            /** 本次请求是否经历过限流排队/等待 */
+            wasThrottled?: boolean;
+            /** 流开始时间 (毫秒时间戳) */
+            streamStartTime?: number;
+            /** 流结束时间 (毫秒时间戳) */
+            streamEndTime?: number;
+            /** 客户端预估成本，由 Handler 通过 calculateCostWithBreakdown 计算，单位 USD */
+            estimatedCost?: number;
+            /** 成本计算明细（命中单价、成本组成等），用于最终日志记录完整成本分解 */
+            costBreakdown?: TokenRequestLog['costBreakdown'];
+        },
+        onWritten?: (date: string) => void
+    ): Promise<void> {
         if (this.finalizingRequestIds.has(params.requestId)) {
             StatusLogger.debug(
                 `[TokenFileLogger] Skip duplicate final status update while finalizing: ${params.requestId}, status=${params.status}`
@@ -486,7 +493,7 @@ export class TokenFileLogger {
             this.pendingLogs.delete(params.requestId);
 
             // 触发统计刷新（防抖，1s 内多次完成合并为一次重算）
-            this.refreshCurrentStats();
+            this.refreshCurrentStats(logPath.date);
 
             // 通知本实例的监听者
             this.notifyUpdate();
@@ -494,6 +501,7 @@ export class TokenFileLogger {
             StatusLogger.info(
                 `[TokenFileLogger] Updated actual tokens: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? 'recorded' : 'not recorded'}`
             );
+            onWritten?.(logPath.date);
         } finally {
             this.finalizingRequestIds.delete(params.requestId);
         }
@@ -571,7 +579,23 @@ export class TokenFileLogger {
      * @param dateStr 日期字符串 (YYYY-MM-DD)
      * @param ignoreCache 是否忽略缓存强制重算（默认 false）
      */
-    async getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
+    async getDateStats(
+        dateStr: string,
+        ignoreCache: boolean = false,
+        forDisplay = false
+    ): Promise<TokenUsageStatsFromFile> {
+        const leaderId = LeaderElectionService.getLeaderId();
+        if (
+            forDisplay &&
+            !ignoreCache &&
+            (this.statsRefreshQueue.has(dateStr) || (leaderId && leaderId !== LeaderElectionService.getInstanceId()))
+        ) {
+            const saved = await this.logStatsManager.readSavedStats(dateStr);
+            if (saved) {
+                return saved;
+            }
+            return (await this.refreshStats(dateStr))?.stats ?? StatsCalculator.aggregateLogs([]);
+        }
         return this.logStatsManager.getDateStats(dateStr, ignoreCache);
     }
 
@@ -645,7 +669,18 @@ export class TokenFileLogger {
                 StatusLogger.warn(
                     '[TokenFileLogger] Leader regenerateOutdatedStats timed out and leader appears offline, falling back to local regeneration'
                 );
-                return this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.regenerateOutdatedStats());
+                return this.logStatsManager.runWithForcedWrites(
+                    () => this.logStatsManager.regenerateOutdatedStats(),
+                    () => {
+                        const currentLeader = LeaderElectionService.getLeaderId();
+                        return (
+                            !this.disposed &&
+                            (!currentLeader ||
+                                currentLeader === LeaderElectionService.getInstanceId() ||
+                                (currentLeader === leaderId && !LeaderElectionService.isLeaderHeartbeatFresh()))
+                        );
+                    }
+                );
             }
             const results: Record<string, TokenUsageStatsFromFile> = {};
             for (const dateStr of completion.dates) {
@@ -836,25 +871,22 @@ export class TokenFileLogger {
      */
     async flush(): Promise<void> {
         await this.writeManager.flush();
+        await this.logStatsManager.flushStatsPublications();
     }
 
     /**
      * 销毁日志系统
      */
     async dispose(): Promise<void> {
+        this.disposed = true;
+        this.statsRefreshQueue.dispose();
+        this.logStatsManager.dispose();
         try {
             // 停止 pendingLogs 清理任务
             if (this.pendingLogsCleanupTimer) {
                 clearInterval(this.pendingLogsCleanupTimer);
                 this.pendingLogsCleanupTimer = null;
                 StatusLogger.debug('[TokenFileLogger] Pending logs cleanup task stopped');
-            }
-
-            // 取消待触发的统计刷新（如有），避免 dispose 后再触发
-            if (this.statsRefreshTimer) {
-                clearTimeout(this.statsRefreshTimer);
-                this.statsRefreshTimer = null;
-                StatusLogger.debug('[TokenFileLogger] Stats refresh timer cancelled');
             }
 
             // 检查是否有待处理的日志
@@ -886,6 +918,7 @@ export class TokenFileLogger {
             StatusLogger.debug('[TokenFileLogger] Event listeners cleaned up');
 
             // 等待写入队列完成并销毁
+            await this.logStatsManager.flushStatsPublications();
             await this.writeManager.dispose();
             StatusLogger.debug('[TokenFileLogger] Write manager disposed');
 
@@ -980,14 +1013,49 @@ export class TokenFileLogger {
      * 每次都调 getDateStats 会重复读 compact + 签名比对 + 写 stats.json。
      * 合并为窗口末尾的一次重算，期间多次完成的签名变化都会被捕获。
      */
-    private refreshCurrentStats(): void {
-        if (this.statsRefreshTimer) {
-            return; // 已有待触发的刷新，复用即可（窗口末尾会看到最新数据）
+    private refreshCurrentStats(date = DateUtils.getTodayDateString()): void {
+        void this.refreshStats(date, true);
+    }
+
+    refreshStats(date: string, dirty = false): Promise<StatsRefreshResult | undefined> {
+        return this.statsRefreshQueue.request(date, dirty);
+    }
+
+    markStatsPublished(result: StatsRefreshResult): void {
+        void this.logStatsManager
+            .markStatsPublished(result.date, result.stats, this.fallbackPublicationPermissions.get(result))
+            .catch(error => {
+                StatusLogger.warn('[TokenFileLogger] Failed to acknowledge statistics publication:', error);
+            });
+    }
+
+    recoverStatsPublications(
+        publish: (result: StatsRefreshResult) => void,
+        excludedDates: string[] = []
+    ): Promise<void> {
+        if (this.publicationRecovery) {
+            return this.publicationRecovery;
         }
-        this.statsRefreshTimer = setTimeout(() => {
-            this.statsRefreshTimer = null;
-            void this.doRefreshCurrentStats();
-        }, this.statsRefreshDebounceMs);
+        const canRecover = () =>
+            !this.disposed &&
+            LeaderElectionService.isLeader() &&
+            LeaderElectionService.getLeaderId() === LeaderElectionService.getInstanceId();
+        if (!canRecover()) {
+            return Promise.resolve();
+        }
+        const operation = this.logStatsManager
+            .recoverStatsPublications(
+                (date, stats) => publish({ date, stats, changed: true, delegated: false }),
+                canRecover,
+                excludedDates
+            )
+            .finally(() => {
+                if (this.publicationRecovery === operation) {
+                    this.publicationRecovery = undefined;
+                }
+            });
+        this.publicationRecovery = operation;
+        return operation;
     }
 
     // 空日期回执表示处理完成，不代表委托超时。
@@ -1004,8 +1072,13 @@ export class TokenFileLogger {
         });
     }
 
-    private async doRefreshCurrentStats(): Promise<void> {
-        const dateStr = DateUtils.getTodayDateString();
+    private async doRefreshCurrentStats(
+        dateStr = DateUtils.getTodayDateString()
+    ): Promise<StatsRefreshResult | undefined> {
+        if (this.disposed) {
+            return;
+        }
+        let forceFallback = false;
 
         // 已知存在其他 Leader：不直接重算写盘，改为委托 Leader 刷新今日 stats。
         // 主实例刷新完成后通过 tokenUsageUpdated 广播，本实例 UI 自然更新。
@@ -1029,7 +1102,11 @@ export class TokenFileLogger {
 
             const completion = await waitForCompletion;
             if (completion.status !== 'timeout') {
-                return;
+                if (completion.status !== 'completed' || !completion.dates.includes(dateStr) || this.disposed) {
+                    return;
+                }
+                const stats = await this.logStatsManager.readSavedStats(dateStr);
+                return stats ? { date: dateStr, stats, changed: false, delegated: true } : undefined;
             }
 
             // 回退前重查 Leader 心跳：委托超时≠Leader 失联（可能只是刷新耗时）。
@@ -1045,19 +1122,53 @@ export class TokenFileLogger {
             StatusLogger.warn(
                 `[TokenFileLogger] Leader refresh timed out for ${dateStr} and leader appears offline, falling back to local refresh`
             );
+            forceFallback = true;
         }
 
         try {
             // 等待写入队列完成
             await this.writeManager.flush();
 
+            const canRefresh = () => {
+                const currentLeaderId = LeaderElectionService.getLeaderId();
+                return (
+                    !currentLeaderId ||
+                    currentLeaderId === LeaderElectionService.getInstanceId() ||
+                    (forceFallback && currentLeaderId === leaderId && !LeaderElectionService.isLeaderHeartbeatFresh())
+                );
+            };
+            if (this.disposed || !canRefresh()) {
+                return;
+            }
+
             // 计算并保存统计（getDateStats 会自动处理增量更新和保存）
-            await this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.getDateStats(dateStr));
+            const stats =
+                forceFallback ?
+                    await this.logStatsManager.runWithForcedWrites(
+                        () => this.logStatsManager.getDateStats(dateStr),
+                        () => !this.disposed && canRefresh()
+                    )
+                :   await this.logStatsManager.getDateStats(dateStr);
+
+            const changed = await this.logStatsManager.hasStatsChanged(dateStr, stats);
+            if (this.disposed || !canRefresh()) {
+                return;
+            }
 
             // 通知本实例的监听者
             this.notifyUpdate();
 
             StatusLogger.debug(`[TokenFileLogger] Refreshed hourly stats: ${dateStr}`);
+            const result: StatsRefreshResult = {
+                date: dateStr,
+                stats,
+                changed,
+                delegated: false
+            };
+            if (forceFallback) {
+                this.fallbackPublicationPermissions.set(result, () => !this.disposed && canRefresh());
+            }
+            return result;
         } catch (err) {
             StatusLogger.warn('[TokenFileLogger] Failed to refresh stats:', err);
         }

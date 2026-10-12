@@ -16,13 +16,16 @@ function addCost(current: number, delta: number | undefined): number {
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { createEmptyNativeCostSplit, mergeNativeCostSplit } from './nativeCostSplit';
 import { canReuseHourlyStatsCache } from './hourlyCachePolicy';
 import { StatsCalculator } from './statsCalculator';
-import { AtomicJsonFile } from '../atomicJsonFile';
+import { RawHourlyStats } from './aggregation/rawHourlyStats';
+import { StatsPublication } from './refresh/statsPublication';
+import { AtomicJsonFile, WritePermissionLostError } from '../atomicJsonFile';
 import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
 import { WritePermissionGate } from './writePermissionGate';
@@ -50,6 +53,11 @@ export class LogStatsManager {
     private readonly writePermissionGate = new WritePermissionGate();
     private readonly snapshotVersions = new Map<string, { source: string; stats?: string; pending?: boolean }>();
     private readonly unchangedStats = new WeakSet<TokenUsageStatsFromFile>();
+    private readonly publication = new StatsPublication();
+    private readonly publicationWrites = new Set<Promise<void>>();
+    private publicationRecoveryCursor = '';
+    private readonly rawHourlyStats = new RawHourlyStats();
+    private disposed = false;
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
     private _codeVersionTimestamp: number = 0;
     /**
@@ -82,8 +90,8 @@ export class LogStatsManager {
      * 在临时强制写盘作用域内执行操作。
      * 仅用于已确认 Leader 不可达、需要本地兜底落盘的场景。
      */
-    async runWithForcedWrites<T>(operation: () => Promise<T>): Promise<T> {
-        return this.writePermissionGate.runWithForcedWrites(operation);
+    async runWithForcedWrites<T>(operation: () => Promise<T>, canWrite?: () => boolean): Promise<T> {
+        return this.writePermissionGate.runWithForcedWrites(operation, canWrite);
     }
 
     /**
@@ -100,6 +108,7 @@ export class LogStatsManager {
     updateCodeVersionTimestamp(codeVersionTimestamp: number): void {
         this._codeVersionTimestamp = codeVersionTimestamp;
         this.snapshotVersions.clear();
+        this.rawHourlyStats.clear();
     }
 
     /**
@@ -141,6 +150,96 @@ export class LogStatsManager {
         }
 
         return this.getOrCreateDateRegeneration(dateStr, ignoreCache);
+    }
+
+    readSavedStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
+        return this.loadStats(dateStr);
+    }
+
+    async hasStatsChanged(date: string, stats: TokenUsageStatsFromFile): Promise<boolean> {
+        await this.flushStatsPublications();
+        const fingerprint = this.statsFingerprint(stats);
+        return !this.unchangedStats.has(stats) || this.publication.isPending(this.getStatsFilePath(date), fingerprint);
+    }
+
+    markStatsPublished(date: string, stats: TokenUsageStatsFromFile, canWriteFallback?: () => boolean): Promise<void> {
+        if (this.disposed) {
+            return Promise.resolve();
+        }
+        const fingerprint = this.statsFingerprint(stats);
+        const operation = this.publication
+            .acknowledge(
+                this.getStatsFilePath(date),
+                fingerprint,
+                () => !this.disposed && (this._canWriteStats() || canWriteFallback?.() === true)
+            )
+            .then(() => undefined);
+        this.publicationWrites.add(operation);
+        void operation.then(
+            () => this.publicationWrites.delete(operation),
+            () => this.publicationWrites.delete(operation)
+        );
+        return operation;
+    }
+
+    async flushStatsPublications(): Promise<void> {
+        await Promise.allSettled([...this.publicationWrites]);
+    }
+
+    async recoverStatsPublications(
+        publish: (date: string, stats: TokenUsageStatsFromFile) => void,
+        canRecover: () => boolean,
+        excludedDates: string[]
+    ): Promise<void> {
+        await this.flushStatsPublications();
+        if (this.disposed || !canRecover()) {
+            return;
+        }
+        let entries: fsSync.Dirent[];
+        try {
+            entries = await fs.readdir(this.baseDir, { withFileTypes: true });
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return;
+            }
+            throw error;
+        }
+        const dates = entries
+            .filter(entry => entry.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(entry.name))
+            .map(entry => entry.name)
+            .filter(date => !excludedDates.includes(date))
+            .sort((left, right) => right.localeCompare(left));
+        const batch = [
+            ...dates.filter(date => date < this.publicationRecoveryCursor),
+            ...dates.filter(date => date >= this.publicationRecoveryCursor)
+        ].slice(0, 20);
+        for (const date of batch) {
+            if (this.disposed || !canRecover()) {
+                return;
+            }
+            this.publicationRecoveryCursor = date;
+            try {
+                const stats = await this.publication.readPendingStats(this.getStatsFilePath(date));
+                if (this.disposed || !canRecover()) {
+                    return;
+                }
+                if (stats) {
+                    publish(date, stats);
+                    await this.flushStatsPublications();
+                }
+            } catch (error) {
+                StatusLogger.warn(`[LogStatsManager] Failed to recover statistics publication for ${date}:`, error);
+            }
+        }
+    }
+
+    dispose(): void {
+        this.disposed = true;
+        this.rawHourlyStats.dispose();
+    }
+
+    private statsFingerprint(stats: TokenUsageStatsFromFile): string {
+        return createHash('sha256').update(JSON.stringify(stats)).digest('hex');
     }
 
     /**
@@ -287,12 +386,13 @@ export class LogStatsManager {
             return existingStats;
         }
 
-        const hourly: Record<string, HourlyStats> = {};
+        let hourly: Record<string, HourlyStats> = {};
         let rawHourFileCount = 0;
         let rawReusedHours = 0;
         let rawRecomputedHours = 0;
 
         if (snapshotRecords && snapshotRecords.length > 0) {
+            this.rawHourlyStats.forget(dateStr);
             // 按小时分桶（使用本地时区，与历史 .jsonl 文件名口径一致）
             const recordsByHour = new Map<string, TokenRequestLog[]>();
             for (const record of snapshotRecords) {
@@ -327,34 +427,25 @@ export class LogStatsManager {
                     .filter(h => !Number.isNaN(h) && h >= 0 && h <= 23)
                     .sort((a, b) => a - b);
                 rawHourFileCount = hourFiles.length;
-                for (const hour of hourFiles) {
+                const sources = hourFiles.map(hour => {
                     const hourKey = String(hour).padStart(2, '0');
                     const logFilePath = path.join(dateFolder, `${hourKey}.jsonl`);
-                    const sourceMtime = fsSync.statSync(logFilePath).mtimeMs;
-                    const cachedHourStats = existingStats?.hourly?.[hourKey];
-                    if (
-                        !forceHourlyRecompute &&
-                        canReuseHourlyStatsCache({
-                            cachedModifiedTime: cachedHourStats?.modifiedTime,
-                            sourceModifiedTime: sourceMtime,
-                            isVersionCompatible: isExistingStatsVersionCompatible
-                        }) &&
-                        cachedHourStats
-                    ) {
-                        hourly[hourKey] = cachedHourStats;
-                        rawReusedHours += 1;
-                        continue;
-                    }
-
-                    const logs = await this.readManager.readHourLogs(dateStr, hour, true);
-                    const hourStats = StatsCalculator.aggregateLogs(logs);
-                    hourly[hourKey] = {
-                        ...hourStats.total,
-                        modifiedTime: sourceMtime,
-                        providers: hourStats.providers
+                    const source = fsSync.statSync(logFilePath);
+                    return {
+                        hour: hourKey,
+                        modifiedTime: source.mtimeMs,
+                        version: String(source.mtimeMs)
                     };
-                    rawRecomputedHours += 1;
-                }
+                });
+                const raw = await this.rawHourlyStats.calculate(
+                    dateStr,
+                    sources,
+                    hour => this.readManager.readHourLogs(dateStr, hour, true),
+                    forceHourlyRecompute || !isExistingStatsVersionCompatible || !existingStats?.hourly
+                );
+                hourly = raw.hourly;
+                rawReusedHours = raw.reused;
+                rawRecomputedHours = raw.recomputed;
             } catch (err) {
                 if (fsSync.existsSync(dateFolder)) {
                     throw err;
@@ -641,9 +732,10 @@ export class LogStatsManager {
      * @private 内部使用，通过 getDateStats 访问
      */
     private async saveDateStats(dateStr: string, stats: TokenUsageStatsFromFile): Promise<void> {
+        const canWrite = () => !this.disposed && this.canWriteStats();
         // 多实例写盘守卫：非主实例不写盘，避免跨进程并发写覆盖 stats.json/index.json。
         // 内存计算结果仍返回给本实例使用（如详情界面立即展示），主实例会通过 IPC 请求刷新写盘。
-        if (!this.canWriteStats()) {
+        if (!canWrite()) {
             StatusLogger.trace(`[LogStatsManager] Skip saving stats (non-leader instance): ${dateStr}`);
             return;
         }
@@ -657,7 +749,12 @@ export class LogStatsManager {
 
             // 在目标文件路径上串行化写入，再通过临时文件 rename 原子替换，避免并发覆盖与半截 JSON
             await AtomicJsonFile.runExclusive(filePath, async () => {
-                await AtomicJsonFile.writeJsonAtomically(filePath, stats);
+                if (!canWrite()) {
+                    throw new WritePermissionLostError();
+                }
+                // 待发布指纹必须先于统计落盘，才能在进程退出后恢复通知。
+                await this.publication.prepare(filePath, this.statsFingerprint(stats), undefined, canWrite);
+                await AtomicJsonFile.writeJsonAtomically(filePath, stats, undefined, canWrite);
             });
 
             if (snapshotVersion && this.snapshotVersions.get(dateStr) === snapshotVersion) {
@@ -671,12 +768,15 @@ export class LogStatsManager {
             }
 
             // 更新索引文件
-            await this.indexManager.updateIndex(dateStr, stats.total);
+            await this.indexManager.updateIndex(dateStr, stats.total, canWrite);
 
             StatusLogger.debug(
                 `[LogStatsManager] Saved daily stats to stats.json: ${dateStr}, version=${new Date(stats.versionTimestamp).toISOString()}`
             );
         } catch (err) {
+            if (err instanceof WritePermissionLostError) {
+                return;
+            }
             StatusLogger.error(`[LogStatsManager] Failed to save daily stats: ${dateStr}`, err);
             throw err;
         }
@@ -922,6 +1022,9 @@ export class LogStatsManager {
             // 旧 JSONL 数据源：兼容尚未整理的历史/回退路径
             const files = await fs.readdir(dateFolder);
             const logFiles = files.filter(f => /^\d{2}\.jsonl$/.test(f));
+            if (!statsData.recordSignature && Object.keys(statsData.hourly ?? {}).length !== logFiles.length) {
+                return true;
+            }
             for (const logFile of logFiles) {
                 const logFilePath = path.join(dateFolder, logFile);
                 const logStats = fsSync.statSync(logFilePath);
