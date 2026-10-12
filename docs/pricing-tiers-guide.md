@@ -60,6 +60,8 @@
 | `serviceTier` | 仅在请求选择相同服务等级时命中。 |
 | `contextSizeMin` | 实际输入 Token 达到该阈值时命中。 |
 
+服务等级取值随通道而定：OpenAI 官方通道可用 `priority`（Fast 模式，与官方新名 `fast` 行为等价，配置中两者都受支持）与 `ultrafast`（最快等级，价格为 Fast 的 3 倍，仅 GPT-6 Astra / GPT-6.1 Sol 提供）；compatible 通道原样透传模型声明过的任意值。
+
 `contextSizeMin` 比较的是 API usage 的实际输入 Token 数（含缓存），**不是** `contextSize` 或用户预选的上下文窗口，也不包含输出 Token。它只决定是否命中对应的价格档，不改变输入、输出或缓存命中的单价与计费量。
 
 ## 匹配优先级与排序

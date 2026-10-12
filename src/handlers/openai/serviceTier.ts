@@ -1,5 +1,14 @@
 import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
 
+/**
+ * 官方通道允许转发的服务等级：
+ * - priority / fast：同一 Fast 模式（priority 为旧名，GPT-6 起官方回执为 fast）
+ * - ultrafast：受限开放的超高速模式（GPT-6 Astra / GPT-6.1 Sol）
+ * - flex：低价弹性处理
+ * 其余值（default、auto 等）代表"不指定"，命中时删除字段回退官方默认。
+ */
+const FORWARDABLE_SERVICE_TIERS = new Set(['priority', 'fast', 'ultrafast', 'flex']);
+
 export function applyOpenAIServiceTier(
     requestBody: Record<string, unknown>,
     modelConfig: Pick<ModelConfig, 'serviceTier'>,
@@ -23,7 +32,7 @@ export function applyOpenAIServiceTier(
         return;
     }
 
-    if ((serviceTier === 'priority' || serviceTier === 'flex') && isSupported) {
+    if (FORWARDABLE_SERVICE_TIERS.has(serviceTier) && isSupported) {
         requestBody.service_tier = serviceTier;
     } else {
         delete requestBody.service_tier;

@@ -526,12 +526,14 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["auto", "default", "flex", "priority", "unspecified", "standard"],
+                        "enum": ["auto", "default", "flex", "priority", "fast", "ultrafast", "unspecified", "standard"],
                         "enumDescriptions": [
                             "自动选择服务等级",
                             "标准处理速度",
                             "灵活处理，倍率更高",
-                            "优先处理，倍率最高",
+                            "优先处理，倍率最高（Fast 模式）",
+                            "Fast 模式（priority 的新名称，两者行为等价）",
+                            "Ultrafast 超高速模式（仅 GPT-6 Astra / GPT-6.1 Sol 提供，价格为 Fast 的 3 倍）",
                             "使用 Gemini API 默认服务等级",
                             "使用 Gemini 标准服务等级"
                         ]
@@ -791,16 +793,8 @@
                     },
                     "else": {
                         "if": {
-                            "anyOf": [
-                                {
-                                    "properties": { "sdkMode": { "const": "openai-responses" } },
-                                    "required": ["sdkMode"]
-                                },
-                                {
-                                    "properties": { "sdkMode": { "const": "anthropic" } },
-                                    "required": ["sdkMode"]
-                                }
-                            ]
+                            "properties": { "sdkMode": { "const": "openai-responses" } },
+                            "required": ["sdkMode"]
                         },
                         "then": {
                             "properties": {
@@ -808,17 +802,36 @@
                                     "type": "array",
                                     "items": {
                                         "type": "string",
-                                        "enum": ["auto", "default", "flex", "priority"]
+                                        "enum": ["auto", "default", "flex", "priority", "fast", "ultrafast"]
                                     },
                                     "uniqueItems": true,
-                                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。"
+                                    "description": "服务等级选项列表，用于调节响应速度与配额倍率（fast 与 priority 等价；ultrafast 仅 GPT-6 Astra / GPT-6.1 Sol 提供）。"
                                 }
                             }
                         },
                         "else": {
-                            "properties": {
-                                "serviceTier": {
-                                    "deprecationMessage": "serviceTier 仅对 openai-responses、anthropic 和 gemini-sse 模式生效"
+                            "if": {
+                                "properties": { "sdkMode": { "const": "anthropic" } },
+                                "required": ["sdkMode"]
+                            },
+                            "then": {
+                                "properties": {
+                                    "serviceTier": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "enum": ["auto", "default", "flex", "priority"]
+                                        },
+                                        "uniqueItems": true,
+                                        "description": "服务等级选项列表，用于调节响应速度与配额倍率。"
+                                    }
+                                }
+                            },
+                            "else": {
+                                "properties": {
+                                    "serviceTier": {
+                                        "deprecationMessage": "serviceTier 仅对 openai-responses、anthropic 和 gemini-sse 模式生效"
+                                    }
                                 }
                             }
                         }

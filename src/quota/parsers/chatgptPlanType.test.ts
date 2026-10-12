@@ -7,8 +7,9 @@ test('formatChatGPTPlanType maps personal seats to Codex TUI names', () => {
     assert.equal(formatChatGPTPlanType('free'), 'Free');
     assert.equal(formatChatGPTPlanType('go'), 'Go');
     assert.equal(formatChatGPTPlanType('plus'), 'Plus');
-    assert.equal(formatChatGPTPlanType('pro'), 'Pro');
-    assert.equal(formatChatGPTPlanType('prolite'), 'Pro Lite');
+    assert.equal(formatChatGPTPlanType('pro'), 'Pro 200');
+    assert.equal(formatChatGPTPlanType('prolite'), 'Pro 100');
+    assert.equal(formatChatGPTPlanType('promax'), 'Pro 500');
 });
 
 test('formatChatGPTPlanType maps team-like seats to Business', () => {

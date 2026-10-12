@@ -265,7 +265,16 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
                         }[value] || value
                     );
                 }
-                return { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Fast' }[value] || value;
+                return (
+                    {
+                        auto: 'Auto',
+                        default: 'Std.',
+                        flex: 'Flex',
+                        priority: 'Fast',
+                        fast: 'Fast',
+                        ultrafast: 'Ultrafast'
+                    }[value] || value
+                );
             }),
             enumDescriptions: model.serviceTier.map(value => {
                 if (isAnthropic) {
@@ -284,7 +293,15 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
                         auto: t('Automatically select service tier.', '自动选择服务等级'),
                         default: t('Standard processing speed.', '标准处理速度'),
                         flex: t('Flexible processing with higher rate multiplier.', '灵活处理，倍率更高'),
-                        priority: t('Priority processing with highest rate multiplier.', '优先处理，倍率最高')
+                        priority: t('Priority processing with highest rate multiplier.', '优先处理，倍率最高'),
+                        fast: t(
+                            'Fast mode — same behavior as priority (up to 2.5× faster).',
+                            'Fast 模式——与 priority 等价，速度最高提升 2.5 倍'
+                        ),
+                        ultrafast: t(
+                            'Ultrafast mode — the fastest tier, available on GPT-6 Astra / GPT-6.1 Sol.',
+                            'Ultrafast 超高速模式——最快服务等级，仅 GPT-6 Astra / GPT-6.1 Sol 可用'
+                        )
                     }[value] || value
                 );
             }),

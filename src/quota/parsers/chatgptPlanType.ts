@@ -1,6 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  ChatGPT 订阅席位名称映射（纯逻辑，无宿主依赖）
- *  对齐 Codex TUI plan_type_display_name（codex-rs/tui/src/status/helpers.rs）
+ *  对齐 Codex TUI 席位名（codex-rs/tui/src/subscription.rs，SubscriptionDisplay::Status）
  *--------------------------------------------------------------------------------------------*/
 
 /**
@@ -11,8 +11,9 @@ const CHATGPT_PLAN_TYPE_DISPLAY_NAMES: Record<string, string> = {
     free: 'Free',
     go: 'Go',
     plus: 'Plus',
-    pro: 'Pro',
-    prolite: 'Pro Lite',
+    pro: 'Pro 200',
+    prolite: 'Pro 100',
+    promax: 'Pro 500',
     team: 'Business',
     self_serve_business_usage_based: 'Business',
     self_serve_business_prolite: 'Business Premium',

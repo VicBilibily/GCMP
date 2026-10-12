@@ -23,6 +23,11 @@ test('按 SDK 模式返回服务等级建议值', () => {
     assert.deepEqual(getCompatibleServiceTierOptions(), OPENAI_COMPATIBLE_SERVICE_TIERS);
 });
 
+test('OpenAI 建议值包含官方 Fast/Ultrafast 等级', () => {
+    assert.ok(OPENAI_COMPATIBLE_SERVICE_TIERS.includes('fast'));
+    assert.ok(OPENAI_COMPATIBLE_SERVICE_TIERS.includes('ultrafast'));
+});
+
 test('归一化仅过滤非字符串并保序去重', () => {
     assert.deepEqual(normalizeCompatibleServiceTiers(['priority', 'default', 'priority', null, 1, '']), [
         'priority',

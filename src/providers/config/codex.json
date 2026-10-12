@@ -177,20 +177,19 @@
             "name": "GPT-6-Astra (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "ChatGPT 提供的 GPT-6 旗舰模型，为最难端到端工作构建（复杂推理、编码、计算机使用、研究），支持 max 推理强度",
-            "contextSize": [400000, 1000000],
+            "contextSize": [400000, 600000, 1000000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "webSearchTool": true,
             "useInstructions": true,
             "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
-            "serviceTier": ["default", "priority"],
+            "serviceTier": ["default", "priority", "ultrafast"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [10, 50, 1, 12.5],
                 "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [40, 150, 4, 50] },
-                    { "serviceTier": "priority", "pricing": [20, 100, 2, 25] },
-                    { "contextSizeMin": 272001, "pricing": [20, 75, 2, 25] }
+                    { "serviceTier": "ultrafast", "pricing": [60, 300, 6, 75] },
+                    { "serviceTier": "priority", "pricing": [20, 100, 2, 25] }
                 ]
             },
             "extraBody": {
@@ -267,17 +266,20 @@
             "name": "GPT-6.1-Sol (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "GPT-6 Sol 升级版，复杂编程、电脑操作与专业工作流上性能接近旗舰 GPT-6 Astra，而标准价格仅为其五分之一，缓存输入再降 50%",
-            "contextSize": [600000, 400000, 1000000],
+            "contextSize": [400000, 600000, 1000000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "webSearchTool": true,
             "useInstructions": true,
             "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
-            "serviceTier": ["default", "priority"],
+            "serviceTier": ["default", "priority", "ultrafast"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 10, 0.1, 2.5],
-                "tiers": [{ "serviceTier": "priority", "pricing": [4, 20, 0.2, 5] }]
+                "tiers": [
+                    { "serviceTier": "ultrafast", "pricing": [12, 60, 0.6, 15] },
+                    { "serviceTier": "priority", "pricing": [4, 20, 0.2, 5] }
+                ]
             },
             "extraBody": {
                 "store": false,

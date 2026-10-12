@@ -13,6 +13,35 @@ test('Fast 服务等级发送 priority', () => {
     assert.equal(requestBody.service_tier, 'priority');
 });
 
+test('Fast 服务等级发送 fast（GPT-6 起官方枚举）', () => {
+    const requestBody: Record<string, unknown> = { service_tier: 'priority' };
+
+    applyOpenAIServiceTier(requestBody, { serviceTier: ['default', 'fast'] }, { serviceTier: 'fast' }, 'codex');
+
+    assert.equal(requestBody.service_tier, 'fast');
+});
+
+test('Ultrafast 服务等级发送 ultrafast', () => {
+    const requestBody: Record<string, unknown> = {};
+
+    applyOpenAIServiceTier(
+        requestBody,
+        { serviceTier: ['default', 'fast', 'ultrafast'] },
+        { serviceTier: 'ultrafast' },
+        'codex'
+    );
+
+    assert.equal(requestBody.service_tier, 'ultrafast');
+});
+
+test('模型未声明 ultrafast 时不发送', () => {
+    const requestBody: Record<string, unknown> = { service_tier: 'fast' };
+
+    applyOpenAIServiceTier(requestBody, { serviceTier: ['default', 'fast'] }, { serviceTier: 'ultrafast' });
+
+    assert.equal('service_tier' in requestBody, false);
+});
+
 test('Standard 服务等级不发送 service_tier', () => {
     const requestBody: Record<string, unknown> = { service_tier: 'priority' };
 
@@ -45,10 +74,10 @@ test('模型未声明的服务等级不会发送', () => {
     assert.equal('service_tier' in requestBody, false);
 });
 
-for (const serviceTier of ['default', 'auto', 'flex', 'priority']) {
+for (const serviceTier of ['default', 'auto', 'flex', 'priority', 'fast', 'ultrafast']) {
     test(`Compatible OpenAI 原样发送 ${serviceTier}`, () => {
         const requestBody: Record<string, unknown> = {};
-        const model = { serviceTier: ['default', 'auto', 'flex', 'priority'] };
+        const model = { serviceTier: ['default', 'auto', 'flex', 'priority', 'fast', 'ultrafast'] };
 
         applyOpenAIServiceTier(requestBody, model, { serviceTier }, 'compatible');
 

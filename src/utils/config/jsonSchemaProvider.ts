@@ -253,6 +253,14 @@ export class JsonSchemaProvider {
                 'Priority processing tier (OpenAI, Gemini, and some third-party Anthropic endpoints such as MiniMax).',
                 '优先处理等级（OpenAI、Gemini 及 MiniMax 等部分三方 Anthropic 端点）'
             ),
+            fast: t(
+                'Fast mode (OpenAI) — the new name of priority. GPT-6 and newer models echo service_tier=fast.',
+                'Fast 模式（OpenAI）——priority 的新名称，GPT-6 及更新模型按 fast 回执'
+            ),
+            ultrafast: t(
+                'Ultrafast mode (OpenAI) — the fastest tier, offered by GPT-6 Astra and GPT-6.1 Sol.',
+                'Ultrafast 超高速模式（OpenAI）——最快等级，仅 GPT-6 Astra 与 GPT-6.1 Sol 提供'
+            ),
             standard_only: t('Use only the Anthropic standard service tier.', '仅使用 Anthropic 标准服务等级'),
             unspecified: t('Use the Gemini API default service tier.', '使用 Gemini API 默认服务等级'),
             standard: t('Use the Gemini standard service tier.', '使用 Gemini 标准服务等级')

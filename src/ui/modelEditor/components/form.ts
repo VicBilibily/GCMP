@@ -565,6 +565,8 @@ function getServiceTierFormOptions(sdkMode: SdkMode): { value: ServiceTier; labe
         auto: 'Auto',
         flex: 'Flex',
         priority: 'Priority',
+        fast: 'Fast',
+        ultrafast: 'Ultrafast',
         standard_only: 'Standard Only'
     };
     return getCompatibleServiceTierOptions(sdkMode).map(value => ({ value, label: labels[value] || value }));
