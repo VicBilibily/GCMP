@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
+import { withDirectoryLock } from '../persistence/directoryLock';
 import {
     mergeSnapshotFiles,
     ORDERED_SNAPSHOT_FORMAT_MARKER,
@@ -461,128 +462,21 @@ export class SnapshotManager {
     private async withSnapshotLock<T>(dateStr: string, operation: () => Promise<T>): Promise<T> {
         const dateFolder = this.pathManager.getDateFolderPath(dateStr);
         const lockPath = path.join(dateFolder, '.requests.lock');
-        const reclaimPath = `${lockPath}.reclaim`;
-        const ownerPath = path.join(lockPath, 'owner.json');
-        const token = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-        const deadline = Date.now() + SnapshotManager.SNAPSHOT_LOCK_WAIT_MS;
         await fs.mkdir(dateFolder, { recursive: true });
-
-        while (true) {
-            if (fsSync.existsSync(reclaimPath)) {
-                if (await this.removeOrphanedReclaimGuard(reclaimPath)) {
-                    continue;
-                }
-                if (Date.now() >= deadline) {
-                    throw new Error(`Timed out waiting for snapshot lock: ${dateStr}`);
-                }
-                await this.delay(SnapshotManager.SNAPSHOT_LOCK_RETRY_MS);
-                continue;
-            }
-            try {
-                await fs.mkdir(lockPath);
-                try {
-                    await fs.writeFile(ownerPath, JSON.stringify({ pid: process.pid, token }), 'utf-8');
-                } catch (error) {
-                    await fs.rm(lockPath, { recursive: true, force: true });
-                    throw error;
-                }
-                break;
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-                    throw error;
-                }
-                if (await this.removeStaleSnapshotLock(lockPath, ownerPath, reclaimPath)) {
-                    continue;
-                }
-                if (Date.now() >= deadline) {
-                    throw new Error(`Timed out waiting for snapshot lock: ${dateStr}`);
-                }
-                await this.delay(SnapshotManager.SNAPSHOT_LOCK_RETRY_MS);
-            }
-        }
-
-        try {
-            return await operation();
-        } finally {
-            const owner = await this.readSnapshotLockOwner(ownerPath);
-            if (owner?.token === token) {
-                await fs.rm(lockPath, { recursive: true, force: true });
-            }
-        }
-    }
-
-    private async removeOrphanedReclaimGuard(reclaimPath: string): Promise<boolean> {
-        try {
-            const stats = await fs.stat(reclaimPath);
-            if (Date.now() - stats.mtimeMs < SnapshotManager.SNAPSHOT_LOCK_WAIT_MS) {
-                return false;
-            }
-            await fs.rm(reclaimPath, { recursive: true, force: true });
-            return true;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                return true;
-            }
-            throw error;
-        }
-    }
-
-    private async removeStaleSnapshotLock(lockPath: string, ownerPath: string, reclaimPath: string): Promise<boolean> {
-        try {
-            await fs.mkdir(reclaimPath);
-        } catch (error) {
-            const code = (error as NodeJS.ErrnoException).code;
-            if (code === 'EEXIST') {
-                return false;
-            }
-            if (code === 'ENOENT') {
-                return true;
-            }
-            throw error;
-        }
-        try {
-            const owner = await this.readSnapshotLockOwner(ownerPath);
-            if (owner && this.isProcessAlive(owner.pid)) {
-                return false;
-            }
-            if (!owner) {
-                try {
-                    const stats = await fs.stat(lockPath);
-                    if (Date.now() - stats.mtimeMs < SnapshotManager.SNAPSHOT_LOCK_ORPHAN_MS) {
-                        return false;
-                    }
-                } catch (error) {
-                    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                        return true;
-                    }
-                    throw error;
-                }
-            }
-            await fs.rm(lockPath, { recursive: true, force: true });
-            return true;
-        } finally {
-            await fs.rm(reclaimPath, { recursive: true, force: true });
-        }
-    }
-
-    private async readSnapshotLockOwner(ownerPath: string): Promise<{ pid: number; token: string } | undefined> {
-        let content: string;
-        try {
-            content = await fs.readFile(ownerPath, 'utf-8');
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                return undefined;
-            }
-            throw error;
-        }
-        try {
-            const owner = JSON.parse(content) as { pid?: unknown; token?: unknown };
-            return typeof owner.pid === 'number' && typeof owner.token === 'string' ?
-                    { pid: owner.pid, token: owner.token }
-                :   undefined;
-        } catch {
-            return undefined;
-        }
+        return withDirectoryLock(
+            lockPath,
+            {
+                waitMs: SnapshotManager.SNAPSHOT_LOCK_WAIT_MS,
+                retryMs: SnapshotManager.SNAPSHOT_LOCK_RETRY_MS,
+                orphanMs: SnapshotManager.SNAPSHOT_LOCK_ORPHAN_MS,
+                reclaimOrphanMs: SnapshotManager.SNAPSHOT_LOCK_WAIT_MS,
+                timeoutMessage: `Timed out waiting for snapshot lock: ${dateStr}`,
+                ownershipLost: () => new Error(`Snapshot lock ownership changed: ${dateStr}`),
+                isProcessAlive: pid => this.isProcessAlive(pid),
+                retryTransient: true
+            },
+            operation
+        );
     }
 
     private isProcessAlive(pid: number): boolean {
@@ -590,7 +484,7 @@ export class SnapshotManager {
             process.kill(pid, 0);
             return true;
         } catch (error) {
-            return (error as NodeJS.ErrnoException).code === 'EPERM';
+            return (error as NodeJS.ErrnoException).code !== 'ESRCH';
         }
     }
 

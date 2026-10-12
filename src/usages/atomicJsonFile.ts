@@ -1,8 +1,13 @@
 ﻿import * as fs from 'fs/promises';
 import * as path from 'path';
-import { withWriteCommitLock, WritePermissionLostError } from './persistence/writeCommitLock';
+import { withDirectoryLock } from './persistence/directoryLock';
 
-export { WritePermissionLostError } from './persistence/writeCommitLock';
+export class WritePermissionLostError extends Error {
+    constructor() {
+        super('Statistics write permission expired');
+        this.name = 'WritePermissionLostError';
+    }
+}
 
 export class AtomicJsonFile {
     private static readonly queues = new Map<string, Promise<void>>();
@@ -47,8 +52,22 @@ export class AtomicJsonFile {
             await fs.writeFile(tempPath, serialized, 'utf-8');
             // rename 在 POSIX 上原子替换已存在目标；Windows (NTFS) 上同样会替换已存在文件
             if (canWrite) {
-                await withWriteCommitLock(filePath, canWrite, () =>
-                    this.renameWithRetry(tempPath, filePath, 5, canWrite)
+                await withDirectoryLock(
+                    `${filePath}.commit.lock`,
+                    {
+                        waitMs: 10000,
+                        retryMs: 25,
+                        orphanMs: 60000,
+                        reclaimOrphanMs: 60000,
+                        timeoutMessage: `Timed out waiting for statistics commit: ${filePath}`,
+                        ownershipLost: () => new WritePermissionLostError(),
+                        assertActive: () => {
+                            if (!canWrite()) {
+                                throw new WritePermissionLostError();
+                            }
+                        }
+                    },
+                    () => this.renameWithRetry(tempPath, filePath, 5, canWrite)
                 );
             } else {
                 await this.renameWithRetry(tempPath, filePath);

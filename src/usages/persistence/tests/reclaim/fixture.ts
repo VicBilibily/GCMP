@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -47,4 +47,19 @@ export async function fixture(context: TestContext, deadLock = false) {
         await fs.writeFile(join(lock, 'owner.json'), JSON.stringify(dead));
     }
     return { dir, path, lock, guard, dead };
+}
+
+export async function releaseChild(child: Pick<ChildProcess, 'connected' | 'send'> | undefined): Promise<void> {
+    if (!child?.connected) {
+        return;
+    }
+    await new Promise<void>((resolve, reject) => {
+        child.send({ kind: 'release' }, (error: Error | null) => {
+            if (error && !['EPIPE', 'ERR_IPC_CHANNEL_CLOSED'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+                reject(error);
+            } else {
+                resolve();
+            }
+        });
+    });
 }

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { withReclaimGuard } from '../../reclaimGuard';
-import { bounded, fixture, gate, promises, write } from './fixture';
+import { bounded, fixture, gate, promises, releaseChild, write } from './fixture';
 
 for (const aged of [false, true]) {
     test(
@@ -63,6 +63,7 @@ for (const aged of [false, true]) {
                     waits.get(message.kind)?.release();
                 });
                 exited = once(child, 'exit');
+                void exited.catch(() => undefined);
                 await bounded(wait('ready'));
                 child.send({ kind: 'write' });
                 await bounded(Promise.race([wait('retained'), wait('rename-entered')]));
@@ -74,9 +75,7 @@ for (const aged of [false, true]) {
                 release.release();
                 assert.equal(await bounded(writing), null);
                 assert.deepEqual(JSON.parse(await fs.readFile(f.path, 'utf8')), { requests: 2 });
-                if (child.connected) {
-                    child.send({ kind: 'release' });
-                }
+                await releaseChild(child);
                 await bounded(wait('finished'));
                 assert.equal((await bounded(exited))[0], 0);
                 assert.deepEqual(JSON.parse(await fs.readFile(f.path, 'utf8')), { requests: 2 });
@@ -85,9 +84,7 @@ for (const aged of [false, true]) {
                 assert.deepEqual(await fs.readdir(f.dir), ['stats.json']);
             } finally {
                 release.release();
-                if (child?.connected) {
-                    child.send({ kind: 'release' });
-                }
+                await releaseChild(child);
                 await writing;
                 if (child && child.exitCode === null && child.signalCode === null) {
                     child.kill();
@@ -203,6 +200,7 @@ test('a delayed ended-guard release preserves a second process replacement', { t
             waiting.get(message.kind)?.release();
         });
         exited = once(child, 'exit');
+        void exited.catch(() => undefined);
         await bounded(wait('ready'));
         child.send({ kind: 'write' });
         await bounded(wait('guard-held'));
@@ -212,7 +210,7 @@ test('a delayed ended-guard release preserves a second process replacement', { t
         release.release();
         assert.equal(await bounded(first), true);
         assert.deepEqual(await fs.readdir(f.guard), owner);
-        child.send({ kind: 'release' });
+        await releaseChild(child);
         await bounded(wait('finished'));
         assert.equal(childError, null);
         assert.equal((await bounded(exited))[0], 0);
@@ -220,9 +218,7 @@ test('a delayed ended-guard release preserves a second process replacement', { t
         assert.deepEqual(await fs.readdir(f.dir), ['stats.json']);
     } finally {
         release.release();
-        if (child?.connected) {
-            child.send({ kind: 'release' });
-        }
+        await releaseChild(child);
         await first;
         if (child && child.exitCode === null && child.signalCode === null) {
             child.kill();

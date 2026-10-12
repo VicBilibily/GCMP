@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { finishPendingRelease, releaseLock } from './lockRelease';
+import { finishPendingRelease, releaseLock, withLockCleanup } from './lockRelease';
 
 async function removeEmptyGuard(reclaimPath: string): Promise<boolean> {
     try {
@@ -25,12 +25,12 @@ async function removeOwner(reclaimPath: string, owner: string): Promise<void> {
     await removeEmptyGuard(reclaimPath);
 }
 
-export async function removeAbandonedReclaimGuard(reclaimPath: string): Promise<boolean> {
+export async function removeAbandonedReclaimGuard(reclaimPath: string, orphanMs = 60000): Promise<boolean> {
     await finishPendingRelease(reclaimPath);
     try {
         const entries = await fs.readdir(reclaimPath, { withFileTypes: true });
         if (entries.length === 0) {
-            if (Date.now() - (await fs.stat(reclaimPath)).mtimeMs < 60000) {
+            if (Date.now() - (await fs.stat(reclaimPath)).mtimeMs < orphanMs) {
                 return false;
             }
             return await removeEmptyGuard(reclaimPath);
@@ -68,35 +68,38 @@ export async function withReclaimGuard(reclaimPath: string, operation: () => Pro
         temporary = `${reclaimPath}.${owner}.tmp`;
     await fs.mkdir(temporary);
     let published = false;
-    try {
-        await fs.writeFile(join(temporary, owner), '', { flag: 'wx' });
-        try {
-            // 整目录发布使所有权与标记同时可见，非空目录不能被另一代替换。
-            await fs.rename(temporary, reclaimPath);
-            published = true;
-        } catch (error) {
-            if (existsSync(join(reclaimPath, owner))) {
-                await releaseLock(reclaimPath, () => removeOwner(reclaimPath, owner)).catch(() => undefined);
+    return withLockCleanup(
+        async () => {
+            await fs.writeFile(join(temporary, owner), '', { flag: 'wx' });
+            try {
+                // 整目录发布使所有权与标记同时可见，非空目录不能被另一代替换。
+                await fs.rename(temporary, reclaimPath);
+                published = true;
+            } catch (error) {
+                if (existsSync(join(reclaimPath, owner))) {
+                    return withLockCleanup(
+                        async () => {
+                            throw error;
+                        },
+                        () => releaseLock(reclaimPath, () => removeOwner(reclaimPath, owner))
+                    );
+                }
+                if (
+                    ['EEXIST', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EBUSY'].includes(
+                        (error as NodeJS.ErrnoException).code ?? ''
+                    ) &&
+                    existsSync(reclaimPath)
+                ) {
+                    return false;
+                }
                 throw error;
             }
-            if (
-                ['EEXIST', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EBUSY'].includes(
-                    (error as NodeJS.ErrnoException).code ?? ''
-                ) &&
-                existsSync(reclaimPath)
-            ) {
-                return false;
+            return withLockCleanup(operation, () => releaseLock(reclaimPath, () => removeOwner(reclaimPath, owner)));
+        },
+        async () => {
+            if (!published) {
+                await fs.rm(temporary, { recursive: true, force: true });
             }
-            throw error;
         }
-        try {
-            return await operation();
-        } finally {
-            await releaseLock(reclaimPath, () => removeOwner(reclaimPath, owner));
-        }
-    } finally {
-        if (!published) {
-            await fs.rm(temporary, { recursive: true, force: true });
-        }
-    }
+    );
 }

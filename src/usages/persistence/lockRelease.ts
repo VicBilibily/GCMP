@@ -49,3 +49,27 @@ export function releaseLock(lockPath: string, release: () => Promise<void>): Pro
     pendingReleases.set(lockPath, pending);
     return finishRelease(lockPath, pending);
 }
+
+export async function withLockCleanup<T>(operation: () => Promise<T>, cleanup: () => Promise<void>): Promise<T> {
+    let result: { value: T } | { error: unknown };
+    try {
+        result = { value: await operation() };
+    } catch (error) {
+        result = { error };
+    }
+    try {
+        await cleanup();
+    } catch (error) {
+        if ('error' in result) {
+            const primary = result.error;
+            const detail = primary instanceof Error ? `: ${primary.message}` : '';
+            const cause = primary instanceof Error ? (primary.cause ?? primary) : primary;
+            throw new AggregateError([primary, error], `Lock operation and cleanup both failed${detail}`, { cause });
+        }
+        throw error;
+    }
+    if ('error' in result) {
+        throw result.error;
+    }
+    return result.value;
+}
