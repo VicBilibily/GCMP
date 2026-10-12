@@ -105,9 +105,9 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [1.5, 7.5, 0.15, 0.08334],
-            "reasoningEffort": ["low", "medium", "high"]
+            "tokenPricing": [1.5, 7.5, 0.15, 0.08334]
         },
         {
             "id": "gemini-3.8-flash",
@@ -118,6 +118,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [1.5, 7.5, 0.15]
         },

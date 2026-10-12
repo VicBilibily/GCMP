@@ -703,9 +703,20 @@ function normalizeGeminiContents(value: unknown): GeminiContent[] | undefined {
         if ((candidate.role !== 'model' && candidate.role !== 'user') || !Array.isArray(candidate.parts)) {
             continue;
         }
-        const parts = candidate.parts.filter(
-            (part): part is GeminiPart => Boolean(part) && typeof part === 'object' && !Array.isArray(part)
-        );
+        const parts = candidate.parts
+            .filter((part): part is GeminiPart => Boolean(part) && typeof part === 'object' && !Array.isArray(part))
+            .filter(
+                part =>
+                    part.text !== '' ||
+                    Boolean(
+                        part.thoughtSignature ||
+                        part.thought_signature ||
+                        part.functionCall ||
+                        part.functionResponse ||
+                        part.inlineData ||
+                        part.fileData
+                    )
+            );
         if (parts.length > 0) {
             contents.push({ role: candidate.role, parts });
         }
