@@ -7,7 +7,6 @@ import test, { type TestContext } from 'node:test';
 
 import { DateUtils } from './fileLogger/dateUtils';
 import type { TokenRequestLog, TokenUsageStatsFromFile } from './fileLogger/types';
-import { UsageParser, type ExtendedTokenRequestLog } from './fileLogger/usageParser';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -114,7 +113,7 @@ test('optional historical title hydration preserves readable usage records', asy
             return { manager, logger, readManager, detailsReads, titleCache };
         }
 
-        for (const method of ['getDateRecords', 'getRecentRecords'] as const) {
+        for (const method of ['getDateRecords'] as const) {
             await t.test(`${method} retries failed history without hiding current records`, async context => {
                 const sessionId = `historical-retry-${method}`;
                 const { manager, readManager, titleCache, detailsReads } = await createFixture(context, {
@@ -129,8 +128,7 @@ test('optional historical title hydration preserves readable usage records', asy
                     }
                     return readHourLogs(...args);
                 };
-                const getRecords = () =>
-                    method === 'getDateRecords' ? manager.getDateRecords(today) : manager.getRecentRecords();
+                const getRecords = () => manager.getDateRecords(today);
                 const records = await getRecords();
                 assert.equal(records.length, 1);
                 assert.equal(records[0].requestId, 'current-request');
@@ -179,11 +177,11 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(titleCache.get(resolvedSessionId)?.title, '更早日期的标题');
             assert.equal(titleCache.has(unresolvedSessionId), false);
             assert.ok(detailsReads.includes(olderDate));
-            assert.equal((await manager.getRecentRecords()).length, 2);
+            assert.equal((await manager.getDateRecords(today)).length, 2);
             assert.equal(detailsReads.filter(date => date === yesterday).length, 2);
         });
 
-        for (const method of ['getDateRecords', 'getRecentRecords'] as const) {
+        for (const method of ['getDateRecords'] as const) {
             for (const indexState of ['missing', 'incomplete', 'unreadable'] as const) {
                 await t.test(`${method} finds historical titles with an ${indexState} index`, async context => {
                     const sessionId = `${method}-${indexState}-index`;
@@ -200,10 +198,7 @@ test('optional historical title hydration preserves readable usage records', asy
                         }
                         return indexState === 'incomplete' ? { [today]: completeIndex[today] } : {};
                     };
-                    const records =
-                        method === 'getDateRecords' ?
-                            await manager.getDateRecords(today)
-                        :   await manager.getRecentRecords();
+                    const records = await manager.getDateRecords(today);
                     assert.equal(records.length, 1);
                     assert.equal(records[0].sessionTitle, '不依赖索引的标题');
                     assert.equal(titleCache.get(sessionId)?.title, '不依赖索引的标题');
@@ -236,21 +231,8 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(titleCache.get(sessionId)?.title, null);
             assert.equal(detailsReads.filter(date => date === yesterday).length, 1);
             assert.equal((await manager.getDateRecords(today)).length, 1);
-            assert.equal((await manager.getRecentRecords()).length, 1);
+            assert.equal((await manager.getDateRecords(today)).length, 1);
             assert.equal(detailsReads.filter(date => date === yesterday).length, 1);
-        });
-
-        await t.test('recent records can skip historical title hydration', async context => {
-            const sessionId = 'status-bar-no-title-hydration';
-            const { manager, detailsReads } = await createFixture(context, {
-                [today]: [createLog('status-bar-current', today, sessionId)],
-                [yesterday]: [createLog('status-bar-history', yesterday, sessionId, '无需读取的标题')]
-            });
-
-            const records = await manager.getRecentRecords(3, { hydrateSessionTitles: false });
-            assert.equal(records.length, 1);
-            assert.equal(records[0].sessionTitle, undefined);
-            assert.deepEqual(detailsReads, []);
         });
 
         await t.test('concurrent date stats reads share one file task', async () => {
@@ -470,374 +452,6 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(SessionTitleService.instance.getTitle(sessionId), '并发生成标题');
         });
     } finally {
-        NodeModule.prototype.require = originalRequire;
-    }
-});
-
-test('token usage status bar coalesces refreshes and reuses cached data for presentation changes', async t => {
-    const originalRequire = NodeModule.prototype.require;
-    let statusBar:
-        | {
-              initialize(): Promise<void>;
-              delayedUpdate(delayMs?: number): void;
-              dispose(): void;
-          }
-        | undefined;
-    let statsListener: () => void = () => {};
-    let usageListener: () => void = () => {};
-    let leaderListener: () => void = () => {};
-    let configurationListener: (event: { affectsConfiguration(section: string): boolean }) => void = () => {};
-    let leader = false;
-    let statsCalls = 0;
-    let recentCalls = 0;
-    const recentOptions: unknown[] = [];
-    let resolveFirstRecent!: (records: unknown[]) => void;
-    const firstRecent = new Promise<unknown[]>(resolve => {
-        resolveFirstRecent = resolve;
-    });
-    let resolveThirdRecent!: (records: unknown[]) => void;
-    const thirdRecent = new Promise<unknown[]>(resolve => {
-        resolveThirdRecent = resolve;
-    });
-
-    class MarkdownString {
-        value = '';
-        supportHtml = false;
-        isTrusted = false;
-
-        appendMarkdown(value: string): void {
-            this.value += value;
-        }
-    }
-
-    const baseStats = {
-        estimatedInput: 120,
-        actualInput: 100,
-        cacheTokens: 20,
-        outputTokens: 50,
-        requests: 2,
-        costedRequests: 2,
-        rmbExactRequests: 0,
-        estimatedCost: 0.02,
-        estimatedCostRmb: 0.14,
-        inputCost: 0.01,
-        inputCostRmb: 0.07,
-        outputCost: 0.01,
-        outputCostRmb: 0.07,
-        cacheReadCost: 0,
-        cacheReadCostRmb: 0,
-        cacheWriteCost: 0,
-        cacheWriteCostRmb: 0,
-        completedRequests: 2,
-        failedRequests: 0,
-        cancelledRequests: 0
-    };
-    const stats: TokenUsageStatsFromFile = {
-        total: baseStats,
-        providers: { test: { ...baseStats, providerName: 'Test Provider', models: {} } },
-        hourly: {}
-    };
-    const recentRecord = {
-        requestId: 'recent-request',
-        timestamp: Date.now(),
-        isoTime: new Date().toISOString(),
-        providerKey: 'recent',
-        providerName: 'Recent Request Provider',
-        modelId: 'recent-model',
-        modelName: 'Recent Model',
-        estimatedInput: 10,
-        rawUsage: null,
-        status: 'estimated',
-        actualInput: 0,
-        cacheReadTokens: 0,
-        cacheCreationTokens: 0,
-        outputTokens: 0,
-        totalTokens: 10
-    };
-    const statusBarItem = {
-        name: '',
-        command: '',
-        text: '',
-        tooltip: '' as string | MarkdownString,
-        disposed: false,
-        show() {},
-        dispose() {
-            this.disposed = true;
-        }
-    };
-    const manager = {
-        onStatsUpdate(listener: () => void) {
-            statsListener = listener;
-            return { dispose() {} };
-        },
-        async getDateStats() {
-            statsCalls += 1;
-            return stats;
-        },
-        async getRecentRecords(_limit: number, options?: unknown) {
-            recentCalls += 1;
-            recentOptions.push(options);
-            if (recentCalls === 1) {
-                return firstRecent;
-            }
-            return recentCalls === 2 ? [recentRecord] : thirdRecent;
-        }
-    };
-    const waitFor = async (predicate: () => boolean) => {
-        const deadline = Date.now() + 1000;
-        while (!predicate()) {
-            if (Date.now() >= deadline) {
-                throw new Error('Timed out waiting for condition');
-            }
-            await new Promise<void>(resolve => setTimeout(resolve, 1));
-        }
-    };
-
-    try {
-        NodeModule.prototype.require = function (id: string): unknown {
-            if (id === 'vscode') {
-                return {
-                    window: { createStatusBarItem: () => statusBarItem },
-                    workspace: {
-                        onDidChangeConfiguration: (
-                            listener: (event: { affectsConfiguration(section: string): boolean }) => void
-                        ) => {
-                            configurationListener = listener;
-                            return { dispose() {} };
-                        }
-                    },
-                    env: { language: 'zh-cn' },
-                    StatusBarAlignment: { Right: 2 },
-                    MarkdownString
-                };
-            }
-            if (id.endsWith('/usagesManager')) {
-                return { TokenUsagesManager: { instance: manager } };
-            }
-            if (id.endsWith('/statusLogger')) {
-                return { StatusLogger: { debug() {}, trace() {}, warn() {}, error() {} } };
-            }
-            if (id.endsWith('/userActivityService')) {
-                return { UserActivityService: { isUserActive: () => true } };
-            }
-            if (id.endsWith('/interInstance')) {
-                return {
-                    InterInstanceBus: {
-                        subscribe: (_type: string, listener: () => void) => {
-                            usageListener = listener;
-                            return { dispose() {} };
-                        }
-                    }
-                };
-            }
-            if (id.endsWith('/leaderElectionService')) {
-                return {
-                    LeaderElectionService: {
-                        isLeader: () => leader,
-                        onLeaderChanged: (listener: () => void) => {
-                            leaderListener = listener;
-                            return { dispose() {} };
-                        }
-                    }
-                };
-            }
-            if (id.endsWith('/harRecorder')) {
-                return { HarRecorder: { getInstance: () => ({ isEnabled: () => false }) } };
-            }
-            if (id.endsWith('/l10n')) {
-                return { t: (_key: string, fallback: string) => fallback };
-            }
-            if (id.endsWith('/pricingCurrency')) {
-                return { convertUsdToRmb: (value: number) => value * 7 };
-            }
-            if (id.endsWith('/ui/utils')) {
-                return { formatCost: (value: number) => `$${value.toFixed(4)}` };
-            }
-            return originalRequire.call(this, id);
-        };
-
-        const { TokenUsageStatusBar } = await import('../status/tokenUsageStatusBar');
-        statusBar = new TokenUsageStatusBar({ subscriptions: [] } as never);
-        await statusBar.initialize();
-
-        await waitFor(() => statsCalls === 1 && recentCalls === 1);
-        assert.match(statusBarItem.text, /150/);
-        assert.ok(statusBarItem.tooltip instanceof MarkdownString);
-        assert.match(statusBarItem.tooltip.value, /Test Provider/);
-        assert.deepEqual(recentOptions, [{ hydrateSessionTitles: false }]);
-
-        statsListener();
-        usageListener();
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.equal(statsCalls, 1);
-        assert.equal(recentCalls, 1);
-
-        resolveFirstRecent([]);
-        await waitFor(() => statsCalls === 2 && recentCalls === 2);
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.equal(statsCalls, 2);
-        assert.equal(recentCalls, 2);
-        assert.match((statusBarItem.tooltip as MarkdownString).value, /Recent Request Provider/);
-
-        statsListener();
-        await waitFor(() => statsCalls === 3 && recentCalls === 3);
-        assert.match((statusBarItem.tooltip as MarkdownString).value, /Recent Request Provider/);
-        resolveThirdRecent([]);
-        await waitFor(() => !(statusBarItem.tooltip as MarkdownString).value.includes('Recent Request Provider'));
-
-        leader = true;
-        leaderListener();
-        configurationListener({ affectsConfiguration: section => section === 'gcmp.debug.captureHar' });
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.equal(statsCalls, 3);
-        assert.equal(recentCalls, 3);
-        assert.match(statusBarItem.text, /^\$\(layers-dot\)/);
-        assert.match((statusBarItem.tooltip as MarkdownString).value, /主实例/);
-
-        const timingLog: TokenRequestLog = {
-            ...createLog('timing-request', DateUtils.getTodayDateString(), 'timing-session'),
-            providerName: 'Timing Provider',
-            estimatedInput: 99,
-            requestMetricStartTime: 1000,
-            streamStartTime: 1100,
-            streamEndTime: 6000,
-            rawUsage: {
-                prompt_tokens: 10,
-                completion_tokens: 21,
-                total_tokens: 31,
-                prompt_tokens_details: { cached_tokens: 4 }
-            }
-        };
-        const presentation = statusBar as unknown as {
-            generateTooltip(stats: TokenUsageStatsFromFile, records: ExtendedTokenRequestLog[]): MarkdownString;
-        };
-        const renderRecent = (log: TokenRequestLog): string => {
-            const tooltip = presentation.generateTooltip(stats, [UsageParser.extendLog(log)]).value;
-            const row = tooltip.split('\n').find(line => line.startsWith('| Timing Provider |'));
-            assert.ok(row);
-            return row;
-        };
-
-        await t.test('status bar recent table omits output duration', () => {
-            const tooltip = presentation.generateTooltip(stats, [UsageParser.extendLog(timingLog)]).value;
-            const header = tooltip.split('\n').find(line => line.startsWith('| 提供商 | 请求时间 |'));
-            assert.equal(
-                header,
-                '| 提供商 | 请求时间 | 状态 | 读取+写入=输入量 | 输出量 | 预估成本 | TTFT | 输出速度 |'
-            );
-            assert.doesNotMatch(tooltip, /输出耗时|\| TPOT \|/);
-            assert.match(tooltip, /GCMP: 今日 Token 消耗统计/);
-            assert.match(tooltip, /输入\(\+缓存\)\+输出=消耗Tokens/);
-            assert.match(tooltip, /command:gcmp\.tokenUsage\.showDetails/);
-            assert.match(tooltip, /command:gcmp\.configSet\.manage/);
-            assert.match(tooltip, /command:gcmp\.modelSettings\.wizard/);
-        });
-
-        for (const status of ['completed', 'cancelled', 'failed'] as const) {
-            await t.test(`status bar uses actual usage and output timing for ${status}`, () => {
-                const row = renderRecent({ ...timingLog, status });
-                assert.match(row, /\| 4\+6=10 \| 21 \|/);
-                assert.match(row, /\| 100 ms \| 4\.3 t\/s \|/);
-                assert.doesNotMatch(row, /≈/);
-            });
-        }
-
-        await t.test('status bar displays legacy speed without approximation symbols', () => {
-            const row = renderRecent({
-                ...timingLog
-            });
-            assert.match(row, /\| 100 ms \| 4\.3 t\/s \|/);
-            assert.doesNotMatch(row, /≈/);
-        });
-
-        await t.test('status bar keeps the original stream throughput', () => {
-            const row = renderRecent({ ...timingLog, streamEndTime: 1500, outputSpeed: 100000 });
-            assert.match(row, /\| 100 ms \| 52\.5 t\/s \|/);
-        });
-
-        await t.test('status bar includes all output tokens in average speed', () => {
-            const row = renderRecent({
-                ...timingLog,
-                rawUsage: {
-                    promptTokenCount: 10,
-                    candidatesTokenCount: 11,
-                    thoughtsTokenCount: 20,
-                    totalTokenCount: 41
-                }
-            });
-            assert.match(row, /\| 31 \|/);
-            assert.match(row, /\| 100 ms \| 6\.3 t\/s \|/);
-        });
-
-        await t.test('status bar shows average speed for thinking-only output', () => {
-            const row = renderRecent({
-                ...timingLog,
-                rawUsage: {
-                    promptTokenCount: 10,
-                    candidatesTokenCount: 0,
-                    thoughtsTokenCount: 20,
-                    totalTokenCount: 30
-                }
-            });
-            assert.match(row, /\| 100 ms \| 4\.1 t\/s \|/);
-        });
-
-        for (const duration of [1, 3, 14]) {
-            await t.test(`status bar displays single-token average speed for a ${duration}ms response`, () => {
-                const row = renderRecent({
-                    ...timingLog,
-                    streamEndTime: 1100 + duration,
-                    rawUsage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }
-                });
-                assert.equal(row.split('|')[8].trim(), `${(1000 / duration).toFixed(1)} t/s`);
-            });
-        }
-
-        await t.test('status bar speed is independent of per-token latency', () => {
-            const row = renderRecent({
-                ...timingLog,
-                rawUsage: { prompt_tokens: 10, completion_tokens: 4001, total_tokens: 4011 }
-            });
-            assert.match(row, /\| 100 ms \| 816\.5 t\/s \|/);
-        });
-
-        await t.test('status bar preserves pending tracker throughput without inventing actual usage', () => {
-            const row = renderRecent({ ...timingLog, status: 'estimated', rawUsage: null, outputSpeed: 12.5 });
-            assert.match(row, /\| ~99 \| - \|/);
-            assert.match(row, /\| 100 ms \| 12\.5 t\/s \|/);
-        });
-
-        await t.test('status bar does not treat a pending protocol event as actual output', () => {
-            const row = renderRecent({
-                ...timingLog,
-                status: 'estimated',
-                rawUsage: null,
-                streamStartTime: undefined,
-                streamEndTime: undefined,
-                outputSpeed: 0
-            });
-            assert.match(row, /\| - \| - \|$/);
-        });
-
-        await t.test('status bar keeps recorded zero usage instead of estimated input', () => {
-            const row = renderRecent({
-                ...timingLog,
-                status: 'failed',
-                rawUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
-            });
-            assert.match(row, /\| 0 \| - \|/);
-        });
-
-        statusBar.delayedUpdate(10);
-        statusBar.dispose();
-        await new Promise<void>(resolve => setTimeout(resolve, 20));
-        assert.equal(statsCalls, 3);
-        assert.equal(recentCalls, 3);
-        assert.equal(statusBarItem.disposed, true);
-    } finally {
-        resolveFirstRecent([]);
-        resolveThirdRecent([]);
-        statusBar?.dispose();
         NodeModule.prototype.require = originalRequire;
     }
 });

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { InterInstanceBus } from '../../../../src/interInstance/interInstanceBus';
-import type { InterInstanceEvent } from '../../../../src/interInstance/eventProtocol';
+import { USAGES_QUERY_PROTOCOL_VERSION, type InterInstanceEvent } from '../../../../src/interInstance/eventProtocol';
 import { IpcClient } from '../../../../src/interInstance/ipcClient';
 import { resolveIpcPath } from '../../../../src/interInstance/pathResolver';
 import { createLivenessFixture, waitFor } from './fixture';
@@ -34,7 +34,7 @@ suite('Leader liveness IPC protocol boundaries', () => {
                     payload: {
                         targetInstanceId: f.followerId,
                         extensionVersion: 'different',
-                        usagesQueryProtocolVersion: 1,
+                        usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
                         authorityTerm: term,
                         leaderLivenessProtocolVersion: 1
                     }
@@ -69,7 +69,7 @@ suite('Leader liveness IPC protocol boundaries', () => {
                     payload: {
                         targetInstanceId: f.followerId,
                         extensionVersion: 'older',
-                        usagesQueryProtocolVersion: 1,
+                        usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
                         authorityTerm: f.identity.authorityTerm,
                         leaderLivenessProtocolVersion: version
                     }
@@ -90,23 +90,26 @@ suite('Leader liveness IPC protocol boundaries', () => {
     test('IPC liveness compatibility is independent of extension and usages capability version', async () => {
         const f = await createLivenessFixture();
         try {
-            f.bus.remoteLeaderLivenessCompatible = false;
-            f.server.sendToInstance(f.followerId, {
-                type: 'remoteInstanceCapabilities',
-                timestamp: Date.now(),
-                senderInstanceId: f.identity.instanceId,
-                payload: {
-                    targetInstanceId: f.followerId,
-                    extensionVersion: 'different',
-                    usagesQueryProtocolVersion: 99,
-                    authorityTerm: f.identity.authorityTerm,
-                    leaderLivenessProtocolVersion: 1
-                }
-            });
-            await waitFor(() => f.bus.remoteLeaderLivenessCompatible);
-            assert.equal(InterInstanceBus.hasCompatibleUsagesQueryTransport(), false);
-            assert.equal(await InterInstanceBus.confirmLeaderLiveness(f.identity), 'alive');
-            f.assertUnchangedFollower();
+            for (const version of [USAGES_QUERY_PROTOCOL_VERSION - 1, 99]) {
+                assert.notEqual(version, USAGES_QUERY_PROTOCOL_VERSION);
+                f.bus.remoteLeaderLivenessCompatible = false;
+                f.server.sendToInstance(f.followerId, {
+                    type: 'remoteInstanceCapabilities',
+                    timestamp: Date.now(),
+                    senderInstanceId: f.identity.instanceId,
+                    payload: {
+                        targetInstanceId: f.followerId,
+                        extensionVersion: 'different',
+                        usagesQueryProtocolVersion: version,
+                        authorityTerm: f.identity.authorityTerm,
+                        leaderLivenessProtocolVersion: 1
+                    }
+                });
+                await waitFor(() => f.bus.remoteLeaderLivenessCompatible);
+                assert.equal(InterInstanceBus.hasCompatibleUsagesQueryTransport(), false);
+                assert.equal(await InterInstanceBus.confirmLeaderLiveness(f.identity), 'alive');
+                f.assertUnchangedFollower();
+            }
         } finally {
             await f.dispose();
         }
@@ -123,7 +126,7 @@ suite('Leader liveness IPC protocol boundaries', () => {
                 payload: {
                     targetInstanceId: f.followerId,
                     extensionVersion: 'different',
-                    usagesQueryProtocolVersion: 1,
+                    usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
                     authorityTerm: f.identity.authorityTerm,
                     leaderLivenessProtocolVersion: 1
                 }

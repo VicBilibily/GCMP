@@ -8,6 +8,12 @@ export interface StatsRefreshResult {
     delegated: boolean;
 }
 
+export interface StatsResultSource {
+    readonly revision: number;
+    readonly authorityTerm?: string;
+    readonly stale?: boolean;
+}
+
 interface RefreshBatch {
     promise: Promise<StatsRefreshResult | undefined>;
     resolve: (result: StatsRefreshResult | undefined) => void;

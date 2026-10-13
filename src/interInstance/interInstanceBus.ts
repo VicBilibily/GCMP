@@ -375,6 +375,10 @@ export class InterInstanceBus {
         return this.hasActiveTransport();
     }
 
+    static isIpcEnabled(): boolean {
+        return this.options.enabled !== false;
+    }
+
     static hasActiveTransport(): boolean {
         if (LeaderElectionService.isLeader()) {
             return !!this.server;

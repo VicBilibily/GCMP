@@ -21,6 +21,8 @@ export {
     type ApiKeyBalanceLeaseHandoff,
     type ConfigChangedEvent,
     type TokenUsageUpdatedEvent,
+    type UsageStatusSnapshotRequestedEvent,
+    type UsageStatusSnapshotEvent,
     type RemoteMetadataUpdatedEvent,
     type LeaderChangedEvent,
     type LeaderResigningEvent,

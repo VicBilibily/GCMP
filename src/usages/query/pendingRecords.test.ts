@@ -33,6 +33,7 @@ test('remote usages queries preserve caller pending state without retaining full
     let remoteExecutions = 0;
 
     const bus = {
+        isIpcEnabled: () => true,
         subscribe(type: string, handler: (event: InterInstanceEvent) => void) {
             const handlers =
                 subscriptions.get(currentInstance) ?? new Map<string, (event: InterInstanceEvent) => void>();
@@ -67,7 +68,10 @@ test('remote usages queries preserve caller pending state without retaining full
                 }
             });
         },
-        publishIpcOnly(event: Omit<UsagesQueryRequestedEvent, 'timestamp' | 'senderInstanceId'>) {
+        publishIpcOnly(event: { type: string; payload: unknown }) {
+            if (event.type !== 'usagesQueryRequested') {
+                return true;
+            }
             if (transportFailure) {
                 return false;
             }
@@ -99,6 +103,7 @@ test('remote usages queries preserve caller pending state without retaining full
             return {
                 LeaderElectionService: {
                     isLeader: () => currentInstance === 'leader',
+                    getOwnedAuthorityTerm: () => (currentInstance === 'leader' ? 'leader:1' : undefined),
                     getInstanceId: () => currentInstance,
                     getLeaderId: () => 'leader',
                     onLeaderChanged: () => ({ dispose() {} }),
@@ -133,6 +138,10 @@ test('remote usages queries preserve caller pending state without retaining full
         const today = DateUtils.getTodayDateString();
         const sessionA = '011167a7-47e1-4e78-82b2-32285c6dbf92';
         const sessionB = 'd9117794-1667-4856-bbf9-09209fd9d3cb';
+
+        async function pageRecords(manager: TokenUsagesManager, limit: number, date = today) {
+            return (await manager.getRecordsPage({ date, mode: 'all', page: 1, pageSize: limit })).records;
+        }
 
         async function fixture(context: TestContext) {
             requests.length = 0;
@@ -210,7 +219,7 @@ test('remote usages queries preserve caller pending state without retaining full
             return { leader, follower, logger, addPending, leaderTitles, followerTitles };
         }
 
-        for (const kind of ['recentRecords', 'dateOverview', 'recordsPage', 'trackRecords'] as const) {
+        for (const kind of ['allRecordsPage', 'dateOverview', 'recordsPage', 'trackRecords'] as const) {
             await t.test(`${kind} merges caller metrics and title before aggregation and paging`, async context => {
                 const { follower, logger, addPending, leaderTitles } = await fixture(context);
                 const first = await addPending(undefined, Date.now() - 2000);
@@ -220,8 +229,8 @@ test('remote usages queries preserve caller pending state without retaining full
                 const before = await logger.readDateLogs(today);
 
                 switch (kind) {
-                    case 'recentRecords': {
-                        const records = await follower.getRecentRecords(2);
+                    case 'allRecordsPage': {
+                        const records = await pageRecords(follower, 2);
                         assert.deepEqual(
                             records.map(record => record.requestId),
                             [second.requestId, first.requestId]
@@ -314,29 +323,6 @@ test('remote usages queries preserve caller pending state without retaining full
             });
         }
 
-        await t.test('remote recent records can skip session title hydration', async context => {
-            const { leader, follower, addPending } = await fixture(context);
-            const { requestId } = await addPending(sessionA);
-            let hydrationCalls = 0;
-            (
-                leader as unknown as {
-                    hydrateSessionTitles(sessionIds: Iterable<string>): Promise<void>;
-                }
-            ).hydrateSessionTitles = async () => {
-                hydrationCalls += 1;
-            };
-
-            const records = await follower.getRecentRecords(1, { hydrateSessionTitles: false });
-
-            assert.equal(records[0]?.requestId, requestId);
-            assert.equal(hydrationCalls, 0);
-            assert.deepEqual(requests.at(-1)?.payload.query, {
-                kind: 'recentRecords',
-                limit: 1,
-                hydrateSessionTitles: false
-            });
-        });
-
         for (const action of ['fire', 'dispose'] as const) {
             await t.test(`stats refresh timer ${action} settles without leaking into other queries`, async context => {
                 const { follower, logger, addPending } = await fixture(context);
@@ -386,7 +372,7 @@ test('remote usages queries preserve caller pending state without retaining full
                     regenerateAll: false,
                     requestedBy: 'follower'
                 });
-                assert.equal((await follower.getRecentRecords(1))[0]?.status, 'completed');
+                assert.equal((await pageRecords(follower, 1))[0]?.status, 'completed');
             });
         }
 
@@ -429,16 +415,17 @@ test('remote usages queries preserve caller pending state without retaining full
                 const resolved = followerTitles.resolveGeneratedTitleDetails('合成的标题匹配文本', '稍后生成的标题');
                 assert.ok(resolved);
                 await follower.backfillResolvedSessionTitle(resolved.sessionId, resolved.title, resolved.requestId);
-                assert.equal((await follower.getRecentRecords(1))[0]?.sessionTitle, resolved.title);
+                assert.equal((await pageRecords(follower, 1))[0]?.sessionTitle, resolved.title);
                 assert.equal((await follower.getDateOverview(today)).sessionGroups[0]?.title, resolved.title);
             }
         );
 
-        await t.test('cross-midnight pending is included in recent results and only its source date', async context => {
+        await t.test('cross-midnight pending is included only in its source date page and overview', async context => {
             const { follower, addPending } = await fixture(context);
             const yesterday = DateUtils.getDateStringDaysAgo(1);
             const { requestId } = await addPending(sessionA, new Date(`${yesterday}T23:59:00`).getTime());
-            assert.equal((await follower.getRecentRecords(1))[0]?.requestId, requestId);
+            assert.equal((await pageRecords(follower, 1, yesterday))[0]?.requestId, requestId);
+            assert.deepEqual(await pageRecords(follower, 1), []);
             assert.equal((await follower.getDateOverview(today)).allSummary.requestCount, 0);
             assert.equal((await follower.getDateOverview(yesterday)).allSummary.requestCount, 1);
         });
@@ -476,9 +463,9 @@ test('remote usages queries preserve caller pending state without retaining full
                 const { follower, leader, logger, addPending } = await fixture(context);
                 const { requestId } = await addPending(sessionA);
                 await follower.backfillResolvedSessionTitle(sessionA, '第一版标题', requestId);
-                assert.equal((await follower.getRecentRecords(1))[0]?.sessionTitle, '第一版标题');
+                assert.equal((await pageRecords(follower, 1))[0]?.sessionTitle, '第一版标题');
                 await follower.backfillResolvedSessionTitle(sessionA, '第二版标题', requestId);
-                assert.equal((await follower.getRecentRecords(1))[0]?.sessionTitle, '第二版标题');
+                assert.equal((await pageRecords(follower, 1))[0]?.sessionTitle, '第二版标题');
                 const leaderRaw = await leader.getFileLogger().getRequestDetails(today);
                 assert.equal(leaderRaw[0]?.sessionTitle, undefined);
                 assert.equal((await logger.readDateLogs(today)).length, 1);
@@ -498,7 +485,7 @@ test('remote usages queries preserve caller pending state without retaining full
                 const cachedPendingTitles: Array<string | null | undefined> = [];
 
                 async function queryTitles(): Promise<Array<string | undefined>> {
-                    const recent = await follower.getRecentRecords(1);
+                    const allPageRecords = await pageRecords(follower, 1);
                     const overview = await follower.getDateOverview(today);
                     const page = await follower.getRecordsPage({
                         date: today,
@@ -513,7 +500,7 @@ test('remote usages queries preserve caller pending state without retaining full
                         limitPerSession: 1
                     });
                     return [
-                        recent[0]?.sessionTitle,
+                        allPageRecords[0]?.sessionTitle,
                         overview.sessionGroups.find(group => group.sessionId === sessionA)?.title,
                         page.records[0]?.sessionTitle,
                         track.groups[0].records[0]?.sessionTitle
@@ -560,18 +547,24 @@ test('remote usages queries preserve caller pending state without retaining full
                     await queryTitles(),
                     Array.from({ length: 4 }, () => '第二版标题')
                 );
-                const local = await follower.getRecentRecords(1);
+                const local = await pageRecords(follower, 1);
                 assert.equal(local[0]?.status, status);
                 assert.equal(local[0]?.totalTokens, 28);
             });
         }
 
-        await t.test('empty recent results remain a successful remote query', async context => {
+        await t.test('empty records page remains a successful remote query', async context => {
             const { follower } = await fixture(context);
-            assert.deepEqual(await follower.getRecentRecords(1), []);
+            const page = await follower.getRecordsPage({ date: today, mode: 'all', page: 1, pageSize: 1 });
+            assert.deepEqual(page.records, []);
+            assert.equal(page.totalItems, 0);
+            assert.equal(page.summary.requestCount, 0);
             assert.equal(remoteExecutions, 1);
             assert.equal(responses[0]?.payload.error, undefined);
-            assert.deepEqual(responses[0]?.payload.result, { kind: 'recentRecords', value: [] });
+            assert.deepEqual(
+                responses[0]?.payload.result,
+                JSON.parse(JSON.stringify({ kind: 'recordsPage', value: page }))
+            );
         });
 
         await t.test('estimated pending added during a remote query invalidates the response', async context => {
@@ -637,16 +630,14 @@ test('remote usages queries preserve caller pending state without retaining full
                     }
                 };
 
-                const records = await follower.getRecentRecords(1);
+                const records = await pageRecords(follower, 1);
                 assert.equal(records[0]?.[field], updatedTime);
                 assert.equal(records[0]?.outputSpeed, 12.5);
                 assert.equal(records[0]?.timePerOutputToken, 80);
                 assert.equal(remoteExecutions, 1);
                 const result = responses[0]?.payload.result;
-                assert.equal(result?.kind, 'recentRecords');
-                if (result?.kind === 'recentRecords') {
-                    assert.equal(result.value[0]?.[field], originalTime);
-                }
+                assert.ok(result?.kind === 'recordsPage');
+                assert.equal(result.value.records[0]?.[field], originalTime);
             });
         }
 
@@ -705,7 +696,7 @@ test('remote usages queries preserve caller pending state without retaining full
         );
 
         for (const failure of ['hourly-read', 'directory-scan'] as const) {
-            await t.test(`remote recent ${failure} failure falls back and recovers`, async context => {
+            await t.test(`remote records page ${failure} failure falls back and recovers`, async context => {
                 const { follower, leader, logger, addPending } = await fixture(context);
                 const { requestId } = await addPending(sessionA, Date.now());
                 await logger.updateActualTokens({
@@ -715,7 +706,7 @@ test('remote usages queries preserve caller pending state without retaining full
                     rawUsage: { prompt_tokens: 20, completion_tokens: 8, total_tokens: 28 }
                 });
                 transportFailure = true;
-                const expected = await follower.getRecentRecords(1);
+                const expected = await pageRecords(follower, 1);
                 assert.equal(expected[0]?.status, 'completed');
                 assert.equal(expected[0]?.totalTokens, 28);
                 transportFailure = false;
@@ -737,36 +728,37 @@ test('remote usages queries preserve caller pending state without retaining full
                         }
                     );
                 } else {
-                    const fs = require('node:fs') as typeof import('node:fs');
-                    const readdirSync = fs.readdirSync;
-                    context.mock.method(fs, 'readdirSync', (...args: unknown[]) => {
+                    const fs = require('fs/promises') as typeof import('node:fs/promises');
+                    const readdir = fs.readdir;
+                    context.mock.method(fs, 'readdir', async (...args: unknown[]) => {
                         if (failLeaderRead && currentInstance === 'leader') {
                             injectedFailures += 1;
                             throw new Error('Injected leader directory read failure');
                         }
-                        return Reflect.apply(readdirSync, fs, args);
+                        return Reflect.apply(readdir, fs, args);
                     });
                 }
 
-                assert.deepEqual(await follower.getRecentRecords(1), expected);
+                assert.deepEqual(await pageRecords(follower, 1), expected);
                 assert.ok(injectedFailures > 0);
                 assert.equal(remoteExecutions, 1);
                 assert.equal(responses.at(-1)?.payload.error, 'query-failed');
 
                 if (failure === 'hourly-read') {
                     logger.clearDetailCaches();
+                    (follower as unknown as { clearDateRecordsCache(date: string): void }).clearDateRecordsCache(today);
                     const localReader = (logger as unknown as { readManager: LogReadManager }).readManager;
                     const readHourLogs = localReader.readHourLogs.bind(localReader);
                     context.mock.method(localReader, 'readHourLogs', async () => {
                         throw new Error('Injected local hourly read failure');
                     });
-                    assert.deepEqual(await follower.getRecentRecords(1), []);
+                    await assert.rejects(pageRecords(follower, 1), /Injected local hourly read failure/);
                     assert.equal(responses.at(-1)?.payload.error, 'query-failed');
                     localReader.readHourLogs = readHourLogs;
                 }
 
                 failLeaderRead = false;
-                const recovered = await follower.getRecentRecords(1);
+                const recovered = await pageRecords(follower, 1);
                 assert.deepEqual(JSON.parse(JSON.stringify(recovered)), JSON.parse(JSON.stringify(expected)));
                 assert.equal(responses.at(-1)?.payload.error, undefined);
                 const cache = (logger as unknown as { readManager: { hourDetailsCache: Map<string, unknown> } })
@@ -825,7 +817,7 @@ test('remote usages queries preserve caller pending state without retaining full
                     }
 
                     async function assertTerminalQueries(): Promise<void> {
-                        const recent = await follower.getRecentRecords(1);
+                        const allPageRecords = await pageRecords(follower, 1);
                         const overview = await follower.getDateOverview(today);
                         const page = await follower.getRecordsPage({ date: today, mode: 'all', page: 1, pageSize: 20 });
                         const sessionPage = await follower.getRecordsPage({
@@ -840,7 +832,12 @@ test('remote usages queries preserve caller pending state without retaining full
                             sessionIds: [sessionA, sessionB],
                             limitPerSession: 1
                         });
-                        for (const records of [recent, page.records, sessionPage.records, track.groups[0].records]) {
+                        for (const records of [
+                            allPageRecords,
+                            page.records,
+                            sessionPage.records,
+                            track.groups[0].records
+                        ]) {
                             assert.equal(records.length, 1);
                             assert.equal(records[0].requestId, requestId);
                             assert.equal(records[0].status, status);
@@ -896,7 +893,7 @@ test('remote usages queries preserve caller pending state without retaining full
             const { requestId } = await addPending(sessionA);
             await follower.backfillResolvedSessionTitle(sessionA, '本地回退标题', requestId);
             transportFailure = true;
-            assert.equal((await follower.getRecentRecords(1))[0]?.sessionTitle, '本地回退标题');
+            assert.equal((await pageRecords(follower, 1))[0]?.sessionTitle, '本地回退标题');
             assert.equal(
                 (await follower.getDateOverview(today)).initialRecordsPage?.records[0]?.sessionTitle,
                 '本地回退标题'

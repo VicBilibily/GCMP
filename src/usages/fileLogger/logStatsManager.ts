@@ -25,7 +25,16 @@ import { canReuseHourlyStatsCache } from './hourlyCachePolicy';
 import { StatsCalculator } from './statsCalculator';
 import { RawHourlyStats } from './aggregation/rawHourlyStats';
 import { StatsPublication } from './refresh/statsPublication';
+import type { StatsResultSource } from './refresh/statsRefreshQueue';
 import { AtomicJsonFile, WritePermissionLostError } from '../atomicJsonFile';
+import { statisticsFiles } from '../persistence/statisticsFiles';
+import { getFileVersion, getFileVersionSync, type JsonFileSnapshot } from '../persistence/versionedJsonFile';
+import {
+    isUsageStatusSource,
+    projectUsageStatus,
+    freezeUsageStatusStats,
+    type LatestUsageStatus
+} from '../status/snapshot';
 import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
 import { WritePermissionGate } from './writePermissionGate';
@@ -48,11 +57,26 @@ export class LogStatsManager {
     private readonly indexManager: LogIndexManager;
     private readonly inFlightRegenerations = new Map<
         string,
-        { promise: Promise<TokenUsageStatsFromFile>; forceHourlyRecompute: boolean }
+        {
+            promise: Promise<TokenUsageStatsFromFile>;
+            forceHourlyRecompute: boolean;
+            authorityTerm?: string;
+            authorityGeneration?: number;
+            writable: boolean;
+        }
     >();
     private readonly writePermissionGate = new WritePermissionGate();
     private readonly snapshotVersions = new Map<string, { source: string; stats?: string; pending?: boolean }>();
     private readonly unchangedStats = new WeakSet<TokenUsageStatsFromFile>();
+    private readonly resultSources = new WeakMap<TokenUsageStatsFromFile, StatsResultSource>();
+    private readonly resultVersions = new WeakMap<
+        TokenUsageStatsFromFile,
+        { path: string; version?: string; revision: number }
+    >();
+    private resultRevision = 0;
+    private latestStatus: (LatestUsageStatus & { date: string }) | undefined;
+    private getStatsAuthorityTerm: () => string | undefined = () => undefined;
+    private getStatsAuthorityGeneration: () => number | undefined = () => undefined;
     private readonly publication = new StatsPublication();
     private readonly publicationWrites = new Set<Promise<void>>();
     private publicationRecoveryCursor = '';
@@ -81,8 +105,14 @@ export class LogStatsManager {
      * 设置写盘守卫
      * @param canWriteStats 返回 true 时允许写盘；false 时跳过写盘（仅返回内存计算结果）
      */
-    setCanWriteStats(canWriteStats: () => boolean): void {
+    setCanWriteStats(
+        canWriteStats: () => boolean,
+        getAuthorityTerm: () => string | undefined = () => undefined,
+        getAuthorityGeneration: () => number | undefined = () => undefined
+    ): void {
         this._canWriteStats = canWriteStats;
+        this.getStatsAuthorityTerm = getAuthorityTerm;
+        this.getStatsAuthorityGeneration = getAuthorityGeneration;
         this.writePermissionGate.setEvaluator(canWriteStats);
     }
 
@@ -94,11 +124,20 @@ export class LogStatsManager {
         return this.writePermissionGate.runWithForcedWrites(operation, canWrite);
     }
 
-    /**
-     * 当前实例是否被允许写 stats.json
-     */
-    private canWriteStats(): boolean {
-        return this.writePermissionGate.canWrite();
+    captureWritePermission(): () => boolean {
+        const authorityTerm = this.getStatsAuthorityTerm();
+        const generation = this.getStatsAuthorityGeneration();
+        const permission = this.writePermissionGate.capture();
+        let allowed = permission();
+        return () => {
+            allowed =
+                allowed &&
+                !this.disposed &&
+                permission() &&
+                this.getStatsAuthorityTerm() === authorityTerm &&
+                this.getStatsAuthorityGeneration() === generation;
+            return allowed;
+        };
     }
 
     /**
@@ -126,44 +165,119 @@ export class LogStatsManager {
      * @param ignoreCache 是否忽略缓存，强制重新计算
      */
     async getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
-        if (this.canWriteStats()) {
+        const authorityTerm = this.getStatsAuthorityTerm();
+        const authorityGeneration = this.getStatsAuthorityGeneration();
+        const revision = ++this.resultRevision;
+        const permission = this.captureWritePermission();
+        const writable = permission();
+        if (writable) {
             await this.indexManager.repairIfNeeded();
         }
         // 优先尝试从持久化文件读取（如果不忽略缓存）
         if (!ignoreCache) {
-            const saved = await this.loadStats(dateStr);
-            if (saved) {
-                // 检查版本时间戳是否有效，如果无效需要全量重新计算
-                const needsRegen = await this.needsRegeneration(dateStr);
-                if (!needsRegen) {
-                    // needsRegeneration 检查与第一次读取之间允许写入插入。
-                    // 最小修复：命中缓存前再读取一次当前文件，避免返回已被更新覆盖的旧快照。
-                    const latest = await this.loadStats(dateStr);
-                    StatusLogger.debug(`[LogStatsManager] Read stats from cache: ${dateStr}`);
-                    const stats = latest ?? saved;
-                    this.unchangedStats.add(stats);
-                    return stats;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const saved = await this.loadStatsSnapshot(dateStr);
+                if (!saved || (await this.needsRegeneration(dateStr, saved.value))) {
+                    break;
                 }
-                // 版本变化或缓存过期，需要全量重新计算
-                StatusLogger.debug(`[LogStatsManager] Cache expired, recalculating from scratch: ${dateStr}`);
+                if ((await getFileVersion(this.getStatsFilePath(dateStr))) === saved.version) {
+                    this.unchangedStats.add(saved.value);
+                    return this.rememberResult(saved.value, authorityTerm, dateStr, true, revision);
+                }
             }
         }
 
-        return this.getOrCreateDateRegeneration(dateStr, ignoreCache);
+        return this.getOrCreateDateRegeneration(
+            dateStr,
+            ignoreCache,
+            authorityTerm,
+            permission,
+            writable,
+            authorityGeneration
+        );
     }
 
-    readSavedStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
-        return this.loadStats(dateStr);
+    async readSavedStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
+        const authorityTerm = this.getStatsAuthorityTerm();
+        const revision = ++this.resultRevision;
+        const stats = await this.loadStats(dateStr);
+        return stats ? this.rememberResult(stats, authorityTerm, dateStr, true, revision) : null;
+    }
+
+    getResultSource(stats: TokenUsageStatsFromFile): StatsResultSource | undefined {
+        const source = this.resultSources.get(stats);
+        const observed = this.resultVersions.get(stats);
+        if (!source || source.stale || !observed) {
+            return source;
+        }
+        try {
+            if (observed.version !== undefined && getFileVersionSync(observed.path) === observed.version) {
+                return source;
+            }
+        } catch {
+            // 无法确认文件版本时，旧来源不能取得发布资格。
+        }
+        const stale = Object.freeze({ ...source, stale: true });
+        this.resultSources.set(stats, stale);
+        if (this.latestStatus?.source === source) {
+            this.latestStatus = undefined;
+        }
+        return stale;
+    }
+
+    getLatestStatusStats(date: string): LatestUsageStatus | undefined {
+        return !this.disposed && this.latestStatus?.date === date ? this.latestStatus : undefined;
+    }
+
+    private rememberResult(
+        stats: TokenUsageStatsFromFile,
+        authorityTerm: string | undefined,
+        date: string,
+        current = true,
+        revision = ++this.resultRevision
+    ): TokenUsageStatsFromFile {
+        const observed = this.resultVersions.get(stats);
+        if (observed) {
+            revision = observed.revision;
+        }
+        if (!this.resultSources.has(stats)) {
+            this.resultSources.set(
+                stats,
+                Object.freeze({ revision, authorityTerm, ...(!current ? { stale: true } : {}) })
+            );
+        }
+        const source = this.getResultSource(stats)!;
+        if (
+            current &&
+            !source.stale &&
+            !this.disposed &&
+            date === DateUtils.getTodayDateString() &&
+            authorityTerm === this.getStatsAuthorityTerm() &&
+            (!this.latestStatus || source.revision > this.latestStatus.source.revision) &&
+            isUsageStatusSource(stats)
+        ) {
+            this.latestStatus = Object.freeze({
+                date,
+                source,
+                stats: freezeUsageStatusStats(projectUsageStatus(stats))
+            });
+        }
+        return stats;
     }
 
     async hasStatsChanged(date: string, stats: TokenUsageStatsFromFile): Promise<boolean> {
+        if (this.getResultSource(stats)?.stale) {
+            return false;
+        }
         await this.flushStatsPublications();
-        const fingerprint = this.statsFingerprint(stats);
-        return !this.unchangedStats.has(stats) || this.publication.isPending(this.getStatsFilePath(date), fingerprint);
+        const changed =
+            !this.unchangedStats.has(stats) ||
+            (await this.publication.isPending(this.getStatsFilePath(date), this.statsFingerprint(stats)));
+        return changed && !this.getResultSource(stats)?.stale;
     }
 
     markStatsPublished(date: string, stats: TokenUsageStatsFromFile, canWriteFallback?: () => boolean): Promise<void> {
-        if (this.disposed) {
+        if (this.disposed || this.getResultSource(stats)?.stale) {
             return Promise.resolve();
         }
         const fingerprint = this.statsFingerprint(stats);
@@ -171,7 +285,10 @@ export class LogStatsManager {
             .acknowledge(
                 this.getStatsFilePath(date),
                 fingerprint,
-                () => !this.disposed && (this._canWriteStats() || canWriteFallback?.() === true)
+                () =>
+                    !this.disposed &&
+                    !this.getResultSource(stats)?.stale &&
+                    (this._canWriteStats() || canWriteFallback?.() === true)
             )
             .then(() => undefined);
         this.publicationWrites.add(operation);
@@ -219,12 +336,16 @@ export class LogStatsManager {
             }
             this.publicationRecoveryCursor = date;
             try {
+                const authorityTerm = this.getStatsAuthorityTerm();
+                const revision = ++this.resultRevision;
+                const version = getFileVersionSync(this.getStatsFilePath(date));
                 const stats = await this.publication.readPendingStats(this.getStatsFilePath(date));
                 if (this.disposed || !canRecover()) {
                     return;
                 }
                 if (stats) {
-                    publish(date, stats);
+                    this.resultVersions.set(stats, { path: this.getStatsFilePath(date), version, revision });
+                    publish(date, this.rememberResult(stats, authorityTerm, date, true, revision));
                     await this.flushStatsPublications();
                 }
             } catch (error) {
@@ -235,10 +356,11 @@ export class LogStatsManager {
 
     dispose(): void {
         this.disposed = true;
+        this.latestStatus = undefined;
         this.rawHourlyStats.dispose();
     }
 
-    private statsFingerprint(stats: TokenUsageStatsFromFile): string {
+    private statsFingerprint(stats: Pick<TokenUsageStatsFromFile, 'total'>): string {
         return createHash('sha256').update(JSON.stringify(stats)).digest('hex');
     }
 
@@ -248,19 +370,33 @@ export class LogStatsManager {
      */
     private getOrCreateDateRegeneration(
         dateStr: string,
-        forceHourlyRecompute: boolean
+        forceHourlyRecompute: boolean,
+        authorityTerm: string | undefined,
+        permission: () => boolean,
+        writable: boolean,
+        authorityGeneration: number | undefined
     ): Promise<TokenUsageStatsFromFile> {
         const inFlight = this.inFlightRegenerations.get(dateStr);
-        if (inFlight && (!forceHourlyRecompute || inFlight.forceHourlyRecompute)) {
+        if (
+            inFlight &&
+            inFlight.authorityTerm === authorityTerm &&
+            inFlight.authorityGeneration === authorityGeneration &&
+            inFlight.writable === writable &&
+            (!forceHourlyRecompute || inFlight.forceHourlyRecompute)
+        ) {
             StatusLogger.trace(`[LogStatsManager] Reusing in-flight stats regeneration task: ${dateStr}`);
             return inFlight.promise;
         }
 
+        let current = false;
+        let revision = 0;
         const regenerationPromise = (async () => {
             if (inFlight) {
                 // 强制重算必须绕过普通任务的小时缓存，同时保持同日写盘串行。
                 await inFlight.promise.catch(() => undefined);
             }
+            revision = ++this.resultRevision;
+            const version = writable ? getFileVersionSync(this.getStatsFilePath(dateStr)) : 'missing';
             StatusLogger.debug(`[LogStatsManager] Regenerating stats: ${dateStr}`);
             const stats = await this.calculateDateStats(dateStr, forceHourlyRecompute);
             // calculateDateStats 在签名一致时会直接返回 existingStats（未重算）。
@@ -271,19 +407,30 @@ export class LogStatsManager {
                 stats.versionTimestamp >= this.getCodeVersionTimestamp()
             ) {
                 StatusLogger.trace(`[LogStatsManager] Stats unchanged, skip save: ${dateStr}`);
+                current = true;
                 return stats;
             }
-            await this.saveDateStats(dateStr, stats);
+            current = await this.saveDateStats(dateStr, stats, authorityTerm, permission, version);
             return stats;
         })();
 
-        const sharedPromise = regenerationPromise.finally(() => {
-            if (this.inFlightRegenerations.get(dateStr)?.promise === sharedPromise) {
-                this.inFlightRegenerations.delete(dateStr);
-            }
-        });
+        const sharedPromise = regenerationPromise
+            .then(stats =>
+                this.rememberResult(stats, authorityTerm, dateStr, current && writable && permission(), revision)
+            )
+            .finally(() => {
+                if (this.inFlightRegenerations.get(dateStr)?.promise === sharedPromise) {
+                    this.inFlightRegenerations.delete(dateStr);
+                }
+            });
 
-        this.inFlightRegenerations.set(dateStr, { promise: sharedPromise, forceHourlyRecompute });
+        this.inFlightRegenerations.set(dateStr, {
+            promise: sharedPromise,
+            forceHourlyRecompute,
+            authorityTerm,
+            authorityGeneration,
+            writable
+        });
         return sharedPromise;
     }
 
@@ -731,30 +878,49 @@ export class LogStatsManager {
      * 保存完整的日期统计和小时统计（包含 providers）
      * @private 内部使用，通过 getDateStats 访问
      */
-    private async saveDateStats(dateStr: string, stats: TokenUsageStatsFromFile): Promise<void> {
-        const canWrite = () => !this.disposed && this.canWriteStats();
+    private async saveDateStats(
+        dateStr: string,
+        stats: TokenUsageStatsFromFile,
+        authorityTerm: string | undefined,
+        permission: () => boolean,
+        expectedVersion: string
+    ): Promise<boolean> {
+        const canWrite = () => permission() && this.getStatsAuthorityTerm() === authorityTerm;
         // 多实例写盘守卫：非主实例不写盘，避免跨进程并发写覆盖 stats.json/index.json。
         // 内存计算结果仍返回给本实例使用（如详情界面立即展示），主实例会通过 IPC 请求刷新写盘。
         if (!canWrite()) {
             StatusLogger.trace(`[LogStatsManager] Skip saving stats (non-leader instance): ${dateStr}`);
-            return;
+            return false;
         }
 
         const filePath = this.getStatsFilePath(dateStr);
+        const canCommit = () => canWrite() && getFileVersionSync(filePath) === expectedVersion;
         const snapshotVersion = this.snapshotVersions.get(dateStr);
 
         try {
             // 写入版本时间戳
             stats.versionTimestamp = this.getCodeVersionTimestamp();
+            const fingerprint = this.statsFingerprint(stats);
 
             // 在目标文件路径上串行化写入，再通过临时文件 rename 原子替换，避免并发覆盖与半截 JSON
             await AtomicJsonFile.runExclusive(filePath, async () => {
-                if (!canWrite()) {
+                if (!canCommit()) {
                     throw new WritePermissionLostError();
                 }
                 // 待发布指纹必须先于统计落盘，才能在进程退出后恢复通知。
-                await this.publication.prepare(filePath, this.statsFingerprint(stats), undefined, canWrite);
-                await AtomicJsonFile.writeJsonAtomically(filePath, stats, undefined, canWrite);
+                await this.publication.prepare(filePath, fingerprint, undefined, canCommit);
+                await AtomicJsonFile.writeJsonAtomically(filePath, stats, undefined, canCommit);
+                statisticsFiles.invalidate(filePath);
+                const observed: { path: string; version?: string; revision: number } = {
+                    path: filePath,
+                    revision: ++this.resultRevision
+                };
+                this.resultVersions.set(stats, observed);
+                try {
+                    observed.version = getFileVersionSync(filePath);
+                } catch {
+                    // 提交后的元数据故障不能阻断索引补偿。
+                }
             });
 
             if (snapshotVersion && this.snapshotVersions.get(dateStr) === snapshotVersion) {
@@ -768,14 +934,23 @@ export class LogStatsManager {
             }
 
             // 更新索引文件
-            await this.indexManager.updateIndex(dateStr, stats.total, canWrite);
+            const saved = await this.indexManager.updateIndex(dateStr, undefined, canWrite);
 
             StatusLogger.debug(
                 `[LogStatsManager] Saved daily stats to stats.json: ${dateStr}, version=${new Date(stats.versionTimestamp).toISOString()}`
             );
+            if (saved) {
+                return this.statsFingerprint(saved) === fingerprint;
+            }
+            const snapshot = await this.loadStatsSnapshot(dateStr);
+            if (!snapshot || this.statsFingerprint(snapshot.value) !== fingerprint) {
+                return false;
+            }
+            this.resultVersions.get(stats)!.version = snapshot.version;
+            return true;
         } catch (err) {
             if (err instanceof WritePermissionLostError) {
-                return;
+                return false;
             }
             StatusLogger.error(`[LogStatsManager] Failed to save daily stats: ${dateStr}`, err);
             throw err;
@@ -912,22 +1087,35 @@ export class LogStatsManager {
      * @returns 统计对象，不存在时返回 null
      */
     private async loadStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
-        const filePath = this.getStatsFilePath(dateStr);
-        if (!fsSync.existsSync(filePath)) {
-            return null;
-        }
+        return (await this.loadStatsSnapshot(dateStr))?.value ?? null;
+    }
 
+    private async loadStatsSnapshot(dateStr: string): Promise<JsonFileSnapshot<TokenUsageStatsFromFile> | null> {
+        const filePath = this.getStatsFilePath(dateStr);
         try {
-            // 读取与写入共用同一 filePath 的串行锁，避免 Windows 上 rename 替换目标文件时
-            // 被本进程的 readFile 句柄占用导致 EPERM。
-            const content = await AtomicJsonFile.runExclusive(filePath, () => fs.readFile(filePath, 'utf-8'));
-            const statsData: TokenUsageStatsFromFile = JSON.parse(content);
-            if (!statsData?.total || typeof statsData.total !== 'object' || Array.isArray(statsData.total)) {
+            let diskRead = false;
+            const snapshot = await statisticsFiles.read(filePath, () => {
+                diskRead = true;
+                return AtomicJsonFile.runExclusive(filePath, () => fs.readFile(filePath, 'utf-8'));
+            });
+            if (!isUsageStatusSource(snapshot.value)) {
                 throw new Error(`Invalid date stats: ${dateStr}`);
             }
-            StatusLogger.debug(`[LogStatsManager] Read daily stats from stats.json: ${dateStr}`);
-            return statsData;
+            this.resultVersions.set(snapshot.value, {
+                path: filePath,
+                version: snapshot.version,
+                revision: ++this.resultRevision
+            });
+            if (diskRead) {
+                StatusLogger.debug(`[LogStatsManager] Read daily stats from stats.json: ${dateStr}`);
+            } else {
+                StatusLogger.trace(`[LogStatsManager] Reused date stats snapshot: ${dateStr}`);
+            }
+            return { ...snapshot, value: snapshot.value as TokenUsageStatsFromFile };
         } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+                return null;
+            }
             StatusLogger.warn(`[LogStatsManager] Failed to read stats: ${dateStr}`, err);
             return null;
         }
@@ -943,7 +1131,7 @@ export class LogStatsManager {
      * @param dateStr 日期字符串 (YYYY-MM-DD)
      * @returns true 表示需要重新生成，false 表示无需重新生成
      */
-    private async needsRegeneration(dateStr: string): Promise<boolean> {
+    private async needsRegeneration(dateStr: string, savedStats?: TokenUsageStatsFromFile): Promise<boolean> {
         const statsFilePath = this.getStatsFilePath(dateStr);
         // 如果 stats.json 不存在，需要生成
         if (!fsSync.existsSync(statsFilePath)) {
@@ -951,10 +1139,7 @@ export class LogStatsManager {
         }
 
         try {
-            // 读取 stats.json 内容，检查 versionTimestamp
-            // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
-            const content = await AtomicJsonFile.runExclusive(statsFilePath, () => fs.readFile(statsFilePath, 'utf-8'));
-            const statsData: TokenUsageStatsFromFile = JSON.parse(content);
+            const statsData = savedStats ?? (await this.loadStats(dateStr));
             if (!statsData?.total || typeof statsData.total !== 'object' || Array.isArray(statsData.total)) {
                 return true;
             }

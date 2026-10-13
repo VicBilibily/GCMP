@@ -6,6 +6,8 @@ import type { TokenUsageStatsFromFile } from '../types';
 
 interface PublicationMarker {
     pending: string[];
+    baseVersion?: string;
+    baseFingerprint?: string;
 }
 
 export class StatsPublication {
@@ -19,36 +21,51 @@ export class StatsPublication {
                 return;
             }
             const published = await this.readAcknowledgement(statsPath);
-            if (marker.pending.every(fingerprint => fingerprint === published)) {
+            if (
+                marker.pending.every(fingerprint => fingerprint === published) &&
+                (marker.baseFingerprint !== published || marker.baseVersion === (await this.statsVersion(statsPath)))
+            ) {
                 return;
             }
-            try {
-                const signature = await this.statsVersion(statsPath);
-                const cached = this.versions.get(statsPath);
-                if (cached?.signature === signature && cached.fingerprint === published) {
-                    return;
-                }
-                const stats = JSON.parse(await fs.readFile(statsPath, 'utf8')) as TokenUsageStatsFromFile;
-                if (!stats?.total || typeof stats.total !== 'object' || Array.isArray(stats.total)) {
-                    throw new Error('Invalid statistics publication data');
-                }
-                const fingerprint = createHash('sha256').update(JSON.stringify(stats)).digest('hex');
-                if ((await this.statsVersion(statsPath)) === signature) {
-                    this.versions.delete(statsPath);
-                    this.versions.set(statsPath, { signature, fingerprint });
-                    if (this.versions.size > StatsPublication.MAX_CACHED_VERSIONS) {
-                        this.versions.delete(this.versions.keys().next().value!);
-                    }
-                }
-                return marker.pending.includes(fingerprint) && fingerprint !== published ? stats : undefined;
-            } catch (error) {
-                this.versions.delete(statsPath);
-                if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                    return;
-                }
-                throw error;
-            }
+            return (await this.readCommittedPublication(statsPath, marker, published))?.stats;
         });
+    }
+
+    private async readCommittedPublication(
+        statsPath: string,
+        marker: PublicationMarker,
+        published: string | undefined
+    ) {
+        try {
+            const signature = await this.statsVersion(statsPath);
+            const cached = this.versions.get(statsPath);
+            if (cached?.signature === signature && cached.fingerprint === published) {
+                return;
+            }
+            const stats = JSON.parse(await fs.readFile(statsPath, 'utf8')) as TokenUsageStatsFromFile;
+            if (!stats?.total || typeof stats.total !== 'object' || Array.isArray(stats.total)) {
+                throw new Error('Invalid statistics publication data');
+            }
+            const fingerprint = createHash('sha256').update(JSON.stringify(stats)).digest('hex');
+            if ((await this.statsVersion(statsPath)) !== signature) {
+                return;
+            }
+            this.versions.delete(statsPath);
+            this.versions.set(statsPath, { signature, fingerprint });
+            if (this.versions.size > StatsPublication.MAX_CACHED_VERSIONS) {
+                this.versions.delete(this.versions.keys().next().value!);
+            }
+            const committed = marker.baseVersion !== undefined && marker.baseVersion !== signature;
+            return (marker.pending.includes(fingerprint) || committed) && fingerprint !== published ?
+                    { stats, fingerprint }
+                :   undefined;
+        } catch (error) {
+            this.versions.delete(statsPath);
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return;
+            }
+            throw error;
+        }
     }
 
     async prepare(
@@ -57,6 +74,7 @@ export class StatsPublication {
         previousFingerprint?: string,
         canWrite?: () => boolean
     ): Promise<void> {
+        const baseVersion = await this.statsVersion(statsPath);
         if (previousFingerprint === undefined) {
             try {
                 const previous: unknown = JSON.parse(await fs.readFile(statsPath, 'utf8'));
@@ -71,14 +89,20 @@ export class StatsPublication {
         const pending = new Set([fingerprint]);
         if (
             previousFingerprint &&
-            marker?.pending.includes(previousFingerprint) &&
+            marker &&
+            (marker.pending.includes(previousFingerprint) ||
+                (marker.baseVersion !== undefined && marker.baseVersion !== baseVersion)) &&
             (await this.readAcknowledgement(statsPath)) !== previousFingerprint
         ) {
             pending.add(previousFingerprint);
         }
         await AtomicJsonFile.writeJsonAtomically(
             this.markerPath(statsPath),
-            { pending: [...pending] },
+            {
+                pending: [...pending],
+                baseVersion,
+                ...(previousFingerprint !== undefined ? { baseFingerprint: previousFingerprint } : {})
+            },
             undefined,
             canWrite
         );
@@ -87,9 +111,17 @@ export class StatsPublication {
     async isPending(statsPath: string, fingerprint: string): Promise<boolean> {
         return AtomicJsonFile.runExclusive(statsPath, async () => {
             const marker = await this.read(statsPath);
+            if (!marker) {
+                return false;
+            }
+            const published = await this.readAcknowledgement(statsPath);
+            if (published === fingerprint) {
+                return false;
+            }
             return (
-                Boolean(marker?.pending.includes(fingerprint)) &&
-                (await this.readAcknowledgement(statsPath)) !== fingerprint
+                marker.pending.includes(fingerprint) ||
+                (marker.baseVersion !== undefined &&
+                    (await this.readCommittedPublication(statsPath, marker, published))?.fingerprint === fingerprint)
             );
         });
     }
@@ -100,11 +132,15 @@ export class StatsPublication {
                 return false;
             }
             const marker = await this.read(statsPath);
-            if (!canWrite() || !marker?.pending.includes(fingerprint)) {
+            if (!canWrite() || !marker) {
                 return false;
             }
             const published = await this.readAcknowledgement(statsPath);
-            if (!canWrite()) {
+            const pending =
+                marker.pending.includes(fingerprint) ||
+                (marker.baseVersion !== undefined &&
+                    (await this.readCommittedPublication(statsPath, marker, published))?.fingerprint === fingerprint);
+            if (!canWrite() || !pending) {
                 return false;
             }
             if (published !== fingerprint) {
@@ -115,8 +151,15 @@ export class StatsPublication {
     }
 
     private async statsVersion(statsPath: string): Promise<string> {
-        const stats = await fs.stat(statsPath, { bigint: true });
-        return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}`;
+        try {
+            const stats = await fs.stat(statsPath, { bigint: true });
+            return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}`;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                return 'missing';
+            }
+            throw error;
+        }
     }
 
     private markerPath(statsPath: string): string {
@@ -151,11 +194,17 @@ export class StatsPublication {
                 !('pending' in marker) ||
                 !Array.isArray(marker.pending) ||
                 marker.pending.length > 2 ||
-                !marker.pending.every((value: unknown) => typeof value === 'string')
+                !marker.pending.every((value: unknown) => typeof value === 'string') ||
+                ('baseVersion' in marker && typeof marker.baseVersion !== 'string') ||
+                ('baseFingerprint' in marker && typeof marker.baseFingerprint !== 'string')
             ) {
                 throw new Error('Invalid statistics publication marker');
             }
-            return { pending: marker.pending as string[] };
+            return {
+                pending: marker.pending as string[],
+                ...('baseVersion' in marker ? { baseVersion: marker.baseVersion as string } : {}),
+                ...('baseFingerprint' in marker ? { baseFingerprint: marker.baseFingerprint as string } : {})
+            };
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 return undefined;

@@ -10,6 +10,9 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { AtomicJsonFile, WritePermissionLostError } from '../atomicJsonFile';
+import { indexFiles, readStatisticsFile } from '../persistence/statisticsFiles';
+import { IndexTransaction, IndexVersionChangedError } from '../persistence/indexTransaction';
+import { getFileVersionSync, type JsonFileSnapshot } from '../persistence/versionedJsonFile';
 import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile, TokenStats } from './types';
 
 /**
@@ -18,11 +21,13 @@ import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile, TokenStats } f
  */
 export class LogIndexManager {
     private readonly baseDir: string;
-    private needsRecovery = false;
+    private needsRecovery = true;
     private hasPartialIndex = false;
+    private readonly transaction: IndexTransaction;
 
-    constructor(baseDir: string) {
+    constructor(baseDir: string, capturePermission: () => () => boolean = () => () => true) {
         this.baseDir = path.join(baseDir, 'usages');
+        this.transaction = new IndexTransaction(this.getIndexPath(), capturePermission);
     }
 
     /**
@@ -55,8 +60,11 @@ export class LogIndexManager {
         const indexPath = this.getIndexPath();
 
         try {
-            await AtomicJsonFile.runExclusive(indexPath, async () => {
-                let index = await this.readIndexFile(indexPath);
+            const updated = await this.transaction.run(async canWrite => {
+                if (!canWrite()) {
+                    return false;
+                }
+                let index = await this.readIndexFile(indexPath, false);
                 if (!index) {
                     index = { dates: {} };
                     this.hasPartialIndex = true;
@@ -64,12 +72,15 @@ export class LogIndexManager {
 
                 index.versionTimestamp = versionTimestamp;
 
-                await this.saveIndexUnlocked(indexPath, index);
+                await this.saveIndexUnlocked(indexPath, index, canWrite);
+                return true;
             });
 
-            StatusLogger.debug(
-                `[LogIndexManager] Updated version timestamp: ${new Date(versionTimestamp).toISOString()}`
-            );
+            if (updated) {
+                StatusLogger.debug(
+                    `[LogIndexManager] Updated version timestamp: ${new Date(versionTimestamp).toISOString()}`
+                );
+            }
         } catch (err) {
             StatusLogger.warn('[LogIndexManager] Failed to set version timestamp', err);
             throw err;
@@ -85,36 +96,17 @@ export class LogIndexManager {
         return this.readIndexFile(indexPath);
     }
 
-    private async readIndexFile(indexPath: string): Promise<DateIndex | null> {
+    private async readIndexFile(indexPath: string, allowRecovery = true): Promise<DateIndex | null> {
         try {
-            const content = await fs.readFile(indexPath, 'utf-8');
-            const index: DateIndex = JSON.parse(content);
-            if (!index?.dates || typeof index.dates !== 'object' || Array.isArray(index.dates)) {
-                throw new Error('Invalid date index');
-            }
-            for (const entry of Object.values(index.dates)) {
-                if (
-                    !entry ||
-                    typeof entry !== 'object' ||
-                    Array.isArray(entry) ||
-                    ![
-                        entry.total_input,
-                        entry.total_cache,
-                        entry.total_output,
-                        entry.total_requests,
-                        entry.total_cost
-                    ].every(Number.isFinite) ||
-                    [entry.total_cost_rmb, entry.native_total_cost, entry.native_total_cost_rmb].some(
-                        value => value !== undefined && !Number.isFinite(value)
-                    )
-                ) {
-                    throw new Error('Invalid date index entry');
-                }
-            }
-            StatusLogger.debug(`[LogIndexManager] Read date index with ${Object.keys(index.dates).length} dates`);
-            return index;
+            const snapshot = await indexFiles.read(indexPath);
+            this.transaction.observe(snapshot.version);
+            return snapshot.value;
         } catch (err) {
             this.needsRecovery = true;
+            if (!allowRecovery && (err as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw err;
+            }
+            this.transaction.observe(getFileVersionSync(indexPath));
             if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
                 StatusLogger.warn('[LogIndexManager] Failed to read date index', err);
             }
@@ -122,17 +114,27 @@ export class LogIndexManager {
         }
     }
 
-    private async saveIndexUnlocked(indexPath: string, index: DateIndex, canWrite?: () => boolean): Promise<void> {
+    private async saveIndexUnlocked(
+        indexPath: string,
+        index: DateIndex,
+        canWrite: () => boolean,
+        sources?: ReadonlyMap<string, string>,
+        dates?: string[]
+    ): Promise<void> {
+        const guard = this.transaction.guard(canWrite, sources, dates);
         try {
             // 确保基础目录存在
             await this.ensureDirectoryExists(this.baseDir);
 
             // 写入索引文件
-            await AtomicJsonFile.writeJsonAtomically(indexPath, index, undefined, canWrite);
+            await AtomicJsonFile.writeJsonAtomically(indexPath, index, undefined, guard);
+            indexFiles.invalidate(indexPath);
             StatusLogger.debug(`[LogIndexManager] Saved date index with ${Object.keys(index.dates).length} dates`);
         } catch (err) {
             this.needsRecovery = true;
-            if (!(err instanceof WritePermissionLostError)) {
+            if (err instanceof IndexVersionChangedError) {
+                StatusLogger.trace('[LogIndexManager] Retrying changed date index observations');
+            } else if (!(err instanceof WritePermissionLostError)) {
                 StatusLogger.warn('[LogIndexManager] Failed to save date index', err);
             }
             throw err;
@@ -145,8 +147,8 @@ export class LogIndexManager {
             total_cache: total.cacheTokens,
             total_output: total.outputTokens,
             total_requests: total.requests,
-            total_cost: total.estimatedCost,
-            total_cost_rmb: total.estimatedCostRmb,
+            total_cost: total.estimatedCost ?? 0,
+            total_cost_rmb: total.estimatedCostRmb ?? 0,
             native_total_cost: total.nativeCosts?.totalUsd,
             native_total_cost_rmb: total.nativeCosts?.totalRmb
         };
@@ -170,26 +172,40 @@ export class LogIndexManager {
      * 更新日期索引
      * 在保存统计数据后调用，更新索引文件
      */
-    async updateIndex(dateStr: string, total: TokenStats, canWrite?: () => boolean): Promise<void> {
+    async updateIndex(
+        dateStr: string,
+        total?: TokenStats,
+        canWrite?: () => boolean
+    ): Promise<Pick<TokenUsageStatsFromFile, 'total'> | undefined> {
         const indexPath = this.getIndexPath();
 
         try {
-            await AtomicJsonFile.runExclusive(indexPath, async () => {
-                if (canWrite && !canWrite()) {
+            return await this.transaction.run(async permission => {
+                if (!permission()) {
                     this.needsRecovery = true;
                     return;
                 }
-                let index = await this.readIndexFile(indexPath);
+                let index = await this.readIndexFile(indexPath, false);
                 if (!index) {
                     index = { dates: {} };
                     this.hasPartialIndex = true;
                 }
 
-                index.dates[dateStr] = this.buildDateIndexEntry(total);
+                const stats = total === undefined ? await this.loadStats(dateStr) : undefined;
+                const summary = total ?? stats?.value.total;
+                if (!summary) {
+                    this.needsRecovery = true;
+                    return;
+                }
+                const sources =
+                    stats ? new Map([[path.join(this.baseDir, dateStr, 'stats.json'), stats.version]]) : undefined;
+                index.dates[dateStr] = this.buildDateIndexEntry(summary);
 
-                await this.saveIndexUnlocked(indexPath, index, canWrite);
-            });
+                await this.saveIndexUnlocked(indexPath, index, permission, sources);
+                return stats?.value;
+            }, canWrite);
         } catch (err) {
+            this.needsRecovery = true;
             if (err instanceof WritePermissionLostError) {
                 return;
             }
@@ -201,14 +217,17 @@ export class LogIndexManager {
     // 仅在已知异常时对账，避免高频刷新扫描全部日期。
     async getIndexFast(): Promise<Record<string, DateIndexEntry>> {
         const indexPath = this.getIndexPath();
-        return AtomicJsonFile.runExclusive(indexPath, async () => {
+        return this.transaction.run(async canWrite => {
             const index = await this.readIndexFile(indexPath);
             if (!this.needsRecovery && index) {
                 return index.dates;
             }
             try {
-                return await this.reconcileIndexUnlocked(indexPath, index);
+                return await this.reconcileIndexUnlocked(indexPath, index, canWrite);
             } catch (err) {
+                if (err instanceof IndexVersionChangedError) {
+                    throw err;
+                }
                 if (!index || this.hasPartialIndex) {
                     throw err;
                 }
@@ -218,21 +237,22 @@ export class LogIndexManager {
         });
     }
 
-    async repairIfNeeded(): Promise<void> {
+    async repairIfNeeded(): Promise<boolean> {
         if (!this.needsRecovery) {
-            return;
+            return true;
         }
         const indexPath = this.getIndexPath();
         try {
-            await AtomicJsonFile.runExclusive(indexPath, async () => {
+            await this.transaction.run(async canWrite => {
                 if (this.needsRecovery) {
-                    await this.reconcileIndexUnlocked(indexPath, await this.readIndexFile(indexPath));
+                    await this.reconcileIndexUnlocked(indexPath, await this.readIndexFile(indexPath), canWrite);
                 }
             });
         } catch (err) {
             // 索引补偿失败不能阻断已经可用的日期统计，保留状态供下次重试。
             StatusLogger.warn('[LogIndexManager] Failed to repair date index', err);
         }
+        return !this.needsRecovery;
     }
 
     /**
@@ -243,14 +263,17 @@ export class LogIndexManager {
         const indexPath = this.getIndexPath();
 
         try {
-            await AtomicJsonFile.runExclusive(indexPath, async () => {
-                const index = await this.readIndexFile(indexPath);
+            await this.transaction.run(async canWrite => {
+                if (!canWrite()) {
+                    return;
+                }
+                const index = await this.readIndexFile(indexPath, false);
                 if (!index?.dates[dateStr]) {
                     return;
                 }
 
                 delete index.dates[dateStr];
-                await this.saveIndexUnlocked(indexPath, index);
+                await this.saveIndexUnlocked(indexPath, index, canWrite);
                 StatusLogger.debug(`[LogIndexManager] Removed date from index: ${dateStr}`);
             });
         } catch (err) {
@@ -265,28 +288,31 @@ export class LogIndexManager {
      */
     async getIndex(): Promise<Record<string, DateIndexEntry>> {
         const indexPath = this.getIndexPath();
-        return AtomicJsonFile.runExclusive(indexPath, async () => {
+        return this.transaction.run(async canWrite => {
             const index = await this.readIndexFile(indexPath);
-            return this.reconcileIndexUnlocked(indexPath, index);
+            return this.reconcileIndexUnlocked(indexPath, index, canWrite);
         });
     }
 
     private async reconcileIndexUnlocked(
         indexPath: string,
-        index: DateIndex | null
+        index: DateIndex | null,
+        canWrite: () => boolean
     ): Promise<Record<string, DateIndexEntry>> {
         this.needsRecovery = true;
         const actualDates = await this.getAllStatsDates();
         const summaries: Record<string, DateIndexEntry> = {};
+        const sources = new Map<string, string>();
         let hasChanges = !index;
 
         for (const dateStr of actualDates) {
             const stats = await this.loadStats(dateStr);
+            sources.set(path.join(this.baseDir, dateStr, 'stats.json'), stats?.version ?? 'missing');
             if (!stats) {
                 continue;
             }
 
-            const actualEntry = this.buildDateIndexEntry(stats.total);
+            const actualEntry = this.buildDateIndexEntry(stats.value.total);
             summaries[dateStr] = actualEntry;
             if (!this.isSameDateIndexEntry(index?.dates[dateStr], actualEntry)) {
                 hasChanges = true;
@@ -298,17 +324,27 @@ export class LogIndexManager {
             hasChanges = true;
         }
 
-        if (hasChanges) {
+        let persisted = !hasChanges;
+        if (hasChanges && canWrite()) {
             const nextIndex: DateIndex = { dates: summaries };
             if (index?.versionTimestamp !== undefined) {
                 nextIndex.versionTimestamp = index.versionTimestamp;
             }
-            await this.saveIndexUnlocked(indexPath, nextIndex);
+            try {
+                await this.saveIndexUnlocked(indexPath, nextIndex, canWrite, sources, actualDates);
+                persisted = true;
+            } catch (error) {
+                if (!(error instanceof WritePermissionLostError) || canWrite()) {
+                    throw error;
+                }
+            }
         }
 
-        this.needsRecovery = false;
-        this.hasPartialIndex = false;
-        return summaries;
+        if (persisted) {
+            this.needsRecovery = false;
+            this.hasPartialIndex = false;
+        }
+        return !hasChanges && index ? index.dates : summaries;
     }
 
     /**
@@ -343,16 +379,10 @@ export class LogIndexManager {
     /**
      * 加载日期统计
      */
-    private async loadStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
+    private async loadStats(dateStr: string): Promise<JsonFileSnapshot<Pick<TokenUsageStatsFromFile, 'total'>> | null> {
         const statsPath = path.join(this.baseDir, dateStr, 'stats.json');
         try {
-            // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
-            const content = await AtomicJsonFile.runExclusive(statsPath, () => fs.readFile(statsPath, 'utf-8'));
-            const stats: TokenUsageStatsFromFile = JSON.parse(content);
-            if (!stats?.total || typeof stats.total !== 'object' || Array.isArray(stats.total)) {
-                throw new Error(`Invalid date stats: ${dateStr}`);
-            }
-            return stats;
+            return await readStatisticsFile(statsPath);
         } catch (err) {
             if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
                 return null;

@@ -43,6 +43,8 @@
     },
     // 调试配置优化
     "debug.openDebug": "openOnDebugBreak",
+    // 1.139+默认启用，会造成F5启动调试宿主崩溃
+    "debug.javascript.enableNetworkView": false,
     // esbuild 相关优化
     "eslint.validate": ["javascript", "typescript"],
     "js/ts.preferences.includePackageJsonAutoImports": "auto",

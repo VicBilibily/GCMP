@@ -11,6 +11,7 @@ import type {
     RateLimitStoreSnapshot
 } from '../rateLimit/rateLimitStore';
 import type { UsagesPendingRecord, UsagesQuery, UsagesQueryResult } from '../usages/query/types';
+import type { UsageStatusSnapshot } from '../usages/status/snapshot';
 import {
     isLeaderLivenessPayload,
     type LeaderLivenessRequestedEvent,
@@ -225,6 +226,16 @@ export interface TokenUsageUpdatedEvent extends InterInstanceEventBase {
         /** 完整统计数据（可选） */
         stats?: unknown;
     };
+}
+
+export interface UsageStatusSnapshotRequestedEvent extends InterInstanceEventBase {
+    type: 'usageStatusSnapshotRequested';
+    payload: { requestId: string; requestedBy: string; authorityTerm: string; date: string };
+}
+
+export interface UsageStatusSnapshotEvent extends InterInstanceEventBase {
+    type: 'usageStatusSnapshot';
+    payload: { snapshot: UsageStatusSnapshot; targetInstanceId?: string; requestId?: string };
 }
 
 /**
@@ -597,6 +608,8 @@ export type InterInstanceEvent =
     | ApiKeyBalanceLeaseReleasedEvent
     | ConfigChangedEvent
     | TokenUsageUpdatedEvent
+    | UsageStatusSnapshotRequestedEvent
+    | UsageStatusSnapshotEvent
     | RemoteMetadataUpdatedEvent
     | LeaderChangedEvent
     | LeaderResigningEvent
@@ -639,6 +652,8 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'apiKeyBalanceLeaseReleased',
     'configChanged',
     'tokenUsageUpdated',
+    'usageStatusSnapshotRequested',
+    'usageStatusSnapshot',
     'remoteMetadataUpdated',
     'leaderChanged',
     'leaderResigning',
@@ -669,6 +684,7 @@ export type InterInstanceEventType = (typeof INTER_INSTANCE_EVENT_TYPES)[number]
 const INTER_INSTANCE_EVENT_TYPE_SET = new Set<string>(INTER_INSTANCE_EVENT_TYPES);
 
 const AUTHORITY_EVENT_TYPES = new Set<InterInstanceEventType>([
+    'usageStatusSnapshot',
     'apiKeyFailoverResolved',
     'apiKeyBalanceAssignmentResolved',
     'apiKeyBalanceFailureResolved',

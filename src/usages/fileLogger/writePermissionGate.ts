@@ -16,6 +16,10 @@ export class WritePermissionGate {
         return (this.forcedPermission.getStore() ?? this.canWriteEvaluator)();
     }
 
+    capture(): () => boolean {
+        return this.forcedPermission.getStore() ?? (() => this.canWriteEvaluator());
+    }
+
     async runWithForcedWrites<T>(operation: () => Promise<T>, canWrite: () => boolean = () => true): Promise<T> {
         return this.forcedPermission.run(canWrite, operation);
     }

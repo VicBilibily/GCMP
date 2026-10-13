@@ -31,10 +31,10 @@ test('snapshot persistence keeps unread and unsaved changes pending', { timeout:
                         });
                     } else if (phase === 'stats-read') {
                         const load = f.privateStats.loadStats.bind(f.privateStats);
-                        let calls = 0;
                         context.mock.method(f.privateStats, 'loadStats', async (date: string) => {
                             const saved = await load(date);
-                            if (++calls === 2) {
+                            if (first && date === f.date) {
+                                first = false;
                                 entered.release();
                                 await release.promise;
                             }

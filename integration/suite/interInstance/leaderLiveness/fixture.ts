@@ -149,7 +149,7 @@ export async function createLivenessFixture(age = 20_000) {
                         requestId: event.payload.requestId,
                         targetInstanceId: event.senderInstanceId,
                         authorityTerm: identity.authorityTerm,
-                        result: { kind: 'recentRecords', value: [] }
+                        result: { kind: 'sessionTitle', value: 'Responsive leader' }
                     },
                     timestamp: Date.now(),
                     senderInstanceId: leaderId
@@ -251,7 +251,7 @@ export async function createLivenessFixture(age = 20_000) {
                         requestId,
                         requestedBy: followerId,
                         authorityTerm: identity.authorityTerm,
-                        query: { kind: 'recentRecords', limit: 1 }
+                        query: { kind: 'sessionTitle', sessionId: followerId }
                     }
                 }),
                 true

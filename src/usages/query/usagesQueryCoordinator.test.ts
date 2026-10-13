@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { UsagesQueryCompletedEvent, UsagesQueryRequestedEvent } from '../../interInstance';
 import { createEmptyNativeCostSplit } from '../fileLogger/nativeCostSplit';
 import type { UsagesPendingRecord } from './types';
+import { queryRecord, recordsPageQuery, recordsPageResult } from './tests/recordsPageFixture';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -33,6 +34,8 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
     let authorityTerm = 'leader:1';
     let authorityChangedHandler: ((term: string | undefined) => void) | undefined;
     const remoteRequestEvents: Array<Omit<UsagesQueryRequestedEvent, 'timestamp' | 'senderInstanceId'>> = [];
+    const pageQuery = recordsPageQuery();
+    const emptyPage = recordsPageResult(pageQuery);
 
     const bus = {
         subscribe: (type: string, handler: (event: unknown) => void) => {
@@ -63,7 +66,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             }
             queueMicrotask(() => {
                 const request = event.payload;
-                assert.equal(request.query.kind, 'recentRecords');
+                assert.ok(request.query.kind === 'recordsPage');
                 if (malformedAuthorityResponseOnly) {
                     handlers.get('usagesQueryCompleted')?.({
                         type: 'usagesQueryCompleted',
@@ -71,7 +74,13 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                             requestId: request.requestId,
                             targetInstanceId: 'follower',
                             authorityTerm: request.authorityTerm,
-                            result: { kind: 'recentRecords', value: [{}] }
+                            result: {
+                                kind: 'recordsPage',
+                                value: {
+                                    ...recordsPageResult(request.query, [queryRecord('malformed')]),
+                                    records: [{}]
+                                }
+                            }
                         },
                         timestamp: Date.now(),
                         senderInstanceId: 'leader'
@@ -85,7 +94,10 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                             requestId: request.requestId,
                             targetInstanceId: 'follower',
                             authorityTerm: request.authorityTerm,
-                            result: { kind: 'recentRecords', value: [{ requestId: 'forged' }] }
+                            result: {
+                                kind: 'recordsPage',
+                                value: recordsPageResult(request.query, [queryRecord('forged')])
+                            }
                         },
                         timestamp: Date.now(),
                         senderInstanceId: 'follower-b'
@@ -112,8 +124,9 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                         targetInstanceId: 'follower',
                         authorityTerm: request.authorityTerm,
                         result: {
-                            kind: 'recentRecords',
-                            value:
+                            kind: 'recordsPage',
+                            value: recordsPageResult(
+                                request.query,
                                 returnPendingRecords ?
                                     (request.pendingRecords ?? []).map(record => ({
                                         ...record,
@@ -124,6 +137,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                                         totalTokens: record.estimatedInput
                                     }))
                                 :   []
+                            )
                         }
                     },
                     timestamp: Date.now(),
@@ -168,7 +182,8 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             async (query, pendingRecords) => {
                 localExecutions += 1;
                 executedPending = pendingRecords;
-                return { kind: query.kind, value: [] } as never;
+                assert.ok(query.kind === 'recordsPage');
+                return { kind: query.kind, value: recordsPageResult(query) };
             },
             () => {
                 remoteSuccesses += 1;
@@ -176,36 +191,36 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
         );
         t.after(() => coordinator.dispose());
 
-        assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }), []);
+        assert.deepEqual(await coordinator.run(pageQuery), emptyPage);
         assert.equal(remoteSuccesses, 1);
         assert.equal(localExecutions, 0);
 
         malformedAuthorityResponseOnly = true;
-        assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }), []);
+        assert.deepEqual(await coordinator.run(pageQuery), emptyPage);
         assert.equal(remoteSuccesses, 1);
         assert.equal(localExecutions, 1);
         malformedAuthorityResponseOnly = false;
 
         forgeBeforeRemoteResponse = true;
-        assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }), []);
+        assert.deepEqual(await coordinator.run(pageQuery), emptyPage);
         assert.equal(remoteSuccesses, 2);
         assert.equal(localExecutions, 1);
         forgeBeforeRemoteResponse = false;
 
         remoteError = 'busy';
-        assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }), []);
+        assert.deepEqual(await coordinator.run(pageQuery), emptyPage);
         assert.equal(remoteSuccesses, 2);
         assert.equal(localExecutions, 2);
         remoteError = undefined;
 
         remoteResponseEnabled = false;
-        assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }), []);
+        assert.deepEqual(await coordinator.run(pageQuery), emptyPage);
         assert.equal(localExecutions, 3);
 
         remoteResponseEnabled = true;
         compatibleTransport = false;
         const requestsBeforeLocalFallback = remoteRequests;
-        assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }), []);
+        assert.deepEqual(await coordinator.run(pageQuery), emptyPage);
         assert.equal(remoteRequests, requestsBeforeLocalFallback);
         assert.equal(localExecutions, 4);
         compatibleTransport = true;
@@ -215,7 +230,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             const localExecutionsBefore = localExecutions;
             const remoteSuccessesBefore = remoteSuccesses;
             try {
-                const result = coordinator.run({ kind: 'recentRecords', limit: 3 });
+                const result = coordinator.run(pageQuery);
                 const request = remoteRequestEvents.at(-1)?.payload;
                 assert.ok(request);
                 assert.ok(authorityChangedHandler);
@@ -223,7 +238,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                 authorityTerm = 'next-leader:2';
                 authorityChangedHandler(authorityTerm);
 
-                assert.deepEqual(await result, []);
+                assert.deepEqual(await result, emptyPage);
                 assert.equal(localExecutions, localExecutionsBefore + 1);
                 assert.equal(remoteSuccesses, remoteSuccessesBefore);
 
@@ -233,7 +248,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                         requestId: request.requestId,
                         targetInstanceId: 'follower',
                         authorityTerm: request.authorityTerm,
-                        result: { kind: 'recentRecords', value: [] }
+                        result: { kind: 'recordsPage', value: emptyPage }
                     },
                     timestamp: Date.now(),
                     senderInstanceId: 'leader'
@@ -257,12 +272,12 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             const localExecutionsBefore = localExecutions;
             const remoteSuccessesBefore = remoteSuccesses;
             try {
-                const result = coordinator.run({ kind: 'recentRecords', limit: 3 });
+                const result = coordinator.run(pageQuery);
                 const request = remoteRequestEvents.at(-1)?.payload;
                 assert.ok(request);
                 assert.equal(localExecutions, localExecutionsBefore);
 
-                assert.deepEqual(await result, []);
+                assert.deepEqual(await result, emptyPage);
                 assert.equal(localExecutions, localExecutionsBefore + 1);
                 assert.equal(remoteSuccesses, remoteSuccessesBefore);
 
@@ -272,7 +287,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                         requestId: request.requestId,
                         targetInstanceId: 'follower',
                         authorityTerm: request.authorityTerm,
-                        result: { kind: 'recentRecords', value: [] }
+                        result: { kind: 'recordsPage', value: emptyPage }
                     },
                     timestamp: Date.now(),
                     senderInstanceId: 'leader'
@@ -308,13 +323,13 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
             try {
                 for (const name of ['Follower Key', '名'.repeat(2049), '名'.repeat(8192)]) {
                     pending.apiKeyName = name;
-                    const result = await coordinator.run({ kind: 'recentRecords', limit: 3 }, [pending]);
+                    const result = await coordinator.run(pageQuery, [pending]);
                     const sent = remoteRequestEvents.at(-1)?.payload.pendingRecords;
                     assert.equal(sent?.[0].apiKeyHash, pending.apiKeyHash);
                     assert.equal(sent?.[0].apiKeyName, pending.apiKeyName);
-                    assert.equal(result.length, 1);
-                    assert.equal(result[0].apiKeyHash, pending.apiKeyHash);
-                    assert.equal(result[0].apiKeyName, pending.apiKeyName);
+                    assert.equal(result.records.length, 1);
+                    assert.equal(result.records[0].apiKeyHash, pending.apiKeyHash);
+                    assert.equal(result.records[0].apiKeyName, pending.apiKeyName);
                     assert.equal(localExecutions, localExecutionsBefore);
                 }
             } finally {
@@ -329,7 +344,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                 requestId: 'request-1',
                 requestedBy: 'follower',
                 authorityTerm: 'leader:1',
-                query: { kind: 'recentRecords', limit: 3 }
+                query: pageQuery
             },
             timestamp: Date.now(),
             senderInstanceId: 'follower'
@@ -339,7 +354,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
         assert.equal(targeted[0].target, 'follower');
         assert.equal(targeted[0].event.type, 'usagesQueryCompleted');
         assert.equal(targeted[0].event.payload.targetInstanceId, 'follower');
-        assert.equal(targeted[0].event.payload.result?.kind, 'recentRecords');
+        assert.equal(targeted[0].event.payload.result?.kind, 'recordsPage');
 
         rejectResultAsTooLarge = true;
         await handlers.get('usagesQueryRequested')?.({
@@ -348,7 +363,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                 requestId: 'request-2',
                 requestedBy: 'follower',
                 authorityTerm: 'leader:1',
-                query: { kind: 'recentRecords', limit: 3 }
+                query: pageQuery
             },
             timestamp: Date.now(),
             senderInstanceId: 'follower'
@@ -365,7 +380,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                 requestId: 'victim-request',
                 requestedBy: 'follower-a',
                 authorityTerm: 'leader:1',
-                query: { kind: 'recentRecords', limit: 3 }
+                query: pageQuery
             },
             timestamp: Date.now(),
             senderInstanceId: 'follower-b'
@@ -417,7 +432,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                 requestId: 'with-pending',
                 requestedBy: 'follower',
                 authorityTerm: 'leader:1',
-                query: { kind: 'recentRecords', limit: 3 },
+                query: pageQuery,
                 pendingRecords: [pending]
             },
             timestamp,
@@ -520,7 +535,8 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                     signalFirstStarted();
                 }
                 await blocked;
-                return { kind: query.kind, value: [] } as never;
+                assert.ok(query.kind === 'recordsPage');
+                return { kind: query.kind, value: recordsPageResult(query) };
             });
             t.after(() => boundedCoordinator.dispose());
             const internals = boundedCoordinator as unknown as {
@@ -534,7 +550,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                         requestId: `bounded-${index}`,
                         requestedBy: 'follower-bounded',
                         authorityTerm: 'leader:1',
-                        query: { kind: 'recentRecords', limit: 3 }
+                        query: pageQuery
                     },
                     timestamp: Date.now(),
                     senderInstanceId: 'follower-bounded'
@@ -549,7 +565,7 @@ test('usages queries use targeted IPC and fall back only when remote delivery fa
                 .slice(targetedBefore)
                 .filter(entry => entry.event.payload.requestId.startsWith('bounded-'));
             assert.equal(responses.filter(entry => entry.event.payload.error === 'busy').length, 1);
-            assert.equal(responses.filter(entry => entry.event.payload.result?.kind === 'recentRecords').length, 4);
+            assert.equal(responses.filter(entry => entry.event.payload.result?.kind === 'recordsPage').length, 4);
             assert.equal(executions, 4);
         });
     } finally {

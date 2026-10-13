@@ -115,10 +115,11 @@ test('snapshot validation remains bound to the source and saved stats versions',
                     const release = gate();
                     if (kind === 'stats') {
                         const load = f.privateStats.loadStats.bind(f.privateStats);
-                        let calls = 0;
+                        let first = true;
                         context.mock.method(f.privateStats, 'loadStats', async (date: string) => {
                             const result = await load(date);
-                            if (++calls === 2) {
+                            if (first && date === f.date) {
+                                first = false;
                                 entered.release();
                                 await release.promise;
                             }

@@ -299,8 +299,6 @@ export class UsagesQueryCoordinator implements vscode.Disposable {
                 return `${scope}:detail:${query.date}`;
             case 'trackRecords':
                 return `${scope}:detail:${query.date}`;
-            case 'recentRecords':
-                return `${scope}:recent:${query.limit}`;
             case 'sessionTitle':
                 return `${scope}:title:${query.sessionId}`;
         }

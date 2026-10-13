@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { InterInstanceBus } from '../../../../../../src/interInstance/interInstanceBus';
-import type { InterInstanceEvent } from '../../../../../../src/interInstance/eventProtocol';
+import {
+    USAGES_QUERY_PROTOCOL_VERSION,
+    type InterInstanceEvent
+} from '../../../../../../src/interInstance/eventProtocol';
 import type { IpcClient } from '../../../../../../src/interInstance/ipcClient';
 import { IpcServer } from '../../../../../../src/interInstance/ipcServer';
 import { resolveIpcPath } from '../../../../../../src/interInstance/pathResolver';
@@ -149,7 +152,7 @@ suite('Accepted resignation receipt invalidation after source close', () => {
                             payload: {
                                 targetInstanceId: f.followerId,
                                 extensionVersion: '1.0.0',
-                                usagesQueryProtocolVersion: 1,
+                                usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
                                 leaderLivenessProtocolVersion: 1,
                                 authorityTerm: f.identity.authorityTerm
                             }

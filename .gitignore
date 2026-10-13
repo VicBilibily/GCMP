@@ -3,6 +3,7 @@ dist/
 test/
 node_modules
 .vscode-test/
+logs/
 *.vsix
 extension.js*
 /.claude

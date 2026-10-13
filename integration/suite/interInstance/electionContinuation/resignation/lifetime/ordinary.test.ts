@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { InterInstanceBus } from '../../../../../../src/interInstance/interInstanceBus';
-import type { RemoteInstanceCapabilitiesEvent } from '../../../../../../src/interInstance/eventProtocol';
+import {
+    USAGES_QUERY_PROTOCOL_VERSION,
+    type RemoteInstanceCapabilitiesEvent
+} from '../../../../../../src/interInstance/eventProtocol';
 import { LeaderElectionService } from '../../../../../../src/status/leaderElectionService';
 import { createLivenessFixture, waitFor } from '../../../leaderLiveness/fixture';
 import { deferred } from '../../fixture';
@@ -54,7 +57,7 @@ suite('Ordinary candidate authority after a completed negative probe', () => {
                         payload: {
                             targetInstanceId: f.followerId,
                             extensionVersion: '1.0.0',
-                            usagesQueryProtocolVersion: 1,
+                            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
                             leaderLivenessProtocolVersion: 1,
                             authorityTerm: term
                         }

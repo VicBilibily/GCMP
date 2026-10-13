@@ -8,6 +8,7 @@ import { state, type State } from '../../ui/configSetManager/components/state';
 import { createEmptyNativeCostSplit } from '../fileLogger/nativeCostSplit';
 import type { UsagesPendingRecord, UsagesQuery } from './types';
 import { isUsagesQueryResult, normalizeUsagesPendingRecords, normalizeUsagesQuery } from './validation';
+import { recordsPageQuery, recordsPageResult } from './tests/recordsPageFixture';
 
 test('normalizes bounded usages queries', () => {
     assert.deepEqual(normalizeUsagesQuery({ kind: 'dateOverview', date: '2026-09-24' }), {
@@ -46,15 +47,10 @@ test('normalizes bounded usages queries', () => {
             limitPerSession: 10
         }
     );
-    assert.deepEqual(normalizeUsagesQuery({ kind: 'recentRecords', limit: 3 }), {
-        kind: 'recentRecords',
-        limit: 3
-    });
-    assert.deepEqual(normalizeUsagesQuery({ kind: 'recentRecords', limit: 3, hydrateSessionTitles: false }), {
-        kind: 'recentRecords',
-        limit: 3,
-        hydrateSessionTitles: false
-    });
+    for (const pageSize of [1, 100]) {
+        const query = recordsPageQuery(pageSize);
+        assert.deepEqual(normalizeUsagesQuery(query), { ...query, sessionId: undefined });
+    }
 });
 
 test('rejects malformed or unbounded usages queries', () => {
@@ -75,8 +71,7 @@ test('rejects malformed or unbounded usages queries', () => {
             sessionIds: ['a', 'b', 'c', 'd'],
             limitPerSession: 10
         },
-        { kind: 'recentRecords', limit: 101 },
-        { kind: 'recentRecords', limit: 3, hydrateSessionTitles: 'false' } as unknown as UsagesQuery,
+        { kind: 'recordsPage', date: '2026-09-24', mode: 'all', page: 1, pageSize: 0 },
         { kind: 'sessionTitle', sessionId: 'x'.repeat(513) }
     ];
 
@@ -198,13 +193,23 @@ for (const length of [2049, 8192]) {
         assert.ok(message?.command === 'edit');
         const record = { ...pendingRecord(), apiKeyName: message.label };
         assert.deepEqual(normalizeUsagesPendingRecords(JSON.parse(JSON.stringify([record])) as unknown), [record]);
+        const query = recordsPageQuery(1);
         assert.equal(
             isUsagesQueryResult(
                 {
-                    kind: 'recentRecords',
-                    value: [{ ...record, actualInput: 10, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 35 }]
+                    kind: 'recordsPage',
+                    value: recordsPageResult(query, [
+                        {
+                            ...record,
+                            actualInput: 10,
+                            cacheReadTokens: 0,
+                            cacheCreationTokens: 0,
+                            outputTokens: 25,
+                            totalTokens: 35
+                        }
+                    ])
                 },
-                { kind: 'recentRecords', limit: 1 }
+                query
             ),
             true
         );
@@ -254,17 +259,26 @@ for (const [field, invalidValue] of [
     ['apiKeyName', 'x'.repeat(8193)]
 ] as const) {
     test(`remote query results reject invalid ${field}: ${String(invalidValue).slice(0, 40)}`, () => {
-        const record = {
+        const validRecord = {
             ...pendingRecord(),
             actualInput: 10,
             cacheReadTokens: 0,
             cacheCreationTokens: 0,
             outputTokens: 25,
-            totalTokens: 35,
-            [field]: invalidValue
+            totalTokens: 35
         };
+        const query = recordsPageQuery(1);
         assert.equal(
-            isUsagesQueryResult({ kind: 'recentRecords', value: [record] }, { kind: 'recentRecords', limit: 1 }),
+            isUsagesQueryResult(
+                {
+                    kind: 'recordsPage',
+                    value: {
+                        ...recordsPageResult(query, [validRecord]),
+                        records: [{ ...validRecord, [field]: invalidValue }]
+                    }
+                },
+                query
+            ),
             false
         );
     });
@@ -348,8 +362,12 @@ test('accepts bounded results that match their original queries', () => {
         hourModels: {}
     };
 
+    const boundedPageQuery = recordsPageQuery(1);
     assert.equal(
-        isUsagesQueryResult({ kind: 'recentRecords', value: [record] }, { kind: 'recentRecords', limit: 1 }),
+        isUsagesQueryResult(
+            { kind: 'recordsPage', value: recordsPageResult(boundedPageQuery, [record]) },
+            boundedPageQuery
+        ),
         true
     );
     assert.equal(
@@ -440,8 +458,12 @@ test('rejects malformed records and results that do not match their original que
         outputTokens: 25,
         totalTokens: 35
     };
+    const query = recordsPageQuery(1);
     assert.equal(
-        isUsagesQueryResult({ kind: 'recentRecords', value: [{}] }, { kind: 'recentRecords', limit: 1 }),
+        isUsagesQueryResult(
+            { kind: 'recordsPage', value: { ...recordsPageResult(query, [record]), records: [{}] } },
+            query
+        ),
         false
     );
     assert.equal(

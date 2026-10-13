@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import test from 'node:test';
+import { StatsPublication } from '../../fileLogger/refresh/statsPublication';
 import { createUsageHost } from '../hostFixture';
 import { nextTurn, refreshClock, refreshFixture, terminal } from './fixture';
 
@@ -75,7 +77,14 @@ test('statistics publication survives foreground calculations', async suite => {
             await f.fileLogger.updateActualTokens(terminal(ids[1]));
             const newer = await f.fileLogger.getDateStats(f.date, true);
             assert.equal(newer.total.completedRequests, 2);
+            const acknowledgements = context.mock.method(f.fileLogger, 'markStatsPublished');
+            const publication = new StatsPublication();
+            const statsPath = join(f.dir, 'usages', f.date, 'stats.json');
             f.manager.notifyStatsUpdate(first);
+            assert.equal(f.broadcasts().length, 0);
+            assert.equal(acknowledgements.mock.callCount(), 0);
+            assert.equal(f.fileLogger.getStatsSource(first.stats)?.stale, true);
+            assert.equal((await publication.readPendingStats(statsPath))?.total.completedRequests, 2);
             let nextDone = false;
             const nextPending = f.fileLogger.refreshStats(f.date).finally(() => {
                 nextDone = true;
@@ -84,8 +93,12 @@ test('statistics publication survives foreground calculations', async suite => {
             const next = await nextPending;
             assert.ok(next);
             f.manager.notifyStatsUpdate(next);
-            assert.equal(f.broadcasts().length, 2);
-            const event = f.broadcasts()[1].event;
+            await f.internals.logStatsManager.flushStatsPublications();
+            assert.equal(f.broadcasts().length, 1);
+            assert.equal(acknowledgements.mock.callCount(), 1);
+            assert.equal(acknowledgements.mock.calls[0].arguments[0], next);
+            assert.equal(await publication.readPendingStats(statsPath), undefined);
+            const event = f.broadcasts()[0].event;
             assert.equal(event.type, 'tokenUsageUpdated');
             if (event.type === 'tokenUsageUpdated') {
                 assert.equal(event.payload.totalRequests, 2);

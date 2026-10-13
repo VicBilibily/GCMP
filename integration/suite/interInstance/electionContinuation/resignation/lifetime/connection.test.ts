@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Socket } from 'node:net';
 import { InterInstanceBus } from '../../../../../../src/interInstance/interInstanceBus';
-import type {
-    InterInstanceEvent,
-    RemoteInstanceCapabilitiesEvent
+import {
+    USAGES_QUERY_PROTOCOL_VERSION,
+    type InterInstanceEvent,
+    type RemoteInstanceCapabilitiesEvent
 } from '../../../../../../src/interInstance/eventProtocol';
 import type { IpcClient } from '../../../../../../src/interInstance/ipcClient';
 import { IpcServer } from '../../../../../../src/interInstance/ipcServer';
@@ -25,7 +26,7 @@ function sendCapability(server: IpcServer, leaderId: string, followerId: string,
         payload: {
             targetInstanceId: followerId,
             extensionVersion: '1.0.0',
-            usagesQueryProtocolVersion: 1,
+            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
             leaderLivenessProtocolVersion: 1,
             authorityTerm: term
         }

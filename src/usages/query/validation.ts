@@ -4,7 +4,6 @@ import type { UsagesPendingRecord, UsagesQuery, UsagesQueryResult } from './type
 const MAX_PAGE_SIZE = 100;
 const MAX_TRACKED_SESSIONS = 3;
 const MAX_TRACKED_RECORDS_PER_SESSION = 100;
-const MAX_RECENT_RECORDS = 100;
 const MAX_SESSION_ID_LENGTH = 512;
 const INITIAL_RECORDS_PAGE_SIZE = 20;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -68,17 +67,6 @@ export function normalizeUsagesQuery(query: UsagesQuery): UsagesQuery | undefine
                 sessionIds: [...query.sessionIds],
                 limitPerSession: query.limitPerSession
             };
-        case 'recentRecords':
-            if (
-                !isPositiveInteger(query.limit) ||
-                query.limit > MAX_RECENT_RECORDS ||
-                (query.hydrateSessionTitles !== undefined && typeof query.hydrateSessionTitles !== 'boolean')
-            ) {
-                return undefined;
-            }
-            return query.hydrateSessionTitles === false ?
-                    { kind: query.kind, limit: query.limit, hydrateSessionTitles: false }
-                :   { kind: query.kind, limit: query.limit };
         case 'sessionTitle':
             return isSessionId(query.sessionId) ? { ...query } : undefined;
     }
@@ -93,8 +81,6 @@ export function isUsagesQueryResult(result: unknown, query: UsagesQuery): result
     switch (query.kind) {
         case 'sessionTitle':
             return value === undefined || (typeof value === 'string' && value.length <= 2048);
-        case 'recentRecords':
-            return Array.isArray(value) && value.length <= query.limit && value.every(isExtendedRecord);
         case 'trackRecords':
             return (
                 isRecord(value) &&

@@ -18,6 +18,16 @@ export async function initializeLogger(
 ): Promise<void> {
     const { snapshotManager } = logger as unknown as LoggerInternals;
     const entered = gate();
+    const compact = snapshotManager.compactHistoricalDates.bind(snapshotManager);
+    let compaction: Promise<number> | undefined;
+    const compacting = context.mock.method(
+        snapshotManager,
+        'compactHistoricalDates',
+        (...args: Parameters<typeof compact>) => {
+            compaction = compact(...args);
+            return compaction;
+        }
+    );
     const original = snapshotManager.sanitizeHistoricalSnapshots.bind(snapshotManager);
     let work: Promise<number> | undefined;
     const wrapped = context.mock.method(
@@ -31,10 +41,13 @@ export async function initializeLogger(
     );
     try {
         await host.run(owner, () => logger.initialize());
+        assert.ok(compaction);
+        await compaction;
         await entered.promise;
         assert.ok(work);
         await work;
     } finally {
+        compacting.mock.restore();
         wrapped.mock.restore();
     }
 }
@@ -77,9 +90,26 @@ export async function rebuildWithLateWrite(
             }
         );
     }
+    let abort!: () => void;
+    const cancelled = new Promise<never>((_, reject) => {
+        abort = () => {
+            release.release();
+            reject(context.signal.reason);
+        };
+        context.signal.addEventListener('abort', abort, { once: true });
+        if (context.signal.aborted) {
+            abort();
+        }
+    });
     const reading = f.fileLogger.getDateStats(f.date);
     try {
-        await entered.promise;
+        await Promise.race([
+            entered.promise,
+            reading.then(() => {
+                throw new Error(`Recovery calculation did not enter ${phase}`);
+            }),
+            cancelled
+        ]);
         const external = new SnapshotManager(f.internals.pathManager, () => {});
         const late = snapshotRow(f.date, 'third', 11);
         const sourcePath = source === 'raw' ? f.internals.pathManager.getHourFilePath(f.date, 11) : f.snapshotPath;
@@ -96,8 +126,12 @@ export async function rebuildWithLateWrite(
         assert.ok((await stat(sourcePath)).mtimeMs < (await stat(f.statsPath)).mtimeMs);
         assert.equal(await f.privateStats.needsRegeneration(f.date), true);
     } finally {
+        context.signal.removeEventListener('abort', abort);
         release.release();
-        await reading;
-        blocked.mock.restore();
+        try {
+            await reading.catch(() => {});
+        } finally {
+            blocked.mock.restore();
+        }
     }
 }

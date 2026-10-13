@@ -72,9 +72,26 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
         })
     );
 
+    let reconciledAuthorityTerm: string | undefined;
+    let periodicRefreshInFlight = false;
     LeaderElectionService.registerPeriodicTask(async () => {
+        if (periodicRefreshInFlight) {
+            return;
+        }
+        periodicRefreshInFlight = true;
         try {
             const fileLogger = TokenUsagesManager.instance.getFileLogger();
+            const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm?.();
+            if (authorityTerm && authorityTerm !== reconciledAuthorityTerm) {
+                try {
+                    await fileLogger.getIndex();
+                    if (LeaderElectionService.getOwnedAuthorityTerm?.() === authorityTerm) {
+                        reconciledAuthorityTerm = authorityTerm;
+                    }
+                } catch (error) {
+                    Logger.trace(`[LeaderTask] Failed to reconcile usage index: ${error}`);
+                }
+            }
             const today = DateUtils.getTodayDateString();
             const result = await fileLogger.refreshStats(today);
             if (result) {
@@ -86,6 +103,8 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
             );
         } catch (error) {
             Logger.trace(`[LeaderTask] Failed to refresh today stats: ${error}`);
+        } finally {
+            periodicRefreshInFlight = false;
         }
     });
 }

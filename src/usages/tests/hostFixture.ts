@@ -60,6 +60,9 @@ export async function createUsageHost() {
         }
     };
     const bus = {
+        isIpcEnabled: () => false,
+        hasCompatibleUsagesQueryTransport: () => false,
+        onAuthorityChanged: () => ({ dispose() {} }),
         subscribe(type: string, callback: (event: UsageEvent) => void) {
             const listener = { owner: currentId(), type, callback };
             listeners.add(listener);
@@ -97,6 +100,8 @@ export async function createUsageHost() {
                     getLeaderId: () => state.leaderId,
                     getInstanceId: currentId,
                     isLeader: () => currentId() === state.leaderId,
+                    getOwnedAuthorityTerm: () => (currentId() === state.leaderId ? `${state.leaderId}:1` : undefined),
+                    onLeaderChanged: () => ({ dispose() {} }),
                     isLeaderHeartbeatFresh: () => state.heartbeatFresh,
                     registerPeriodicTask: (callback: () => Promise<void>) => periodic.push(callback)
                 }

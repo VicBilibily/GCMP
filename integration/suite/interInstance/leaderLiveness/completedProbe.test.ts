@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { Socket } from 'node:net';
 import { InterInstanceBus } from '../../../../src/interInstance/interInstanceBus';
-import type { InterInstanceEvent } from '../../../../src/interInstance/eventProtocol';
+import { USAGES_QUERY_PROTOCOL_VERSION, type InterInstanceEvent } from '../../../../src/interInstance/eventProtocol';
 import { createLivenessFixture } from './fixture';
 
 const changes = ['unchanged', 'authority ABA', 'capability ABA', 'explicit cancellation'] as const;
@@ -66,7 +66,7 @@ function arrangeReply(f: Awaited<ReturnType<typeof createLivenessFixture>>, chan
                 payload: {
                     targetInstanceId: f.followerId,
                     extensionVersion: 'different',
-                    usagesQueryProtocolVersion: 1,
+                    usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION,
                     ...capability
                 }
             });

@@ -38,6 +38,8 @@ import {
     UNKNOWN_SESSION_ID
 } from '../ui/usagesView/aggregation';
 import { UsagesQueryCoordinator } from './query/usagesQueryCoordinator';
+import { UsageStatusSnapshots } from './status/usageStatusSnapshots';
+import type { UsageStatusSnapshot } from './status/snapshot';
 import { normalizeUsagesPendingRecords } from './query/validation';
 import type {
     UsagesDateOverview,
@@ -85,10 +87,6 @@ export interface UpdateActualTokensParams {
     costBreakdown?: CostBreakdownLog;
 }
 
-export interface GetRecentRecordsOptions {
-    hydrateSessionTitles?: boolean;
-}
-
 /**
  * Token 用量管理器
  * 全局静态对象，管理 Token 消耗统计
@@ -97,10 +95,12 @@ export class TokenUsagesManager {
     private fileLogger!: TokenFileLogger;
     private eventEmitter: EventEmitter;
     private initialized: boolean = false;
+    private lifecycleGeneration = 0;
     private readonly historicalSessionTitleCache = new Map<string, HistoricalSessionTitleCacheEntry>();
     private usagesQueryCoordinator: UsagesQueryCoordinator | undefined;
     private leaderChangeDisposable: vscode.Disposable | undefined;
     private cacheInvalidationDisposable: vscode.Disposable | undefined;
+    private statusSnapshots: UsageStatusSnapshots | undefined;
     private dateRecordsCache = new Map<string, DateRecordsCacheEntry>();
     private dateRecordsBuilds = new Map<string, Promise<ExtendedTokenRequestLog[]>>();
     private cachedDateRecords = 0;
@@ -138,10 +138,16 @@ export class TokenUsagesManager {
         }
 
         const startTime = Date.now();
+        const generation = ++this.lifecycleGeneration;
 
         // 初始化文件日志系统
-        this.fileLogger = new TokenFileLogger(context);
-        await this.fileLogger.initialize();
+        const fileLogger = new TokenFileLogger(context);
+        this.fileLogger = fileLogger;
+        await fileLogger.initialize();
+        if (generation !== this.lifecycleGeneration) {
+            await fileLogger.dispose();
+            return;
+        }
 
         this.usagesQueryCoordinator = new UsagesQueryCoordinator(
             (query, pendingRecords, isRemote) => this.executeUsagesQuery(query, pendingRecords, isRemote),
@@ -188,6 +194,13 @@ export class TokenUsagesManager {
             }
         });
 
+        this.statusSnapshots = new UsageStatusSnapshots(
+            typeof vscode.env.remoteName !== 'undefined' || !InterInstanceBus.isIpcEnabled(),
+            date => this.fileLogger.readSavedStats(date),
+            date => this.fileLogger.getDateStats(date),
+            stats => this.fileLogger.getStatsSource(stats),
+            date => this.fileLogger.getLatestStatusStats(date)
+        );
         this.initialized = true;
 
         const elapsed = Date.now() - startTime;
@@ -489,51 +502,6 @@ export class TokenUsagesManager {
         // 按日期倒序排列
         summaries.sort((a, b) => b.date.localeCompare(a.date));
         return summaries;
-    }
-
-    /**
-     * 获取最近的请求记录
-     * 包括已完成的记录和仍在进行中的 pending 记录
-     * 性能优化：只读取最近 limit*2 条已完成请求，减少大量日志场景下的内存占用
-     */
-    async getRecentRecords(
-        limit: number = 100,
-        options: GetRecentRecordsOptions = {}
-    ): Promise<ExtendedTokenRequestLog[]> {
-        const hydrateSessionTitles = options.hydrateSessionTitles !== false;
-        if (this.usagesQueryCoordinator) {
-            const pendingRecords = await this.flushBeforeRemoteQuery();
-            return this.usagesQueryCoordinator.run(
-                {
-                    kind: 'recentRecords',
-                    limit,
-                    ...(hydrateSessionTitles ? {} : { hydrateSessionTitles: false })
-                },
-                pendingRecords
-            );
-        }
-        return this.getRecentRecordsLocal(limit, [], false, hydrateSessionTitles);
-    }
-
-    private async getRecentRecordsLocal(
-        limit: number,
-        pendingRecords: readonly UsagesPendingRecord[] = [],
-        throwOnFailure = false,
-        hydrateSessionTitles = true
-    ): Promise<ExtendedTokenRequestLog[]> {
-        const today = DateUtils.getTodayDateString();
-        // 使用性能优化版本，只读取最近 limit*2 条（以防过滤后不足）
-        const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2, throwOnFailure);
-        const allLogs = this.mergePendingLogs(details, pendingRecords);
-        this.seedSessionTitlesFromLogs(allLogs, pendingRecords);
-        if (hydrateSessionTitles) {
-            await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
-        }
-
-        // 扩展记录，添加便捷访问方法
-        const extended = this.enrichSessionTitles(UsageParser.extendLogs(allLogs), pendingRecords);
-        // 返回最近的 N 条记录
-        return extended.slice(0, limit);
     }
 
     async getDateOverview(date: string): Promise<UsagesDateOverview> {
@@ -867,16 +835,6 @@ export class TokenUsagesManager {
                         query
                     )
                 };
-            case 'recentRecords':
-                return {
-                    kind: query.kind,
-                    value: await this.getRecentRecordsLocal(
-                        query.limit,
-                        pendingRecords,
-                        isRemote,
-                        query.hydrateSessionTitles !== false
-                    )
-                };
             case 'sessionTitle':
                 return { kind: query.kind, value: await this.hydrateSessionTitleLocal(query.sessionId) };
         }
@@ -1159,6 +1117,18 @@ export class TokenUsagesManager {
         };
     }
 
+    onStatusSnapshot(listener: (snapshot: UsageStatusSnapshot) => void): vscode.Disposable {
+        return this.statusSnapshots?.onUpdate(listener) ?? { dispose() {} };
+    }
+
+    getStatusSnapshot(): Promise<UsageStatusSnapshot | undefined> {
+        return this.statusSnapshots?.get() ?? Promise.resolve(undefined);
+    }
+
+    isStatusFileMode(): boolean {
+        return this.statusSnapshots?.fileMode === true;
+    }
+
     /**
      * 通知统计更新
      */
@@ -1200,7 +1170,23 @@ export class TokenUsagesManager {
             this.notifyUpdate();
             return;
         }
-        if (!this.initialized || this.publishedStats.has(result) || (!result.changed && !force)) {
+        if (!this.initialized || this.publishedStats.has(result)) {
+            return;
+        }
+        const source = this.fileLogger.getStatsSource?.(result.stats);
+        if (source && source.authorityTerm !== LeaderElectionService.getOwnedAuthorityTerm?.()) {
+            return;
+        }
+        if (
+            this.statusSnapshots &&
+            result.date === DateUtils.getTodayDateString() &&
+            (this.statusSnapshots.fileMode || LeaderElectionService.getOwnedAuthorityTerm?.()) &&
+            (!this.statusSnapshots.update(result.date, result.stats, source) ||
+                !this.statusSnapshots.isCurrent(result.stats))
+        ) {
+            return;
+        }
+        if (source?.stale || (!result.changed && !force)) {
             return;
         }
         this.publishedStats.add(result);
@@ -1281,11 +1267,15 @@ export class TokenUsagesManager {
      * 释放资源
      */
     async dispose() {
+        this.lifecycleGeneration++;
         if (!this.initialized) {
+            await this.fileLogger?.dispose();
             return;
         }
         this.initialized = false;
         this.statsNotifications.clear();
+        this.statusSnapshots?.dispose();
+        this.statusSnapshots = undefined;
         this.usagesQueryCoordinator?.dispose();
         this.usagesQueryCoordinator = undefined;
         this.leaderChangeDisposable?.dispose();

@@ -7,11 +7,14 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { serializeEvent, USAGES_QUERY_PROTOCOL_VERSION, type InterInstanceEvent } from './eventProtocol';
 import type { UsagesPendingRecord } from '../usages/query/types';
+import { recordsPageQuery, recordsPageResult } from '../usages/query/tests/recordsPageFixture';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
     prototype: { require: (id: string) => unknown };
 };
+const pageQuery = recordsPageQuery();
+const emptyPage = recordsPageResult(pageQuery);
 
 function connectSocket(pipePath: string): Promise<Socket> {
     return new Promise((resolve, reject) => {
@@ -86,7 +89,7 @@ test('IPC server sends bounded responses only to the requested instance', async 
                 requestId: 'query-1',
                 targetInstanceId: 'follower-a',
                 authorityTerm: 'leader:1',
-                result: { kind: 'recentRecords', value: [] }
+                result: { kind: 'recordsPage', value: emptyPage }
             },
             timestamp: 1,
             senderInstanceId: 'leader'
@@ -212,7 +215,7 @@ test('IPC server sends bounded responses only to the requested instance', async 
                         requestId: 'query-2',
                         requestedBy: 'follower-a',
                         authorityTerm: 'leader:1',
-                        query: { kind: 'recentRecords', limit: 3 }
+                        query: pageQuery
                     },
                     timestamp: 1,
                     senderInstanceId: 'follower-a'
@@ -357,7 +360,7 @@ test('IPC server enforces immutable identities on real sockets', async () => {
                 requestId: 'query-1',
                 targetInstanceId: 'follower-a',
                 authorityTerm: 'leader:1',
-                result: { kind: 'recentRecords', value: [] }
+                result: { kind: 'recordsPage', value: emptyPage }
             },
             timestamp: 3,
             senderInstanceId: 'leader'
@@ -622,13 +625,14 @@ test('usage query transport requires a matching leader capability', async t => {
                         senderInstanceId: leaderId
                     });
                 } else if (event.type === 'usagesQueryRequested') {
+                    assert.ok(event.payload.query.kind === 'recordsPage');
                     server.sendToInstance(event.senderInstanceId, {
                         type: 'usagesQueryCompleted',
                         payload: {
                             requestId: event.payload.requestId,
                             targetInstanceId: event.senderInstanceId,
                             authorityTerm,
-                            result: { kind: 'recentRecords', value: [] }
+                            result: { kind: 'recordsPage', value: recordsPageResult(event.payload.query) }
                         },
                         timestamp: Date.now(),
                         senderInstanceId: leaderId
@@ -651,9 +655,10 @@ test('usage query transport requires a matching leader capability', async t => {
                 InterInstanceBus.publishIpcOnly({ type: 'liveMetricsSnapshotRequested', payload: {} });
             }
         });
-        const coordinator = new UsagesQueryCoordinator(async () => {
+        const coordinator = new UsagesQueryCoordinator(async query => {
             localExecutions += 1;
-            return { kind: 'recentRecords', value: [] };
+            assert.ok(query.kind === 'recordsPage');
+            return { kind: query.kind, value: recordsPageResult(query) };
         });
         try {
             await server.start(pipePath);
@@ -721,7 +726,10 @@ test('usage query transport requires a matching leader capability', async t => {
                         streamStartTime: timestamp + 250,
                         outputSpeed: 12.5
                     };
-                    assert.deepEqual(await coordinator.run({ kind: 'recentRecords', limit: 3 }, [pending]), []);
+                    assert.deepEqual(
+                        await coordinator.run(pageQuery, [pending]),
+                        JSON.parse(JSON.stringify(emptyPage))
+                    );
                     assert.deepEqual(
                         receivedEvents.find(event => event.type === 'usagesQueryRequested')?.payload.pendingRecords,
                         [pending]

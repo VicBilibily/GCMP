@@ -21,14 +21,14 @@ import { LogCleanupManager } from './logCleanupManager';
 import { LogIndexManager } from './logIndexManager';
 import { LogStatsManager } from './logStatsManager';
 import { StatsCalculator } from './statsCalculator';
-import { StatsRefreshQueue, type StatsRefreshResult } from './refresh/statsRefreshQueue';
+import { StatsRefreshQueue, type StatsRefreshResult, type StatsResultSource } from './refresh/statsRefreshQueue';
 import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
-import { EventEmitter } from 'events';
 import { onLiveMetrics, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { LeaderElectionService } from '../../status/leaderElectionService';
 import { InterInstanceBus } from '../../interInstance';
 import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
+import type { LatestUsageStatus } from '../status/snapshot';
 
 type StatsRefreshCompletion = { status: 'completed'; dates: string[] } | { status: 'timeout' } | { status: 'disposed' };
 
@@ -47,7 +47,6 @@ export class TokenFileLogger {
     private readonly indexManager: LogIndexManager;
     private readonly logStatsManager: LogStatsManager;
     private readonly snapshotManager: SnapshotManager;
-    private readonly eventEmitter: EventEmitter;
 
     // live metrics 订阅：仅驱动当前实例的 realtime UI / 内存态
     private readonly liveMetricsDisposable: vscode.Disposable;
@@ -82,7 +81,7 @@ export class TokenFileLogger {
         this.pathManager = new LogPathManager(storageDir);
         this.writeManager = new LogWriteManager(this.pathManager);
         this.readManager = new LogReadManager(this.pathManager);
-        this.indexManager = new LogIndexManager(storageDir);
+        this.indexManager = new LogIndexManager(storageDir, () => this.logStatsManager.captureWritePermission());
         this.cleanupManager = new LogCleanupManager(this.pathManager, this.indexManager, dateStr => {
             this.readManager.invalidateDateCache(dateStr);
         });
@@ -98,14 +97,17 @@ export class TokenFileLogger {
         // 注入写盘守卫：只要已知存在其他 Leader，就始终由 Leader 独占写 stats.json，
         // 避免 IPC / fallback 重连窗口里 Follower 因瞬时断线误判为“可本地写”。
         // 仅在 Leader 尚未选出时回退为当前实例自写，避免启动早期完全无统计。
-        this.logStatsManager.setCanWriteStats(() => {
-            const leaderId = LeaderElectionService.getLeaderId();
-            if (!leaderId) {
-                return true; // 尚未选出 Leader：允许当前实例临时写盘
-            }
-            return leaderId === LeaderElectionService.getInstanceId();
-        });
-        this.eventEmitter = new EventEmitter();
+        this.logStatsManager.setCanWriteStats(
+            () => {
+                const leaderId = LeaderElectionService.getLeaderId();
+                if (!leaderId) {
+                    return true; // 尚未选出 Leader：允许当前实例临时写盘
+                }
+                return leaderId === LeaderElectionService.getInstanceId();
+            },
+            () => LeaderElectionService.getOwnedAuthorityTerm?.(),
+            () => InterInstanceBus.getConfirmedLeaderAuthority?.().generation
+        );
 
         // 订阅 live metrics streaming 事件：仅更新内存 pendingLog，不写文件。
         // 当前实例的实时指标通过 onLiveMetrics 事件总线直接驱动 liveMetricsRenderer（DOM 覆盖），
@@ -172,22 +174,30 @@ export class TokenFileLogger {
      * - 如果版本时间戳 < 代码版本时间，需要重新计算
      */
     private async initCacheVersionTimestamp(): Promise<void> {
-        // 读取 index.json 中存储的版本时间戳
-        const versionTimestamp = await this.indexManager.getVersionTimestamp();
+        try {
+            // 读取 index.json 中存储的版本时间戳
+            const versionTimestamp = await this.indexManager.getVersionTimestamp();
 
-        // 判断是否需要更新版本时间戳
-        // 条件：没有版本时间戳（旧缓存）或版本时间戳小于代码版本时间
-        const needsUpdate = !versionTimestamp || versionTimestamp < USAGES_CACHE_VERSION_TIMESTAMP;
+            // 判断是否需要更新版本时间戳
+            // 条件：没有版本时间戳（旧缓存）或版本时间戳小于代码版本时间
+            const needsUpdate = !versionTimestamp || versionTimestamp < USAGES_CACHE_VERSION_TIMESTAMP;
 
-        if (needsUpdate) {
-            await this.indexManager.setVersionTimestamp(USAGES_CACHE_VERSION_TIMESTAMP);
-            StatusLogger.debug(
-                `[TokenFileLogger] Updated version timestamp: ${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}`
-            );
-        } else {
-            StatusLogger.debug(
-                `[TokenFileLogger] Using existing version timestamp: ${new Date(versionTimestamp).toISOString()}`
-            );
+            if (needsUpdate) {
+                if (await this.indexManager.repairIfNeeded()) {
+                    await this.indexManager.setVersionTimestamp(USAGES_CACHE_VERSION_TIMESTAMP);
+                    StatusLogger.debug(
+                        `[TokenFileLogger] Updated version timestamp: ${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}`
+                    );
+                } else {
+                    StatusLogger.warn('[TokenFileLogger] Date index initialization deferred until recovery');
+                }
+            } else {
+                StatusLogger.debug(
+                    `[TokenFileLogger] Using existing version timestamp: ${new Date(versionTimestamp).toISOString()}`
+                );
+            }
+        } catch (error) {
+            StatusLogger.warn('[TokenFileLogger] Date index initialization deferred:', error);
         }
 
         // 同步代码版本时间戳到 LogStatsManager
@@ -378,9 +388,6 @@ export class TokenFileLogger {
         this.invalidateDetailCaches(logPath.date, logPath.hour);
         this.refreshCurrentStats(logPath.date);
 
-        // 通知状态栏有新的预估请求
-        this.notifyUpdate();
-
         StatusLogger.info(
             `[TokenFileLogger] 记录预估token: ${params.requestId}, model=${params.modelName}, tokens=${params.estimatedInput}`
         );
@@ -495,9 +502,6 @@ export class TokenFileLogger {
             // 触发统计刷新（防抖，1s 内多次完成合并为一次重算）
             this.refreshCurrentStats(logPath.date);
 
-            // 通知本实例的监听者
-            this.notifyUpdate();
-
             StatusLogger.info(
                 `[TokenFileLogger] Updated actual tokens: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? 'recorded' : 'not recorded'}`
             );
@@ -518,7 +522,6 @@ export class TokenFileLogger {
                 pendingLog.sessionId = params.sessionId;
             }
             pendingLog.sessionTitle = params.sessionTitle;
-            this.notifyUpdate();
             return true;
         }
 
@@ -559,7 +562,6 @@ export class TokenFileLogger {
             this.invalidateDetailCaches(dateStr);
         }
 
-        this.notifyUpdate();
         return true;
     }
 
@@ -571,6 +573,18 @@ export class TokenFileLogger {
     async getTodayStats(): Promise<TokenUsageStatsFromFile> {
         const dateStr = DateUtils.getTodayDateString();
         return this.logStatsManager.getDateStats(dateStr);
+    }
+
+    readSavedStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
+        return this.logStatsManager.readSavedStats(dateStr);
+    }
+
+    getStatsSource(stats: TokenUsageStatsFromFile): StatsResultSource | undefined {
+        return this.logStatsManager.getResultSource(stats);
+    }
+
+    getLatestStatusStats(date: string): LatestUsageStatus | undefined {
+        return this.logStatsManager.getLatestStatusStats(date);
     }
 
     /**
@@ -742,7 +756,7 @@ export class TokenFileLogger {
     /**
      * 判断指定日期目录是否存在原始 hourly .jsonl 文件。
      */
-    private hasRawJsonlFiles(dateStr: string, throwOnFailure = false): boolean {
+    private hasRawJsonlFiles(dateStr: string): boolean {
         const dateFolder = this.pathManager.getDateFolderPath(dateStr);
         if (!fsSync.existsSync(dateFolder)) {
             return false;
@@ -750,10 +764,7 @@ export class TokenFileLogger {
         try {
             const files = fsSync.readdirSync(dateFolder);
             return files.some((f: string) => /^\d{2}\.jsonl$/.test(f));
-        } catch (error) {
-            if (throwOnFailure) {
-                throw error;
-            }
+        } catch {
             return false;
         }
     }
@@ -765,65 +776,6 @@ export class TokenFileLogger {
             return undefined;
         }
         return DateUtils.formatDate(new Date(timestamp));
-    }
-
-    /**
-     * 获取最近的请求详情（性能优化版本）
-     * 仅读取最近 N 条请求，避免在有大量日志时加载整个日期的数据
-     * 用于状态栏等需要快速响应的场景
-     */
-    async getRecentRequestDetails(
-        dateStr: string,
-        limit: number = 100,
-        throwOnFailure = false
-    ): Promise<TokenRequestLog[]> {
-        const pendingLogs = this.getPendingLogs().filter(
-            log => DateUtils.formatDate(new Date(log.timestamp)) === dateStr
-        );
-        const pendingRequestIds = new Set(pendingLogs.map(l => l.requestId));
-
-        if (this.shouldReadRawJsonl(dateStr)) {
-            // 若 raw hourly .jsonl 存在，优先用它；仅在 raw 被清理后才 fallback snapshot，
-            // 避免今天/昨天有 raw 时仍读到旧的 requests.jsonl 快照。
-            const useRaw = this.hasRawJsonlFiles(dateStr, throwOnFailure);
-            if (useRaw) {
-                const details = await this.readManager.getRecentRequestDetails(dateStr, limit, throwOnFailure);
-                const completed = details.filter(l => !pendingRequestIds.has(l.requestId));
-                return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
-            }
-            // raw jsonl 已被清理：用 snapshot 兜底，仍按限制返回
-            const recentSnapshotRecords = await this.snapshotManager.readRecent(dateStr, limit);
-            const snapshotRecords = recentSnapshotRecords ?? (await this.snapshotManager.read(dateStr));
-            if (snapshotRecords) {
-                const completed = snapshotRecords.filter(l => !pendingRequestIds.has(l.requestId));
-                return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
-            }
-            return pendingLogs.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
-        }
-
-        // 历史日期：从 requests.jsonl 尾部倒序读取，避免完整解析。
-        const recentSnapshotRecords = await this.snapshotManager.readRecent(dateStr, limit);
-        const snapshotRecords = recentSnapshotRecords ?? (await this.snapshotManager.read(dateStr));
-        if (snapshotRecords) {
-            // 合并 pending logs（内存中未完成的请求）
-            const completed = snapshotRecords.filter(l => !pendingRequestIds.has(l.requestId));
-            const all = [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
-            return all;
-        }
-        // 回退路径
-        const details = await this.readManager.getRecentRequestDetails(dateStr, limit, throwOnFailure);
-        // 异步构建 requests.jsonl 快照（buildSnapshotFromLogs 内部已处理今天不删 .jsonl）
-        if (details.length > 0) {
-            this.readManager
-                .getRequestDetails(dateStr)
-                .then(full => {
-                    if (full.length > 0) {
-                        this.snapshotManager.buildSnapshotFromLogs(dateStr, full).catch(() => {});
-                    }
-                })
-                .catch(() => {});
-        }
-        return details;
     }
 
     /**
@@ -913,10 +865,6 @@ export class TokenFileLogger {
             this.pendingStatsRefreshRequests.clear();
             StatusLogger.debug('[TokenFileLogger] Stats refresh subscription disposed');
 
-            // 清理事件监听器
-            this.eventEmitter.removeAllListeners();
-            StatusLogger.debug('[TokenFileLogger] Event listeners cleaned up');
-
             // 等待写入队列完成并销毁
             await this.logStatsManager.flushStatsPublications();
             await this.writeManager.dispose();
@@ -934,25 +882,6 @@ export class TokenFileLogger {
             StatusLogger.error('[TokenFileLogger] Failed to dispose logging system:', error);
             throw error;
         }
-    }
-
-    /**
-     * 监听统计更新事件
-     */
-    onStatsUpdate(listener: () => void): vscode.Disposable {
-        this.eventEmitter.on('update', listener);
-        return {
-            dispose: () => {
-                this.eventEmitter.off('update', listener);
-            }
-        };
-    }
-
-    /**
-     * 通知统计更新
-     */
-    private notifyUpdate(): void {
-        this.eventEmitter.emit('update');
     }
 
     /**
@@ -989,7 +918,6 @@ export class TokenFileLogger {
             return;
         }
 
-        // 仅更新内存中的实时指标字段，供 getRecentRequestDetails（状态栏）合并使用
         if (event.streamStartTime !== undefined) {
             pendingLog.streamStartTime = event.streamStartTime;
         }
@@ -1079,6 +1007,7 @@ export class TokenFileLogger {
             return;
         }
         let forceFallback = false;
+        const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm?.();
 
         // 已知存在其他 Leader：不直接重算写盘，改为委托 Leader 刷新今日 stats。
         // 主实例刷新完成后通过 tokenUsageUpdated 广播，本实例 UI 自然更新。
@@ -1130,6 +1059,9 @@ export class TokenFileLogger {
             await this.writeManager.flush();
 
             const canRefresh = () => {
+                if (authorityTerm !== undefined && LeaderElectionService.getOwnedAuthorityTerm?.() !== authorityTerm) {
+                    return false;
+                }
                 const currentLeaderId = LeaderElectionService.getLeaderId();
                 return (
                     !currentLeaderId ||
@@ -1154,9 +1086,6 @@ export class TokenFileLogger {
             if (this.disposed || !canRefresh()) {
                 return;
             }
-
-            // 通知本实例的监听者
-            this.notifyUpdate();
 
             StatusLogger.debug(`[TokenFileLogger] Refreshed hourly stats: ${dateStr}`);
             const result: StatsRefreshResult = {

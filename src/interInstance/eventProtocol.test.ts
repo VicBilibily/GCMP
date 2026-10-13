@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { recordsPageQuery, recordsPageResult } from '../usages/query/tests/recordsPageFixture';
 
 import {
     INTER_INSTANCE_EVENT_TYPES,
@@ -127,10 +128,30 @@ test('parseEventsFromBuffer accepts rate limit events', () => {
         '{"type":"liveMetricsSnapshotRequested","payload":{},"timestamp":0,"senderInstanceId":"follower-a"}',
         '{"type":"liveMetricsSnapshotSync","payload":{"targetInstanceId":"follower-a","authorityTerm":"leader-a:1","entries":[{"event":{"type":"rateLimitWaiting","requestId":"req-1","requestStartTime":1000,"providerName":"GCMP","modelName":"test-model","queuePosition":2},"sourceInstanceId":"leader-a"}]},"timestamp":0,"senderInstanceId":"leader-a"}',
         '{"type":"remoteInstanceHello","payload":{},"timestamp":0,"senderInstanceId":"follower-a"}',
-        '{"type":"remoteInstanceCapabilities","payload":{"targetInstanceId":"follower-a","extensionVersion":"1.0.0","usagesQueryProtocolVersion":1},"timestamp":0,"senderInstanceId":"leader-a"}',
+        `{"type":"remoteInstanceCapabilities","payload":{"targetInstanceId":"follower-a","extensionVersion":"1.0.0","usagesQueryProtocolVersion":${USAGES_QUERY_PROTOCOL_VERSION}},"timestamp":0,"senderInstanceId":"leader-a"}`,
         '{"type":"remoteInstanceDisconnected","payload":{"instanceId":"follower-a"},"timestamp":0,"senderInstanceId":"leader"}',
-        '{"type":"usagesQueryRequested","payload":{"requestId":"usage-1","requestedBy":"follower-a","authorityTerm":"leader-a:1","query":{"kind":"recentRecords","limit":3}},"timestamp":0,"senderInstanceId":"follower-a"}',
-        '{"type":"usagesQueryCompleted","payload":{"requestId":"usage-1","targetInstanceId":"follower-a","authorityTerm":"leader-a:1","result":{"kind":"recentRecords","value":[]}},"timestamp":0,"senderInstanceId":"leader-a"}',
+        JSON.stringify({
+            type: 'usagesQueryRequested',
+            payload: {
+                requestId: 'usage-1',
+                requestedBy: 'follower-a',
+                authorityTerm: 'leader-a:1',
+                query: recordsPageQuery()
+            },
+            timestamp: 0,
+            senderInstanceId: 'follower-a'
+        }),
+        JSON.stringify({
+            type: 'usagesQueryCompleted',
+            payload: {
+                requestId: 'usage-1',
+                targetInstanceId: 'follower-a',
+                authorityTerm: 'leader-a:1',
+                result: { kind: 'recordsPage', value: recordsPageResult(recordsPageQuery()) }
+            },
+            timestamp: 0,
+            senderInstanceId: 'leader-a'
+        }),
         '{"type":"rateLimitAcquireRequested","payload":{"authorityTerm":"leader-a:1","requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
         '{"type":"rateLimitAcquireGranted","payload":{"authorityTerm":"leader-a:1","requestId":"r1","waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
         '{"type":"rateLimitQueueUpdated","payload":{"authorityTerm":"leader-a:1","requestId":"r1","queuePosition":2},"timestamp":3,"senderInstanceId":"b"}',

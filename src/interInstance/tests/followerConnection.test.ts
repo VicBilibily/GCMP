@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { IpcClient } from '../ipcClient';
 import { USAGES_QUERY_PROTOCOL_VERSION, type InterInstanceEvent } from '../eventProtocol';
 import { createIpcHost, ipcPath, waitFor } from './ipcFixture';
+import { recordsPageQuery, recordsPageResult } from '../../usages/query/tests/recordsPageFixture';
 
 interface ConnectionTarget {
     instanceId: string;
@@ -237,13 +238,16 @@ test('Follower connection reuse preserves identity and lifecycle boundaries', as
         const f = await fixture();
         const { UsagesQueryCoordinator } = await import('../../usages/query/usagesQueryCoordinator');
         let localExecutions = 0;
-        const coordinator = new UsagesQueryCoordinator(async () => {
+        const pageQuery = recordsPageQuery();
+        const emptyPage = recordsPageResult(pageQuery);
+        const coordinator = new UsagesQueryCoordinator(async query => {
             localExecutions++;
-            return { kind: 'recentRecords', value: [] };
+            assert.ok(query.kind === 'recordsPage');
+            return { kind: query.kind, value: recordsPageResult(query) };
         });
         let query: Promise<unknown> | undefined;
         try {
-            query = coordinator.run({ kind: 'recentRecords', limit: 3 });
+            query = coordinator.run(pageQuery);
             await waitFor(() => f.events.some(value => value.type === 'usagesQueryRequested'), 'remote query missing');
             state.enqueueRoleSwitch(false);
             state.enqueueRoleSwitch(false);
@@ -257,14 +261,14 @@ test('Follower connection reuse preserves identity and lifecycle boundaries', as
                         requestId: request.payload.requestId,
                         targetInstanceId: 'flow-follower',
                         authorityTerm: 'flow-leader:1',
-                        result: { kind: 'recentRecords', value: [] }
+                        result: { kind: 'recordsPage', value: emptyPage }
                     },
                     timestamp: Date.now(),
                     senderInstanceId: 'flow-leader'
                 }),
                 'sent'
             );
-            assert.deepEqual(await query, []);
+            assert.deepEqual(await query, JSON.parse(JSON.stringify(emptyPage)));
             assert.equal(localExecutions, 0);
         } finally {
             coordinator.dispose();
