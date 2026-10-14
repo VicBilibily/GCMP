@@ -1265,69 +1265,6 @@
                     "fontCharacter": "\\e620"
                 }
             },
-            "gcmp-tokens": {
-                "description": "Tokens",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e64d"
-                }
-            },
-            "gcmp-token1": {
-                "description": "Tokens 1/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e677"
-                }
-            },
-            "gcmp-token2": {
-                "description": "Tokens 2/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e676"
-                }
-            },
-            "gcmp-token3": {
-                "description": "Tokens 3/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e679"
-                }
-            },
-            "gcmp-token4": {
-                "description": "Tokens 4/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e67d"
-                }
-            },
-            "gcmp-token5": {
-                "description": "Tokens 5/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e67e"
-                }
-            },
-            "gcmp-token6": {
-                "description": "Tokens 6/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e678"
-                }
-            },
-            "gcmp-token7": {
-                "description": "Tokens 7/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e67f"
-                }
-            },
-            "gcmp-token8": {
-                "description": "Tokens 8/8",
-                "default": {
-                    "fontPath": "./fonts/tokens.ttf",
-                    "fontCharacter": "\\e67a"
-                }
-            },
             "gcmp-git-commit": {
                 "description": "Git Commit",
                 "default": {
@@ -1406,7 +1343,7 @@
         "@types/vscode": "^1.138.0",
         "@vscode/test-cli": "^0.0.12",
         "@vscode/test-electron": "^2.5.2",
-        "@vscode/vsce": "^3.9.2",
+        "@vscode/vsce": "^4.0.0",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "less": "^4.5.1",

@@ -185,7 +185,7 @@ class AffinityProvider extends GenericModelProvider {
         return { ...tracked, usedKeys, parts, marker: readMarker(parts) };
     }
 
-    protected override async updateContextUsageStatusBar() {
+    protected override async estimateRequestTokens() {
         return { totalInputTokens: 0, maxInputTokens: 1024 };
     }
 

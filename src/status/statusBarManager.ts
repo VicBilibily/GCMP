@@ -8,7 +8,6 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { ChatGPTStatusBar } from './chatgptStatusBar';
 import { GrokStatusBar } from './grokStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
-import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
 import {
     createClinePassStatusBar,
@@ -66,8 +65,6 @@ export class StatusBarManager {
     static commandcode: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
-    /** 模型上下文窗口占用情况状态栏 */
-    static contextUsage: IStatusBar | undefined;
     /** Token 用量统计状态栏 */
     static tokenUsage: IStatusBar | undefined;
 
@@ -129,10 +126,6 @@ export class StatusBarManager {
         const compatibleStatusBar = new CompatibleStatusBar();
         this.registerStatusBar('compatible', compatibleStatusBar);
 
-        // 创建并注册 模型上下文窗口占用情况 状态栏
-        const contextUsageStatusBar = new ContextUsageStatusBar();
-        this.registerStatusBar('contextUsage', contextUsageStatusBar);
-
         // 创建并注册 Token 用量统计 状态栏
         const tokenUsageStatusBar = new TokenUsageStatusBar(context);
         this.registerStatusBar('tokenUsage', tokenUsageStatusBar);
@@ -184,9 +177,6 @@ export class StatusBarManager {
                 break;
             case 'compatible':
                 this.compatible = statusBar as ICompatibleStatusBar;
-                break;
-            case 'contextUsage':
-                this.contextUsage = statusBar;
                 break;
             case 'tokenUsage':
                 this.tokenUsage = statusBar;
@@ -305,7 +295,6 @@ export class StatusBarManager {
         this.opencode = undefined;
         this.clinepass = undefined;
         this.compatible = undefined;
-        this.contextUsage = undefined;
         this.tokenUsage = undefined;
     }
 

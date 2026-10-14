@@ -845,21 +845,6 @@ When FIM or NES completion requests fail consecutively, the circuit breaker temp
 
 </details>
 
-## 🪟 Context Window Usage Status Bar
-
-GCMP provides a status bar indicator showing the current session's context window usage ratio via a pie chart icon.
-
-<details>
-<summary>Click to expand feature details</summary>
-
-### Key Features
-
-- **Real-time monitoring**: The status bar displays the current session's context window usage ratio as a pie chart icon (0/8 ~ 8/8)
-- **Hover details**: Hover to view the model name, usage percentage, token count, and request kind
-- **Incremental estimation**: Supports delta estimation based on the previous request's actual API usage. The WebView detail view shows a "this request" increment column (`~+xx`) to help track per-request token growth in long conversations
-
-</details>
-
 ## 📊 Token Usage Statistics
 
 GCMP includes comprehensive token usage tracking to help you monitor and manage AI model consumption.
@@ -881,6 +866,7 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
         - ├─ Model level: Detailed data for that model in that hour
         - Providers and models sorted by request count descending; those with no valid requests are hidden
 - **Real-time status bar**: Status bar displays today's token usage, auto-refreshing every 30 seconds
+- **Incremental estimation**: Supports delta estimation based on the previous request's actual API usage. The WebView detail view shows a "this request" increment column (`~+xx`) to help track per-request token growth in long conversations
 - **Visual view**: WebView detail view supports viewing history and paginated request records
 - **Request kind classification**: Records and displays the Copilot request kind for each request (e.g., main agent, title generation, commit message, search subagent, vision recognition) so you can track the actual consumption of background utility tasks
 - **Real-time Request Metrics**: Displays time-to-first-token (TTFT) and time-per-output-token (TPOT) in real time during streaming, naturally refreshed by actual usage once completed

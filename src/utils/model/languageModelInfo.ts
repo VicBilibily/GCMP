@@ -64,8 +64,7 @@ export function getContextSizeOptions(
  *    若该值缺失，再回退到模型原始配置中的 `maxInputTokens`。
  *    结果：维持旧行为，不影响未使用 contextSize 的模型。
  *
- * 注意：该函数返回的是“输入上限”，不是“总上下文窗口”；
- * 状态栏展示总窗口时应使用 `getEffectiveContextWindow()`。
+ * 注意：该函数返回的是“输入上限”，不是“总上下文窗口”。
  */
 export function getEffectiveMaxInputTokens(
     model: Pick<vscode.LanguageModelChatInformation, 'maxInputTokens'>,
@@ -79,28 +78,6 @@ export function getEffectiveMaxInputTokens(
     }
 
     return model.maxInputTokens || modelConfig.maxInputTokens;
-}
-
-/**
- * 获取有效总上下文窗口大小（input + output = context）
- * 当用户通过 contextSize 选择了特定档位时，返回该档位的总窗口值；
- * 否则返回注册的总窗口（maxInputTokens + maxOutputTokens）。
- *
- * 逻辑结果：
- * 1. 用户显式选择了 contextSize：状态栏和占用比例按该档位的真实总窗口展示。
- * 2. 用户未选择 contextSize：回退到模型注册的默认总窗口展示。
- */
-export function getEffectiveContextWindow(
-    model: Pick<vscode.LanguageModelChatInformation, 'maxInputTokens'>,
-    modelConfig: Pick<ModelConfig, 'contextSize' | 'maxInputTokens' | 'maxOutputTokens'>,
-    options?: Pick<vscode.ProvideLanguageModelChatResponseOptions, 'modelConfiguration'>,
-    providerKey?: string
-): number {
-    const config = modelConfig as ModelConfig;
-    return (
-        resolveConfiguredContextSize(model, modelConfig, options, providerKey) ||
-        config.maxInputTokens + config.maxOutputTokens
-    );
 }
 
 export function createLanguageModelChatInformation(
@@ -332,7 +309,6 @@ function resolveConfiguredContextSize(
 
     const supportedContextSizes = getContextSizeOptions(modelConfig)?.map(option => option.value) || [];
     // 持久化值为 (totalWindow - maxOutputTokens)
-    // 逻辑结果：命中后返回真实总窗口，供状态栏展示与输入上限换算复用。
     if (supportedContextSizes.includes(totalWindow)) {
         return totalWindow;
     }

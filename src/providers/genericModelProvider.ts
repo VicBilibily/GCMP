@@ -30,7 +30,7 @@ import { ModelInfoCache } from '../utils/model/modelInfoCache';
 import { PromptAnalyzer } from '../utils/model/promptAnalyzer';
 import { RetryManager } from '../utils/retry/retryManager';
 import { TokenCounter } from '../utils/model/tokenCounter';
-import { getEffectiveMaxInputTokens, getEffectiveContextWindow } from '../utils/model/languageModelInfo';
+import { getEffectiveMaxInputTokens } from '../utils/model/languageModelInfo';
 import type { RetryableError } from '../utils/retry/retryManager';
 import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openai/openaiHandler';
@@ -38,7 +38,6 @@ import { OpenAICustomHandler } from '../handlers/openai/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropic/anthropicHandler';
 import { GeminiHandler, hasGeminiPartialUsage } from '../handlers/gemini/geminiHandler';
 import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../handlers/anthropic/anthropicRetry';
-import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openai/openaiResponsesHandler';
 import {
@@ -66,7 +65,7 @@ import {
 import { isApiKeyFailoverError } from '../utils/config/failover/apiKeyFailoverClassifier';
 import { BalanceAffinityCache, getBalanceTurnKey } from '../utils/config/failover/balanceAffinityCache';
 
-interface ContextUsageSummary {
+interface EstimatedRequestTokens {
     totalInputTokens: number;
     maxInputTokens: number;
     /** 增量预估模式下，本次新增 token 数 (delta) */
@@ -143,7 +142,7 @@ interface EstimatedRequestTrackingParams {
     timestamp?: number;
 }
 
-interface PreparedTrackedRequestContext extends ContextUsageSummary {
+interface PreparedTrackedRequestContext extends EstimatedRequestTokens {
     requestKind: string;
     sessionId: string;
     subSessionId?: string;
@@ -406,7 +405,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         options: ProvideLanguageModelChatResponseOptions
     ): Promise<PreparedTrackedRequestContext> {
         const requestKind = this.ensureRequestKind(messages, options);
-        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
+        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.estimateRequestTokens(
             model,
             messages,
             modelConfig,
@@ -1803,16 +1802,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         return TokenCounter.getInstance().countTokens(model, text);
     }
 
-    /**
-     * 估算输入 token 数量
-     * @returns 返回计算的输入 token 数量及当前生效的上下文窗口大小，供 Token 统计使用
-     */
-    protected async updateContextUsageStatusBar(
+    protected async estimateRequestTokens(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
         modelConfig: ModelConfig,
         options?: ProvideLanguageModelChatResponseOptions
-    ): Promise<ContextUsageSummary> {
+    ): Promise<EstimatedRequestTokens> {
         try {
             const analysis = await PromptAnalyzer.analyzePromptParts(
                 this.providerKey,
@@ -1824,19 +1819,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
             const totalInputTokens = analysis.context || 0;
             const maxInputTokens = getEffectiveMaxInputTokens(model, modelConfig, options, this.providerKey);
-            const contextWindow = getEffectiveContextWindow(model, modelConfig, options, this.providerKey);
-
-            // 更新上下文占用状态栏（显示总上下文窗口）
-            const contextUsageStatusBar = ContextUsageStatusBar.getInstance();
-            if (contextUsageStatusBar) {
-                contextUsageStatusBar.updateContextUsage(
-                    model.name || modelConfig.name,
-                    contextWindow,
-                    totalInputTokens,
-                    (options as RuntimeProvideLanguageModelChatResponseOptions)?.modelOptions?.requestKind,
-                    Date.now()
-                );
-            }
 
             if (totalInputTokens > maxInputTokens) {
                 Logger.warn(

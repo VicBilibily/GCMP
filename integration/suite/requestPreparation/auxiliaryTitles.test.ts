@@ -5,12 +5,14 @@ import { isSubRequest, type RequestKind } from '../../../src/handlers/requestCla
 import { encodeStatefulMarker } from '../../../src/handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../../src/handlers/types';
 import { GenericModelProvider } from '../../../src/providers/genericModelProvider';
+import { StatusBarManager } from '../../../src/status/statusBarManager';
 import { DateUtils } from '../../../src/usages/fileLogger/dateUtils';
 import type { TokenRequestLog } from '../../../src/usages/fileLogger/types';
 import { SessionRecoveryService } from '../../../src/usages/sessionRecoveryService';
 import { SessionTitleService } from '../../../src/usages/sessionTitleService';
 import { TokenUsagesManager } from '../../../src/usages/usagesManager';
 import type { ModelConfig } from '../../../src/types/sharedTypes';
+import { PromptAnalyzer } from '../../../src/utils/model/promptAnalyzer';
 import { TokenCounter } from '../../../src/utils/model/tokenCounter';
 
 const SDK_MODES = ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const;
@@ -93,7 +95,8 @@ class PreparationProvider extends GenericModelProvider {
     prepare(
         messages: vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
-        sdkMode: SdkMode
+        sdkMode: SdkMode,
+        contextSize?: number[]
     ) {
         const modelConfig: ModelConfig = {
             id: 'preparation-model',
@@ -103,6 +106,7 @@ class PreparationProvider extends GenericModelProvider {
             sdkMode,
             maxInputTokens: 8192,
             maxOutputTokens: 1024,
+            contextSize,
             capabilities: { toolCalling: true, imageInput: true }
         };
         const model = {
@@ -120,6 +124,7 @@ suite('auxiliary request title preparation', () => {
     const originalRecovery = SessionRecoveryService.instance;
     const originalUsages = TokenUsagesManager.instance;
     const originalTokenCounter = TokenCounter.getInstance;
+    const originalAnalyze = PromptAnalyzer.analyzePromptParts;
     let titles: SessionTitleService;
     let manager: typeof TokenUsagesManager.instance;
     let provider: PreparationProvider;
@@ -161,6 +166,7 @@ suite('auxiliary request title preparation', () => {
         try {
             await Promise.allSettled(preparations);
         } finally {
+            PromptAnalyzer.analyzePromptParts = originalAnalyze;
             TokenCounter.getInstance = originalTokenCounter;
             Object.defineProperty(TokenUsagesManager, 'instance', { value: originalUsages });
             Object.defineProperty(SessionRecoveryService, 'instance', { value: originalRecovery });
@@ -179,6 +185,68 @@ suite('auxiliary request title preparation', () => {
         preparations.push(preparation);
         return preparation;
     }
+
+    test('built-in status bars retain quota and token statistics without context usage', () => {
+        const keys = [
+            'minimax',
+            'zhipu',
+            'kimi',
+            'deepseek',
+            'moonshot',
+            'codex',
+            'grok',
+            'opencode',
+            'clinepass',
+            'commandcode',
+            'compatible',
+            'tokenUsage'
+        ];
+        const originalBars = StatusBarManager['statusBars'];
+        const originalInitialized = StatusBarManager['initialized'];
+        const originalMembers = Object.fromEntries(keys.map(key => [key, Reflect.get(StatusBarManager, key)]));
+        StatusBarManager['statusBars'] = new Map();
+        try {
+            StatusBarManager['registerBuiltInStatusBars']({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+            assert.equal(StatusBarManager.getStatusBar('contextUsage'), undefined);
+            assert.deepEqual(StatusBarManager.getRegisteredKeys(), keys);
+            for (const key of keys) {
+                assert.equal(StatusBarManager.getStatusBar(key), Reflect.get(StatusBarManager, key));
+            }
+            assert.equal(StatusBarManager.getStatusBar('minimax-token'), StatusBarManager.minimax);
+        } finally {
+            StatusBarManager.disposeAll();
+            StatusBarManager['statusBars'] = originalBars;
+            StatusBarManager['initialized'] = originalInitialized;
+            Object.assign(StatusBarManager, originalMembers);
+        }
+    });
+
+    for (const sdkMode of SDK_MODES) {
+        test(`${sdkMode}: token estimation retains the selected input budget and increment`, async () => {
+            const options = { ...requestOptions('summarization'), modelConfiguration: { contextSize: 3072 } };
+            const preparation = provider.prepare(requestMessages(randomUUID(), sdkMode), options, sdkMode, [4096]);
+            preparations.push(preparation);
+            const tracked = await preparation;
+            assert.equal(tracked.totalInputTokens, 138);
+            assert.equal(tracked.maxInputTokens, 3072);
+            assert.equal(tracked.estimatedIncrement, 10);
+            assert.deepEqual(reads, []);
+        });
+    }
+
+    test('token estimation failure preserves the input budget and does not block preparation', async () => {
+        PromptAnalyzer.analyzePromptParts = async () => {
+            throw new Error('token estimation unavailable');
+        };
+        const options = { ...requestOptions('summarization'), modelConfiguration: { contextSize: 3072 } };
+        const preparation = provider.prepare(requestMessages(), options, 'openai', [4096]);
+        preparations.push(preparation);
+        const tracked = await preparation;
+        assert.equal(tracked.totalInputTokens, 0);
+        assert.equal(tracked.maxInputTokens, 3072);
+        assert.equal(tracked.estimatedIncrement, undefined);
+        assert.match(tracked.sessionId, /^[0-9a-f-]{36}$/);
+    });
 
     for (const sdkMode of SDK_MODES) {
         for (const kind of AUXILIARY_KINDS) {
