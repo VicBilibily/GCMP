@@ -31,6 +31,7 @@ export class UsageStatusSnapshots {
     private lastSyncedAt = 0;
     private generation = 0;
     private disposed = false;
+    private initialFileMode: boolean;
     private readonly requests = new SnapshotRequests(
         () => this.get(),
         () => this.generation,
@@ -45,6 +46,8 @@ export class UsageStatusSnapshots {
         private readonly getSource?: (stats: TokenUsageStatsFromFile) => StatsResultSource | undefined,
         private readonly getLatest?: (date: string) => LatestUsageStatus | undefined
     ) {
+        this.initialFileMode =
+            !fileMode && !LeaderElectionService.getLeaderId() && !InterInstanceBus.getAuthorityTerm();
         if (!fileMode) {
             this.subscriptions.push(
                 InterInstanceBus.subscribe<UsageStatusSnapshotEvent>('usageStatusSnapshot', event =>
@@ -113,16 +116,17 @@ export class UsageStatusSnapshots {
         date: string,
         stats: TokenUsageStatsFromFile | UsageStatusStats,
         source?: StatsResultSource,
-        latest?: LatestUsageStatus
+        latest?: LatestUsageStatus,
+        initialFileMode = false
     ): UsageStatusSnapshot | undefined {
         if (this.disposed || source?.stale || date !== DateUtils.getTodayDateString()) {
             return;
         }
-        const term = this.fileMode ? 'file' : LeaderElectionService.getOwnedAuthorityTerm();
+        const term = this.fileMode || initialFileMode ? 'file' : LeaderElectionService.getOwnedAuthorityTerm();
         if (!term) {
             return;
         }
-        if (this.getSource && (!source || (!this.fileMode && source.authorityTerm !== term))) {
+        if (this.getSource && (!source || (!this.fileMode && !initialFileMode && source.authorityTerm !== term))) {
             return;
         }
         if (
@@ -147,10 +151,17 @@ export class UsageStatusSnapshots {
             throw new Error('Invalid usage status snapshot');
         }
         this.accept(snapshot, content);
-        if (!this.fileMode && LeaderElectionService.getOwnedAuthorityTerm() === term) {
+        if (!this.fileMode && !initialFileMode && LeaderElectionService.getOwnedAuthorityTerm() === term) {
             InterInstanceBus.publishIpcOnly({ type: 'usageStatusSnapshot', payload: { snapshot } });
         }
         return snapshot;
+    }
+
+    private canReadInitialFile(): boolean {
+        if (this.initialFileMode && (LeaderElectionService.getLeaderId() || InterInstanceBus.getAuthorityTerm())) {
+            this.initialFileMode = false;
+        }
+        return this.initialFileMode;
     }
 
     get(): Promise<UsageStatusSnapshot | undefined> {
@@ -158,8 +169,10 @@ export class UsageStatusSnapshots {
             return Promise.resolve(undefined);
         }
         const date = DateUtils.getTodayDateString();
-        const term = this.fileMode ? 'file' : LeaderElectionService.getOwnedAuthorityTerm();
-        if (!this.fileMode && !term) {
+        const initialFileMode = this.canReadInitialFile();
+        const savedRead = this.fileMode || initialFileMode;
+        const term = savedRead ? 'file' : LeaderElectionService.getOwnedAuthorityTerm();
+        if (!savedRead && !term) {
             const current = this.peek();
             const age = Date.now() - this.lastSyncedAt;
             return current?.authorityTerm === InterInstanceBus.getAuthorityTerm() && age >= 0 && age < 30000 ?
@@ -186,20 +199,27 @@ export class UsageStatusSnapshots {
         const generation = this.generation;
         const previous = this.snapshot;
         const previousSource = this.sourceRevision;
-        const promise = (this.fileMode ? this.readSaved(date) : this.readOwned(date))
+        const promise = (savedRead ? this.readSaved(date) : this.readOwned(date))
             .then(stats => {
                 if (
                     this.disposed ||
                     generation !== this.generation ||
                     date !== DateUtils.getTodayDateString() ||
-                    (!this.fileMode && LeaderElectionService.getOwnedAuthorityTerm() !== term)
+                    (!this.fileMode &&
+                        (initialFileMode ?
+                            !this.canReadInitialFile()
+                        :   LeaderElectionService.getOwnedAuthorityTerm() !== term))
                 ) {
                     return undefined;
                 }
                 if (this.snapshot !== previous || this.sourceRevision !== previousSource) {
                     return this.peek();
                 }
-                return stats ? this.update(date, stats) : undefined;
+                return (
+                    !stats ? undefined
+                    : initialFileMode ? this.apply(date, stats, this.getSource?.(stats), this.getLatest?.(date), true)
+                    : this.update(date, stats)
+                );
             })
             .finally(() => {
                 if (this.read?.promise === promise) {
@@ -239,6 +259,9 @@ export class UsageStatusSnapshots {
     }
 
     private accept(snapshot: UsageStatusSnapshot, content: string): void {
+        if (snapshot.authorityTerm !== 'file') {
+            this.initialFileMode = false;
+        }
         freezeUsageStatusStats(snapshot.stats);
         Object.freeze(snapshot);
         this.snapshot = snapshot;

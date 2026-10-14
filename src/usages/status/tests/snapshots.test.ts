@@ -3,6 +3,7 @@ import test from 'node:test';
 import { USAGES_QUERY_PROTOCOL_VERSION } from '../../../interInstance/eventProtocol';
 import { DateUtils } from '../../fileLogger/dateUtils';
 import { projectUsageStatus, type UsageStatusSnapshot } from '../snapshot';
+import type { StatsResultSource } from '../../fileLogger/refresh/statsRefreshQueue';
 import { createStatusHost, gate, stats } from './fixture';
 
 test('status snapshots use owner pushes and isolated-host file reads', async t => {
@@ -69,6 +70,185 @@ test('status snapshots use owner pushes and isolated-host file reads', async t =
         assert.equal(host.state.savedReads, 0);
         assert.equal(host.state.ownedReads, 0);
     });
+
+    await t.test('initialization without a leader shares one saved read and only displays local data', async c => {
+        host.reset();
+        host.state.leader = '';
+        host.state.term = '';
+        const release = gate();
+        const service = host.fixture(c, 'follower', false, async () => {
+            await release.promise;
+            return stats(4);
+        });
+        const updates: UsageStatusSnapshot[] = [];
+        service.onUpdate(value => updates.push(value));
+        const queries = Array.from({ length: 8 }, () => host.run('follower', () => service.get()));
+        assert.equal(host.state.savedReads, 1);
+        release.release();
+        const values = await Promise.all(queries);
+        assert.ok(values.every(value => value === service.peek()));
+        assert.equal(service.peek()?.stats.total.requests, 4);
+        assert.equal(service.peek()?.authorityTerm, 'file');
+        assert.equal(updates.length, 1);
+        assert.ok(Object.isFrozen(service.peek()?.stats.total));
+        await host.run('follower', () => service.get());
+        assert.equal(host.state.savedReads, 1);
+        assert.equal(host.state.ownedReads, 0);
+        assert.equal(host.events.length, 0);
+    });
+
+    await t.test('a known leader without an IPC authority does not allow startup file fallback', async c => {
+        host.reset();
+        host.state.term = '';
+        const follower = host.fixture(c, 'follower');
+        assert.equal(await host.run('follower', () => follower.get()), undefined);
+        assert.equal(host.state.savedReads, 0);
+        assert.equal(host.state.ownedReads, 0);
+    });
+
+    await t.test('a service initialized with a leader cannot fall back after authority disappears', async c => {
+        host.reset();
+        const follower = host.fixture(c, 'follower');
+        host.state.leader = '';
+        host.changeTerm('');
+        assert.equal(await host.run('follower', () => follower.get()), undefined);
+        assert.equal(host.state.savedReads, 0);
+    });
+
+    await t.test('a new owner push replaces the startup snapshot even with a lower revision', async c => {
+        host.reset();
+        host.state.leader = '';
+        host.state.term = '';
+        const follower = host.fixture(c, 'follower', false, async () => stats(4));
+        assert.equal((await host.run('follower', () => follower.get()))?.stats.total.requests, 4);
+        const localRevision = follower.peek()!.revision;
+        host.state.leader = 'leader';
+        host.changeTerm('leader:1');
+        push(snapshot(1, 2));
+        assert.ok(localRevision >= 1);
+        assert.equal((await host.run('follower', () => follower.get()))?.stats.total.requests, 2);
+        assert.equal(follower.peek()?.authorityTerm, 'leader:1');
+        assert.ok(host.events.some(event => event.type === 'usageStatusSnapshotRequested'));
+        host.state.leader = '';
+        host.changeTerm('');
+        assert.equal(await host.run('follower', () => follower.get()), undefined);
+        assert.equal(host.state.savedReads, 1);
+        assert.equal(host.state.ownedReads, 0);
+    });
+
+    await t.test('becoming the owner replaces startup file data using the owned read', async c => {
+        host.reset();
+        host.state.leader = '';
+        host.state.term = '';
+        const service = host.fixture(
+            c,
+            'follower',
+            false,
+            async () => stats(4),
+            async () => stats(2)
+        );
+        assert.equal((await host.run('follower', () => service.get()))?.stats.total.requests, 4);
+        host.state.leader = 'follower';
+        host.changeTerm('follower:1');
+        assert.equal((await host.run('follower', () => service.get()))?.stats.total.requests, 2);
+        assert.equal(service.peek()?.authorityTerm, 'follower:1');
+        assert.equal(host.state.savedReads, 1);
+        assert.equal(host.state.ownedReads, 1);
+    });
+
+    await t.test('startup and owner latest projections are reused without extra reads', async c => {
+        host.reset();
+        host.state.leader = '';
+        host.state.term = '';
+        const saved = stats(4);
+        const savedSource: StatsResultSource = { revision: 1, authorityTerm: undefined };
+        let latest = { stats: projectUsageStatus(saved), source: savedSource };
+        const service = host.fixture(
+            c,
+            'follower',
+            false,
+            async () => saved,
+            undefined,
+            () => savedSource,
+            () => latest
+        );
+        assert.equal((await host.run('follower', () => service.get()))?.stats, latest.stats);
+        host.state.leader = 'follower';
+        latest = {
+            stats: projectUsageStatus(stats(2)),
+            source: { revision: 2, authorityTerm: 'follower:1' }
+        };
+        host.changeTerm('follower:1');
+        const owned = await host.run('follower', () => service.get());
+        assert.equal(owned?.stats, latest.stats);
+        assert.equal(owned?.stats.total.requests, 2);
+        assert.equal(owned?.authorityTerm, 'follower:1');
+        host.state.leader = '';
+        host.changeTerm('');
+        assert.equal(await host.run('follower', () => service.get()), undefined);
+        assert.equal(host.state.savedReads, 1);
+        assert.equal(host.state.ownedReads, 0);
+    });
+
+    for (const arrival of ['push', 'discovery', 'authority-loss'] as const) {
+        await t.test(`late startup file data cannot survive owner ${arrival}`, async c => {
+            host.reset();
+            host.state.leader = '';
+            host.state.term = '';
+            const release = gate();
+            const service = host.fixture(c, 'follower', false, async () => {
+                await release.promise;
+                return stats(4);
+            });
+            const updates: UsageStatusSnapshot[] = [];
+            service.onUpdate(value => updates.push(value));
+            const reading = host.run('follower', () => service.get());
+            assert.equal(host.state.savedReads, 1);
+            host.state.leader = 'leader';
+            if (arrival !== 'discovery') {
+                host.changeTerm('leader:1');
+                if (arrival === 'push') {
+                    push(snapshot(1, 2));
+                } else {
+                    host.state.leader = '';
+                    host.changeTerm('');
+                }
+            }
+            release.release();
+            assert.equal(await reading, undefined);
+            assert.equal(service.peek()?.stats.total.requests, arrival === 'push' ? 2 : undefined);
+            assert.equal(updates.length, arrival === 'push' ? 1 : 0);
+            assert.equal(host.state.savedReads, 1);
+            assert.equal(host.state.ownedReads, 0);
+            service.dispose();
+        });
+    }
+
+    for (const invalidation of ['dispose', 'midnight'] as const) {
+        await t.test(`${invalidation} discards an unfinished startup file read`, async c => {
+            host.reset();
+            host.state.leader = '';
+            host.state.term = '';
+            let date = '2026-10-14';
+            c.mock.method(DateUtils, 'getTodayDateString', () => date);
+            const release = gate();
+            const service = host.fixture(c, 'follower', false, async () => {
+                await release.promise;
+                return stats(4);
+            });
+            const reading = host.run('follower', () => service.get());
+            assert.equal(host.state.savedReads, 1);
+            if (invalidation === 'dispose') {
+                service.dispose();
+            } else {
+                date = '2026-10-15';
+            }
+            release.release();
+            assert.equal(await reading, undefined);
+            assert.equal(service.peek(), undefined);
+            assert.equal(host.events.length, 0);
+        });
+    }
 
     await t.test('failed snapshot send never triggers file fallback', async c => {
         host.reset();

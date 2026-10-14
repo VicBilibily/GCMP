@@ -4,6 +4,7 @@ import type { TestContext } from 'node:test';
 import type { InterInstanceEvent } from '../../../interInstance/eventProtocol';
 import type { TokenStats, TokenUsageStatsFromFile } from '../../fileLogger/types';
 import type { StatsResultSource } from '../../fileLogger/refresh/statsRefreshQueue';
+import type { LatestUsageStatus } from '../snapshot';
 
 export function stats(count = 1): TokenUsageStatsFromFile {
     const total: TokenStats = {
@@ -123,6 +124,7 @@ export async function createStatusHost() {
             return {
                 LeaderElectionService: {
                     getInstanceId: current,
+                    getLeaderId: () => state.leader || undefined,
                     getAuthorityTerm: () => state.term,
                     getOwnedAuthorityTerm: () => (current() === state.leader ? state.term : undefined)
                 }
@@ -147,7 +149,8 @@ export async function createStatusHost() {
                 fileMode = false,
                 readSaved: () => Promise<TokenUsageStatsFromFile | null> = async () => stats(),
                 readOwned: () => Promise<TokenUsageStatsFromFile> = async () => stats(),
-                getSource?: (value: TokenUsageStatsFromFile) => StatsResultSource | undefined
+                getSource?: (value: TokenUsageStatsFromFile) => StatsResultSource | undefined,
+                getLatest?: (date: string) => LatestUsageStatus | undefined
             ) {
                 const service = run(
                     id,
@@ -162,7 +165,8 @@ export async function createStatusHost() {
                                 state.ownedReads++;
                                 return readOwned();
                             },
-                            getSource
+                            getSource,
+                            getLatest
                         )
                 );
                 t.after(() => service.dispose());

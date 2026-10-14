@@ -39,6 +39,16 @@ test(
             assert.deepEqual({ ...item }, before);
         });
 
+        await t.test('startup file statistics render until an authoritative push replaces them', async c => {
+            const { item } = await host.start(c, async () => ({ ...snapshot(4), authorityTerm: 'file' }));
+            assert.equal(item.text, '$(layers) 300 $0.04');
+            host.snapshots.emit(snapshot(2));
+            assert.equal(item.text, '$(layers) 150 $0.02');
+            assert.equal(host.state.reads, 1);
+            assert.equal(host.state.dateReads, 0);
+            assert.equal(host.state.detailReads, 0);
+        });
+
         await t.test('file mode only queries for tokenUsageUpdated payloads dated today', async c => {
             await host.start(c);
             host.state.fileMode = true;
