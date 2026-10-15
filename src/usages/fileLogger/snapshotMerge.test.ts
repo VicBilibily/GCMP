@@ -17,6 +17,282 @@ import {
     type SnapshotRequestRecord
 } from './snapshotMerge';
 import { sanitizeRawUsage, type TokenRequestLog } from './types';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
+
+const classification: RequestClassificationMetadata = {
+    version: 1,
+    requestOrigin: 'copilot-sdk',
+    agentRole: 'subagent',
+    evidence: {
+        origin: { level: 'signature', ruleId: 'sdk-identity' },
+        purpose: { level: 'signature', ruleId: 'subagent-task' },
+        role: { level: 'contract', ruleId: 'explicit-subagent' }
+    }
+};
+const continuity: RequestContinuity = { version: 1, scope: 'subagent', source: 'new' };
+
+for (const status of ['completed', 'failed', 'cancelled'] as const) {
+    test(`snapshot ${status} without metadata preserves estimated metadata in both merge orders`, () => {
+        const estimated = {
+            ...createRecord(),
+            requestClassification: classification,
+            requestContinuity: continuity
+        };
+        const terminal = {
+            ...createRecord({ status, timestamp: 2000, rawUsage: { prompt_tokens: 10, completion_tokens: 5 } }),
+            requestClassification: undefined,
+            requestContinuity: undefined,
+            estimatedCost: 0.125
+        };
+        for (const [base, overlay] of [
+            [estimated, terminal],
+            [terminal, estimated]
+        ]) {
+            const merged = mergeSnapshotRecord(base, overlay);
+            assert.deepEqual(merged.requestClassification, classification);
+            assert.deepEqual(merged.requestContinuity, continuity);
+            assert.equal(merged.status, status);
+            assert.equal(merged.timestamp, 1000);
+            assert.equal(merged.estimatedCost, 0.125);
+            assert.deepEqual(merged.rawUsage, terminal.rawUsage);
+        }
+    });
+}
+
+for (const level of ['heuristic', 'signature', 'contract'] as const) {
+    test(`snapshot merge pairs kind and purpose independently of terminal preference for ${level}`, () => {
+        const estimated = { ...createRecord({ requestKind: 'subagent' }), requestClassification: classification };
+        const terminal = {
+            ...createRecord({
+                requestKind: 'chat-title',
+                status: 'completed',
+                timestamp: 2000,
+                rawUsage: { prompt_tokens: 10, completion_tokens: 5 }
+            }),
+            estimatedCost: 0.125,
+            requestClassification: {
+                ...classification,
+                evidence: { ...classification.evidence, purpose: { level, ruleId: 'title-purpose' } }
+            }
+        };
+        const before = structuredClone({ estimated, terminal });
+        for (const [base, overlay] of [
+            [estimated, terminal],
+            [terminal, estimated]
+        ]) {
+            const merged = mergeSnapshotRecord(base, overlay);
+            assert.equal(
+                merged.requestKind,
+                level === 'signature' ? 'unclassified'
+                : level === 'contract' ? 'chat-title'
+                : 'subagent'
+            );
+            assert.deepEqual(
+                merged.requestClassification?.evidence.purpose,
+                level === 'signature' ?
+                    { level: 'unknown', conflictLevel: 'signature', reasonCode: 'classification-conflict' }
+                :   (level === 'contract' ? terminal : estimated).requestClassification.evidence.purpose
+            );
+            assert.equal(merged.status, 'completed');
+            assert.equal(merged.timestamp, 1000);
+            assert.equal(merged.estimatedCost, 0.125);
+            assert.deepEqual(merged.rawUsage, terminal.rawUsage);
+        }
+        assert.deepEqual({ estimated, terminal }, before);
+    });
+}
+
+test('snapshot metadata without kind cannot replace the existing kind or purpose', () => {
+    const estimated = { ...createRecord({ requestKind: 'subagent' }), requestClassification: classification };
+    const terminal = {
+        ...createRecord({ status: 'completed' }),
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level: 'contract' as const, ruleId: 'orphan-purpose' } }
+        }
+    };
+    for (const [base, overlay] of [
+        [estimated, terminal],
+        [terminal, estimated]
+    ]) {
+        const merged = mergeSnapshotRecord(base, overlay);
+        assert.equal(merged.requestKind, 'subagent');
+        assert.deepEqual(merged.requestClassification?.evidence.purpose, classification.evidence.purpose);
+        assert.equal(merged.status, 'completed');
+    }
+});
+
+test('snapshot signature conflict survives JSONL and equal/weaker updates but yields to contract commit', () => {
+    const first = { ...createRecord({ requestKind: 'subagent' }), requestClassification: classification };
+    const second = { ...first, requestKind: 'chat-title' };
+    const conflicted = mergeSnapshotFiles({ 'req-1': first }, { 'req-1': second });
+    const restored = parseSnapshotFileContent(stringifySnapshotFile(conflicted));
+    assert.equal(restored['req-1'].requestKind, 'unclassified');
+    assert.deepEqual(restored['req-1'].requestClassification?.evidence.purpose, {
+        level: 'unknown',
+        conflictLevel: 'signature',
+        reasonCode: 'classification-conflict'
+    });
+    for (const level of ['unknown', 'heuristic', 'signature'] as const) {
+        const update = {
+            ...first,
+            requestClassification: {
+                ...classification,
+                evidence: { ...classification.evidence, purpose: { level, ruleId: 'repeated-purpose' } }
+            }
+        };
+        for (const [base, overlay] of [
+            [restored, { 'req-1': update }],
+            [{ 'req-1': update }, restored]
+        ]) {
+            const merged = mergeSnapshotFiles(base, overlay)['req-1'];
+            assert.equal(merged.requestKind, 'unclassified');
+            assert.deepEqual(merged.requestClassification, restored['req-1'].requestClassification);
+        }
+    }
+    const terminal = {
+        ...createRecord({ requestKind: 'git-commit-message', status: 'completed' }),
+        estimatedCost: 0.5,
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level: 'contract' as const, ruleId: 'commit-purpose' } }
+        }
+    };
+    const merged = mergeSnapshotFiles(restored, { 'req-1': terminal })['req-1'];
+    assert.equal(merged.requestKind, 'git-commit-message');
+    assert.deepEqual(merged.requestClassification, terminal.requestClassification);
+    assert.equal(merged.status, 'completed');
+    assert.equal(merged.estimatedCost, 0.5);
+});
+
+test('snapshot contract commit wins over signature main/title across all orders, groups and JSONL round trips', () => {
+    const [first, second, third] = (
+        [
+            ['main-agent', 'signature', 'main-purpose'],
+            ['chat-title', 'signature', 'title-purpose'],
+            ['git-commit-message', 'contract', 'commit-purpose']
+        ] as const
+    ).map(([requestKind, level, ruleId]) => ({
+        ...createRecord({ requestKind }),
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level, ruleId } }
+        }
+    }));
+    const before = structuredClone([first, second, third]);
+    for (const [a, b, c] of [
+        [first, second, third],
+        [first, third, second],
+        [second, first, third],
+        [second, third, first],
+        [third, first, second],
+        [third, second, first]
+    ]) {
+        const ab = mergeSnapshotFiles({ 'req-1': a }, { 'req-1': b });
+        const bc = mergeSnapshotFiles({ 'req-1': b }, { 'req-1': c });
+        const restoredAB = parseSnapshotFileContent(stringifySnapshotFile(ab));
+        const restoredBC = parseSnapshotFileContent(stringifySnapshotFile(bc));
+        const mergedRecords = [
+            mergeSnapshotRecord(mergeSnapshotRecord(a, b), c),
+            mergeSnapshotRecord(a, mergeSnapshotRecord(b, c)),
+            mergeSnapshotFiles(ab, { 'req-1': c })['req-1'],
+            mergeSnapshotFiles({ 'req-1': a }, bc)['req-1'],
+            mergeSnapshotFiles(restoredAB, { 'req-1': c })['req-1'],
+            mergeSnapshotFiles({ 'req-1': a }, restoredBC)['req-1']
+        ];
+        for (const merged of mergedRecords) {
+            assert.equal(merged.requestKind, 'git-commit-message');
+            assert.deepEqual(merged.requestClassification, third.requestClassification);
+        }
+    }
+    assert.deepEqual([first, second, third], before);
+});
+
+test('snapshot conflicting metadata keeps reliable evidence independent of terminal preference', () => {
+    const reliable = { ...createRecord(), requestClassification: classification };
+    const weaker: RequestClassificationMetadata = {
+        ...classification,
+        agentRole: 'main',
+        evidence: { ...classification.evidence, role: { level: 'heuristic', ruleId: 'weak-role' } }
+    };
+    const terminal = { ...createRecord({ status: 'completed' }), requestClassification: weaker, estimatedCost: 0.5 };
+    for (const [base, overlay] of [
+        [reliable, terminal],
+        [terminal, reliable]
+    ]) {
+        const merged = mergeSnapshotRecord(base, overlay);
+        assert.equal(merged.requestClassification?.agentRole, 'subagent');
+        assert.equal(merged.requestClassification?.evidence.role.level, 'contract');
+        assert.equal(merged.estimatedCost, 0.5);
+    }
+});
+
+test('snapshot parsing drops only unsupported metadata and preserves future target kinds', () => {
+    const record = {
+        ...createRecord({ status: 'completed', requestKind: 'future-kind', rawUsage: { prompt_tokens: 10 } }),
+        requestClassification: { ...classification, agentRole: 'future-role' },
+        requestContinuity: { ...continuity, source: 'future-source' },
+        estimatedCost: 0.5
+    };
+    const parsed = parseSnapshotFileContent(JSON.stringify(record))['req-1'];
+    assert.ok(parsed);
+    assert.equal(parsed.requestClassification, undefined);
+    assert.equal(parsed.requestContinuity, undefined);
+    assert.equal(parsed.requestKind, 'future-kind');
+    assert.equal(parsed.estimatedCost, 0.5);
+    assert.deepEqual(parsed.rawUsage, record.rawUsage);
+});
+
+test('snapshot files round trip classification and preserve it after old-writer terminal upsert', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gcmp-classification-snapshot-'));
+    const restoreHost = mockLoggerHost();
+    try {
+        const { SnapshotManager } = await import('./snapshotManager');
+        const { LogPathManager } = await import('./logPathManager');
+        const snapshots = new SnapshotManager(new LogPathManager(dir), () => {});
+        const date = DateUtils.getDateStringDaysAgo(3);
+        const timestamp = new Date(`${date}T10:00:00`).getTime();
+        const estimated = {
+            ...createRequestLog('classification-snapshot'),
+            timestamp,
+            isoTime: new Date(timestamp).toISOString(),
+            status: 'estimated' as const,
+            requestClassification: classification,
+            requestContinuity: continuity,
+            requestKind: 'subagent',
+            requestInitiator: 'core'
+        };
+        await snapshots.buildSnapshotFromLogs(date, [estimated]);
+        const firstRead = await snapshots.readRecord(date, estimated.requestId);
+        assert.deepEqual(firstRead?.requestClassification, classification);
+        assert.deepEqual(firstRead?.requestContinuity, continuity);
+        await snapshots.upsertRecord(date, {
+            ...estimated,
+            requestClassification: undefined,
+            requestContinuity: undefined,
+            status: 'completed',
+            rawUsage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+            estimatedCost: 0.125
+        });
+        const records = await snapshots.read(date);
+        assert.equal(records?.length, 1);
+        assert.deepEqual(records?.[0].requestClassification, classification);
+        assert.deepEqual(records?.[0].requestContinuity, continuity);
+        assert.equal(records?.[0].requestKind, 'subagent');
+        assert.equal(records?.[0].requestInitiator, 'core');
+        assert.equal(records?.[0].totalTokens, 15);
+        assert.equal(records?.[0].estimatedCost, 0.125);
+        const content = await readFile(join(dir, 'usages', date, 'requests.jsonl'), 'utf8');
+        assert.equal(content.split('\n')[0], ORDERED_SNAPSHOT_FORMAT_MARKER);
+        assert.deepEqual(parseSnapshotFileContent(content)[estimated.requestId].requestClassification, classification);
+    } finally {
+        restoreHost();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {

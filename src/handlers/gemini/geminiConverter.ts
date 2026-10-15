@@ -12,7 +12,7 @@ import {
     type GeminiToolCallMarker,
     type GeminiThoughtSignatureMarker,
     type StatefulMarkerContainer
-} from '../statefulMarker';
+} from '../stateful/statefulMarker';
 import { t } from '../../utils/runtime/l10n';
 
 interface GeminiMarkerIdentity {

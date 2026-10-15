@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { convertMessagesToGemini } from '../../src/handlers/gemini/geminiConverter';
 import { GeminiHandler } from '../../src/handlers/gemini/geminiHandler';
 import type { GeminiContent, GeminiPart } from '../../src/handlers/gemini/geminiType';
-import { encodeStatefulMarker } from '../../src/handlers/statefulMarker';
+import { encodeStatefulMarker } from '../../src/handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import type { ModelConfig } from '../../src/types/sharedTypes';

@@ -10,6 +10,22 @@ import { LiveMetricsTracker } from '../../handlers/liveMetricsTracker';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { DateUtils } from './dateUtils';
 import { UsageParser } from './usageParser';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
+
+const classification: RequestClassificationMetadata = {
+    version: 1,
+    requestOrigin: 'copilot-sdk',
+    agentRole: 'undetermined',
+    evidence: {
+        origin: { level: 'signature', ruleId: 'sdk-identity' },
+        purpose: { level: 'unknown' },
+        role: { level: 'unknown' }
+    }
+};
+const continuity: RequestContinuity = { version: 1, scope: 'chain', source: 'marker' };
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -71,10 +87,14 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                     modelId: 'test',
                     modelName: 'Test',
                     estimatedInput: 10,
+                    requestClassification: classification,
+                    requestContinuity: continuity,
                     timestamp: requestStartTime
                 });
                 const pending = logger.getPendingLogs()[0];
                 assert.ok(pending);
+                assert.deepEqual(pending.requestClassification, classification);
+                assert.deepEqual(pending.requestContinuity, continuity);
                 const apiKeyHash = createHash('sha256').update('request-key-a').digest('hex');
                 const requestStarted = {
                     type: 'requestStarted' as const,
@@ -101,6 +121,8 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 assert.equal(pending.streamStartTime, streamStartTime);
                 assert.equal(pending.outputSpeed, 100);
                 assert.equal(pending.outputTokens, 100);
+                assert.deepEqual(pending.requestClassification, classification);
+                assert.deepEqual(pending.requestContinuity, continuity);
 
                 let signalWriteStarted!: () => void;
                 const writeStarted = new Promise<void>(resolve => {
@@ -152,6 +174,8 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 const records = await logger.readDateLogs(DateUtils.formatDate(new Date(pending.timestamp)));
                 const saved = records.find(record => record.requestId === requestId && record.status === status);
                 assert.ok(saved);
+                assert.deepEqual(saved.requestClassification, classification);
+                assert.deepEqual(saved.requestContinuity, continuity);
                 assert.equal(saved.requestMetricStartTime, requestStartTime);
                 assert.equal(saved.streamStartTime, streamStartTime);
                 assert.equal(saved.streamEndTime, streamEndTime);
@@ -161,6 +185,8 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 assert.equal(saved.apiKeyName, requestStarted.apiKeyName);
                 const date = DateUtils.formatDate(new Date(saved.timestamp));
                 const merged = (await logger.getRequestDetails(date)).find(record => record.requestId === requestId);
+                assert.deepEqual(merged?.requestClassification, classification);
+                assert.deepEqual(merged?.requestContinuity, continuity);
                 assert.equal(merged?.apiKeyHash, apiKeyHash);
                 assert.equal(merged?.apiKeyName, requestStarted.apiKeyName);
                 const rawLog = await readFile(
@@ -174,6 +200,9 @@ for (const status of ['completed', 'failed', 'cancelled'] as const) {
                 assert.equal(snapshotText.includes(apiKeyHash), true);
                 assert.equal(snapshotText.includes(requestStarted.apiKeyName), true);
                 assert.equal(snapshotText.includes('request-key-a'), false);
+                const snapshotRecord = await internals.snapshotManager.readRecord(date, requestId);
+                assert.deepEqual(snapshotRecord?.requestClassification, classification);
+                assert.deepEqual(snapshotRecord?.requestContinuity, continuity);
                 assert.equal((await internals.snapshotManager.readRecord(date, requestId))?.apiKeyHash, apiKeyHash);
                 assert.equal(
                     (await internals.snapshotManager.readRecord(date, requestId))?.apiKeyName,

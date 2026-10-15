@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import type * as vscode from 'vscode';
-import type { GenericModelProvider } from '../providers/genericModelProvider';
-import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
+import type { GenericModelProvider } from '../../providers/genericModelProvider';
+import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
 import type { RequestKind } from './requestClassifier';
+import type { AgentRole, EvidenceLevel, RequestClassificationMetadata } from './requestClassification';
+import { setScopedRequestClassification } from './requestClassification';
+import { SDK_COMPACTION, SDK_MAIN } from './testFixtures/sdkPurposeSamples';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -19,10 +22,10 @@ class MockTextPart {
 
 interface RequestModules {
     classifier: typeof import('./requestClassifier');
-    OpenAIHandler: typeof import('./openai/openaiHandler').OpenAIHandler;
-    AnthropicHandler: typeof import('./anthropic/anthropicHandler').AnthropicHandler;
-    OpenAIResponsesMessageConverter: typeof import('./openai/openaiResponsesMessageConverter').OpenAIResponsesMessageConverter;
-    OpenAIResponsesRequestBuilder: typeof import('./openai/openaiResponsesRequestBuilder').OpenAIResponsesRequestBuilder;
+    OpenAIHandler: typeof import('../openai/openaiHandler').OpenAIHandler;
+    AnthropicHandler: typeof import('../anthropic/anthropicHandler').AnthropicHandler;
+    OpenAIResponsesMessageConverter: typeof import('../openai/openaiResponsesMessageConverter').OpenAIResponsesMessageConverter;
+    OpenAIResponsesRequestBuilder: typeof import('../openai/openaiResponsesRequestBuilder').OpenAIResponsesRequestBuilder;
 }
 
 let modulesPromise: Promise<RequestModules> | undefined;
@@ -71,10 +74,10 @@ async function getModules(): Promise<RequestModules> {
 
     modulesPromise = Promise.all([
         import('./requestClassifier'),
-        import('./openai/openaiHandler'),
-        import('./anthropic/anthropicHandler'),
-        import('./openai/openaiResponsesMessageConverter'),
-        import('./openai/openaiResponsesRequestBuilder')
+        import('../openai/openaiHandler'),
+        import('../anthropic/anthropicHandler'),
+        import('../openai/openaiResponsesMessageConverter'),
+        import('../openai/openaiResponsesRequestBuilder')
     ])
         .then(([classifier, openai, anthropic, converter, responses]) => ({
             classifier,
@@ -94,6 +97,7 @@ type Protocol = 'openai' | 'openai-responses' | 'anthropic';
 
 interface ThinkingRequest {
     model?: string;
+    tools?: { type: string }[];
     thinking?: { type: string };
     enable_thinking?: boolean;
     reasoning_effort?: string;
@@ -105,7 +109,8 @@ async function buildRequest(
     protocol: Protocol,
     requestKind: RequestKind,
     settings?: ModelChatResponseOptions,
-    overrides?: Partial<ModelConfig>
+    overrides?: Partial<ModelConfig>,
+    classification?: RequestClassificationMetadata
 ): Promise<ThinkingRequest> {
     const { OpenAIHandler, AnthropicHandler, OpenAIResponsesMessageConverter, OpenAIResponsesRequestBuilder } =
         await getModules();
@@ -134,6 +139,9 @@ async function buildRequest(
         modelOptions: { requestKind }
     };
     const provider = { provider: 'test' } as GenericModelProvider;
+    if (classification) {
+        setScopedRequestClassification(options, { ...classification, requestKind });
+    }
 
     if (protocol === 'openai') {
         return new OpenAIHandler(provider).buildChatCompletionParams(
@@ -182,6 +190,45 @@ function getEffort(request: ThinkingRequest): string | undefined {
     return request.reasoning_effort ?? request.reasoning?.effort ?? request.output_config?.effort;
 }
 
+for (const protocol of ['openai', 'openai-responses', 'anthropic'] as const) {
+    for (const level of ['signature', 'heuristic', 'unknown'] as const) {
+        test(`${protocol} 实际请求体按 ${level} 证据决定辅助思考策略，分类不进入上游`, async () => {
+            const classification: RequestClassificationMetadata = {
+                version: 1,
+                requestOrigin: 'copilot-chat',
+                agentRole: 'not-applicable',
+                evidence: {
+                    origin: { level: 'signature' },
+                    purpose: { level },
+                    role: { level }
+                }
+            };
+            const request = await buildRequest(
+                protocol,
+                'chat-title',
+                protocol === 'anthropic' ?
+                    { reasoningEffort: 'high' }
+                :   { thinking: 'enabled', reasoningEffort: 'high' },
+                undefined,
+                classification
+            );
+            assert.equal(request.thinking?.type, level === 'signature' ? 'disabled' : 'enabled');
+            if (level !== 'signature') {
+                assert.equal(getEffort(request), 'high');
+            }
+            for (const field of [
+                'requestOrigin',
+                'requestClassification',
+                'requestContinuity',
+                'evidence',
+                'requestKind'
+            ]) {
+                assert.equal(JSON.stringify(request).includes(`"${field}"`), false);
+            }
+        });
+    }
+}
+
 const protocols: Array<{ protocol: Protocol; extraBody: NonNullable<ModelConfig['extraBody']> }> = [
     { protocol: 'openai', extraBody: { thinking: { type: 'enabled' }, reasoning_effort: 'medium' } },
     {
@@ -191,7 +238,7 @@ const protocols: Array<{ protocol: Protocol; extraBody: NonNullable<ModelConfig[
     { protocol: 'anthropic', extraBody: { thinking: { type: 'enabled' }, output_config: { effort: 'medium' } } }
 ];
 
-for (const requestKind of ['search-subagent', 'execution-subagent'] as const) {
+for (const requestKind of ['search-subagent', 'execution-subagent', 'subagent', 'unclassified'] as const) {
     test(`${requestKind} 保留请求分类及传入的推荐思考强度`, async () => {
         const { classifier } = await getModules();
         const mode = requestKind === 'search-subagent' ? 'Explore' : 'Execution';
@@ -203,11 +250,13 @@ for (const requestKind of ['search-subagent', 'execution-subagent'] as const) {
             { role: 1, name: 'gcmp-system', content: [new MockTextPart(systemPrompt)] }
         ];
 
-        assert.equal(
-            classifier.classifyRequest(messages, [{ name: toolName }] as vscode.LanguageModelChatTool[]),
-            requestKind
-        );
-        assert.equal(classifier.isSubRequest(requestKind), true);
+        if (requestKind === 'search-subagent' || requestKind === 'execution-subagent') {
+            assert.equal(
+                classifier.classifyRequest(messages, [{ name: toolName }] as vscode.LanguageModelChatTool[]),
+                requestKind
+            );
+        }
+        assert.equal(classifier.isSubRequest(requestKind), requestKind !== 'unclassified');
         assert.equal(classifier.shouldDisableThinkingForRequest(requestKind), false);
         assert.equal(classifier.getRecommendedReasoningEffort(requestKind, 'high'), 'high');
         assert.equal(classifier.getRecommendedReasoningEffort(requestKind, undefined), undefined);
@@ -429,6 +478,127 @@ test('其他辅助请求继续推荐关闭思考，主请求保持用户强度',
     assert.equal(classifier.getRecommendedReasoningEffort('main-agent', 'high'), 'high');
 });
 
+for (const level of ['contract', 'signature', 'heuristic', 'unknown'] satisfies EvidenceLevel[]) {
+    for (const agentRole of ['main', 'subagent', 'undetermined', 'not-applicable'] satisfies AgentRole[]) {
+        test(`用途证据 ${level}/${agentRole} 仅强辅助任务可自动关闭思考`, async () => {
+            const { classifier } = await getModules();
+            const metadata: RequestClassificationMetadata = {
+                version: 1,
+                requestOrigin: 'copilot-chat',
+                agentRole,
+                evidence: {
+                    origin: { level: 'contract' },
+                    purpose: { level },
+                    role: { level: 'signature' }
+                }
+            };
+            const expected = (level === 'contract' || level === 'signature') && agentRole === 'not-applicable';
+            for (const kind of ['summarization', 'chat-title', 'git-commit-message', 'todo-tracker'] as const) {
+                assert.equal(classifier.shouldDisableThinkingForRequest(kind, metadata), expected);
+                assert.equal(
+                    classifier.getRecommendedReasoningEffort(kind, 'high', metadata),
+                    expected ? 'none' : 'high'
+                );
+                assert.equal(
+                    classifier.getRecommendedReasoningEffort(kind, undefined, metadata),
+                    expected ? 'none' : undefined
+                );
+            }
+        });
+    }
+}
+
+test('高等级 metadata 不能使主请求、子代理和未分类请求自动关闭思考', async () => {
+    const { classifier } = await getModules();
+    const metadata: RequestClassificationMetadata = {
+        version: 1,
+        requestOrigin: 'gcmp',
+        agentRole: 'not-applicable',
+        evidence: {
+            origin: { level: 'contract' },
+            purpose: { level: 'contract' },
+            role: { level: 'contract' }
+        }
+    };
+    for (const kind of [
+        'main-agent',
+        'terminal-steering',
+        'subagent',
+        'search-subagent',
+        'execution-subagent',
+        'unclassified',
+        'background',
+        'unknown'
+    ] as const) {
+        assert.equal(classifier.shouldDisableThinkingForRequest(kind, metadata), false);
+        assert.equal(classifier.getRecommendedReasoningEffort(kind, 'high', metadata), 'high');
+    }
+    assert.equal(classifier.shouldDisableThinkingForRequest(undefined, metadata), false);
+});
+
+for (const reasonCode of [
+    'classification-conflict',
+    'extraction-budget-exceeded',
+    'extraction-failed',
+    'classification-failed'
+]) {
+    test(`降级原因 ${reasonCode} 阻止遗留强用途证据关闭思考`, async () => {
+        const { classifier } = await getModules();
+        for (const level of ['signature', 'contract'] as const) {
+            const metadata: RequestClassificationMetadata = {
+                version: 1,
+                requestOrigin: 'copilot-chat',
+                agentRole: 'not-applicable',
+                evidence: {
+                    origin: { level: 'signature' },
+                    purpose: { level, reasonCode },
+                    role: { level }
+                }
+            };
+            assert.equal(classifier.shouldDisableThinkingForRequest('chat-title', metadata), false);
+            assert.equal(classifier.getRecommendedReasoningEffort('chat-title', 'high', metadata), 'high');
+        }
+    });
+}
+
+test('实际分类的弱单工具和 SDK 来源均保留思考，旧用途签名与 GCMP 契约允许关闭', async () => {
+    const { classifier } = await getModules();
+    const weak = classifier.classifyRequestContext([], {
+        requestInitiator: 'github.copilot-chat',
+        tools: [{ name: 'manage_todo_list', description: '', inputSchema: {} }]
+    });
+    const sdk = classifier.classifyRequestContext([
+        {
+            role: 1,
+            name: 'gcmp-system',
+            content: [new MockTextPart('You are an AI assistant using Copilot SDK in VS Code.')]
+        }
+    ]);
+    for (const classification of [weak, sdk]) {
+        assert.equal(classifier.shouldDisableThinkingForRequest(classification.requestKind, classification), false);
+        assert.equal(
+            classifier.getRecommendedReasoningEffort(classification.requestKind, 'high', classification),
+            'high'
+        );
+    }
+    const title = classifier.classifyRequestContext([
+        { role: 1, name: 'gcmp-system', content: [new MockTextPart('You are an expert in crafting pithy titles')] }
+    ]);
+    assert.equal(title.evidence.purpose.level, 'signature');
+    const commit = classifier.classifyRequestContext([], {
+        requestInitiator: 'vicanent.gcmp',
+        modelOptions: { requestKind: 'git-commit-message' }
+    });
+    assert.equal(commit.evidence.purpose.level, 'contract');
+    for (const classification of [title, commit]) {
+        assert.equal(classifier.shouldDisableThinkingForRequest(classification.requestKind, classification), true);
+        assert.equal(
+            classifier.getRecommendedReasoningEffort(classification.requestKind, 'high', classification),
+            'none'
+        );
+    }
+});
+
 for (const { protocol } of protocols) {
     test(`${protocol} 摘要请求仍自动关闭思考`, async () => {
         const settings: ModelChatResponseOptions =
@@ -536,3 +706,55 @@ test('Responses extraBody.include=null 在最终请求中不存在且不恢复�
     assert.equal(Object.hasOwn(request, 'include'), false);
     assert.equal(request.reasoning?.effort, 'high');
 });
+
+for (const protocol of ['openai', 'openai-responses', 'anthropic'] as const) {
+    test(`${protocol}: SDK 弱摘要标签不改变思考与原生工具`, async () => {
+        const { classifier } = await getModules();
+        const input = [
+            { role: 0, content: [{ value: SDK_MAIN }] },
+            { role: 1, content: [{ value: SDK_COMPACTION }] }
+        ] as unknown as vscode.LanguageModelChatMessage[];
+        const classification = classifier.classifyRequestContext(input, { requestInitiator: 'core' });
+        const request = await buildRequest(
+            protocol,
+            'summarization',
+            { reasoningEffort: 'high', thinking: 'enabled' },
+            { nativeTools: [{ type: 'web_search' }] },
+            classification
+        );
+        assert.equal(classifier.shouldDisableThinkingForRequest('summarization', classification), false);
+        if (protocol === 'openai-responses') {
+            assert.equal(
+                request.tools?.some(tool => tool.type === 'web_search'),
+                true
+            );
+            assert.equal(request.reasoning?.effort, 'high');
+        } else if (protocol === 'openai') {
+            assert.equal(request.reasoning_effort, 'high');
+        } else {
+            assert.equal(request.thinking?.type, 'enabled');
+        }
+    });
+}
+
+for (const requestKind of [
+    'main-agent',
+    'unclassified',
+    'background',
+    'subagent',
+    'search-subagent',
+    'execution-subagent'
+] as const) {
+    test(`Responses ${requestKind} 原生工具限制与思考策略分离`, async () => {
+        const request = await buildRequest(
+            'openai-responses',
+            requestKind,
+            { reasoningEffort: 'high' },
+            { nativeTools: [{ type: 'web_search' }] }
+        );
+        const subagent =
+            requestKind === 'subagent' || requestKind === 'search-subagent' || requestKind === 'execution-subagent';
+        assert.equal(request.tools?.some(tool => tool.type === 'web_search') ?? false, !subagent);
+        assert.equal(request.reasoning?.effort, 'high');
+    });
+}

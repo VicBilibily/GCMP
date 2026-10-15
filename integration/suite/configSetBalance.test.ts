@@ -109,10 +109,17 @@ class BalanceRequestProvider extends GenericModelProvider {
             await provider.executeModelRequest(
                 { id: config.id, name: config.name } as vscode.LanguageModelChatInformation,
                 config,
-                [],
+                [
+                    new vscode.LanguageModelChatMessage(
+                        vscode.LanguageModelChatMessageRole.System,
+                        'You are a coding agent running in VS Code'
+                    )
+                ],
                 {
-                    modelOptions: { requestKind: 'main-agent' }
-                } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                    requestInitiator: 'github.copilot-chat',
+                    toolMode: vscode.LanguageModelChatToolMode.Auto,
+                    modelOptions: {}
+                },
                 { report() {} },
                 '',
                 'balance-test-session',

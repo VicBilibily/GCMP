@@ -44,10 +44,29 @@ import {
     decodeStatefulMarker,
     encodeStatefulMarker,
     getAllStatefulMarkersAndIndicies,
+    getStatefulMarkerDiagnostics,
     type StatefulMarkerContainer
-} from '../handlers/statefulMarker';
+} from '../handlers/stateful/statefulMarker';
+import { describeStatefulMarkerPayload } from '../handlers/stateful/statefulMarkerCodec';
+import { canRestoreMarkerSession, getMarkerBalanceCredential } from '../handlers/stateful/statefulMarkerRecovery';
 import { CustomDataPartMimeTypes } from '../handlers/types';
-import { classifyRequest, isSubRequest, type RequestKind } from '../handlers/requestClassifier';
+import { filterStatefulReplay } from '../handlers/stateful/statefulReplay';
+import {
+    classifyRequestContext,
+    getSdkSessionContextKey,
+    isSubRequest,
+    type RequestKind
+} from '../handlers/classification/requestClassifier';
+import {
+    getRequestClassificationMetadata,
+    getRequestContinuity,
+    isVerifiedCopilotChat,
+    usesLegacyTurnAffinity,
+    type RequestClassification,
+    type RequestClassificationMetadata,
+    type RequestContinuity
+} from '../handlers/classification/requestClassification';
+import { ProviderRequestScopes } from '../handlers/classification/requestScope';
 import { SessionTitleService } from '../usages/sessionTitleService';
 import { SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { resolveSubSessionId } from '../usages/subSessionResolver';
@@ -89,8 +108,10 @@ type RuntimeProvideLanguageModelChatResponseOptions = ProvideLanguageModelChatRe
     modelOptions?: RuntimeModelOptionsTelemetry;
 };
 
+const requestScopes = new ProviderRequestScopes();
+
 function isSubagentRequestKind(requestKind?: string): boolean {
-    return requestKind === 'search-subagent' || requestKind === 'execution-subagent';
+    return requestKind === 'search-subagent' || requestKind === 'execution-subagent' || requestKind === 'subagent';
 }
 
 function getMainAgentBalanceKey(
@@ -135,6 +156,8 @@ interface EstimatedRequestTrackingParams {
     estimatedIncrement?: number;
     maxInputTokens?: number;
     requestKind?: string;
+    requestClassification: RequestClassificationMetadata;
+    requestContinuity: RequestContinuity;
     sessionId: string;
     subSessionId: string | undefined;
     sessionRecoverySource?: SessionRecoverySource;
@@ -143,17 +166,20 @@ interface EstimatedRequestTrackingParams {
 }
 
 interface PreparedTrackedRequestContext extends EstimatedRequestTokens {
+    classification: RequestClassification;
+    requestClassification: RequestClassificationMetadata;
+    requestContinuity: RequestContinuity;
     requestKind: string;
     sessionId: string;
     subSessionId?: string;
     balanceKey: string;
-    sessionRecoverySource: SessionRecoverySource;
+    sessionRecoverySource?: SessionRecoverySource;
     sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai';
 }
 
 interface SessionIdResolution {
     sessionId: string;
-    sessionRecoverySource: SessionRecoverySource;
+    sessionRecoverySource: SessionRecoverySource | 'sdk-session';
 }
 
 /**
@@ -377,22 +403,54 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         });
     }
 
-    /**
-     * 确保请求分类已注入到 runtime modelOptions。
-     * 上层已设置 requestKind 时直接复用，避免重复分类或被后续消息改写。
-     */
+    protected createRequestOptions(
+        messages: readonly LanguageModelChatMessage[],
+        options: ProvideLanguageModelChatResponseOptions
+    ): ProvideLanguageModelChatResponseOptions {
+        const scopedOptions = requestScopes.create(options, original => classifyRequestContext(messages, original));
+        try {
+            if (Logger.isDebugEnabled()) {
+                const classification = requestScopes.get(scopedOptions)?.classification;
+                if (scopedOptions.requestInitiator === 'core' || classification?.requestOrigin === 'copilot-sdk') {
+                    Logger.debug(
+                        `[MarkerContinuity] entry ${JSON.stringify({
+                            version: 1,
+                            messageCount: messages.length,
+                            origin: classification?.requestOrigin,
+                            kind: classification?.requestKind,
+                            agentRole: classification?.agentRole
+                        })}`
+                    );
+                }
+            }
+        } catch {
+            // 诊断失败不得影响模型请求。
+        }
+        return scopedOptions;
+    }
+
+    protected delegateRequestOptions(options: ProvideLanguageModelChatResponseOptions): void {
+        requestScopes.delegate(options);
+    }
+
+    protected getRequestClassification(
+        messages: readonly LanguageModelChatMessage[],
+        options: ProvideLanguageModelChatResponseOptions
+    ): RequestClassification {
+        return requestScopes.get(options)?.classification ?? classifyRequestContext(messages, options);
+    }
+
     protected ensureRequestKind(
         messages: readonly LanguageModelChatMessage[],
         options: ProvideLanguageModelChatResponseOptions
     ): string {
-        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
-        if (!rtOpts.modelOptions) {
-            rtOpts.modelOptions = {};
+        const classification = this.getRequestClassification(messages, options);
+        if (requestScopes.get(options)) {
+            const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
+            rtOpts.modelOptions ??= {};
+            rtOpts.modelOptions.requestKind = classification.requestKind;
         }
-        if (!rtOpts.modelOptions.requestKind) {
-            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools);
-        }
-        return rtOpts.modelOptions.requestKind;
+        return classification.requestKind;
     }
 
     /**
@@ -404,6 +462,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         messages: Array<LanguageModelChatMessage>,
         options: ProvideLanguageModelChatResponseOptions
     ): Promise<PreparedTrackedRequestContext> {
+        if (!requestScopes.get(options)) {
+            options = this.createRequestOptions(messages, options);
+        }
+        const classification = this.getRequestClassification(messages, options);
+        const requestClassification = getRequestClassificationMetadata(classification);
         const requestKind = this.ensureRequestKind(messages, options);
         const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.estimateRequestTokens(
             model,
@@ -412,29 +475,103 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             options
         );
         const sdkMode = modelConfig.sdkMode || 'openai';
-        const { sessionId, sessionRecoverySource } = this.getSessionIdFromMessages(
+        const { sessionId, sessionRecoverySource: recoverySource } = this.getSessionIdFromMessages(
             messages,
             sdkMode,
             requestKind,
             options,
-            this.getProviderKeyForModel(modelConfig)
+            this.getProviderKeyForModel(modelConfig),
+            classification
         );
-        const subSessionId =
-            isSubagentRequestKind(requestKind) ?
-                resolveSubSessionId(messages, sessionId, requestKind, sessionRecoverySource !== 'new-uuid')
+        const sessionRecoverySource = recoverySource === 'sdk-session' ? undefined : recoverySource;
+        let subSessionId =
+            classification.agentRole === 'subagent' ?
+                resolveSubSessionId(
+                    messages,
+                    sessionId,
+                    requestKind,
+                    sessionRecoverySource !== 'new-uuid',
+                    classification.requestOrigin
+                )
             :   undefined;
+        if (classification.agentRole === 'undetermined' && sessionRecoverySource === 'stateful-marker') {
+            for (const { statefulMarker } of getAllStatefulMarkersAndIndicies(messages)) {
+                const marker = statefulMarker.marker;
+                if (marker.sessionId !== sessionId) {
+                    continue;
+                }
+                if (
+                    marker.continuity?.scope === 'subagent' &&
+                    marker.subSessionId &&
+                    /^sub_[0-9a-f]{32}$/.test(marker.subSessionId)
+                ) {
+                    subSessionId = marker.subSessionId;
+                }
+                break;
+            }
+        }
+        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
         if (subSessionId) {
-            const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
             rtOpts.modelOptions = rtOpts.modelOptions || {};
             rtOpts.modelOptions.subSessionId = subSessionId;
+        } else if (rtOpts.modelOptions) {
+            delete rtOpts.modelOptions.subSessionId;
+        }
+        const requestContinuity = getRequestContinuity(recoverySource, subSessionId);
+        const scope = requestScopes.get(options);
+        if (scope) {
+            scope.continuity = requestContinuity;
+        }
+        try {
+            if (
+                Logger.isDebugEnabled() &&
+                (options.requestInitiator === 'core' || classification.requestOrigin === 'copilot-sdk')
+            ) {
+                const sessionHash = crypto.createHash('sha256').update(sessionId).digest('hex');
+                const diagnostics = getStatefulMarkerDiagnostics(messages, model.id);
+                Logger.debug(
+                    `[MarkerContinuity] input ${JSON.stringify({
+                        version: 1,
+                        origin: classification.requestOrigin,
+                        kind: classification.requestKind,
+                        agentRole: classification.agentRole,
+                        modelHash: crypto.createHash('sha256').update(model.id).digest('hex'),
+                        sessionHash,
+                        recoverySource,
+                        ...diagnostics,
+                        markers: diagnostics.markers.map(marker => {
+                            const part = messages[marker.messageIndex].content[marker.partIndex];
+                            const decoded =
+                                marker.decodeStatus === 'valid' && part instanceof vscode.LanguageModelDataPart ?
+                                    decodeStatefulMarker(part.data)
+                                :   undefined;
+                            return {
+                                ...marker,
+                                sessionMatches: marker.sessionHash === sessionHash,
+                                restoreStatus:
+                                    marker.decodeStatus === 'not-inspected' ? 'not-inspected'
+                                    : marker.role !== 'assistant' || !decoded ? 'not-candidate'
+                                    : canRestoreMarkerSession(decoded.marker, classification) ? 'eligible'
+                                    : 'rejected'
+                            };
+                        })
+                    })}`
+                );
+            }
+        } catch {
+            // 诊断失败不得影响模型请求。
         }
         await this.prepareRequestSession(sessionId, messages, {
+            requestClassification,
             skipHistoricalHydrate:
                 sessionRecoverySource === 'new-uuid' ||
                 requestKind === 'terminal-steering' ||
-                isSubRequest(requestKind as RequestKind)
+                isSubRequest(requestKind as RequestKind, requestClassification)
         });
         return {
+            classification,
+            requestClassification,
+            requestContinuity,
             requestKind,
             sessionId,
             subSessionId,
@@ -444,7 +581,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 :   getMainAgentBalanceKey(
                         sessionId,
                         messages,
-                        requestKind,
+                        usesLegacyTurnAffinity(classification) ? requestKind : 'unknown',
                         (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn
                     ),
             sessionRecoverySource,
@@ -503,16 +640,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             return model.family;
         }
 
-        // 根据 sdkMode 自动推断默认值
-        const sdkMode = model.sdkMode || 'openai';
-        switch (sdkMode) {
-            case 'gemini-sse':
-                return 'gemini-3-pro';
-            // 默认全部归为 claude-sonnet-4.6 系列，用户可以通过 family 字段覆盖
-            case 'anthropic':
-            default:
-                return 'claude-sonnet-4.6';
-        }
+        // // 根据 sdkMode 自动推断默认值
+        // const sdkMode = model.sdkMode || 'openai';
+        // switch (sdkMode) {
+        //     case 'gemini-sse':
+        //         return 'gemini-3-pro';
+        //     // 默认全部归为 claude-sonnet-4.6 系列，用户可以通过 family 字段覆盖
+        //     case 'anthropic':
+        //     default:
+        //         return 'claude-sonnet-4.6';
+        // }
+        return model.model || model.id;
     }
 
     static configedProviders = new Set<string>();
@@ -734,6 +872,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         onThrottled: (() => void) | undefined,
         balanceKey: string
     ): Promise<void> {
+        if (!requestScopes.get(options)) {
+            options = this.createRequestOptions(messages, options);
+        }
         const baseModelConfig = modelConfig;
         const sdkMode = modelConfig.sdkMode || 'openai';
         if (sdkMode === 'gemini-sse' && !modelConfig.baseUrl?.trim()) {
@@ -795,12 +936,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         };
 
         const requestKind = this.ensureRequestKind(messages, options);
+        const classification = this.getRequestClassification(messages, options);
+        const requestClassification = getRequestClassificationMetadata(classification);
+        const subSessionId = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?.subSessionId;
+        const requestContinuity =
+            requestScopes.get(options)?.continuity ?? getRequestContinuity('new-uuid', subSessionId);
 
         const telemetryTurn = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn;
         const canRecoverAffinity =
-            requestKind === 'main-agent' && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
+            usesLegacyTurnAffinity(classification) && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
         let turnStartIndex = -1;
-        if (requestKind === 'main-agent') {
+        if (usesLegacyTurnAffinity(classification)) {
             for (let index = messages.length - 1; index >= 0; index--) {
                 if (SessionTitleService.extractLatestUserRequestText([messages[index]])) {
                     turnStartIndex = index;
@@ -810,8 +956,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
         let preferredBalanceCredentialId: string | undefined;
         let balanceAffinity: StatefulMarkerContainer['balanceAffinity'];
+        let statefulCredentialId: string | undefined;
+        let continuityAgentRole = classification.agentRole;
         let hasCurrentMarker = false;
-        const subSessionId = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?.subSessionId;
         for (const { statefulMarker, index } of getAllStatefulMarkersAndIndicies(messages)) {
             if (index < turnStartIndex) {
                 break;
@@ -825,15 +972,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             ) {
                 continue;
             }
-            const affinity = marker.balanceAffinity;
             if (
-                affinity?.slot === effectiveProviderKey &&
-                affinity.balanceKey === balanceKey &&
-                typeof affinity.credentialId === 'string' &&
-                /^[a-f0-9]{64}$/.test(affinity.credentialId)
+                classification.agentRole === 'undetermined' &&
+                requestContinuity.scope === 'subagent' &&
+                requestContinuity.source === 'marker' &&
+                marker.continuity?.version === 1 &&
+                marker.continuity.scope === 'subagent' &&
+                marker.continuity.agentRole === 'subagent'
             ) {
-                preferredBalanceCredentialId = affinity.credentialId;
+                continuityAgentRole = 'subagent';
             }
+            preferredBalanceCredentialId = getMarkerBalanceCredential(marker, {
+                sessionId,
+                subSessionId,
+                provider: effectiveProviderKey,
+                modelId: model.id,
+                sdkMode:
+                    sdkMode === 'openai-sse' ? 'openai'
+                    : sdkMode === 'gemini-sse' ? 'gemini'
+                    : sdkMode,
+                balanceKey
+            });
             break;
         }
         // Copilot 会在压缩边界剥离 marker，只有明确的 turn 身份才允许缓存恢复。
@@ -861,8 +1020,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let retryMessageDisposable: vscode.Disposable | undefined;
 
         // chat-title 请求：额外累积响应文本，请求成功后回填会话标题
-        const isTitleRequest = requestKind === 'chat-title';
-        const isSummarizationRequest = requestKind === 'summarization';
+        const isTitleRequest = requestKind === 'chat-title' && isVerifiedCopilotChat(classification);
+        const isSummarizationRequest = requestKind === 'summarization' && isVerifiedCopilotChat(classification);
         const titleRequestRawText =
             isTitleRequest ? SessionTitleService.extractTitleGenerationRequestText(messages) : undefined;
         let titleResponseBuffer = '';
@@ -887,17 +1046,64 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     if (isSummarizationRequest && value instanceof vscode.LanguageModelTextPart) {
                         summaryResponseBuffer += value.value;
                     }
+                    if (value instanceof vscode.LanguageModelThinkingPart) {
+                        value = new vscode.LanguageModelThinkingPart(value.value, value.id, {
+                            ...value.metadata,
+                            provider: effectiveProviderKey,
+                            modelId: model.id,
+                            sdkMode:
+                                sdkMode === 'openai-sse' ? 'openai'
+                                : sdkMode === 'gemini-sse' ? 'gemini'
+                                : sdkMode,
+                            statefulCredentialId
+                        }) as unknown as vscode.LanguageModelResponsePart;
+                    }
                     if (
-                        balanceAffinity &&
                         value instanceof vscode.LanguageModelDataPart &&
                         value.mimeType === CustomDataPartMimeTypes.StatefulMarker
                     ) {
                         const decoded = decodeStatefulMarker(value.data);
-                        if (decoded?.marker?.extension === 'vicanent.gcmp' && decoded.marker.sessionId === sessionId) {
+                        if (
+                            decoded?.marker?.extension === 'vicanent.gcmp' &&
+                            decoded.marker.sessionId === sessionId &&
+                            decoded.marker.subSessionId === subSessionId
+                        ) {
                             value = new vscode.LanguageModelDataPart(
-                                encodeStatefulMarker(decoded.modelId, { ...decoded.marker, balanceAffinity }),
+                                encodeStatefulMarker(model.id, {
+                                    ...decoded.marker,
+                                    provider: effectiveProviderKey,
+                                    balanceAffinity,
+                                    statefulCredentialId,
+                                    continuity: {
+                                        version: 1,
+                                        scope: requestContinuity.scope,
+                                        agentRole: continuityAgentRole
+                                    }
+                                }),
                                 CustomDataPartMimeTypes.StatefulMarker
                             );
+                        }
+                        try {
+                            if (
+                                Logger.isDebugEnabled() &&
+                                (options.requestInitiator === 'core' || classification.requestOrigin === 'copilot-sdk')
+                            ) {
+                                Logger.debug(
+                                    `[MarkerContinuity] output ${JSON.stringify({
+                                        version: 1,
+                                        requestHash: crypto.createHash('sha256').update(requestId).digest('hex'),
+                                        origin: classification.requestOrigin,
+                                        modelHash: crypto.createHash('sha256').update(model.id).digest('hex'),
+                                        sessionHash: crypto.createHash('sha256').update(sessionId).digest('hex'),
+                                        ...describeStatefulMarkerPayload(
+                                            (value as vscode.LanguageModelDataPart).data,
+                                            model.id
+                                        )
+                                    })}`
+                                );
+                            }
+                        } catch {
+                            // 诊断失败不得影响模型请求。
                         }
                     }
                     progress.report(value);
@@ -1128,12 +1334,37 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 balanceAffinity.credentialId
                             );
                         }
+                        const requestApiKey = await ApiKeyManager.getApiKeyForRequest(
+                            effectiveProviderKey,
+                            attemptModelConfig
+                        );
+                        if (token.isCancellationRequested) {
+                            throw new vscode.CancellationError();
+                        }
+                        statefulCredentialId =
+                            requestApiKey ?
+                                crypto
+                                    .createHash('sha256')
+                                    .update(`${requestApiKey}\u0000${requestSite ?? ''}`)
+                                    .digest('hex')
+                            :   undefined;
+                        const attemptMessages = filterStatefulReplay(messages, {
+                            sessionId,
+                            subSessionId,
+                            provider: effectiveProviderKey,
+                            modelId: model.id,
+                            sdkMode:
+                                sdkMode === 'openai-sse' ? 'openai'
+                                : sdkMode === 'gemini-sse' ? 'gemini'
+                                : sdkMode,
+                            credentialId: statefulCredentialId
+                        });
                         attemptDispatched = true;
                         if (sdkMode === 'gemini-sse') {
                             await this.geminiHandler.handleRequest(
                                 model,
                                 attemptModelConfig,
-                                messages,
+                                attemptMessages,
                                 options,
                                 wrappedProgress,
                                 requestId,
@@ -1147,7 +1378,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             await this.anthropicHandler.handleRequest(
                                 model,
                                 attemptModelConfig,
-                                messages,
+                                attemptMessages,
                                 options,
                                 wrappedProgress,
                                 requestId,
@@ -1161,7 +1392,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             await this.openaiCustomHandler.handleRequest(
                                 model,
                                 attemptModelConfig,
-                                messages,
+                                attemptMessages,
                                 options,
                                 wrappedProgress,
                                 requestId,
@@ -1175,7 +1406,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             await this.openaiResponsesHandler.handleResponsesRequest(
                                 model,
                                 attemptModelConfig,
-                                messages,
+                                attemptMessages,
                                 options,
                                 wrappedProgress,
                                 requestId,
@@ -1189,7 +1420,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             await this.openaiHandler.handleRequest(
                                 model,
                                 attemptModelConfig,
-                                messages,
+                                attemptMessages,
                                 options,
                                 wrappedProgress,
                                 requestId,
@@ -1328,6 +1559,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
             if (isSummarizationRequest && summaryResponseBuffer.trim()) {
                 SessionRecoveryService.instance.rememberSummarization(sessionId, summaryResponseBuffer, {
+                    requestClassification,
                     providerKey: effectiveProviderKey,
                     telemetryTurn: requestMetadata.telemetryTurn,
                     traceId: requestMetadata.otelTraceContext?.traceId
@@ -1340,7 +1572,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     if (titleRequestRawText) {
                         const resolved = SessionTitleService.instance.resolveGeneratedTitleDetails(
                             titleRequestRawText,
-                            titleResponseBuffer
+                            titleResponseBuffer,
+                            requestClassification
                         );
                         if (resolved) {
                             await TokenUsagesManager.instance.backfillResolvedSessionTitle(
@@ -1414,6 +1647,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
@@ -1427,6 +1661,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
         const {
             requestKind,
+            requestClassification,
+            requestContinuity,
             totalInputTokens,
             maxInputTokens,
             estimatedIncrement,
@@ -1468,6 +1704,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 estimatedIncrement,
                 maxInputTokens,
                 requestKind,
+                requestClassification,
+                requestContinuity,
                 sessionId,
                 subSessionId,
                 sessionRecoverySource,
@@ -1535,23 +1773,43 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         _sdkMode: string = 'openai',
         requestKind?: string,
         options?: ProvideLanguageModelChatResponseOptions,
-        providerKey = this.providerKey
+        providerKey = this.providerKey,
+        classification = options ? this.getRequestClassification(messages, options) : classifyRequestContext(messages)
     ): SessionIdResolution {
+        requestKind = classification.requestKind;
         const metadata = options ? this.getEstimatedRequestMetadata(options) : undefined;
         const recoveryMetadata = {
+            requestClassification: getRequestClassificationMetadata(classification),
             providerKey,
             telemetryTurn: metadata?.telemetryTurn,
             traceId: metadata?.otelTraceContext?.traceId
         };
+        const sdkSessionKey = getSdkSessionContextKey(messages, classification, options?.requestInitiator);
 
         for (const result of getAllStatefulMarkersAndIndicies(messages)) {
-            let sessionId = result.statefulMarker?.marker?.sessionId;
+            const marker = result.statefulMarker.marker;
+            if (!canRestoreMarkerSession(marker, classification)) {
+                if (
+                    classification.agentRole === 'subagent' &&
+                    classification.requestOrigin !== 'copilot-chat' &&
+                    marker.sessionId &&
+                    !marker.subSessionId
+                ) {
+                    // 父链是新委派的边界，不能越过它恢复更早的子链。
+                    break;
+                }
+                continue;
+            }
+            let sessionId = marker.sessionId;
             if (sessionId) {
                 // 向后兼容旧 anthropic 格式：user_xxx_account__session_UUID → UUID
                 const sessionIdx = sessionId.lastIndexOf('_session_');
                 if (sessionIdx !== -1) {
                     sessionId = sessionId.slice(sessionIdx + '_session_'.length);
                     Logger.debug(`Backward compat: extracted UUID from old sessionId format: ${sessionId}`);
+                }
+                if (sdkSessionKey && !marker.subSessionId && marker.continuity?.scope !== 'subagent') {
+                    SessionRecoveryService.instance.rememberSdkSession(sdkSessionKey, sessionId);
                 }
                 SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata, undefined, {
                     publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
@@ -1563,8 +1821,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
-        if (requestKind === 'main-agent' && options) {
+        if (sdkSessionKey) {
+            const sessionId = SessionRecoveryService.instance.resolveSdkSession(sdkSessionKey);
+            if (sessionId) {
+                return { sessionId, sessionRecoverySource: 'sdk-session' };
+            }
+        }
+
+        if (requestKind === 'main-agent' && options && isVerifiedCopilotChat(classification)) {
             const recovered = SessionRecoveryService.instance.resolveSessionId(messages, {
+                requestClassification: recoveryMetadata.requestClassification,
                 providerKey: recoveryMetadata.providerKey,
                 telemetryTurn: recoveryMetadata.telemetryTurn,
                 traceId: recoveryMetadata.traceId
@@ -1619,7 +1885,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
-        if (requestKind === 'summarization' && recoveryMetadata.traceId) {
+        if (requestKind === 'summarization' && recoveryMetadata.traceId && isVerifiedCopilotChat(classification)) {
             // 同提供商优先；切换模型后压缩请求可能是新提供商在该 trace 下的首个请求，
             // 其提供商维度尚无 hint，需跨提供商回退才能桥接到原会话，避免压缩边界会话分裂。
             const tracedSessionId =
@@ -1637,7 +1903,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
-        if (isSubagentRequestKind(requestKind) && recoveryMetadata.traceId) {
+        if (isSubagentRequestKind(requestKind) && recoveryMetadata.traceId && isVerifiedCopilotChat(classification)) {
             const parentSessionId =
                 SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
             if (parentSessionId) {
@@ -1656,6 +1922,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 这里也要立刻登记 trace hint：Copilot 可能在新会话首轮回答后立即触发 summarization，
         // 若不先把“新建 session ↔ 当前 trace”记住，紧随其后的压缩请求会再次掉回 new-uuid。
         const sessionId = crypto.randomUUID();
+        if (sdkSessionKey) {
+            SessionRecoveryService.instance.rememberSdkSession(sdkSessionKey, sessionId);
+        }
         const publishNewSessionProviderTraceHint = shouldPublishNewSessionProviderTraceHint(requestKind);
         SessionRecoveryService.instance.rememberSessionHint(
             sessionId,
@@ -1684,12 +1953,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected async prepareRequestSession(
         sessionId: string,
         messages: readonly LanguageModelChatMessage[],
-        options?: { skipHistoricalHydrate?: boolean }
+        options?: { skipHistoricalHydrate?: boolean; requestClassification?: RequestClassificationMetadata }
     ): Promise<void> {
         try {
-            const rawUserText = SessionTitleService.extractUserRequestText(messages);
+            const rawUserText =
+                isVerifiedCopilotChat(options?.requestClassification) ?
+                    SessionTitleService.extractUserRequestText(messages)
+                :   undefined;
             if (rawUserText) {
-                SessionTitleService.instance.registerSession(sessionId, rawUserText);
+                SessionTitleService.instance.registerSession(sessionId, rawUserText, options?.requestClassification);
             }
         } catch (err) {
             Logger.debug('Failed to register session title for current turn:', err);
@@ -1721,14 +1993,23 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 estimatedIncrement: params.estimatedIncrement,
                 maxInputTokens: params.maxInputTokens,
                 requestKind: params.requestKind,
+                requestClassification: params.requestClassification,
+                requestContinuity: params.requestContinuity,
                 sessionId: params.sessionId,
                 subSessionId: params.subSessionId,
-                sessionRecoverySource: params.sessionRecoverySource ?? 'new-uuid',
+                sessionRecoverySource:
+                    params.sessionRecoverySource ??
+                    (params.requestContinuity.source === 'sdk-session' ? undefined : 'new-uuid'),
                 sessionTitle: SessionTitleService.instance.getTitle(params.sessionId),
                 timestamp: params.timestamp,
                 ...this.getEstimatedRequestMetadata(params.options)
             });
-            if (requestId && params.sessionId && params.requestKind !== 'chat-title') {
+            if (
+                requestId &&
+                params.sessionId &&
+                params.requestKind !== 'chat-title' &&
+                isVerifiedCopilotChat(params.requestClassification)
+            ) {
                 SessionTitleService.instance.rememberRequest(params.sessionId, requestId);
             }
             return requestId;

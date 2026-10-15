@@ -264,6 +264,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
@@ -288,6 +289,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
         const {
             requestKind,
+            requestClassification,
+            requestContinuity,
             totalInputTokens,
             maxInputTokens,
             estimatedIncrement,
@@ -313,6 +316,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             estimatedIncrement,
             maxInputTokens,
             requestKind,
+            requestClassification,
+            requestContinuity,
             sessionId,
             subSessionId,
             sessionRecoverySource,

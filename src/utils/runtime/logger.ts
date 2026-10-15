@@ -86,6 +86,11 @@ export class Logger {
         }
     }
 
+    static isDebugEnabled(): boolean {
+        const level = this.outputChannel?.logLevel;
+        return level === vscode.LogLevel.Trace || level === vscode.LogLevel.Debug;
+    }
+
     /**
      * Info级别日志 (VS Code LogLevel.Info = 3)
      */

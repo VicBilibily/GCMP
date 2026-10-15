@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 import type { LiveStreamMetricEvent } from './liveMetrics';
 import { UsageParser } from '../usages/fileLogger/usageParser';
+import { decodeGCMPStatefulMarkerPayload } from './stateful/statefulMarkerCodec';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -90,6 +91,29 @@ test('reportEncryptedThinking：多段摘要直接拼接', async () => {
         provider: 'test-provider',
         modelId: 'test-model'
     });
+});
+
+test('无上游 response ID 的成功响应仍输出可恢复 marker', async () => {
+    const { StreamReporter } = await getStreamReporterModule();
+    const parts: unknown[] = [];
+    const reporter = new StreamReporter({
+        modelName: 'test',
+        modelId: 'gcmp.slot:::test',
+        provider: 'slot',
+        sdkMode: 'openai',
+        sessionId: 'session-without-response',
+        progress: { report: part => parts.push(part) }
+    });
+    reporter.reportText('answer');
+    reporter.flushAll('stop');
+    const markerPart = parts.find(part => (part as { mimeType?: string }).mimeType === 'stateful_marker') as {
+        data: Uint8Array;
+    };
+    assert.ok(markerPart);
+    const decoded = decodeGCMPStatefulMarkerPayload(markerPart.data);
+    assert.equal(decoded?.modelId, 'gcmp.slot:::test');
+    assert.equal(decoded?.marker.sessionId, 'session-without-response');
+    assert.equal(decoded?.marker.responseId, '');
 });
 
 test('reportEncryptedThinking：仅思考内容也应被视为有内容', async () => {

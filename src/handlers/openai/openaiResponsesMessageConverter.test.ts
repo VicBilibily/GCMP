@@ -96,7 +96,7 @@ function createThinkingPart(
 }
 
 function createMarkerPart(marker: Record<string, unknown>) {
-    const payload = encodeStatefulMarkerForTest('gpt-5.4', marker);
+    const payload = encodeStatefulMarkerForTest('gpt-5.4', { extension: 'vicanent.gcmp', ...marker });
     return { data: payload, mimeType: CustomDataPartMimeTypes.StatefulMarker };
 }
 

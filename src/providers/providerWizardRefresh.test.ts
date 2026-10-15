@@ -209,6 +209,7 @@ function compatibleWizardFixture(initialModels: CompatibleModelConfig[]) {
     const sourceFiles = new Set([
         'providers/compatibleProvider.ts',
         'providers/genericModelProvider.ts',
+        'handlers/classification/requestScope.ts',
         'utils/config/compatibleModelManager.ts',
         'utils/model/modelInfoCache.ts',
         'utils/model/languageModelInfo.ts',

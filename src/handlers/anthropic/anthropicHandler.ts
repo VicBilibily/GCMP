@@ -41,7 +41,8 @@ import { StreamReporter } from '../streamReporter';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import * as liveMetrics from '../liveMetrics';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
-import { shouldDisableThinkingForRequest, type RequestKind } from '../requestClassifier';
+import { shouldDisableThinkingForRequest, type RequestKind } from '../classification/requestClassifier';
+import { getScopedRequestClassification } from '../classification/requestClassification';
 import { applyAnthropicThinkingConfiguration } from './anthropicThinkingConfig';
 import { applyAnthropicServiceTier } from './serviceTier';
 
@@ -297,7 +298,7 @@ export class AnthropicHandler {
             const settings = options.modelConfiguration as ModelChatResponseOptions;
             applyAnthropicThinkingConfiguration(createParams, settings, modelConfig);
             const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
-            if (shouldDisableThinkingForRequest(requestKind)) {
+            if (shouldDisableThinkingForRequest(requestKind, getScopedRequestClassification(options))) {
                 applyAnthropicThinkingConfiguration(createParams, undefined, modelConfig, { disableThinking: true });
             }
 

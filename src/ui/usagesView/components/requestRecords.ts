@@ -57,6 +57,7 @@ const REQUEST_KIND_CSS_CLASS: Record<string, string> = {
     'vscode-qa': 'request-kind-vscode',
     'search-subagent': 'request-kind-search',
     'execution-subagent': 'request-kind-exec',
+    subagent: 'request-kind-subagent',
     'todo-tracker': 'request-kind-todo',
     'prompt-categorizer': 'request-kind-prompt',
     'intent-detector': 'request-kind-intent',
@@ -75,12 +76,13 @@ const REQUEST_KIND_CSS_CLASS: Record<string, string> = {
     'test-gen': 'request-kind-test',
     'goal-summary': 'request-kind-goal',
     'risk-assessment': 'request-kind-risk',
-    background: 'request-kind-background',
+    background: 'request-kind-unclassified',
+    unclassified: 'request-kind-unclassified',
     unknown: 'request-kind-unknown'
 };
 
 function getRequestKindCssClass(kind: string | undefined): string {
-    return REQUEST_KIND_CSS_CLASS[kind || ''] || 'request-kind-unknown';
+    return kind && Object.hasOwn(REQUEST_KIND_CSS_CLASS, kind) ? REQUEST_KIND_CSS_CLASS[kind] : 'request-kind-unknown';
 }
 
 const PAGE_SIZE = 20;
@@ -752,8 +754,8 @@ function createSessionRecoverySummaryChip(
         t('Recovery', '恢复'),
         parts.join(' · '),
         t(
-            'Debug-only signal showing requests that used summary bridge or new UUID fallback.',
-            '仅在调试模式显示：统计使用摘要桥接或新 UUID 回退的请求。'
+            'Debug-only signal showing requests that used session bridging or new UUID fallback.',
+            '仅在调试模式显示：统计使用会话桥接或新 UUID 回退的请求。'
         )
     );
 }
@@ -780,10 +782,14 @@ function createSummarySection(
 }
 
 function getSessionRecoveryDebugHint(
-    source: ExtendedTokenRequestLog['sessionRecoverySource']
+    source: ExtendedTokenRequestLog['sessionRecoverySource'],
+    continuity?: ExtendedTokenRequestLog['requestContinuity']
 ): { label: string; title: string } | undefined {
     if (!shouldShowSessionRecoveryDebugInfo()) {
         return undefined;
+    }
+    if (continuity?.source === 'sdk-session') {
+        return { label: 'bridge', title: t('session context bridge', '会话上下文桥接') };
     }
 
     switch (source) {
@@ -1061,8 +1067,9 @@ export function createRequestRecordsTable(
         if (record.requestKind) {
             time.title = mismatchTitle ? `${kindName}\n${mismatchTitle}` : kindName;
             const kindClass = getRequestKindCssClass(record.requestKind);
+            const escapedKindName = kindName.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
             time.innerHTML =
-                `<div class="request-kind ${kindClass}">${kindName}</div>` +
+                `<div class="request-kind ${kindClass}">${escapedKindName}</div>` +
                 `<div class="${timeClass}">${displayTimeStr}</div>`;
         } else {
             time.title = mismatchTitle ?? '';
@@ -1220,7 +1227,7 @@ export function createRequestRecordsTable(
         const isAllSessions =
             window.usagesState?.selectedSessionId === null &&
             (window.usagesState?.selectedSessionIds?.length ?? 0) === 0;
-        const recoveryHint = getSessionRecoveryDebugHint(record.sessionRecoverySource);
+        const recoveryHint = getSessionRecoveryDebugHint(record.sessionRecoverySource, record.requestContinuity);
         const statusLabel =
             isWaiting ? waitingPresentation.statusText
             : record.status === 'completed' ? 'DONE'

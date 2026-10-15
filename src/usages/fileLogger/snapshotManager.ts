@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  历史请求快照管理器
  *
  *  requests.jsonl — 历史日期的请求最终状态快照，每行一条 requestId 记录。
@@ -25,6 +25,10 @@ import { LogPathManager } from './logPathManager';
 import { StatsCalculator } from './statsCalculator';
 import { UsageParser, type ExtendedTokenRequestLog } from './usageParser';
 import { sanitizeRawUsage, type TokenRequestLog } from './types';
+import {
+    normalizeRequestClassification,
+    normalizeRequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 export class SnapshotManager {
     private static readonly MAX_RECORD_CACHE_ENTRIES = 2;
@@ -546,6 +550,8 @@ export class SnapshotManager {
             status: log.status,
             maxInputTokens: log.maxInputTokens,
             requestKind: log.requestKind,
+            requestClassification: normalizeRequestClassification(log.requestClassification),
+            requestContinuity: normalizeRequestContinuity(log.requestContinuity),
             sessionId: log.sessionId,
             subSessionId: log.subSessionId,
             sessionRecoverySource: log.sessionRecoverySource,
@@ -614,6 +620,8 @@ export class SnapshotManager {
             status: c.status,
             maxInputTokens: c.maxInputTokens,
             requestKind: c.requestKind,
+            requestClassification: normalizeRequestClassification(c.requestClassification),
+            requestContinuity: normalizeRequestContinuity(c.requestContinuity),
             sessionId: c.sessionId,
             subSessionId: c.subSessionId,
             sessionRecoverySource: c.sessionRecoverySource,

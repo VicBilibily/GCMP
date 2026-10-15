@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  日志读取管理器
  *  读取JSONL格式的日志文件,负责所有文件 I/O 操作
  *  统计计算逻辑已迁移到 StatsCalculator
@@ -12,6 +12,10 @@ import { LogPathManager } from './logPathManager';
 import { canReuseHourlyDetailsCache } from './hourlyCachePolicy';
 import { StatsCalculator } from './statsCalculator';
 import type { TokenRequestLog } from './types';
+import {
+    normalizeRequestClassification,
+    normalizeRequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 /**
  * 日志读取管理器
@@ -275,6 +279,8 @@ export class LogReadManager {
         for (const line of lines) {
             try {
                 const log = JSON.parse(line) as TokenRequestLog;
+                log.requestClassification = normalizeRequestClassification(log.requestClassification);
+                log.requestContinuity = normalizeRequestContinuity(log.requestContinuity);
                 logs.push(log);
             } catch {
                 // StatusLogger.warn('[LogReadManager] 解析日志行失败,跳过', err);

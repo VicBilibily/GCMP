@@ -4,12 +4,18 @@
  *  尝试恢复原有 sessionId。
  *--------------------------------------------------------------------------------------------*/
 
+import {
+    isVerifiedCopilotChat,
+    type RequestClassificationMetadata
+} from '../handlers/classification/requestClassification';
+
 export interface RecoveryMessageLike {
     role: number;
     content: ReadonlyArray<unknown>;
 }
 
 export interface SessionRecoveryMetadata {
+    requestClassification?: RequestClassificationMetadata;
     providerKey?: string;
     telemetryTurn?: number;
     traceId?: string;
@@ -178,11 +184,44 @@ export class SessionRecoveryService {
     private readonly providerAgnosticTraceHints = new Map<string, SessionTraceHint[]>();
     private readonly latestSessionHints = new Map<string, SessionTraceHint>();
     private readonly turnHints = new Map<string, SessionTurnHint[]>();
+    private readonly sdkSessionHints = new Map<string, { sessionId?: string; updatedAt: number }>();
 
     constructor(private readonly now: () => number = () => Date.now()) {}
 
+    rememberSdkSession(contextKey: string, sessionId: string): void {
+        this.pruneSdkSessionHints();
+        const previous = this.sdkSessionHints.get(contextKey);
+        this.sdkSessionHints.delete(contextKey);
+        this.sdkSessionHints.set(contextKey, {
+            // 冲突保持歧义，不能用最近的 marker 或新 UUID 覆盖既有绑定。
+            sessionId: previous && previous.sessionId !== sessionId ? undefined : sessionId,
+            updatedAt: this.now()
+        });
+        if (this.sdkSessionHints.size > MAX_ENTRIES) {
+            this.sdkSessionHints.delete(this.sdkSessionHints.keys().next().value!);
+        }
+    }
+
+    resolveSdkSession(contextKey: string): string | undefined {
+        this.pruneSdkSessionHints();
+        const sessionId = this.sdkSessionHints.get(contextKey)?.sessionId;
+        if (sessionId) {
+            this.rememberSdkSession(contextKey, sessionId);
+        }
+        return sessionId;
+    }
+
+    private pruneSdkSessionHints(): void {
+        const cutoff = this.now() - ENTRY_TTL_MS;
+        for (const [key, hint] of this.sdkSessionHints) {
+            if (hint.updatedAt < cutoff) {
+                this.sdkSessionHints.delete(key);
+            }
+        }
+    }
+
     rememberSummarization(sessionId: string, summaryText: string, metadata?: SessionRecoveryMetadata): void {
-        if (!sessionId) {
+        if (!sessionId || !isVerifiedCopilotChat(metadata?.requestClassification)) {
             return;
         }
 
@@ -239,6 +278,9 @@ export class SessionRecoveryService {
         updatedAt = this.now(),
         options: RememberSessionHintOptions = {}
     ): void {
+        if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
+            return;
+        }
         const traceHintKey = getTraceHintKey(metadata);
         const providerAgnosticTraceHintKey = getProviderAgnosticTraceHintKey(metadata);
         if (!sessionId || !providerAgnosticTraceHintKey) {
@@ -270,6 +312,9 @@ export class SessionRecoveryService {
     }
 
     resolveSessionIdFromTrace(metadata?: SessionRecoveryMetadata): string | undefined {
+        if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
+            return undefined;
+        }
         this.pruneTraceHints();
         const traceHintKey = getTraceHintKey(metadata);
         if (!traceHintKey) {
@@ -280,6 +325,9 @@ export class SessionRecoveryService {
     }
 
     resolveSessionIdFromTraceAcrossProviders(metadata?: SessionRecoveryMetadata): string | undefined {
+        if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
+            return undefined;
+        }
         this.pruneTraceHints();
         const traceHintKey = getProviderAgnosticTraceHintKey(metadata);
         if (!traceHintKey) {
@@ -349,6 +397,9 @@ export class SessionRecoveryService {
     }
 
     resolveSessionIdFromTurn(metadata?: SessionRecoveryMetadata): string | undefined {
+        if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
+            return undefined;
+        }
         this.pruneTurnHints(metadata?.telemetryTurn);
         const providerKey = metadata?.providerKey;
         if (!providerKey) {
@@ -390,6 +441,9 @@ export class SessionRecoveryService {
         messages: readonly RecoveryMessageLike[],
         metadata?: SessionRecoveryMetadata
     ): SessionRecoveryResult | undefined {
+        if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
+            return undefined;
+        }
         this.pruneEntries();
         if (this.entries.size === 0) {
             return undefined;

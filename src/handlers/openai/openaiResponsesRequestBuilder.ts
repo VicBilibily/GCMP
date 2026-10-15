@@ -3,7 +3,8 @@ import OpenAI from 'openai';
 
 import { ModelChatResponseOptions, ModelConfig, NativeToolConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
-import { isSubRequest, shouldDisableThinkingForRequest, type RequestKind } from '../requestClassifier';
+import { isSubRequest, shouldDisableThinkingForRequest, type RequestKind } from '../classification/requestClassifier';
+import { getScopedRequestClassification } from '../classification/requestClassification';
 import { canDisableThinking } from '../thinkingSupport';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
@@ -121,7 +122,7 @@ export class OpenAIResponsesRequestBuilder {
             );
         }
         this.applyDeclaredTools(requestBody, options);
-        if (!requestKind || !isSubRequest(requestKind)) {
+        if (!requestKind || !isSubRequest(requestKind, getScopedRequestClassification(options))) {
             this.applyNativeTools(requestBody, modelConfig);
         }
         const filteredExtraBody = this.applyExtraBody(requestBody, modelConfig, sessionId);
@@ -266,7 +267,7 @@ export class OpenAIResponsesRequestBuilder {
             }
         }
 
-        if (effortOnly || !shouldDisableThinkingForRequest(requestKind)) {
+        if (effortOnly || !shouldDisableThinkingForRequest(requestKind, getScopedRequestClassification(options))) {
             return;
         }
 

@@ -5,6 +5,10 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 /**
  * 成本分解日志格式（精简，用于 JSONL 存储）
@@ -180,6 +184,8 @@ export interface TokenRequestLog {
     maxInputTokens?: number;
     /** 请求来源类型（main-agent / git-commit-message / chat-title 等） */
     requestKind?: RequestKind;
+    requestClassification?: RequestClassificationMetadata;
+    requestContinuity?: RequestContinuity;
     /** 会话ID */
     sessionId?: string;
     /** 子会话ID（仅子代理请求有值），用于子代理级用量归属与负载均衡分析 */

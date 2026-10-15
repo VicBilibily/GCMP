@@ -9,6 +9,146 @@ import { createEmptyNativeCostSplit } from '../fileLogger/nativeCostSplit';
 import type { UsagesPendingRecord, UsagesQuery } from './types';
 import { isUsagesQueryResult, normalizeUsagesPendingRecords, normalizeUsagesQuery } from './validation';
 import { recordsPageQuery, recordsPageResult } from './tests/recordsPageFixture';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
+
+const classification: RequestClassificationMetadata = {
+    version: 1,
+    requestOrigin: 'copilot-sdk',
+    agentRole: 'undetermined',
+    evidence: {
+        origin: { level: 'signature', ruleId: 'sdk-identity' },
+        purpose: { level: 'unknown' },
+        role: { level: 'unknown' }
+    }
+};
+const continuity: RequestContinuity = { version: 1, scope: 'chain', source: 'marker' };
+
+test('pending classification whitelist deep copies evidence and does not forward secrets', () => {
+    const record = { ...pendingRecord(), requestClassification: classification, requestContinuity: continuity };
+    const input = {
+        ...record,
+        apiKey: 'top-level-secret',
+        requestClassification: {
+            ...classification,
+            apiKey: 'classification-secret',
+            evidence: {
+                ...classification.evidence,
+                origin: { ...classification.evidence.origin, prompt: 'prompt-secret' }
+            }
+        },
+        requestContinuity: { ...continuity, token: 'continuity-secret' }
+    };
+    const normalized = normalizeUsagesPendingRecords([input]);
+    assert.deepEqual(normalized, [record]);
+    assert.notEqual(normalized?.[0].requestClassification, classification);
+    assert.notEqual(
+        normalized?.[0].requestClassification?.evidence.origin,
+        input.requestClassification.evidence.origin
+    );
+    assert.notEqual(normalized?.[0].requestContinuity, input.requestContinuity);
+    assert.doesNotMatch(JSON.stringify(normalized), /secret/);
+});
+
+for (const badMetadata of [null, { version: 2 }, { ...classification, requestOrigin: 'future-origin' }]) {
+    test(`pending and query validation locally degrade metadata ${JSON.stringify(badMetadata)}`, () => {
+        const bad = {
+            ...pendingRecord(),
+            requestKind: 'future-kind',
+            requestClassification: badMetadata,
+            requestContinuity: { ...continuity, scope: 'future-scope' }
+        };
+        const pending = normalizeUsagesPendingRecords([bad]);
+        assert.equal(pending?.length, 1);
+        assert.equal(pending?.[0].requestClassification, undefined);
+        assert.equal(pending?.[0].requestContinuity, undefined);
+        assert.equal(pending?.[0].requestKind, 'future-kind');
+        assert.equal(pending?.[0].estimatedInput, 10);
+        const query = recordsPageQuery(1);
+        const record = {
+            ...pendingRecord(),
+            status: 'completed' as const,
+            rawUsage: { prompt_tokens: 10, completion_tokens: 5 },
+            estimatedCost: 0.125,
+            actualInput: 10,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            outputTokens: 5,
+            totalTokens: 15
+        };
+        const result = {
+            kind: 'recordsPage',
+            value: {
+                ...recordsPageResult(query, [record]),
+                records: [
+                    {
+                        ...record,
+                        ...bad,
+                        status: record.status,
+                        rawUsage: record.rawUsage,
+                        estimatedCost: record.estimatedCost
+                    }
+                ]
+            }
+        };
+        assert.equal(isUsagesQueryResult(result, query), true);
+        assert.equal(result.value.records[0].requestClassification, undefined);
+        assert.equal(result.value.records[0].requestContinuity, undefined);
+        assert.equal(result.value.records[0].estimatedCost, 0.125);
+        assert.equal(result.value.records[0].totalTokens, 15);
+    });
+}
+
+test('query validation preserves valid classification payload without changing totals', () => {
+    const query = recordsPageQuery(1);
+    const record = {
+        ...pendingRecord(),
+        requestClassification: classification,
+        requestContinuity: continuity,
+        actualInput: 10,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        outputTokens: 25,
+        totalTokens: 35
+    };
+    const result = { kind: 'recordsPage', value: recordsPageResult(query, [record]) };
+    assert.equal(isUsagesQueryResult(result, query), true);
+    assert.deepEqual(result.value.records[0].requestClassification, classification);
+    assert.deepEqual(result.value.records[0].requestContinuity, continuity);
+});
+
+test('SDK session bridge survives pending and query transport without extending the strict recovery enum', () => {
+    const record = pendingRecord();
+    delete record.sessionRecoverySource;
+    record.requestKind = 'summarization';
+    record.requestContinuity = { version: 1, scope: 'chain', source: 'sdk-session' };
+    assert.deepEqual(normalizeUsagesPendingRecords(JSON.parse(JSON.stringify([record])) as unknown), [record]);
+    const query = recordsPageQuery(1);
+    const result = {
+        kind: 'recordsPage',
+        value: recordsPageResult(query, [
+            {
+                ...record,
+                actualInput: 10,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0,
+                outputTokens: 5,
+                totalTokens: 15
+            }
+        ])
+    };
+    assert.equal(isUsagesQueryResult(result, query), true);
+    assert.equal(result.value.records[0].sessionRecoverySource, undefined);
+    assert.deepEqual(result.value.records[0].requestContinuity, record.requestContinuity);
+    const future = normalizeUsagesPendingRecords([
+        { ...record, requestContinuity: { ...record.requestContinuity, source: 'future-session' } }
+    ]);
+    assert.equal(future?.length, 1);
+    assert.equal(future?.[0].requestKind, 'summarization');
+    assert.equal(future?.[0].requestContinuity, undefined);
+});
 
 test('normalizes bounded usages queries', () => {
     assert.deepEqual(normalizeUsagesQuery({ kind: 'dateOverview', date: '2026-09-24' }), {

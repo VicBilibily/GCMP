@@ -105,27 +105,34 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         try {
             const modelConfig = this.findModelConfigById(model);
             if (modelConfig?.sdkMode === 'anthropic') {
-                // 先分类（在修改提示词之前，确保分类正确；上层已设置 requestKind 时直接使用）
-                // 否则父类会在已被 Claude Code 前缀污染的提示词上重分类，导致子请求退化为 background
-                this.ensureRequestKind(messages, options);
-
                 // 再注入 Claude Code 前缀（智谱服务端据此做路由）
-                const systemMessage = messages.find(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
+                const systemIndex = messages.findIndex(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
+                const systemMessage = messages[systemIndex];
                 if (systemMessage && Array.isArray(systemMessage.content)) {
                     const systemPrompt = systemMessage.content.find(
                         msgPart => msgPart instanceof vscode.LanguageModelTextPart
                     );
                     if (systemPrompt?.value) {
                         const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
-                        systemPrompt.value = applyPatch + systemPrompt.value;
+                        messages = [...messages];
+                        messages[systemIndex] = new vscode.LanguageModelChatMessage(
+                            systemMessage.role,
+                            systemMessage.content.map(part =>
+                                part === systemPrompt ?
+                                    new vscode.LanguageModelTextPart(applyPatch + systemPrompt.value)
+                                :   part
+                            ),
+                            systemMessage.name
+                        );
                     }
                 }
             }
 
-            // 调用父类的实现（父类 detect 到 requestKind 已存在，跳过重分类）
+            this.delegateRequestOptions(options);
             await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
         } finally {
             try {

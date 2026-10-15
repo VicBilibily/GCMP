@@ -115,6 +115,16 @@ test('summarizeSessionRecoveryDebugInfo counts only bridge and new uuid fallback
     });
 });
 
+test('SDK session continuity counts as a bridge without changing the legacy recovery enum', () => {
+    assert.deepEqual(
+        summarizeSessionRecoveryDebugInfo([
+            { requestContinuity: { version: 1, scope: 'chain', source: 'sdk-session' } },
+            { sessionRecoverySource: 'new-uuid', requestContinuity: { version: 1, scope: 'chain', source: 'new' } }
+        ]),
+        { bridgeCount: 1, newUuidCount: 1 }
+    );
+});
+
 test('getStatsNativeCostSplit prefers record-derived fallback over stale cached split', () => {
     const cached = createNativeCostSplit({
         totalUsd: 8.33,

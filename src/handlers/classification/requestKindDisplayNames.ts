@@ -1,11 +1,11 @@
 ﻿/*---------------------------------------------------------------------------------------------
- *  请求来源显示名称映射
+ *  请求类型显示名称映射
  *  集中维护 RequestKind → [英文, 中文] 的映射，供扩展进程和 WebView 复用。
  *  本文件仅包含纯数据与类型，不依赖 vscode 等运行时模块，可被 WebView bundle 安全引入。
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * 请求来源显示名称映射（[英文, 中文]）
+ * 请求类型显示名称映射（[英文, 中文]）
  */
 export const REQUEST_KIND_DISPLAY_NAMES: Record<string, [string, string]> = {
     'main-agent': ['Agent Chat', 'Agent 对话'],
@@ -19,6 +19,7 @@ export const REQUEST_KIND_DISPLAY_NAMES: Record<string, [string, string]> = {
     'vscode-qa': ['VS Code Q&A', 'VS Code 问答'],
     'search-subagent': ['Search Subagent', '搜索子代理'],
     'execution-subagent': ['Execution Subagent', '执行子代理'],
+    subagent: ['Subagent', '子代理'],
     'todo-tracker': ['Todo Tracker', '待办跟踪'],
     'prompt-categorizer': ['Prompt Categorizer', 'Prompt 分类'],
     'intent-detector': ['Intent Detector', '意图检测'],
@@ -43,6 +44,7 @@ export const REQUEST_KIND_DISPLAY_NAMES: Record<string, [string, string]> = {
     'tool-clustering': ['Tool Clustering', '工具聚类'],
     'ai-evaluator': ['AI Evaluator', 'AI 评估'],
     'vision-recognition': ['Vision Recognition', '视觉识别'],
-    background: ['Background Request', '后台请求'],
+    unclassified: ['Unclassified Request', '未分类请求'],
+    background: ['Unclassified Request', '未分类请求'],
     unknown: ['Unknown', '未知']
 };

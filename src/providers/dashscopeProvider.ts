@@ -224,6 +224,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
@@ -254,6 +255,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
 
         const {
             requestKind,
+            requestClassification,
+            requestContinuity,
             totalInputTokens,
             maxInputTokens,
             estimatedIncrement,
@@ -276,6 +279,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             estimatedIncrement,
             maxInputTokens,
             requestKind,
+            requestClassification,
+            requestContinuity,
             sessionId,
             subSessionId,
             sessionRecoverySource,

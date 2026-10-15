@@ -309,6 +309,7 @@ export class CompatibleProvider extends GenericModelProvider {
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: vscode.CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         try {
             // 获取最新的动态配置
             const currentConfig = this.providerConfig;
@@ -339,6 +340,8 @@ export class CompatibleProvider extends GenericModelProvider {
 
             const {
                 requestKind,
+                requestClassification,
+                requestContinuity,
                 totalInputTokens,
                 maxInputTokens,
                 estimatedIncrement,
@@ -367,6 +370,8 @@ export class CompatibleProvider extends GenericModelProvider {
                 estimatedIncrement,
                 maxInputTokens,
                 requestKind,
+                requestClassification,
+                requestContinuity,
                 sessionId,
                 subSessionId,
                 sessionRecoverySource,

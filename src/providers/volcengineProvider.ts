@@ -161,6 +161,7 @@ export class VolcengineProvider extends GenericModelProvider implements Language
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
             const errorMessage = `Model not found: ${model.id}`;
@@ -182,6 +183,8 @@ export class VolcengineProvider extends GenericModelProvider implements Language
 
         const {
             requestKind,
+            requestClassification,
+            requestContinuity,
             totalInputTokens,
             maxInputTokens,
             estimatedIncrement,
@@ -204,6 +207,8 @@ export class VolcengineProvider extends GenericModelProvider implements Language
             estimatedIncrement,
             maxInputTokens,
             requestKind,
+            requestClassification,
+            requestContinuity,
             sessionId,
             subSessionId,
             sessionRecoverySource,

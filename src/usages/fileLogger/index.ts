@@ -29,6 +29,10 @@ import { LeaderElectionService } from '../../status/leaderElectionService';
 import { InterInstanceBus } from '../../interInstance';
 import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 import type { LatestUsageStatus } from '../status/snapshot';
+import {
+    normalizeRequestClassification,
+    normalizeRequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 type StatsRefreshCompletion = { status: 'completed'; dates: string[] } | { status: 'timeout' } | { status: 'disposed' };
 
@@ -341,6 +345,8 @@ export class TokenFileLogger {
         estimatedIncrement?: number;
         maxInputTokens?: number;
         requestKind?: string; // 请求来源类型
+        requestClassification?: TokenRequestLog['requestClassification'];
+        requestContinuity?: TokenRequestLog['requestContinuity'];
         sessionId?: string;
         subSessionId?: string;
         sessionRecoverySource?: TokenRequestLog['sessionRecoverySource'];
@@ -370,6 +376,8 @@ export class TokenFileLogger {
             status: 'estimated',
             maxInputTokens: params.maxInputTokens,
             requestKind: params.requestKind,
+            requestClassification: normalizeRequestClassification(params.requestClassification),
+            requestContinuity: normalizeRequestContinuity(params.requestContinuity),
             sessionId: params.sessionId,
             subSessionId: params.subSessionId,
             sessionRecoverySource: params.sessionRecoverySource,

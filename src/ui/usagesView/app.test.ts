@@ -663,6 +663,86 @@ test('request records render output duration and average speed in static and tot
         }
     });
 
+    for (const [requestKind, cssClass, label] of [
+        ['subagent', 'request-kind-subagent', '子代理'],
+        ['unclassified', 'request-kind-unclassified', '未分类请求'],
+        ['background', 'request-kind-unclassified', '未分类请求']
+    ] as const) {
+        await context.test(`${requestKind} renders only its target kind without origin or role details`, () => {
+            documentStub.documentElement.lang = 'zh-CN';
+            const record = UsageParser.extendLog({
+                requestId: 'classification-ui',
+                timestamp: 1000,
+                isoTime: new Date(1000).toISOString(),
+                providerKey: 'test',
+                providerName: 'Test',
+                modelId: 'model',
+                modelName: 'Model',
+                estimatedInput: 10,
+                status: 'completed',
+                rawUsage: { prompt_tokens: 10, completion_tokens: 5 },
+                requestKind,
+                requestInitiator: 'core',
+                requestClassification: {
+                    version: 1,
+                    requestOrigin: 'copilot-sdk',
+                    agentRole: 'subagent',
+                    evidence: {
+                        origin: { level: 'signature', ruleId: 'hidden-origin-rule' },
+                        purpose: { level: 'unknown', reasonCode: 'hidden-purpose-reason' },
+                        role: { level: 'contract', ruleId: 'hidden-role-rule' }
+                    }
+                }
+            });
+            const table = createRequestRecordsTable(
+                [record],
+                summarizeSessionRecords([record]),
+                buildRequestTotals([record]),
+                new Set()
+            ) as unknown as TestElement;
+            const time = table.querySelector('tbody')!.children[0].children[0];
+            assert.ok(time.innerHTML.includes(cssClass));
+            assert.ok(time.innerHTML.includes(label));
+            assert.equal(time.title, label);
+            const rendered = JSON.stringify(table, (key, value: unknown) =>
+                key === 'parentElement' ? undefined : value
+            );
+            assert.doesNotMatch(
+                rendered,
+                /copilot-sdk|copilot-chat|hidden-origin-rule|hidden-purpose-reason|hidden-role-rule|SDK|Chat badge/
+            );
+        });
+    }
+
+    await context.test('unknown future request kind is text rather than executable HTML', () => {
+        const requestKind = '<img src=x onerror="attack()">&future';
+        const record = UsageParser.extendLog({
+            requestId: 'future-ui',
+            timestamp: 1000,
+            isoTime: new Date(1000).toISOString(),
+            providerKey: 'test',
+            providerName: 'Test',
+            modelId: 'model',
+            modelName: 'Model',
+            estimatedInput: 10,
+            status: 'completed',
+            rawUsage: null,
+            requestKind
+        });
+        const table = createRequestRecordsTable(
+            [record],
+            summarizeSessionRecords([record]),
+            buildRequestTotals([record]),
+            new Set()
+        ) as unknown as TestElement;
+        const time = table.querySelector('tbody')!.children[0].children[0];
+        assert.equal(time.title, requestKind);
+        assert.doesNotMatch(time.innerHTML, /<img|<script/);
+        assert.ok(time.innerHTML.includes('&lt;img'));
+        assert.ok(time.innerHTML.includes('&amp;future'));
+        assert.ok(time.innerHTML.includes('request-kind-unknown'));
+    });
+
     for (const lang of ['zh-CN', 'en']) {
         await context.test(`static and total output labels match their values in ${lang}`, () => {
             documentStub.documentElement.lang = lang;

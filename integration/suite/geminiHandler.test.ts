@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 
 import { GeminiHandler, hasGeminiPartialUsage } from '../../src/handlers/gemini/geminiHandler';
-import { decodeStatefulMarker } from '../../src/handlers/statefulMarker';
+import { decodeStatefulMarker } from '../../src/handlers/stateful/statefulMarker';
 import { StreamReporter } from '../../src/handlers/streamReporter';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';

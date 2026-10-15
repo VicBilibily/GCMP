@@ -1,4 +1,4 @@
-﻿const CONVERSATION_COMPACTION_PROMPT_PREFIX =
+﻿export const CONVERSATION_COMPACTION_PROMPT_PREFIX =
     'The conversation has grown too large for the context window and must be compacted now.';
 
 const CONVERSATION_COMPACTION_REQUIRED_MARKERS = [

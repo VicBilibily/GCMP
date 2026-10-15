@@ -13,7 +13,7 @@ import { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../runtime/logger';
 import { sanitizeToolSchema } from '../text/schemaSanitizer';
 import { TokenCounter } from './tokenCounter';
-import { decodeStatefulMarker } from '../../handlers/statefulMarker';
+import { decodeStatefulMarker } from '../../handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../handlers/types';
 
 /** analyzePromptParts 返回值 */

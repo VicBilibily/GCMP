@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { encodeStatefulMarkerPayload } from '../handlers/statefulMarkerCodec';
+import type { RequestOrigin } from '../handlers/classification/requestClassification';
+import { encodeStatefulMarkerPayload } from '../handlers/stateful/statefulMarkerCodec';
 import { resolveSubSessionId, type SubSessionMessageLike } from './subSessionResolver';
 
 const ROLE_USER = 1;
@@ -14,7 +15,8 @@ function userMessage(text: string): SubSessionMessageLike {
 function assistantWithMarker(
     subSessionId: string | undefined,
     sessionId = 'parent-1',
-    extension = 'vicanent.gcmp'
+    extension = 'vicanent.gcmp',
+    continuity?: unknown
 ): SubSessionMessageLike {
     const data = encodeStatefulMarkerPayload('test-model', {
         extension,
@@ -23,6 +25,7 @@ function assistantWithMarker(
         sdkMode: 'openai',
         sessionId,
         subSessionId,
+        continuity,
         responseId: 'response-1'
     });
     return { role: ROLE_ASSISTANT, content: [{ mimeType: 'stateful_marker', data }] };
@@ -136,4 +139,162 @@ test('latest matching marker without a valid subSessionId prevents stale marker 
 test('missing user message yields undefined', () => {
     const messages: SubSessionMessageLike[] = [{ role: ROLE_ASSISTANT, content: [{ value: 'no task' }] }];
     assert.equal(resolveSubSessionId(messages, 'parent-1', 'search-subagent', true), undefined);
+});
+
+const subagentContinuity = { version: 1, scope: 'subagent', agentRole: 'subagent' } as const;
+
+test('显式 copilot-chat 保持四参数调用的既有确定性哈希', () => {
+    const messages = [userMessage('Find all usages of captureAttempt')];
+    assert.equal(
+        resolveSubSessionId(messages, 'parent-1', 'search-subagent', true, 'copilot-chat'),
+        resolveSubSessionId(messages, 'parent-1', 'search-subagent', true)
+    );
+});
+
+test('通用 subagent 在旧 Copilot Chat 也有独立稳定哈希', () => {
+    const messages = [userMessage('Same task')];
+    const first = resolveSubSessionId(messages, 'parent-1', 'subagent', true, 'copilot-chat');
+    assert.match(first ?? '', /^sub_[0-9a-f]{32}$/);
+    assert.equal(first, resolveSubSessionId(messages, 'parent-1', 'subagent', true, 'copilot-chat'));
+    assert.notEqual(first, resolveSubSessionId(messages, 'parent-1', 'search-subagent', true, 'copilot-chat'));
+});
+
+for (const origin of ['copilot-sdk', 'gcmp', 'other-extension', 'core', 'unknown'] satisfies RequestOrigin[]) {
+    test(`${origin} 同文独立委派使用随机子会话，不共享父 marker 或文本哈希`, () => {
+        const inherited = 'sub_' + 'e'.repeat(32);
+        const messages = [userMessage('Same delegated task'), assistantWithMarker(inherited)];
+        for (const kind of ['subagent', 'search-subagent', 'execution-subagent']) {
+            const first = resolveSubSessionId(messages, 'parent-1', kind, true, origin);
+            const second = resolveSubSessionId(messages, 'parent-1', kind, true, origin);
+            assert.match(first ?? '', /^sub_[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/);
+            assert.match(second ?? '', /^sub_[0-9a-f]{32}$/);
+            assert.notEqual(first, second);
+            assert.notEqual(first, inherited);
+        }
+    });
+
+    test(`${origin} 仅使用同链有效 subagent continuity marker 恢复通用子代理`, () => {
+        const recorded = 'sub_' + 'a'.repeat(32);
+        const messages = [assistantWithMarker(recorded, 'parent-1', 'vicanent.gcmp', subagentContinuity)];
+        assert.equal(resolveSubSessionId(messages, 'parent-1', 'subagent', true, origin), recorded);
+    });
+}
+
+test('SDK 已确认子代理无用户文本或稳定父身份也生成随机 ID', () => {
+    const first = resolveSubSessionId([], 'unknown-parent', 'subagent', false, 'copilot-sdk');
+    const second = resolveSubSessionId([], 'unknown-parent', 'subagent', false, 'copilot-sdk');
+    assert.match(first ?? '', /^sub_[0-9a-f]{32}$/);
+    assert.notEqual(first, second);
+});
+
+test('SDK 未确认子代理的用途不因历史 marker 获得子会话', () => {
+    const recorded = 'sub_' + 'b'.repeat(32);
+    const messages = [assistantWithMarker(recorded, 'parent-1', 'vicanent.gcmp', subagentContinuity)];
+    for (const kind of ['unclassified', 'unknown', 'main-agent', 'summarization', 'background']) {
+        assert.equal(resolveSubSessionId(messages, 'parent-1', kind, true, 'copilot-sdk'), undefined);
+    }
+});
+
+test('SDK 不用缺失、损坏或非子代理 continuity 恢复子会话', () => {
+    const recorded = 'sub_' + 'c'.repeat(32);
+    for (const continuity of [
+        undefined,
+        null,
+        {},
+        { version: 2, scope: 'subagent', agentRole: 'subagent' },
+        { version: 1, scope: 'chain', agentRole: 'subagent' },
+        { version: 1, scope: 'subagent', agentRole: 'main' }
+    ]) {
+        const resolved = resolveSubSessionId(
+            [assistantWithMarker(recorded, 'parent-1', 'vicanent.gcmp', continuity)],
+            'parent-1',
+            'subagent',
+            true,
+            'copilot-sdk'
+        );
+        assert.match(resolved ?? '', /^sub_[0-9a-f]{32}$/);
+        assert.notEqual(resolved, recorded);
+    }
+});
+
+test('SDK marker 不跨父链、扩展或角色恢复', () => {
+    const recorded = 'sub_' + 'd'.repeat(32);
+    for (const message of [
+        assistantWithMarker(recorded, 'parent-2', 'vicanent.gcmp', subagentContinuity),
+        assistantWithMarker(recorded, 'parent-1', 'foreign', subagentContinuity),
+        { ...assistantWithMarker(recorded, 'parent-1', 'vicanent.gcmp', subagentContinuity), role: ROLE_USER }
+    ]) {
+        assert.notEqual(resolveSubSessionId([message], 'parent-1', 'subagent', true, 'copilot-sdk'), recorded);
+    }
+});
+
+test('System 前 Assistant bridge 的同消息多个 marker 最新优先且不改原数据', () => {
+    const stale = 'sub_' + 'a'.repeat(32);
+    const newest = 'sub_' + 'b'.repeat(32);
+    const messages: SubSessionMessageLike[] = [
+        {
+            role: ROLE_ASSISTANT,
+            content: [
+                ...assistantWithMarker(stale, 'parent-1', 'vicanent.gcmp', subagentContinuity).content,
+                ...assistantWithMarker(newest, 'parent-1', 'vicanent.gcmp', subagentContinuity).content
+            ]
+        },
+        { role: 0, content: [{ value: 'SDK identity' }] }
+    ];
+    const snapshot = structuredClone(messages);
+    Object.freeze(messages[0].content);
+    Object.freeze(messages);
+    assert.equal(resolveSubSessionId(messages, 'parent-1', 'subagent', true, 'copilot-sdk'), newest);
+    assert.deepEqual(messages, snapshot);
+});
+
+test('同消息最新父 marker 阻断 SDK 对更旧子 marker 的恢复', () => {
+    const stale = 'sub_' + 'f'.repeat(32);
+    const messages = [
+        {
+            role: ROLE_ASSISTANT,
+            content: [
+                ...assistantWithMarker(stale, 'parent-1', 'vicanent.gcmp', subagentContinuity).content,
+                ...assistantWithMarker(undefined, 'parent-1', 'vicanent.gcmp', {
+                    version: 1,
+                    scope: 'chain',
+                    agentRole: 'main'
+                }).content
+            ]
+        }
+    ];
+    const resolved = resolveSubSessionId(messages, 'parent-1', 'subagent', true, 'copilot-sdk');
+    assert.match(resolved ?? '', /^sub_[0-9a-f]{32}$/);
+    assert.notEqual(resolved, stale);
+});
+
+test('子会话解析忽略损坏 marker 必要字段和不完整消息', () => {
+    const recorded = 'sub_' + '1'.repeat(32);
+    const validMarker = {
+        extension: 'vicanent.gcmp',
+        provider: 'slot',
+        modelId: 'model',
+        sdkMode: 'openai',
+        sessionId: 'parent-1',
+        subSessionId: recorded,
+        responseId: '',
+        continuity: subagentContinuity
+    };
+    for (const payload of [null, [], { ...validMarker, sdkMode: 'future-sdk' }, { ...validMarker, provider: null }]) {
+        const messages = [
+            userMessage('Task'),
+            {
+                role: ROLE_ASSISTANT,
+                content: [{ mimeType: 'stateful_marker', data: encodeStatefulMarkerPayload('model', payload) }]
+            }
+        ];
+        assert.notEqual(resolveSubSessionId(messages, 'parent-1', 'subagent', true, 'copilot-sdk'), recorded);
+        assert.notEqual(resolveSubSessionId(messages, 'parent-1', 'search-subagent', true), recorded);
+    }
+    const messages = [
+        null,
+        { role: ROLE_ASSISTANT, content: null },
+        userMessage('Task')
+    ] as unknown as SubSessionMessageLike[];
+    assert.match(resolveSubSessionId(messages, 'parent-1', 'search-subagent', true) ?? '', /^sub_[0-9a-f]{32}$/);
 });

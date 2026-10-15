@@ -7,6 +7,11 @@
  *  跨天/重启后的标题恢复改由 usage log 中已落盘的 sessionTitle 快照懒恢复完成。
  *--------------------------------------------------------------------------------------------*/
 
+import {
+    isVerifiedCopilotChat,
+    type RequestClassificationMetadata
+} from '../handlers/classification/requestClassification';
+
 /** 聊天消息结构（鸭子类型，避免依赖 vscode 以便 node:test 运行） */
 export interface ChatMessageLike {
     role: number;
@@ -238,8 +243,8 @@ export class SessionTitleService {
      * 不以首条输入截断作为展示标题（原文截断语义不可靠，且不写入日志更保护隐私）。
      * 若已有暂存的生成标题（标题请求先到达），直接采用。
      */
-    registerSession(sessionId: string, rawUserText: string): void {
-        if (!sessionId) {
+    registerSession(sessionId: string, rawUserText: string, classification?: RequestClassificationMetadata): void {
+        if (!sessionId || !isVerifiedCopilotChat(classification)) {
             return;
         }
         const matchKey = toMatchKey(rawUserText);
@@ -347,11 +352,22 @@ export class SessionTitleService {
      * 无合适候选（无匹配，或同键会话均已有标题）时暂存，待同文新会话注册时采用。
      * @returns 是否立即匹配到会话
      */
-    resolveGeneratedTitle(rawRequestText: string, generatedTitle: string): boolean {
-        return !!this.resolveGeneratedTitleDetails(rawRequestText, generatedTitle);
+    resolveGeneratedTitle(
+        rawRequestText: string,
+        generatedTitle: string,
+        classification?: RequestClassificationMetadata
+    ): boolean {
+        return !!this.resolveGeneratedTitleDetails(rawRequestText, generatedTitle, classification);
     }
 
-    resolveGeneratedTitleDetails(rawRequestText: string, generatedTitle: string): ResolvedSessionTitle | undefined {
+    resolveGeneratedTitleDetails(
+        rawRequestText: string,
+        generatedTitle: string,
+        classification?: RequestClassificationMetadata
+    ): ResolvedSessionTitle | undefined {
+        if (!isVerifiedCopilotChat(classification)) {
+            return undefined;
+        }
         const matchKey = toMatchKey(rawRequestText);
         const title = toDisplayTitle(generatedTitle);
         if (!matchKey || !title) {

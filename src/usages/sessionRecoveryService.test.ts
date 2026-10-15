@@ -1,5 +1,6 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { RequestClassificationMetadata } from '../handlers/classification/requestClassification';
 
 import { SessionRecoveryService, type RecoveryMessageLike } from './sessionRecoveryService';
 
@@ -15,6 +16,37 @@ function message(role: number, text: string): RecoveryMessageLike {
 
 function buildSummary(topic: string): string {
     return `Summary for ${topic}: ` + `${topic} `.repeat(24);
+}
+
+for (const requestOrigin of ['copilot-sdk', 'core', 'other-extension', 'unknown'] as const) {
+    test(`classified ${requestOrigin} cannot observe or recover legacy summaries or trace hints`, () => {
+        const service = new SessionRecoveryService();
+        const summary = buildSummary('origin-isolated-summary');
+        const requestClassification: RequestClassificationMetadata = {
+            version: 1,
+            requestOrigin,
+            agentRole: 'undetermined',
+            evidence: {
+                origin: { level: 'signature' },
+                purpose: { level: 'unknown' },
+                role: { level: 'unknown' }
+            }
+        };
+        const metadata = { providerKey: 'slot', traceId: 'shared-trace', telemetryTurn: 2, requestClassification };
+        service.rememberSessionHint('legacy', { providerKey: 'slot', traceId: 'shared-trace', telemetryTurn: 2 });
+        service.rememberSummarization('legacy', summary, { providerKey: 'slot', telemetryTurn: 2 });
+        assert.equal(service.resolveSessionId([message(ROLE_USER, summary)], metadata), undefined);
+        assert.equal(service.resolveSessionIdFromTurn(metadata), undefined);
+        assert.equal(service.resolveSessionIdFromTrace(metadata), undefined);
+        assert.equal(service.resolveSessionIdFromTraceAcrossProviders(metadata), undefined);
+        service.rememberSummarization('foreign', buildSummary('foreign-summary'), metadata);
+        service.rememberSessionHint('foreign', metadata);
+        assert.equal(service.resolveSessionId([message(ROLE_USER, buildSummary('foreign-summary'))]), undefined);
+        assert.equal(
+            service.resolveSessionIdFromTrace({ providerKey: 'slot', traceId: 'shared-trace', telemetryTurn: 2 }),
+            'legacy'
+        );
+    });
 }
 
 test('resolveSessionId recovers exact summary bridge match', () => {
@@ -811,6 +843,41 @@ test('compaction then model switch: follow-up request recovers session via cross
         }),
         'sess-pre-switch'
     );
+});
+
+test('SDK session identity binds independently and never selects the most recent session', () => {
+    const service = new SessionRecoveryService();
+    service.rememberSdkSession('context-a', 'session-a');
+    service.rememberSdkSession('context-b', 'session-b');
+    assert.equal(service.resolveSdkSession('context-a'), 'session-a');
+    assert.equal(service.resolveSdkSession('context-b'), 'session-b');
+    assert.equal(service.resolveSdkSession('context-missing'), undefined);
+    assert.equal(new SessionRecoveryService().resolveSdkSession('context-a'), undefined);
+});
+
+test('SDK conflicting marker bindings stay ambiguous instead of overwriting an existing session', () => {
+    const service = new SessionRecoveryService();
+    service.rememberSdkSession('context-a', 'session-a');
+    service.rememberSdkSession('context-a', 'session-b');
+    service.rememberSdkSession('context-a', 'session-a');
+    assert.equal(service.resolveSdkSession('context-a'), undefined);
+});
+
+test('SDK session bindings expire and have bounded capacity', () => {
+    let now = 1_000;
+    const service = new SessionRecoveryService(() => now);
+    service.rememberSdkSession('context-a', 'session-a');
+    service.rememberSdkSession('context-a', 'session-b');
+    now += 7 * 24 * 60 * 60 * 1_000 + 1;
+    assert.equal(service.resolveSdkSession('context-a'), undefined);
+    service.rememberSdkSession('context-a', 'session-c');
+    assert.equal(service.resolveSdkSession('context-a'), 'session-c');
+    for (let i = 0; i <= 1_000; i++) {
+        service.rememberSdkSession(`context-${i}`, `session-${i}`);
+    }
+    assert.equal(service.resolveSdkSession('context-0'), undefined);
+    assert.equal(service.resolveSdkSession('context-a'), undefined);
+    assert.equal(service.resolveSdkSession('context-1000'), 'session-1000');
 });
 
 test('model switch with telemetry turn reset: cross-provider fallback bridges unique session on same trace', () => {

@@ -31,11 +31,12 @@ import { TokenUsagesManager } from '../../usages/usagesManager';
 import type { CustomHeaders, ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../../types/sharedTypes';
 import { StreamReporter } from '../streamReporter';
 import * as liveMetrics from '../liveMetrics';
-import { decodeStatefulMarker } from '../statefulMarker';
+import { decodeStatefulMarker } from '../stateful/statefulMarker';
 import { shouldInjectReasoningPlaceholder } from '../reasoningPlaceholder';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
-import { shouldDisableThinkingForRequest, type RequestKind } from '../requestClassifier';
+import { shouldDisableThinkingForRequest, type RequestKind } from '../classification/requestClassifier';
+import { getScopedRequestClassification } from '../classification/requestClassification';
 import { preprocessOpenAIChatRequest } from './openaiChatRequestPreprocessor';
 import { applyOpenAIServiceTier } from './serviceTier';
 import { reportChatCompletionText } from './openaiChatStreamText';
@@ -972,8 +973,8 @@ export class OpenAIHandler {
         const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
         const isDisableThinking =
             !effortOnly &&
-            (requestKind === 'git-commit-message' ||
-                (settings?.thinking && shouldDisableThinkingForRequest(requestKind)));
+            (requestKind === 'git-commit-message' || settings?.thinking) &&
+            shouldDisableThinkingForRequest(requestKind, getScopedRequestClassification(options));
         if (isDisableThinking) {
             if (reasoningFormat === 'nested') {
                 customParams.reasoning = undefined;

@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import type { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
-import { decodeStatefulMarker } from '../statefulMarker';
+import { decodeStatefulMarker } from '../stateful/statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from './openaiHandler';
 import {

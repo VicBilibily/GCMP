@@ -192,12 +192,18 @@ export class RetryProvider extends GenericModelProvider {
         await provider.executeModelRequest(
             { id: config.id, name: config.name } as vscode.LanguageModelChatInformation,
             config,
-            historyOverride ?
-                [...historyOverride]
-            :   [vscode.LanguageModelChatMessage.User('<userRequest>retry test</userRequest>')],
+            [
+                new vscode.LanguageModelChatMessage(
+                    vscode.LanguageModelChatMessageRole.System,
+                    'You are a coding agent running in VS Code'
+                ),
+                ...(historyOverride ?? [vscode.LanguageModelChatMessage.User('<userRequest>retry test</userRequest>')])
+            ],
             {
-                modelOptions: { requestKind: 'main-agent', _telemetryTurn: 1 }
-            } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                requestInitiator: 'github.copilot-chat',
+                toolMode: vscode.LanguageModelChatToolMode.Auto,
+                modelOptions: { _telemetryTurn: 1 }
+            },
             { report: part => parts.push(part) },
             requestId,
             sessionId,

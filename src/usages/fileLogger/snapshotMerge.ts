@@ -1,4 +1,10 @@
-﻿import type { CostBreakdownLog, SessionRecoverySource } from './types';
+import type { CostBreakdownLog, SessionRecoverySource } from './types';
+import {
+    mergeRequestClassificationFields,
+    normalizeRequestContinuity,
+    type RequestClassificationMetadata,
+    type RequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 export interface SnapshotRequestRecord {
     requestId: string;
@@ -15,6 +21,8 @@ export interface SnapshotRequestRecord {
     status: 'estimated' | 'completed' | 'failed' | 'cancelled';
     maxInputTokens?: number;
     requestKind?: string;
+    requestClassification?: RequestClassificationMetadata;
+    requestContinuity?: RequestContinuity;
     sessionId?: string;
     subSessionId?: string;
     sessionRecoverySource?: SessionRecoverySource;
@@ -64,7 +72,14 @@ function isSnapshotRequestRecord(value: unknown): value is SnapshotRequestRecord
 export function parseSnapshotRecordLine(line: string): SnapshotRequestRecord | undefined {
     try {
         const record = JSON.parse(line) as unknown;
-        return isSnapshotRequestRecord(record) ? record : undefined;
+        if (!isSnapshotRequestRecord(record)) {
+            return undefined;
+        }
+        return {
+            ...record,
+            ...mergeRequestClassificationFields({}, record),
+            requestContinuity: normalizeRequestContinuity(record.requestContinuity)
+        };
     } catch {
         return undefined;
     }
@@ -104,6 +119,10 @@ export function mergeSnapshotRecord(
         ...preferredRecord,
         apiKeyHash: preferredRecord.apiKeyHash,
         apiKeyName: preferredRecord.apiKeyName,
+        ...mergeRequestClassificationFields(baseRecord, overlayRecord),
+        requestContinuity:
+            normalizeRequestContinuity(baseRecord.requestContinuity) ??
+            normalizeRequestContinuity(overlayRecord.requestContinuity),
         timestamp: Math.min(baseRecord.timestamp, overlayRecord.timestamp),
         isoTime: overlayRecord.timestamp < baseRecord.timestamp ? overlayRecord.isoTime : baseRecord.isoTime,
         status: preferredRecord.status,
@@ -130,7 +149,14 @@ export function mergeSnapshotFiles(baseStore: SnapshotFile, overlayStore: Snapsh
     const result: SnapshotFile = { ...baseStore };
     for (const [requestId, overlayRecord] of Object.entries(overlayStore)) {
         const baseRecord = result[requestId];
-        result[requestId] = baseRecord ? mergeSnapshotRecord(baseRecord, overlayRecord) : { ...overlayRecord };
+        result[requestId] =
+            baseRecord ?
+                mergeSnapshotRecord(baseRecord, overlayRecord)
+            :   {
+                    ...overlayRecord,
+                    ...mergeRequestClassificationFields({}, overlayRecord),
+                    requestContinuity: normalizeRequestContinuity(overlayRecord.requestContinuity)
+                };
     }
     return result;
 }

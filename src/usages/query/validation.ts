@@ -1,5 +1,9 @@
 ﻿import type { SessionRecoverySource } from '../fileLogger/types';
 import type { UsagesPendingRecord, UsagesQuery, UsagesQueryResult } from './types';
+import {
+    normalizeRequestClassification,
+    normalizeRequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 const MAX_PAGE_SIZE = 100;
 const MAX_TRACKED_SESSIONS = 3;
@@ -294,6 +298,14 @@ function normalizePendingRecord(value: unknown): UsagesPendingRecord | undefined
         }
         record.otelTraceContext = { traceId: trace.traceId, spanId: trace.spanId };
     }
+    const classification = normalizeRequestClassification(entry.requestClassification);
+    const continuity = normalizeRequestContinuity(entry.requestContinuity);
+    if (classification) {
+        record.requestClassification = classification;
+    }
+    if (continuity) {
+        record.requestContinuity = continuity;
+    }
     return record;
 }
 
@@ -391,7 +403,16 @@ function isExtendedRecord(value: unknown): boolean {
             return false;
         }
     }
-    return value.costBreakdown === undefined || isRecord(value.costBreakdown);
+    if (value.costBreakdown !== undefined && !isRecord(value.costBreakdown)) {
+        return false;
+    }
+    if (value.requestClassification !== undefined) {
+        value.requestClassification = normalizeRequestClassification(value.requestClassification);
+    }
+    if (value.requestContinuity !== undefined) {
+        value.requestContinuity = normalizeRequestContinuity(value.requestContinuity);
+    }
+    return true;
 }
 
 function isSessionSummary(value: unknown): value is Record<string, number | undefined> & { requestCount: number } {

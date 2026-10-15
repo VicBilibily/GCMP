@@ -13,6 +13,7 @@ import {
 import { convertUsdToRmb, sumCosts } from '../../utils/pricing/pricingCurrency';
 import type { NativeCostSplit } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
+import { normalizeRequestContinuity } from '../../handlers/classification/requestClassification';
 import type {
     NativeCostSplitIndex,
     RequestTotals,
@@ -170,13 +171,14 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
 }
 
 export function summarizeSessionRecoveryDebugInfo(
-    records: Array<Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>>
+    records: Array<Pick<ExtendedTokenRequestLog, 'sessionRecoverySource' | 'requestContinuity'>>
 ): SessionRecoveryDebugSummary {
     let bridgeCount = 0;
     let newUuidCount = 0;
 
     for (const record of records) {
         if (
+            record.requestContinuity?.source === 'sdk-session' ||
             record.sessionRecoverySource === 'trace-bridge' ||
             record.sessionRecoverySource === 'turn-bridge' ||
             record.sessionRecoverySource?.startsWith('summary-bridge-')
@@ -338,10 +340,13 @@ function extractNormalizedSessionId(sessionId: string): string | undefined {
 }
 
 /**
- * 仅当记录包含 otelTraceContext 时，才将原始 sessionId 归一化为统一可分组的值。
+ * 旧记录仍需 OTel；新记录可使用经过校验的本地连续性。
  */
 export function normalizeSessionId(
-    record: Pick<ExtendedTokenRequestLog, 'sessionId' | 'otelTraceContext' | 'requestKind' | 'sessionTitle'>
+    record: Pick<
+        ExtendedTokenRequestLog,
+        'sessionId' | 'otelTraceContext' | 'requestKind' | 'sessionTitle' | 'requestContinuity'
+    >
 ): string {
     const value = record.sessionId?.trim();
     if (!value) {
@@ -353,7 +358,7 @@ export function normalizeSessionId(
         return UNKNOWN_SESSION_ID;
     }
 
-    if (hasConversationTraceContext(record)) {
+    if (hasConversationTraceContext(record) || normalizeRequestContinuity(record.requestContinuity)) {
         return normalizedSessionId;
     }
 

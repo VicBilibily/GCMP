@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 
 import { OpenAIResponsesMessageConverter } from '../../src/handlers/openai/openaiResponsesMessageConverter';
-import { encodeStatefulMarker } from '../../src/handlers/statefulMarker';
+import { encodeStatefulMarker } from '../../src/handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 
 type LanguageModelThinkingPartCtor = new (

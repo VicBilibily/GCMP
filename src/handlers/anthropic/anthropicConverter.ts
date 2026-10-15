@@ -13,7 +13,7 @@ import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { Logger } from '../../utils/runtime/logger';
-import { decodeStatefulMarker } from '../statefulMarker';
+import { decodeStatefulMarker } from '../stateful/statefulMarker';
 import { shouldInjectReasoningPlaceholder } from '../reasoningPlaceholder';
 import { isEncryptedReasoningOriginMatch } from '../openai/encryptedReasoning';
 import type {
@@ -54,14 +54,15 @@ function getThinkingMetadata(part: vscode.LanguageModelThinkingPart): ThinkingPa
 }
 
 function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['content']) {
-    for (const part of content) {
+    for (let index = content.length - 1; index >= 0; index--) {
+        const part = content[index];
         if (
             isDataPart(part) &&
             part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
             part.data instanceof Uint8Array
         ) {
             const marker = decodeStatefulMarker(part.data)?.marker;
-            if (marker?.completeThinking || marker?.encryptedThinkingData) {
+            if (marker) {
                 return marker;
             }
         }

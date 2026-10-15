@@ -7,7 +7,7 @@ import { createEmptyNativeCostSplit } from '../../usages/fileLogger/nativeCostSp
 import { USD_TO_RMB_RATE } from '../../utils/pricing/pricingCurrency';
 import type { BaseStats, HourlyStats, NativeCostSplit } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog, LiveRequestUiState, RequestTotals, WebViewMessage } from './types';
-import { REQUEST_KIND_DISPLAY_NAMES } from '../../handlers/requestKindDisplayNames';
+import { REQUEST_KIND_DISPLAY_NAMES } from '../../handlers/classification/requestKindDisplayNames';
 import type { DisplayCurrency } from '../costDisplay';
 
 // 复用共享工具函数
@@ -357,7 +357,7 @@ export function getProviderDisplayName(providerKey: string, providerName: string
  * 获取请求来源的友好显示名称（自动按语言切换中英文）
  *
  * 注：名称映射表与 RequestKind 类型定义集中维护在
- * `src/handlers/requestClassifier.ts`，避免扩展进程与 WebView 两侧重复。
+ * `src/handlers/classification/requestKindDisplayNames.ts`，避免扩展进程与 WebView 两侧重复。
  * WebView 侧通过 esbuild 将该依赖打包到前端 bundle 中。
  */
 export function getRequestKindDisplayName(kind?: string): string {
@@ -365,10 +365,10 @@ export function getRequestKindDisplayName(kind?: string): string {
         return '-';
     }
     // 使用集中定义的名称映射表，确保与扩展侧一致
-    const names = REQUEST_KIND_DISPLAY_NAMES[kind];
-    if (!names) {
+    if (!Object.hasOwn(REQUEST_KIND_DISPLAY_NAMES, kind)) {
         return kind;
     }
+    const names = REQUEST_KIND_DISPLAY_NAMES[kind];
     return isChineseLocale() ? names[1] : names[0];
 }
 

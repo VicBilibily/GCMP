@@ -104,8 +104,13 @@ function execute(
             capabilities: { imageInput: true, toolCalling: false },
             ...overrides
         },
-        [],
-        { modelOptions: { requestKind: 'main-agent' } } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+        [
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.System,
+                'You are a coding agent running in VS Code'
+            )
+        ],
+        { requestInitiator: 'github.copilot-chat', toolMode: vscode.LanguageModelChatToolMode.Auto, modelOptions: {} },
         { report() {} },
         requestId,
         'key-usage-session',

@@ -138,6 +138,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         // 查找对应的模型配置
         const rawModelConfig = this.findModelConfigById(model);
         if (!rawModelConfig) {
@@ -159,6 +160,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         const {
             requestKind,
+            requestClassification,
+            requestContinuity,
             totalInputTokens,
             maxInputTokens,
             estimatedIncrement,
@@ -181,6 +184,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             estimatedIncrement,
             maxInputTokens,
             requestKind,
+            requestClassification,
+            requestContinuity,
             sessionId,
             subSessionId,
             sessionRecoverySource,

@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import * as vscode from 'vscode';
-import { isSubRequest, type RequestKind } from '../../../src/handlers/requestClassifier';
-import { encodeStatefulMarker } from '../../../src/handlers/statefulMarker';
+import { isSubRequest, type RequestKind } from '../../../src/handlers/classification/requestClassifier';
+import { encodeStatefulMarker } from '../../../src/handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../../src/handlers/types';
 import { GenericModelProvider } from '../../../src/providers/genericModelProvider';
+import { BaiduProvider } from '../../../src/providers/baiduProvider';
+import { CompatibleProvider } from '../../../src/providers/compatibleProvider';
+import { DashscopeProvider } from '../../../src/providers/dashscopeProvider';
+import { MiniMaxProvider } from '../../../src/providers/minimaxProvider';
+import { MoonshotProvider } from '../../../src/providers/moonshotProvider';
+import { TencentProvider } from '../../../src/providers/tencentProvider';
+import { VolcengineProvider } from '../../../src/providers/volcengineProvider';
+import { XiaomimimoProvider } from '../../../src/providers/xiaomimimoProvider';
+import { ZhipuProvider } from '../../../src/providers/zhipuProvider';
 import { StatusBarManager } from '../../../src/status/statusBarManager';
 import { DateUtils } from '../../../src/usages/fileLogger/dateUtils';
 import type { TokenRequestLog } from '../../../src/usages/fileLogger/types';
@@ -14,6 +23,7 @@ import { TokenUsagesManager } from '../../../src/usages/usagesManager';
 import type { ModelConfig } from '../../../src/types/sharedTypes';
 import { PromptAnalyzer } from '../../../src/utils/model/promptAnalyzer';
 import { TokenCounter } from '../../../src/utils/model/tokenCounter';
+import { ApiKeyManager } from '../../../src/utils/config/apiKeyManager';
 
 const SDK_MODES = ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const;
 type SdkMode = (typeof SDK_MODES)[number];
@@ -28,21 +38,40 @@ const AUXILIARY_KINDS = [
 const PROVIDER_KEY = 'request-preparation-test';
 const USER_REQUEST = '检查辅助请求的会话标题恢复';
 const HISTORICAL_TITLE = '历史会话标题';
+const TASK_PROMPTS: Partial<Record<RequestKind, string>> = {
+    'main-agent': 'You are a coding agent running in VS Code',
+    'search-subagent': 'You are an AI coding research assistant that uses search tools to gather information',
+    'execution-subagent':
+        'You are an AI coding research assistant that runs a series of terminal commands to perform a small execution-focused task',
+    summarization: 'Your task is to create a comprehensive, detailed summary of the entire conversation',
+    'terminal-steering': 'You are a coding agent running in VS Code',
+    'chat-title': 'You are an expert in crafting pithy titles',
+    'inline-progress-message': 'You are an expert in writing short, catchy, and encouraging progress messages'
+};
 
-function requestOptions(requestKind?: RequestKind): vscode.ProvideLanguageModelChatResponseOptions {
+function requestOptions(_requestKind?: RequestKind): vscode.ProvideLanguageModelChatResponseOptions {
     return {
         toolMode: vscode.LanguageModelChatToolMode.Auto,
-        requestInitiator: 'gcmp-request-preparation-test',
-        modelOptions: requestKind ? { requestKind } : {}
+        requestInitiator: 'github.copilot-chat',
+        modelOptions: {}
     };
 }
 
 function requestMessages(
     sessionId?: string,
     sdkMode: SdkMode = 'openai',
-    subSessionId?: string
+    subSessionId?: string,
+    requestKind: RequestKind = 'main-agent'
 ): vscode.LanguageModelChatMessage[] {
     const messages = [vscode.LanguageModelChatMessage.User(`<userRequest>${USER_REQUEST}</userRequest>`)];
+    if (requestKind !== 'unknown') {
+        messages.unshift(
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.System,
+                TASK_PROMPTS[requestKind] ?? 'You are an AI assistant using Copilot SDK in VS Code.'
+            )
+        );
+    }
     if (sessionId) {
         messages.push(
             vscode.LanguageModelChatMessage.Assistant([
@@ -92,7 +121,11 @@ class PreparationProvider extends GenericModelProvider {
         return provider;
     }
 
-    prepare(
+    record(params: Parameters<PreparationProvider['recordEstimatedRequestTokens']>[0]) {
+        return this.recordEstimatedRequestTokens(params);
+    }
+
+    async prepare(
         messages: vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         sdkMode: SdkMode,
@@ -115,9 +148,123 @@ class PreparationProvider extends GenericModelProvider {
             maxInputTokens: modelConfig.maxInputTokens,
             maxOutputTokens: modelConfig.maxOutputTokens
         } as vscode.LanguageModelChatInformation;
-        return this.prepareTrackedRequestContext(model, modelConfig, messages, options);
+        const requestOptions = this.createRequestOptions(messages, options);
+        const tracked = await this.prepareTrackedRequestContext(model, modelConfig, messages, requestOptions);
+        return { ...tracked, options: requestOptions };
     }
 }
+
+class EntryProviderProbe extends GenericModelProvider {
+    static async run(prototype: object, sdkMode: 'openai' | 'anthropic') {
+        const provider = Object.create(prototype) as EntryProviderProbe;
+        const config: ModelConfig = {
+            id: 'entry-model',
+            name: 'Entry Model',
+            tooltip: 'Entry Model',
+            provider: 'entry-provider',
+            sdkMode,
+            maxInputTokens: 1024,
+            maxOutputTokens: 1024,
+            capabilities: { imageInput: true, toolCalling: true }
+        };
+        const records: Parameters<EntryProviderProbe['recordEstimatedRequestTokens']>[0][] = [];
+        const executions: vscode.ProvideLanguageModelChatResponseOptions[] = [];
+        Object.assign(provider, {
+            providerKey: 'entry-provider',
+            findModelConfigById: () => config,
+            ensureApiKeyForModel: async () => 'test-key',
+            estimateRequestTokens: async () => ({ totalInputTokens: 10, maxInputTokens: 1024 }),
+            prepareRequestSession: async () => {},
+            recordEstimatedRequestTokens: async (params: (typeof records)[number]) => {
+                records.push(params);
+                return 'entry-request';
+            },
+            executeModelRequest: async (...args: Parameters<EntryProviderProbe['executeModelRequest']>) => {
+                executions.push(args[3]);
+            }
+        });
+        Object.defineProperty(provider, 'providerConfig', {
+            value: { displayName: 'Entry Provider', models: [config] }
+        });
+        const originalEnsure = ApiKeyManager.ensureApiKey;
+        ApiKeyManager.ensureApiKey = async () => true;
+        const cancellation = new vscode.CancellationTokenSource();
+        const options: vscode.ProvideLanguageModelChatResponseOptions = {
+            toolMode: vscode.LanguageModelChatToolMode.Auto,
+            requestInitiator: 'core',
+            modelOptions: { requestKind: 'chat-title', subSessionId: 'stale', temperature: 0 }
+        };
+        const sdkMessages = [
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.System,
+                'You are an AI assistant using Copilot SDK in VS Code.'
+            )
+        ];
+        const messagesBefore = JSON.stringify(sdkMessages);
+        try {
+            for (const messages of [
+                sdkMessages,
+                requestMessages(undefined, 'openai', undefined, 'execution-subagent')
+            ]) {
+                await provider.provideLanguageModelChatResponse(
+                    { id: config.id, name: config.name } as vscode.LanguageModelChatInformation,
+                    messages,
+                    options,
+                    { report() {} },
+                    cancellation.token
+                );
+            }
+        } finally {
+            ApiKeyManager.ensureApiKey = originalEnsure;
+            cancellation.dispose();
+        }
+        assert.equal(JSON.stringify(sdkMessages), messagesBefore);
+        return { records, executions, options };
+    }
+}
+
+suite('provider response request scopes', () => {
+    for (const Provider of [
+        GenericModelProvider,
+        BaiduProvider,
+        CompatibleProvider,
+        DashscopeProvider,
+        MiniMaxProvider,
+        MoonshotProvider,
+        TencentProvider,
+        VolcengineProvider,
+        XiaomimimoProvider,
+        ZhipuProvider
+    ]) {
+        for (const sdkMode of ['openai', 'anthropic'] as const) {
+            test(`${Provider.name}/${sdkMode}: one scope reaches tracking and execution`, async () => {
+                const { records, executions, options } = await EntryProviderProbe.run(Provider.prototype, sdkMode);
+                assert.equal(records.length, 2);
+                assert.equal(executions.length, 2);
+                assert.equal(records[0].requestKind, 'unclassified');
+                assert.equal(records[0].requestClassification.requestOrigin, 'copilot-sdk');
+                assert.equal(records[0].requestClassification.agentRole, 'undetermined');
+                assert.deepEqual(records[0].requestContinuity, { version: 1, scope: 'chain', source: 'new' });
+                assert.equal(records[1].requestKind, 'execution-subagent');
+                assert.ok(records[1].subSessionId);
+                assert.equal(records[1].requestContinuity.scope, 'subagent');
+                for (let index = 0; index < records.length; index++) {
+                    assert.equal(records[index].options, executions[index]);
+                    assert.notEqual(records[index].options, options);
+                    assert.notEqual(records[index].options.modelOptions, options.modelOptions);
+                    assert.equal(executions[index].modelOptions?.requestKind, records[index].requestKind);
+                    assert.equal(executions[index].modelOptions?.subSessionId, records[index].subSessionId);
+                }
+                assert.notEqual(executions[0], executions[1]);
+                assert.deepEqual(options.modelOptions, {
+                    requestKind: 'chat-title',
+                    subSessionId: 'stale',
+                    temperature: 0
+                });
+            });
+        }
+    }
+});
 
 suite('auxiliary request title preparation', () => {
     const originalTitles = SessionTitleService.instance;
@@ -181,10 +328,221 @@ suite('auxiliary request title preparation', () => {
         messages = requestMessages(sessionId, sdkMode),
         options = requestOptions(kind)
     ) {
+        if (kind) {
+            messages = messages.filter(message => message.role !== vscode.LanguageModelChatMessageRole.System);
+            if (kind !== 'unknown') {
+                messages.unshift(
+                    new vscode.LanguageModelChatMessage(
+                        vscode.LanguageModelChatMessageRole.System,
+                        TASK_PROMPTS[kind] ?? 'You are an AI assistant using Copilot SDK in VS Code.'
+                    )
+                );
+            }
+            if (kind === 'terminal-steering') {
+                messages.push(
+                    vscode.LanguageModelChatMessage.User('[Terminal test-session notification: command completed]')
+                );
+            }
+        }
         const preparation = provider.prepare(messages, options, sdkMode);
         preparations.push(preparation);
         return preparation;
     }
+
+    for (const sdkMode of SDK_MODES) {
+        for (const prompt of [
+            'You are an expert in file editing. The user has provided a patch that failed to apply',
+            'You are an expert at analyzing files and patterns'
+        ]) {
+            test(`${sdkMode}: large patch input preserves patch-healer: ${prompt.slice(0, 45)}`, async () => {
+                const messages = [
+                    new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.System, prompt),
+                    vscode.LanguageModelChatMessage.User(`The goal of the patch is:\n${'界'.repeat(100_000)}`)
+                ];
+                const options = requestOptions();
+                const before = JSON.stringify({ messages, options });
+                const tracked = await provider.prepare(messages, options, sdkMode);
+                assert.equal(tracked.requestKind, 'patch-healer');
+                assert.equal(tracked.classification.requestOrigin, 'copilot-chat');
+                assert.equal(tracked.classification.agentRole, 'not-applicable');
+                assert.equal(tracked.requestClassification.evidence.purpose.level, 'signature');
+                assert.equal(tracked.requestClassification.evidence.purpose.reasonCode, undefined);
+                assert.equal(tracked.options.modelOptions?.requestKind, 'patch-healer');
+                assert.equal(tracked.subSessionId, undefined);
+                assert.equal(JSON.stringify({ messages, options }), before);
+            });
+        }
+    }
+
+    for (const requestKind of ['git-commit-message', 'vision-recognition'] as const) {
+        test(`internal ${requestKind} is trusted only with the actual GCMP initiator`, async () => {
+            const messages = [
+                new vscode.LanguageModelChatMessage(
+                    vscode.LanguageModelChatMessageRole.System,
+                    'You are an AI assistant using Copilot SDK in VS Code.'
+                )
+            ];
+            const trusted = await provider.prepare(
+                messages,
+                {
+                    ...requestOptions(),
+                    requestInitiator: 'vicanent.gcmp',
+                    modelOptions: { requestKind }
+                },
+                'openai'
+            );
+            assert.equal(trusted.requestKind, requestKind);
+            assert.equal(trusted.classification.requestOrigin, 'gcmp');
+            assert.equal(trusted.classification.evidence.purpose.level, 'contract');
+            for (const requestInitiator of ['core', 'github.copilot-chat', 'another.extension']) {
+                const untrusted = await provider.prepare(
+                    messages,
+                    {
+                        ...requestOptions(),
+                        requestInitiator,
+                        modelOptions: { requestKind }
+                    },
+                    'openai'
+                );
+                assert.equal(untrusted.requestKind, 'unclassified');
+                assert.equal(untrusted.classification.requestOrigin, 'copilot-sdk');
+            }
+        });
+    }
+
+    test('reused caller options never retain a prior classification or sub-session', async () => {
+        const options = {
+            ...requestOptions(),
+            modelOptions: { requestKind: 'chat-title', subSessionId: 'stale-child', temperature: 0 }
+        };
+        const before = JSON.stringify(options);
+        const child = await prepare('execution-subagent', undefined, 'openai', requestMessages(), options);
+        const main = await prepare('main-agent', undefined, 'openai', requestMessages(), options);
+        assert.equal(child.requestKind, 'execution-subagent');
+        assert.ok(child.subSessionId);
+        assert.equal(child.options.modelOptions?.subSessionId, child.subSessionId);
+        assert.equal(main.requestKind, 'main-agent');
+        assert.equal(main.subSessionId, undefined);
+        assert.equal(main.options.modelOptions?.subSessionId, undefined);
+        assert.notEqual(child.options, main.options);
+        assert.notEqual(child.options.modelOptions, main.options.modelOptions);
+        assert.equal(JSON.stringify(options), before);
+    });
+
+    test('parallel calls sharing options retain independent classification and new chain identities', async () => {
+        const options = requestOptions();
+        const [sdk, summary] = await Promise.all([
+            prepare('unclassified', undefined, 'openai', requestMessages(), options),
+            prepare('summarization', undefined, 'openai', requestMessages(), options)
+        ]);
+        assert.equal(sdk.classification.requestOrigin, 'copilot-sdk');
+        assert.equal(sdk.classification.agentRole, 'undetermined');
+        assert.equal(sdk.requestKind, 'unclassified');
+        assert.equal(summary.requestKind, 'summarization');
+        assert.notEqual(sdk.sessionId, summary.sessionId);
+        assert.deepEqual(sdk.requestContinuity, { version: 1, scope: 'chain', source: 'new' });
+        assert.deepEqual(summary.requestContinuity, { version: 1, scope: 'chain', source: 'new' });
+        assert.deepEqual(options.modelOptions, {});
+    });
+
+    test('the actual estimated-token record forwards classification and continuity together', async () => {
+        const tracked = await prepare('unclassified');
+        let recorded: Parameters<typeof manager.recordEstimatedTokens>[0] | undefined;
+        manager.recordEstimatedTokens = async params => {
+            recorded = params;
+            return 'estimated-sdk-request';
+        };
+        const config: ModelConfig = {
+            id: 'preparation-model',
+            name: 'Preparation Model',
+            tooltip: 'Preparation Model',
+            maxInputTokens: 8192,
+            maxOutputTokens: 1024,
+            capabilities: { imageInput: true, toolCalling: true }
+        };
+        assert.equal(
+            await provider.record({
+                providerKey: PROVIDER_KEY,
+                displayName: 'Preparation Test',
+                model: { id: config.id, name: config.name } as vscode.LanguageModelChatInformation,
+                modelConfig: config,
+                estimatedInputTokens: tracked.totalInputTokens,
+                requestKind: tracked.requestKind,
+                requestClassification: tracked.requestClassification,
+                requestContinuity: tracked.requestContinuity,
+                sessionId: tracked.sessionId,
+                subSessionId: tracked.subSessionId,
+                sessionRecoverySource: tracked.sessionRecoverySource,
+                options: tracked.options
+            }),
+            'estimated-sdk-request'
+        );
+        assert.ok(recorded);
+        assert.deepEqual(recorded.requestClassification, tracked.requestClassification);
+        assert.deepEqual(recorded.requestContinuity, tracked.requestContinuity);
+        assert.equal(recorded.requestInitiator, 'github.copilot-chat');
+        assert.equal(recorded.otelTraceContext, undefined);
+        assert.equal(recorded.telemetryTurn, undefined);
+    });
+
+    test('SDK marker recovery does not promote a role or register a formal user input', async () => {
+        const sessionId = randomUUID();
+        const tracked = await prepare('unclassified', sessionId);
+        assert.equal(tracked.sessionId, sessionId);
+        assert.equal(tracked.classification.agentRole, 'undetermined');
+        assert.equal(tracked.subSessionId, undefined);
+        assert.equal(tracked.balanceKey, `s:${sessionId}`);
+        assert.deepEqual(tracked.requestContinuity, { version: 1, scope: 'chain', source: 'marker' });
+        assert.equal(titles.resolveGeneratedTitle(USER_REQUEST, 'must not register'), false);
+    });
+
+    test('SDK unknown purposes reject matching legacy trace and summary candidates', async () => {
+        const traceId = randomUUID();
+        const oldSession = randomUUID();
+        const summary = 'verified legacy summary '.repeat(12);
+        SessionRecoveryService.instance.rememberSessionHint(oldSession, {
+            providerKey: PROVIDER_KEY,
+            traceId,
+            telemetryTurn: 2
+        });
+        SessionRecoveryService.instance.rememberSummarization(oldSession, summary, {
+            providerKey: PROVIDER_KEY,
+            traceId,
+            telemetryTurn: 2
+        });
+        const options = {
+            ...requestOptions(),
+            requestInitiator: 'core',
+            modelOptions: { _otelTraceContext: { traceId, spanId: 'span' }, _telemetryTurn: 2 }
+        };
+        const tracked = await prepare(
+            'unclassified',
+            undefined,
+            'openai',
+            [vscode.LanguageModelChatMessage.User(summary)],
+            options
+        );
+        assert.notEqual(tracked.sessionId, oldSession);
+        assert.equal(tracked.sessionRecoverySource, 'new-uuid');
+        assert.equal(tracked.balanceKey, `s:${tracked.sessionId}`);
+    });
+
+    test('weak legacy purpose cannot register a formal user input', async () => {
+        const tracked = await provider.prepare(
+            [
+                new vscode.LanguageModelChatMessage(
+                    vscode.LanguageModelChatMessageRole.System,
+                    '<skills>main</skills>'
+                ),
+                vscode.LanguageModelChatMessage.User(`<userRequest>${USER_REQUEST}</userRequest>`)
+            ],
+            requestOptions(),
+            'openai'
+        );
+        assert.equal(tracked.classification.evidence.purpose.level, 'heuristic');
+        assert.equal(titles.resolveGeneratedTitle(USER_REQUEST, 'not a confirmed title'), false);
+        assert.equal(tracked.balanceKey, `s:${tracked.sessionId}`);
+    });
 
     test('built-in status bars retain quota and token statistics without context usage', () => {
         const keys = [
@@ -224,7 +582,12 @@ suite('auxiliary request title preparation', () => {
     for (const sdkMode of SDK_MODES) {
         test(`${sdkMode}: token estimation retains the selected input budget and increment`, async () => {
             const options = { ...requestOptions('summarization'), modelConfiguration: { contextSize: 3072 } };
-            const preparation = provider.prepare(requestMessages(randomUUID(), sdkMode), options, sdkMode, [4096]);
+            const preparation = provider.prepare(
+                requestMessages(randomUUID(), sdkMode, undefined, 'summarization'),
+                options,
+                sdkMode,
+                [4096]
+            );
             preparations.push(preparation);
             const tracked = await preparation;
             assert.equal(tracked.totalInputTokens, 138);
@@ -259,11 +622,11 @@ suite('auxiliary request title preparation', () => {
                 assert.equal(tracked.sessionRecoverySource, 'stateful-marker');
                 assert.equal(tracked.requestKind, kind);
                 assert.equal(tracked.sdkMode, sdkMode);
-                assert.equal(tracked.totalInputTokens, 138);
-                assert.equal(tracked.estimatedIncrement, 10);
+                assert.equal(tracked.totalInputTokens, kind === 'terminal-steering' ? 148 : 138);
+                assert.equal(tracked.estimatedIncrement, kind === 'terminal-steering' ? 20 : 10);
                 if (kind === 'search-subagent' || kind === 'execution-subagent') {
                     assert.match(tracked.subSessionId ?? '', /^sub_[0-9a-f]{32}$/);
-                    assert.equal(options.modelOptions?.subSessionId, tracked.subSessionId);
+                    assert.equal(options.modelOptions?.subSessionId, undefined);
                     assert.equal(tracked.balanceKey, `a:${tracked.subSessionId}`);
                 } else {
                     assert.equal(tracked.subSessionId, undefined);
@@ -274,7 +637,7 @@ suite('auxiliary request title preparation', () => {
             });
         }
 
-        for (const kind of ['main-agent', 'unknown', 'background'] as const) {
+        for (const kind of ['main-agent', 'unclassified'] as const) {
             test(`${sdkMode}: recovered ${kind} still restores historical titles`, async () => {
                 const sessionId = randomUUID();
                 logs = [historicalLog(sessionId)];
@@ -312,8 +675,8 @@ suite('auxiliary request title preparation', () => {
         test(`real classification skips history for ${kind}`, async () => {
             const sessionId = randomUUID();
             logs = [historicalLog(sessionId)];
-            const messages = requestMessages(sessionId);
-            messages.unshift(vscode.LanguageModelChatMessage.User(prompt));
+            const messages = requestMessages(sessionId, 'openai', undefined, 'unknown');
+            messages.unshift(new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.System, prompt));
             if (kind === 'terminal-steering') {
                 messages.push(vscode.LanguageModelChatMessage.User(prompt));
             }
@@ -395,7 +758,7 @@ suite('auxiliary request title preparation', () => {
             logs = [historicalLog(sessionId)];
             const options: vscode.ProvideLanguageModelChatResponseOptions = {
                 ...requestOptions(kind),
-                modelOptions: { requestKind: kind, _otelTraceContext: { traceId, spanId: 'test-span' } }
+                modelOptions: { _otelTraceContext: { traceId, spanId: 'test-span' } }
             };
             const tracked = await prepare(kind, undefined, 'openai', requestMessages(), options);
             assert.equal(tracked.sessionId, sessionId);

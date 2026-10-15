@@ -12,8 +12,8 @@ import {
     GeminiThoughtSignatureMarker,
     MarkerUsage,
     StatefulMarkerContainer
-} from './statefulMarker';
-import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
+} from './stateful/statefulMarker';
+import { toOptionalStatefulMarkerField } from './stateful/statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 import { ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
 import { LiveMetricsTracker } from './liveMetricsTracker';
@@ -566,7 +566,7 @@ export class StreamReporter {
                 {
                     sessionId: this.sessionId,
                     subSessionId: this.subSessionId,
-                    responseId: this.responseId
+                    responseId: this.responseId ?? ''
                 },
                 statefulMarkerData
             ),

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { convertMessagesToGemini } from '../../../../src/handlers/gemini/geminiConverter';
 import type { GeminiContent, GeminiPart } from '../../../../src/handlers/gemini/geminiType';
-import { decodeStatefulMarker, encodeStatefulMarker } from '../../../../src/handlers/statefulMarker';
+import { decodeStatefulMarker, encodeStatefulMarker } from '../../../../src/handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../../../src/handlers/types';
 import { InterInstanceBus } from '../../../../src/interInstance';
 import { setBalanceHandoffDirectoryOverride } from '../../../../src/interInstance/pathResolver';

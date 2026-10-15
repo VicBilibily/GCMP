@@ -13,6 +13,10 @@ import {
 } from './nativeCostSplit';
 import type { BaseStats, FileLoggerModelStats, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 import { convertUsdToRmb, sumCosts } from '../../utils/pricing/pricingCurrency';
+import {
+    mergeRequestClassificationFields,
+    normalizeRequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 function addCost(current: number, delta: number | undefined): number {
     return sumCosts([current, delta]);
@@ -195,7 +199,11 @@ export abstract class StatsCalculator {
 
             if (!existing) {
                 // 第一次遇到此requestId，记录初始时间戳
-                mergedMap.set(log.requestId, { ...log });
+                mergedMap.set(log.requestId, {
+                    ...log,
+                    ...mergeRequestClassificationFields({}, log),
+                    requestContinuity: normalizeRequestContinuity(log.requestContinuity)
+                });
             } else {
                 // 已存在，保留时间戳更早的（请求开始时间），但更新其他字段为最新状态
                 if (log.timestamp < existing.timestamp) {
@@ -208,14 +216,15 @@ export abstract class StatsCalculator {
                 existing.rawUsage = log.rawUsage;
                 existing.apiKeyHash = log.apiKeyHash;
                 existing.apiKeyName = log.apiKeyName;
+                Object.assign(existing, mergeRequestClassificationFields(existing, log));
+                existing.requestContinuity =
+                    normalizeRequestContinuity(existing.requestContinuity) ??
+                    normalizeRequestContinuity(log.requestContinuity);
                 if (log.estimatedIncrement !== undefined) {
                     existing.estimatedIncrement = log.estimatedIncrement;
                 }
                 if (log.maxInputTokens !== undefined) {
                     existing.maxInputTokens = log.maxInputTokens;
-                }
-                if (log.requestKind !== undefined) {
-                    existing.requestKind = log.requestKind;
                 }
                 if (log.sessionId !== undefined) {
                     existing.sessionId = log.sessionId;

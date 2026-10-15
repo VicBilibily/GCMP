@@ -1,5 +1,6 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { RequestClassificationMetadata } from '../handlers/classification/requestClassification';
 
 import {
     mergeTitleEntry,
@@ -11,6 +12,61 @@ import {
 
 const ROLE_USER = 1;
 const ROLE_ASSISTANT = 2;
+
+function classification(
+    requestOrigin: RequestClassificationMetadata['requestOrigin'],
+    level: RequestClassificationMetadata['evidence']['purpose']['level'] = 'signature'
+): RequestClassificationMetadata {
+    return {
+        version: 1,
+        requestOrigin,
+        agentRole: 'undetermined',
+        evidence: { origin: { level: 'signature' }, purpose: { level }, role: { level: 'unknown' } }
+    };
+}
+
+for (const origin of ['copilot-sdk', 'core', 'other-extension', 'unknown'] as const) {
+    test(`classified ${origin} cannot register a legacy user-input match key`, () => {
+        const service = new SessionTitleService();
+        service.registerSession('foreign', 'shared input', classification(origin));
+        assert.equal(service.resolveGeneratedTitle('shared input', 'legacy title'), false);
+        assert.equal(service.getTitle('foreign'), undefined);
+    });
+
+    test(`classified ${origin} title output cannot fill or queue a legacy title`, () => {
+        const service = new SessionTitleService();
+        service.registerSession('legacy', 'shared input');
+        assert.equal(
+            service.resolveGeneratedTitleDetails('shared input', 'foreign title', classification(origin)),
+            undefined
+        );
+        assert.equal(service.getTitle('legacy'), undefined);
+        service.registerSession('later', 'shared input');
+        assert.equal(service.getTitle('later'), undefined);
+    });
+}
+
+for (const level of ['heuristic', 'unknown'] as const) {
+    test(`weak ${level} Copilot classification cannot register or resolve titles`, () => {
+        const service = new SessionTitleService();
+        service.registerSession('weak', 'shared input', classification('copilot-chat', level));
+        assert.equal(service.resolveGeneratedTitle('shared input', 'title'), false);
+        service.registerSession('legacy', 'shared input');
+        assert.equal(
+            service.resolveGeneratedTitle('shared input', 'weak title', classification('copilot-chat', level)),
+            false
+        );
+        assert.equal(service.getTitle('legacy'), 'title');
+    });
+}
+
+test('verified legacy classification retains registration and generated-title backfill', () => {
+    const service = new SessionTitleService();
+    const metadata = classification('copilot-chat');
+    service.registerSession('legacy', 'input', metadata);
+    assert.equal(service.resolveGeneratedTitle('input', 'confirmed title', metadata), true);
+    assert.equal(service.getTitle('legacy'), 'confirmed title');
+});
 
 function userMessage(text: string): ChatMessageLike {
     return { role: ROLE_USER, content: [{ value: text }] };

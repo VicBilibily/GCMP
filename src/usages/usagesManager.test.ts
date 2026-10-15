@@ -7,6 +7,24 @@ import test, { type TestContext } from 'node:test';
 
 import { DateUtils } from './fileLogger/dateUtils';
 import type { TokenRequestLog, TokenUsageStatsFromFile } from './fileLogger/types';
+import type { TokenFileLogger as FileLogger } from './fileLogger';
+import type { UsagesPendingRecord } from './query/types';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../handlers/classification/requestClassification';
+
+const classification: RequestClassificationMetadata = {
+    version: 1,
+    requestOrigin: 'copilot-sdk',
+    agentRole: 'undetermined',
+    evidence: {
+        origin: { level: 'signature', ruleId: 'sdk-identity' },
+        purpose: { level: 'unknown' },
+        role: { level: 'unknown' }
+    }
+};
+const continuity: RequestContinuity = { version: 1, scope: 'chain', source: 'new' };
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -67,6 +85,195 @@ test('optional historical title hydration preserves readable usage records', asy
         const today = DateUtils.getTodayDateString();
         const yesterday = DateUtils.getDateStringDaysAgo(1);
         const olderDate = DateUtils.getDateStringDaysAgo(2);
+
+        await t.test('manager estimated metadata reaches the logger unchanged', async () => {
+            let recorded: Parameters<FileLogger['recordEstimatedTokens']>[0] | undefined;
+            const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+            Object.assign(manager, {
+                initialized: true,
+                fileLogger: {
+                    recordEstimatedTokens: async (params: Parameters<FileLogger['recordEstimatedTokens']>[0]) => {
+                        recorded = params;
+                    }
+                },
+                clearDateRecordsCache() {},
+                notifyUpdate() {}
+            });
+            const requestId = await manager.recordEstimatedTokens({
+                providerKey: 'test',
+                displayName: 'Test',
+                modelId: 'model',
+                modelName: 'Model',
+                estimatedInputTokens: 10,
+                requestKind: 'unclassified',
+                requestInitiator: 'core',
+                requestClassification: classification,
+                requestContinuity: continuity
+            });
+            assert.equal(recorded?.requestId, requestId);
+            assert.deepEqual(recorded?.requestClassification, classification);
+            assert.deepEqual(recorded?.requestContinuity, continuity);
+            assert.equal(recorded?.requestKind, 'unclassified');
+            assert.equal(recorded?.requestInitiator, 'core');
+        });
+
+        for (const overlay of ['remote', 'local'] as const) {
+            for (const level of ['heuristic', 'signature', 'contract'] as const) {
+                await t.test(`${overlay} pending overlay pairs kind and purpose with ${level} evidence`, async () => {
+                    const existing: UsagesPendingRecord = {
+                        ...createLog('pending-kind', today, ''),
+                        status: 'estimated',
+                        rawUsage: null,
+                        requestKind: 'main-agent',
+                        requestClassification: {
+                            ...classification,
+                            evidence: {
+                                ...classification.evidence,
+                                purpose: { level: 'signature', ruleId: 'main-purpose' }
+                            }
+                        }
+                    };
+                    const pending: UsagesPendingRecord = {
+                        ...existing,
+                        requestKind: 'chat-title',
+                        outputSpeed: 12.5,
+                        requestClassification: {
+                            ...classification,
+                            evidence: { ...classification.evidence, purpose: { level, ruleId: 'title-purpose' } }
+                        }
+                    };
+                    const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+                    Object.assign(manager, {
+                        fileLogger: {
+                            getRequestDetails: async () => [existing],
+                            getPendingLogs: () => (overlay === 'local' ? [pending] : [])
+                        },
+                        historicalSessionTitleCache: new Map()
+                    });
+                    const before = structuredClone({ existing, pending });
+                    const records = await manager.getDateRecords(today, overlay === 'remote' ? [pending] : []);
+                    assert.equal(records.length, 1);
+                    assert.equal(
+                        records[0].requestKind,
+                        level === 'signature' ? 'unclassified'
+                        : level === 'contract' ? 'chat-title'
+                        : 'main-agent'
+                    );
+                    assert.deepEqual(
+                        records[0].requestClassification?.evidence.purpose,
+                        level === 'signature' ?
+                            { level: 'unknown', conflictLevel: 'signature', reasonCode: 'classification-conflict' }
+                        :   (level === 'contract' ? pending : existing).requestClassification?.evidence.purpose
+                    );
+                    assert.equal(records[0].status, 'estimated');
+                    assert.equal(records[0].timestamp, pending.timestamp);
+                    assert.equal(records[0].outputSpeed, 12.5);
+                    assert.deepEqual({ existing, pending }, before);
+                });
+            }
+
+            await t.test(
+                `${overlay} pending metadata without kind preserves the existing kind and purpose`,
+                async () => {
+                    const existing: UsagesPendingRecord = {
+                        ...createLog('pending-missing-kind', today, ''),
+                        status: 'estimated',
+                        rawUsage: null,
+                        requestKind: 'main-agent',
+                        requestClassification: classification
+                    };
+                    const pending: UsagesPendingRecord = {
+                        ...existing,
+                        requestKind: undefined,
+                        requestClassification: {
+                            ...classification,
+                            evidence: {
+                                ...classification.evidence,
+                                purpose: { level: 'contract', ruleId: 'orphan-purpose' }
+                            }
+                        }
+                    };
+                    const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+                    Object.assign(manager, {
+                        fileLogger: {
+                            getRequestDetails: async () => [existing],
+                            getPendingLogs: () => (overlay === 'local' ? [pending] : [])
+                        },
+                        historicalSessionTitleCache: new Map()
+                    });
+                    const records = await manager.getDateRecords(today, overlay === 'remote' ? [pending] : []);
+                    assert.equal(records[0].requestKind, 'main-agent');
+                    assert.deepEqual(
+                        records[0].requestClassification?.evidence.purpose,
+                        classification.evidence.purpose
+                    );
+                }
+            );
+
+            await t.test(`${overlay} contract pending update corrects a weaker kind conflict`, async () => {
+                const existing: UsagesPendingRecord = {
+                    ...createLog('pending-kind-conflict', today, ''),
+                    status: 'estimated',
+                    rawUsage: null,
+                    requestKind: 'main-agent',
+                    requestClassification: classification
+                };
+                const conflicting: UsagesPendingRecord = { ...existing, requestKind: 'chat-title' };
+                const stronger: UsagesPendingRecord = {
+                    ...existing,
+                    requestClassification: {
+                        ...classification,
+                        evidence: { ...classification.evidence, purpose: { level: 'contract', ruleId: 'main-purpose' } }
+                    }
+                };
+                const updates = [conflicting, stronger];
+                const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+                Object.assign(manager, {
+                    fileLogger: {
+                        getRequestDetails: async () => [existing],
+                        getPendingLogs: () => (overlay === 'local' ? updates : [])
+                    },
+                    historicalSessionTitleCache: new Map()
+                });
+                const records = await manager.getDateRecords(today, overlay === 'remote' ? updates : []);
+                assert.equal(records[0].requestKind, 'main-agent');
+                assert.deepEqual(
+                    records[0].requestClassification?.evidence.purpose,
+                    stronger.requestClassification?.evidence.purpose
+                );
+            });
+
+            await t.test(`${overlay} pending overlay preserves existing valid classification`, async () => {
+                const existing: UsagesPendingRecord = {
+                    ...createLog('pending-metadata', today, ''),
+                    status: 'estimated',
+                    rawUsage: null,
+                    requestClassification: classification,
+                    requestContinuity: continuity
+                };
+                const pending: UsagesPendingRecord = {
+                    ...existing,
+                    requestClassification: undefined,
+                    requestContinuity: undefined,
+                    outputTokens: 6,
+                    outputSpeed: 12.5
+                };
+                const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+                Object.assign(manager, {
+                    fileLogger: {
+                        getRequestDetails: async () => [existing],
+                        getPendingLogs: () => (overlay === 'local' ? [pending] : [])
+                    },
+                    historicalSessionTitleCache: new Map()
+                });
+                const records = await manager.getDateRecords(today, overlay === 'remote' ? [pending] : []);
+                assert.equal(records.length, 1);
+                assert.deepEqual(records[0].requestClassification, classification);
+                assert.deepEqual(records[0].requestContinuity, continuity);
+                assert.equal(records[0].outputTokens, 0);
+                assert.equal(records[0].outputSpeed, 12.5);
+            });
+        }
 
         async function createFixture(context: TestContext, logsByDate: Record<string, TokenRequestLog[]>) {
             const dir = await mkdtemp(join(tmpdir(), 'gcmp-historical-titles-'));

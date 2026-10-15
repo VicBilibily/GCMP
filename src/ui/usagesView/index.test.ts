@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,10 @@ import { StatsCalculator } from '../../usages/fileLogger/statsCalculator';
 import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile } from '../../usages/fileLogger/types';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { HostMessage, WebViewMessage } from './types';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -416,18 +420,34 @@ test('opening usages view reconciles a stale index once, without slowing event r
         });
 
         await t.test('detail requests forward bounded query results without a full-day view cache', async () => {
+            const requestClassification: RequestClassificationMetadata = {
+                version: 1,
+                requestOrigin: 'copilot-sdk',
+                agentRole: 'undetermined',
+                evidence: {
+                    origin: { level: 'signature', ruleId: 'sdk-identity' },
+                    purpose: { level: 'unknown' },
+                    role: { level: 'unknown' }
+                }
+            };
+            const requestContinuity: RequestContinuity = { version: 1, scope: 'chain', source: 'marker' };
             Object.assign(manager, {
                 getRecordsPage: async (params: { page: number; pageSize: number }) => ({
                     mode: 'all',
                     page: params.page,
                     pageSize: params.pageSize,
                     totalItems: 1,
-                    records: [{ requestId: 'page-record' }],
+                    records: [{ requestId: 'page-record', requestClassification, requestContinuity }],
                     summary: emptyOverview.allSummary,
                     totals: emptyOverview.allTotals
                 }),
                 getTrackRecords: async () => ({
-                    groups: [{ sessionId: 'session-a', records: [{ requestId: 'track-record' }] }]
+                    groups: [
+                        {
+                            sessionId: 'session-a',
+                            records: [{ requestId: 'track-record', requestClassification, requestContinuity }]
+                        }
+                    ]
                 })
             });
             messages.length = 0;
@@ -439,6 +459,10 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 pageSize: 20
             });
             assert.equal(messages[0]?.command, 'recordsPage');
+            const pageMessage = messages.at(0);
+            assert.ok(pageMessage?.command === 'recordsPage');
+            assert.deepEqual(pageMessage.records[0].requestClassification, requestClassification);
+            assert.deepEqual(pageMessage.records[0].requestContinuity, requestContinuity);
             assert.equal(
                 (messages[0] as { records: Array<{ requestId: string }> }).records[0].requestId,
                 'page-record'
@@ -466,6 +490,10 @@ test('opening usages view reconciles a stale index once, without slowing event r
                 limitPerSession: 10
             });
             assert.equal(messages[0]?.command, 'trackRecords');
+            const trackMessage = messages.at(0);
+            assert.ok(trackMessage?.command === 'trackRecords');
+            assert.deepEqual(trackMessage.groups[0].records[0].requestClassification, requestClassification);
+            assert.deepEqual(trackMessage.groups[0].records[0].requestContinuity, requestContinuity);
             assert.equal(
                 (messages[0] as { groups: Array<{ records: Array<{ requestId: string }> }> }).groups[0].records[0]
                     .requestId,

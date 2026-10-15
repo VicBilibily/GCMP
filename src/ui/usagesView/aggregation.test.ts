@@ -10,6 +10,9 @@ import {
     buildRequestTotals,
     buildSessionGroupSummaries,
     filterRecordsBySession,
+    normalizeSessionId,
+    groupRecordsBySession,
+    UNKNOWN_SESSION_ID,
     sliceRecordsPage
 } from './aggregation';
 
@@ -36,6 +39,58 @@ function createRecord(overrides: Partial<ExtendedTokenRequestLog> = {}): Extende
 
 const TRACE_CONTEXT = { traceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', spanId: 'span-1' };
 const SESSION_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+for (const scope of ['chain', 'subagent'] as const) {
+    for (const source of ['marker', 'legacy', 'new'] as const) {
+        test(`reliable ${scope}/${source} local continuity groups without inventing OTel context`, () => {
+            const records = [
+                createRecord({
+                    requestId: 'first',
+                    sessionId: `prefix_session_${SESSION_ID.toUpperCase()}`,
+                    requestKind: 'unclassified',
+                    requestInitiator: 'core',
+                    requestContinuity: { version: 1, scope, source },
+                    estimatedCost: 0.125
+                }),
+                createRecord({
+                    requestId: 'restored',
+                    sessionId: SESSION_ID,
+                    requestKind: 'unclassified',
+                    requestContinuity: { version: 1, scope, source: 'marker' },
+                    estimatedCost: 0.25
+                })
+            ];
+            assert.equal(normalizeSessionId(records[0]), SESSION_ID);
+            const groups = groupRecordsBySession(records);
+            assert.equal(groups.length, 1);
+            assert.equal(groups[0].sessionId, SESSION_ID);
+            assert.equal(groups[0].title, undefined);
+            assert.equal(buildSessionGroupSummaries(records)[0].recordCount, 2);
+            assert.deepEqual(filterRecordsBySession(records, SESSION_ID), records);
+            assert.deepEqual(groups[0].totals, buildRequestTotals(records));
+            assert.equal(groups[0].totals.totalCost, 0.375);
+            assert.ok(records.every(record => record.otelTraceContext === undefined));
+        });
+    }
+}
+
+test('legacy no-trace and invalid local identities retain unknown grouping regardless of origin', () => {
+    for (const record of [
+        createRecord({ sessionId: SESSION_ID, requestInitiator: 'core', requestKind: 'background' }),
+        createRecord({ sessionId: SESSION_ID, requestKind: 'main-agent', sessionTitle: '旧标题' }),
+        createRecord({ sessionId: 'not-a-uuid', requestContinuity: { version: 1, scope: 'chain', source: 'new' } }),
+        createRecord({
+            sessionId: SESSION_ID,
+            requestContinuity: { version: 2, scope: 'chain', source: 'marker' }
+        } as unknown as Partial<ExtendedTokenRequestLog>),
+        createRecord({
+            sessionId: SESSION_ID,
+            requestContinuity: { version: 1, scope: 'future', source: 'marker' }
+        } as unknown as Partial<ExtendedTokenRequestLog>)
+    ]) {
+        assert.equal(normalizeSessionId(record), UNKNOWN_SESSION_ID);
+    }
+});
 
 test('output duration totals use stream duration', () => {
     const totals = buildRequestTotals([

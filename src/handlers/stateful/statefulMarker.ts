@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CustomDataPartMimeTypes } from './types';
-import { decodeStatefulMarkerPayload, encodeStatefulMarkerPayload } from './statefulMarkerCodec';
-import type { GeminiContent } from './gemini/geminiType';
+import { CustomDataPartMimeTypes } from '../types';
+import {
+    decodeGCMPStatefulMarkerPayload,
+    describeStatefulMarkerPayload,
+    encodeStatefulMarkerPayload,
+    type StatefulMarkerPayloadDiagnostic
+} from './statefulMarkerCodec';
+import type { GeminiContent } from '../gemini/geminiType';
+import type { AgentRole } from '../classification/requestClassification';
 
 // 当前 console.warn 确保该模块在 node:test 环境中也能独立运行
 
@@ -38,10 +44,16 @@ export interface StatefulMarkerContainer {
     provider: string;
     modelId: string;
     sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini';
+    statefulCredentialId?: string;
     /** 会话ID，标识会话上下文 */
     sessionId: string;
-    /** 子代理会话ID（仅 search/execution-subagent 请求的 marker 携带），用于负载均衡粘滞与用量归属 */
+    /** 子代理会话ID，用于负载均衡粘滞与用量归属 */
     subSessionId?: string;
+    continuity?: {
+        version: 1;
+        scope: 'chain' | 'subagent';
+        agentRole: AgentRole;
+    };
     balanceAffinity?: {
         slot: string;
         balanceKey: string;
@@ -83,22 +95,102 @@ export interface MarkerUsage {
 }
 
 export interface StatefulMarkerWithModel {
-    /** 这个值不可靠，不代表实际使用的模型ID */
     modelId: string;
     /** 实际传递保存的 marker */
     marker: StatefulMarkerContainer;
 }
 
 export function encodeStatefulMarker(modelId: string, marker: Omit<StatefulMarkerContainer, 'extension'>): Uint8Array {
-    // MARK: copilot 内部始终会自动处理 modelId, 这里无论传递什么 modelId 都会被重置
-    //       我们只需要确保 marker 的数据传递即可
-
     return encodeStatefulMarkerPayload(modelId, { ...marker, extension: StatefulMarkerExtension });
 }
 
 export function decodeStatefulMarker(data: Uint8Array): StatefulMarkerWithModel | undefined {
-    // MARK: 这里获取到的 modelId 始终为 copilot 内部重置后的值
-    return decodeStatefulMarkerPayload<StatefulMarkerContainer>(data);
+    return decodeGCMPStatefulMarkerPayload(data);
+}
+
+interface StatefulMarkerDiagnostic extends StatefulMarkerPayloadDiagnostic {
+    messageIndex: number;
+    partIndex: number;
+    role: 'assistant' | 'system' | 'user' | 'unknown';
+    nativeDataPart: boolean;
+}
+
+export function getStatefulMarkerDiagnostics(
+    messages: readonly vscode.LanguageModelChatMessage[],
+    modelId: string
+): {
+    dataPartCount: number;
+    otherDataPartCount: number;
+    markerCount: number;
+    assistantMarkerCount: number;
+    validMarkerCount: number;
+    scanTruncated: boolean;
+    scanFailed: boolean;
+    markers: StatefulMarkerDiagnostic[];
+} {
+    const result = {
+        dataPartCount: 0,
+        otherDataPartCount: 0,
+        markerCount: 0,
+        assistantMarkerCount: 0,
+        validMarkerCount: 0,
+        scanTruncated: false,
+        scanFailed: false,
+        markers: [] as StatefulMarkerDiagnostic[]
+    };
+    let scannedParts = 0;
+    try {
+        result.scanTruncated = messages.length > 4096;
+        scan: for (
+            let messageIndex = messages.length - 1;
+            messageIndex >= Math.max(0, messages.length - 4096);
+            messageIndex--
+        ) {
+            const message = messages[messageIndex];
+            const role =
+                message.role === vscode.LanguageModelChatMessageRole.Assistant ? 'assistant'
+                : message.role === vscode.LanguageModelChatMessageRole.System ? 'system'
+                : message.role === vscode.LanguageModelChatMessageRole.User ? 'user'
+                : 'unknown';
+            for (let partIndex = message.content.length - 1; partIndex >= 0; partIndex--) {
+                if (scannedParts++ >= 16384) {
+                    result.scanTruncated = true;
+                    break scan;
+                }
+                const part = message.content[partIndex];
+                if (typeof part !== 'object' || part === null || !('mimeType' in part)) {
+                    continue;
+                }
+                result.dataPartCount++;
+                if (part.mimeType !== CustomDataPartMimeTypes.StatefulMarker) {
+                    result.otherDataPartCount++;
+                    continue;
+                }
+                const diagnostic = describeStatefulMarkerPayload('data' in part ? part.data : undefined, modelId);
+                result.markerCount++;
+                if (role === 'assistant') {
+                    result.assistantMarkerCount++;
+                }
+                if (diagnostic.decodeStatus === 'valid') {
+                    result.validMarkerCount++;
+                }
+                result.markers.push({
+                    ...diagnostic,
+                    messageIndex,
+                    partIndex,
+                    role,
+                    nativeDataPart: part instanceof vscode.LanguageModelDataPart
+                });
+                if (result.markerCount === 16) {
+                    result.scanTruncated ||= messageIndex > 0 || partIndex > 0;
+                    break scan;
+                }
+            }
+        }
+    } catch {
+        result.scanFailed = true;
+    }
+    return result;
 }
 
 /** Gets stateful markers from the messages, from the most to least recent */
@@ -106,7 +198,8 @@ export function* getAllStatefulMarkersAndIndicies(messages: readonly vscode.Lang
     for (let idx = messages.length - 1; idx >= 0; idx--) {
         const message = messages[idx];
         if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
-            for (const part of message.content) {
+            for (let partIdx = message.content.length - 1; partIdx >= 0; partIdx--) {
+                const part = message.content[partIdx];
                 if (
                     part instanceof vscode.LanguageModelDataPart &&
                     part.mimeType === CustomDataPartMimeTypes.StatefulMarker

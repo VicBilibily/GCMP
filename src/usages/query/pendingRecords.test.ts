@@ -12,6 +12,10 @@ import type { LogFilePath, TokenRequestLog } from '../fileLogger/types';
 import type { TokenUsagesManager } from '../usagesManager';
 import type { SessionTitleService } from '../sessionTitleService';
 import type { LogReadManager } from '../fileLogger/logReadManager';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -218,6 +222,71 @@ test('remote usages queries preserve caller pending state without retaining full
             }
             return { leader, follower, logger, addPending, leaderTitles, followerTitles };
         }
+
+        await t.test(
+            'manager metadata survives follower transport and reliable no-trace session queries',
+            async context => {
+                const { follower, logger } = await fixture(context);
+                const classification: RequestClassificationMetadata = {
+                    version: 1,
+                    requestOrigin: 'unknown',
+                    agentRole: 'undetermined',
+                    evidence: {
+                        origin: { level: 'unknown' },
+                        purpose: { level: 'unknown' },
+                        role: { level: 'unknown' }
+                    }
+                };
+                const continuity: RequestContinuity = { version: 1, scope: 'chain', source: 'new' };
+                const requestId = await follower.recordEstimatedTokens({
+                    providerKey: 'test',
+                    displayName: 'Test',
+                    modelId: 'model',
+                    modelName: 'Model',
+                    estimatedInputTokens: 10,
+                    sessionId: sessionA,
+                    requestKind: 'unclassified',
+                    requestInitiator: 'core',
+                    requestClassification: classification,
+                    requestContinuity: continuity
+                });
+                const local = logger.getPendingLogs().find(record => record.requestId === requestId);
+                assert.deepEqual(local?.requestClassification, classification);
+                assert.deepEqual(local?.requestContinuity, continuity);
+                assert.equal(local?.otelTraceContext, undefined);
+                const overview = await follower.getDateOverview(today);
+                assert.equal(overview.sessionGroups.length, 1);
+                assert.equal(overview.sessionGroups[0].sessionId, sessionA);
+                assert.equal(overview.sessionGroups[0].title, undefined);
+                const page = await follower.getRecordsPage({
+                    date: today,
+                    mode: 'session',
+                    sessionId: sessionA,
+                    page: 1,
+                    pageSize: 1
+                });
+                assert.equal(page.records.length, 1);
+                assert.deepEqual(page.records[0].requestClassification, classification);
+                assert.deepEqual(page.records[0].requestContinuity, continuity);
+                assert.equal(page.records[0].requestInitiator, 'core');
+                assert.equal(page.records[0].otelTraceContext, undefined);
+                const tracked = await follower.getTrackRecords({
+                    date: today,
+                    sessionIds: [sessionA, sessionB],
+                    limitPerSession: 1
+                });
+                assert.deepEqual(tracked.groups[0].records[0].requestClassification, classification);
+                assert.deepEqual(tracked.groups[0].records[0].requestContinuity, continuity);
+                const transported = requests
+                    .at(-1)
+                    ?.payload.pendingRecords?.find(record => record.requestId === requestId);
+                assert.deepEqual(transported?.requestClassification, classification);
+                assert.deepEqual(transported?.requestContinuity, continuity);
+                assert.equal(page.totals.totalCost, 0);
+                assert.equal(page.totals.inputTokens, 0);
+                assert.equal(page.summary.requestCount, 1);
+            }
+        );
 
         for (const kind of ['allRecordsPage', 'dateOverview', 'recordsPage', 'trackRecords'] as const) {
             await t.test(`${kind} merges caller metrics and title before aggregation and paging`, async context => {

@@ -41,6 +41,12 @@ import { UsagesQueryCoordinator } from './query/usagesQueryCoordinator';
 import { UsageStatusSnapshots } from './status/usageStatusSnapshots';
 import type { UsageStatusSnapshot } from './status/snapshot';
 import { normalizeUsagesPendingRecords } from './query/validation';
+import {
+    mergeRequestClassificationFields,
+    normalizeRequestContinuity,
+    type RequestClassificationMetadata,
+    type RequestContinuity
+} from '../handlers/classification/requestClassification';
 import type {
     UsagesDateOverview,
     UsagesPendingRecord,
@@ -270,6 +276,8 @@ export class TokenUsagesManager {
         estimatedIncrement?: number;
         maxInputTokens?: number;
         requestKind?: string;
+        requestClassification?: RequestClassificationMetadata;
+        requestContinuity?: RequestContinuity;
         sessionId?: string;
         subSessionId?: string;
         sessionRecoverySource?: SessionRecoverySource;
@@ -304,6 +312,8 @@ export class TokenUsagesManager {
                     estimatedIncrement: params.estimatedIncrement,
                     maxInputTokens: params.maxInputTokens,
                     requestKind: params.requestKind,
+                    requestClassification: params.requestClassification,
+                    requestContinuity: params.requestContinuity,
                     sessionId: params.sessionId,
                     subSessionId: params.subSessionId,
                     sessionRecoverySource: params.sessionRecoverySource,
@@ -721,12 +731,26 @@ export class TokenUsagesManager {
     ): TokenRequestLog[] {
         const terminalIds = new Set(details.filter(log => log.status !== 'estimated').map(log => log.requestId));
         // 在途快照不能把已经落盘的终态回退为 estimated。
-        const pending = new Map<string, TokenRequestLog>(
-            pendingRecords.filter(log => !terminalIds.has(log.requestId)).map(log => [log.requestId, log])
-        );
+        const existingById = new Map(details.map(log => [log.requestId, log]));
+        const pending = new Map<string, TokenRequestLog>();
+        const preserveMetadata = (log: TokenRequestLog): TokenRequestLog => {
+            const existing = pending.get(log.requestId) ?? existingById.get(log.requestId);
+            return {
+                ...log,
+                ...mergeRequestClassificationFields(existing ?? {}, log),
+                requestContinuity:
+                    normalizeRequestContinuity(existing?.requestContinuity) ??
+                    normalizeRequestContinuity(log.requestContinuity)
+            };
+        };
+        for (const log of pendingRecords) {
+            if (!terminalIds.has(log.requestId)) {
+                pending.set(log.requestId, preserveMetadata(log));
+            }
+        }
         for (const log of this.fileLogger.getPendingLogs()) {
             if (!date || DateUtils.formatDate(new Date(log.timestamp)) === date) {
-                pending.set(log.requestId, log);
+                pending.set(log.requestId, preserveMetadata(log));
             }
         }
         if (pending.size === 0) {

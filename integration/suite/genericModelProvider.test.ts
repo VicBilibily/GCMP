@@ -135,6 +135,26 @@ function createTestProvider(handler: TestHandler): TestProvider {
     provider.getRequestRetryConfig = () => ({ enabled: true, maxAttempts: 1, initialDelayMs: 0, maxDelayMs: 0 });
     provider.shouldRetryRequest = () => true;
 
+    const executeRequest = provider.executeModelRequest;
+    provider.executeModelRequest = (...args) => {
+        const modelOptions = { ...args[3].modelOptions };
+        delete modelOptions.requestKind;
+        args[2] = [
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.System,
+                'You are a coding agent running in VS Code'
+            ),
+            ...args[2]
+        ];
+        args[3] = {
+            ...args[3],
+            requestInitiator: 'github.copilot-chat',
+            toolMode: vscode.LanguageModelChatToolMode.Auto,
+            modelOptions
+        };
+        return executeRequest.apply(provider, args);
+    };
+
     return provider;
 }
 

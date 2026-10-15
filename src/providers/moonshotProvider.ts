@@ -202,6 +202,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        options = this.createRequestOptions(messages, options);
         // 查找对应的模型配置
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
@@ -227,6 +228,8 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         const {
             requestKind,
+            requestClassification,
+            requestContinuity,
             totalInputTokens,
             maxInputTokens,
             estimatedIncrement,
@@ -252,6 +255,8 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             estimatedIncrement,
             maxInputTokens,
             requestKind,
+            requestClassification,
+            requestContinuity,
             sessionId,
             subSessionId,
             sessionRecoverySource,

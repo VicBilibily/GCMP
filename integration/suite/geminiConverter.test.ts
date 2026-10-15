@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 
 import { convertMessagesToGemini, convertToolsToGemini } from '../../src/handlers/gemini/geminiConverter';
-import { encodeStatefulMarker, type GeminiThoughtSignatureMarker } from '../../src/handlers/statefulMarker';
+import { encodeStatefulMarker, type GeminiThoughtSignatureMarker } from '../../src/handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 
 function createGeminiMarker(signatures: GeminiThoughtSignatureMarker[]): vscode.LanguageModelDataPart {

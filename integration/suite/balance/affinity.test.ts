@@ -8,9 +8,13 @@ import {
     decodeStatefulMarker,
     encodeStatefulMarker,
     type StatefulMarkerContainer
-} from '../../../src/handlers/statefulMarker';
+} from '../../../src/handlers/stateful/statefulMarker';
 import { StreamReporter } from '../../../src/handlers/streamReporter';
 import { CustomDataPartMimeTypes } from '../../../src/handlers/types';
+import {
+    SDK_CUSTOM_SUBAGENT,
+    SDK_HOST_IDENTITY
+} from '../../../src/handlers/classification/testFixtures/sdkPurposeSamples';
 import { InterInstanceBus } from '../../../src/interInstance';
 import { registerInterInstanceHandlers } from '../../../src/interInstance/activation';
 import type { ApiKeyBalanceAssignmentRequestedEvent } from '../../../src/interInstance/eventProtocol';
@@ -20,6 +24,7 @@ import { LeaderElectionService } from '../../../src/status/leaderElectionService
 import type { ModelConfig } from '../../../src/types/sharedTypes';
 import { StateHost } from '../../../src/ui/configSetManager/stateHost';
 import { ApiKeyManager } from '../../../src/utils/config/apiKeyManager';
+import { Logger } from '../../../src/utils/runtime/logger';
 import { CompatibleModelManager } from '../../../src/utils/config/compatibleModelManager';
 import { ConfigSetStore } from '../../../src/utils/config/configSetStore';
 import { ApiKeyFailoverManager } from '../../../src/utils/config/failover/apiKeyFailoverManager';
@@ -66,12 +71,13 @@ function userMessage(text = 'Analyze the project', tag = 'userRequest'): vscode.
 
 function turnOptions(telemetryTurn: number, traceId = randomUUID()): vscode.ProvideLanguageModelChatResponseOptions {
     return {
+        requestInitiator: 'github.copilot-chat',
+        toolMode: vscode.LanguageModelChatToolMode.Auto,
         modelOptions: {
-            requestKind: 'main-agent',
             _telemetryTurn: telemetryTurn,
             _otelTraceContext: { traceId, spanId: '0123456789abcdef' }
         }
-    } as unknown as vscode.ProvideLanguageModelChatResponseOptions;
+    };
 }
 
 function readMarker(parts: readonly vscode.LanguageModelResponsePart[]): StatefulMarkerContainer {
@@ -93,13 +99,15 @@ class AffinityProvider extends GenericModelProvider {
             copilotOptions?: vscode.ProvideLanguageModelChatResponseOptions;
             slot?: string;
             requestKind?: string;
+            systemPrompt?: string;
+            modelId?: string;
             onDispatch?: (apiKey: string) => void;
         } = {}
     ) {
         const slot = settings.slot ?? 'slot';
         const sdkMode = settings.sdkMode ?? 'openai';
         const config: ModelConfig = {
-            id: 'affinity-model',
+            id: settings.modelId ?? 'affinity-model',
             name: 'Affinity Model',
             tooltip: 'Affinity Model',
             provider: slot,
@@ -111,6 +119,7 @@ class AffinityProvider extends GenericModelProvider {
         };
         const provider = Object.create(AffinityProvider.prototype) as AffinityProvider;
         const usedKeys: string[] = [];
+        const receivedMessages: vscode.LanguageModelChatMessage[][] = [];
         const handleRequest = async (
             _model: vscode.LanguageModelChatInformation,
             modelConfig: ModelConfig,
@@ -123,10 +132,11 @@ class AffinityProvider extends GenericModelProvider {
             const apiKey = await ApiKeyManager.getApiKeyForRequest(slot, modelConfig);
             assert.ok(apiKey);
             usedKeys.push(apiKey);
+            receivedMessages.push(_messages);
             settings.onDispatch?.(apiKey);
             const reporter = new StreamReporter({
                 modelName: config.name,
-                modelId: config.id,
+                modelId: _model.id,
                 provider: slot,
                 sdkMode:
                     sdkMode === 'gemini-sse' ? 'gemini'
@@ -153,12 +163,28 @@ class AffinityProvider extends GenericModelProvider {
             anthropicHandler: { handleRequest },
             geminiHandler: { handleRequest }
         });
-        const model = { id: config.id, name: config.name } as vscode.LanguageModelChatInformation;
-        const options =
-            settings.copilotOptions ??
-            ({
-                modelOptions: { requestKind: settings.requestKind ?? 'main-agent' }
-            } as unknown as vscode.ProvideLanguageModelChatResponseOptions);
+        const model = { id: `gcmp.${slot}:::${config.id}`, name: config.name } as vscode.LanguageModelChatInformation;
+        const taskPrompt =
+            settings.requestKind === 'execution-subagent' ?
+                'You are an AI coding research assistant that runs a series of terminal commands to perform a small execution-focused task'
+            : settings.requestKind === 'summarization' ?
+                'Your task is to create a comprehensive, detailed summary of the entire conversation'
+            :   'You are a coding agent running in VS Code';
+        messages = [
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.System,
+                settings.systemPrompt ?? taskPrompt
+            ),
+            ...messages.filter(message => message.role !== vscode.LanguageModelChatMessageRole.System)
+        ];
+        const options = provider.createRequestOptions(
+            messages,
+            settings.copilotOptions ?? {
+                requestInitiator: 'github.copilot-chat',
+                toolMode: vscode.LanguageModelChatToolMode.Auto,
+                modelOptions: {}
+            }
+        );
         const tracked = await provider.prepareTrackedRequestContext(model, config, messages, options);
         const parts: vscode.LanguageModelResponsePart[] = [];
         const cancellation = new vscode.CancellationTokenSource();
@@ -182,7 +208,7 @@ class AffinityProvider extends GenericModelProvider {
         } finally {
             cancellation.dispose();
         }
-        return { ...tracked, usedKeys, parts, marker: readMarker(parts) };
+        return { ...tracked, usedKeys, receivedMessages, parts, marker: readMarker(parts) };
     }
 
     protected override async estimateRequestTokens() {
@@ -292,6 +318,273 @@ suite('balance turn affinity', () => {
         InterInstanceBus.isAuthorityTransitioning = originalTransitioning;
         InterInstanceBus.publishIpcOnly = originalPublish;
     });
+
+    test('SDK unknown purpose restores statistics and chain affinity without a text hash', async () => {
+        const systemPrompt = 'You are an AI assistant using Copilot SDK in VS Code.';
+        const copilotOptions: vscode.ProvideLanguageModelChatResponseOptions = {
+            requestInitiator: 'core',
+            toolMode: vscode.LanguageModelChatToolMode.Auto,
+            modelOptions: { requestKind: 'chat-title', subSessionId: 'stale-sub' }
+        };
+        const messages = [userMessage()];
+        const first = await AffinityProvider.run(messages, { systemPrompt, copilotOptions });
+        assert.equal(first.requestKind, 'unclassified');
+        assert.equal(first.classification.agentRole, 'undetermined');
+        assert.equal(first.subSessionId, undefined);
+        assert.equal(first.balanceKey, `s:${first.sessionId}`);
+        assert.deepEqual(first.requestContinuity, { version: 1, scope: 'chain', source: 'new' });
+        assert.deepEqual(first.marker.continuity, { version: 1, scope: 'chain', agentRole: 'undetermined' });
+        assert.equal(first.marker.modelId, 'gcmp.slot:::affinity-model');
+        const markerPart = first.parts.find(part => part instanceof vscode.LanguageModelDataPart);
+        assert.ok(markerPart instanceof vscode.LanguageModelDataPart);
+        assert.equal(decodeStatefulMarker(markerPart.data)?.modelId, 'gcmp.slot:::affinity-model');
+        await ApiKeyFailoverManager.captureAttempt('slot', first.balanceKey, 'busy-sdk-chain');
+        const next = await AffinityProvider.run(
+            [...continuation(messages, first.parts), userMessage('a new request')],
+            {
+                systemPrompt,
+                copilotOptions
+            }
+        );
+        assert.equal(next.sessionId, first.sessionId);
+        assert.equal(next.balanceKey, first.balanceKey);
+        assert.deepEqual(next.usedKeys, first.usedKeys);
+        assert.deepEqual(next.requestContinuity, { version: 1, scope: 'chain', source: 'marker' });
+        assert.equal(copilotOptions.modelOptions?.requestKind, 'chat-title');
+        assert.equal(copilotOptions.modelOptions?.subSessionId, 'stale-sub');
+    });
+
+    test('marker diagnostics respect the actual LogOutputChannel level', () => {
+        const logger = Logger as unknown as { outputChannel: vscode.LogOutputChannel | undefined };
+        const original = logger.outputChannel;
+        try {
+            logger.outputChannel = undefined;
+            assert.equal(Logger.isDebugEnabled(), false);
+            for (const [level, enabled] of [
+                [vscode.LogLevel.Trace, true],
+                [vscode.LogLevel.Debug, true],
+                [vscode.LogLevel.Info, false],
+                [vscode.LogLevel.Warning, false],
+                [vscode.LogLevel.Error, false],
+                [vscode.LogLevel.Off, false]
+            ] as const) {
+                logger.outputChannel = { logLevel: level } as vscode.LogOutputChannel;
+                assert.equal(Logger.isDebugEnabled(), enabled);
+            }
+        } finally {
+            logger.outputChannel = original;
+        }
+    });
+
+    for (const mode of ['debug', 'disabled', 'logger-failure'] as const) {
+        test(`SDK marker diagnostics preserve two-round recovery and privacy: ${mode}`, async () => {
+            const originalDebug = Logger.debug;
+            const originalEnabled = Logger.isDebugEnabled;
+            const lines: string[] = [];
+            Logger.isDebugEnabled = () => mode !== 'disabled';
+            Logger.debug = message => {
+                if (message.startsWith('[MarkerContinuity]')) {
+                    if (mode === 'logger-failure') {
+                        throw new Error('diagnostic failure');
+                    }
+                    lines.push(message);
+                }
+            };
+            try {
+                const messages = [userMessage('private-user-sentinel')];
+                const settings = {
+                    systemPrompt: 'You are an AI assistant using Copilot SDK in VS Code.',
+                    copilotOptions: {
+                        requestInitiator: 'core',
+                        toolMode: vscode.LanguageModelChatToolMode.Auto
+                    }
+                };
+                const first = await AffinityProvider.run(messages, settings);
+                const history = continuation(messages, first.parts);
+                const before = JSON.stringify(history);
+                const next = await AffinityProvider.run(history, settings);
+                assert.equal(first.sessionRecoverySource, 'new-uuid');
+                assert.equal(next.sessionRecoverySource, 'stateful-marker');
+                assert.equal(next.sessionId, first.sessionId);
+                assert.equal(JSON.stringify(history), before);
+                if (mode !== 'debug') {
+                    assert.equal(lines.length, 0);
+                    return;
+                }
+                const inputs = lines
+                    .filter(line => line.startsWith('[MarkerContinuity] input '))
+                    .map(
+                        line =>
+                            JSON.parse(line.slice('[MarkerContinuity] input '.length)) as {
+                                recoverySource: string;
+                                sessionHash: string;
+                                markerCount: number;
+                                markers: Array<{
+                                    payloadHash: string;
+                                    sessionMatches: boolean;
+                                    outerModelMatches: boolean;
+                                    restoreStatus: string;
+                                }>;
+                            }
+                    );
+                const outputs = lines
+                    .filter(line => line.startsWith('[MarkerContinuity] output '))
+                    .map(
+                        line =>
+                            JSON.parse(line.slice('[MarkerContinuity] output '.length)) as {
+                                payloadHash: string;
+                                sessionHash: string;
+                                outerModelMatches: boolean;
+                                decodeStatus: string;
+                            }
+                    );
+                assert.equal(lines.filter(line => line.startsWith('[MarkerContinuity] entry ')).length, 2);
+                assert.equal(inputs.length, 2);
+                assert.equal(outputs.length, 2);
+                assert.equal(inputs[0].markerCount, 0);
+                assert.equal(inputs[0].recoverySource, 'new-uuid');
+                assert.equal(inputs[1].recoverySource, 'stateful-marker');
+                assert.equal(inputs[1].markers[0].payloadHash, outputs[0].payloadHash);
+                assert.equal(inputs[1].markers[0].sessionMatches, true);
+                assert.equal(inputs[1].markers[0].outerModelMatches, true);
+                assert.equal(inputs[1].markers[0].restoreStatus, 'eligible');
+                assert.equal(outputs[0].sessionHash, inputs[1].sessionHash);
+                assert.equal(outputs[0].outerModelMatches, true);
+                assert.equal(outputs[0].decodeStatus, 'valid');
+                assert.doesNotMatch(
+                    lines.join('\n'),
+                    /private-user-sentinel|fake-key-|affinity-model|affinity-response|fake-path|Copilot SDK in VS Code/
+                );
+                assert.equal(
+                    lines.some(line => line.includes(first.sessionId)),
+                    false
+                );
+            } finally {
+                Logger.debug = originalDebug;
+                Logger.isDebugEnabled = originalEnabled;
+            }
+        });
+    }
+
+    test('未分类调用延续已建立的子链，但不继承子代理角色', async () => {
+        const systemPrompt = 'You are an AI assistant using Copilot SDK in VS Code.';
+        const first = await AffinityProvider.run([userMessage()], { requestKind: 'execution-subagent' });
+        assert.ok(first.subSessionId);
+        const next = await AffinityProvider.run(continuation([userMessage()], first.parts), { systemPrompt });
+        assert.equal(next.subSessionId, first.subSessionId);
+        assert.equal(next.balanceKey, first.balanceKey);
+        assert.equal(next.classification.agentRole, 'undetermined');
+        assert.equal(next.requestKind, 'unclassified');
+        const later = await AffinityProvider.run(continuation([userMessage()], next.parts), { systemPrompt });
+        assert.equal(later.subSessionId, first.subSessionId);
+        assert.equal(later.classification.agentRole, 'undetermined');
+    });
+
+    for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
+        for (const historyMode of ['latest', 'complete'] as const) {
+            test(`${sdkMode}: verified child survives uncertain rounds with ${historyMode} history`, async () => {
+                const settings = {
+                    sdkMode,
+                    systemPrompt: SDK_CUSTOM_SUBAGENT,
+                    copilotOptions: {
+                        requestInitiator: 'core',
+                        toolMode: vscode.LanguageModelChatToolMode.Auto
+                    }
+                };
+                const first = await AffinityProvider.run([userMessage()], settings);
+                assert.equal(first.classification.agentRole, 'subagent');
+                assert.ok(first.subSessionId);
+                let previous = first;
+                let history = [userMessage()];
+                for (let round = 0; round < 2; round++) {
+                    history = continuation(historyMode === 'complete' ? history : [userMessage()], previous.parts);
+                    const before = JSON.stringify(history);
+                    previous = await AffinityProvider.run(history, { ...settings, systemPrompt: SDK_HOST_IDENTITY });
+                    assert.equal(previous.classification.agentRole, 'undetermined');
+                    assert.equal(previous.requestKind, 'unclassified');
+                    assert.equal(previous.classification.evidence.role.level, 'unknown');
+                    assert.equal(previous.sessionId, first.sessionId);
+                    assert.equal(previous.subSessionId, first.subSessionId);
+                    assert.equal(previous.balanceKey, first.balanceKey);
+                    assert.deepEqual(previous.usedKeys, first.usedKeys);
+                    assert.equal(previous.marker.continuity?.agentRole, 'subagent');
+                    assert.equal(JSON.stringify(history), before);
+                }
+                const resumed = await AffinityProvider.run(
+                    continuation(historyMode === 'complete' ? history : [userMessage()], previous.parts),
+                    settings
+                );
+                assert.equal(resumed.classification.agentRole, 'subagent');
+                assert.equal(resumed.sessionRecoverySource, 'stateful-marker');
+                assert.equal(resumed.sessionId, first.sessionId);
+                assert.equal(resumed.subSessionId, first.subSessionId);
+                assert.equal(resumed.balanceKey, first.balanceKey);
+                assert.deepEqual(resumed.usedKeys, first.usedKeys);
+            });
+        }
+
+        test(`${sdkMode}: a sub-session ID without verified child continuity cannot acquire it`, async () => {
+            const first = await AffinityProvider.run([userMessage()], { sdkMode, systemPrompt: SDK_CUSTOM_SUBAGENT });
+            for (const agentRole of ['main', 'undetermined'] as const) {
+                const unverified = new vscode.LanguageModelDataPart(
+                    encodeStatefulMarker(first.marker.modelId, {
+                        ...first.marker,
+                        continuity: { version: 1, scope: 'subagent', agentRole }
+                    }),
+                    CustomDataPartMimeTypes.StatefulMarker
+                );
+                const next = await AffinityProvider.run(continuation([userMessage()], [...first.parts, unverified]), {
+                    sdkMode,
+                    systemPrompt: SDK_HOST_IDENTITY
+                });
+                assert.equal(next.subSessionId, first.subSessionId);
+                assert.equal(next.classification.agentRole, 'undetermined');
+                assert.equal(next.marker.continuity?.agentRole, 'undetermined');
+                const child = await AffinityProvider.run(continuation([userMessage()], next.parts), {
+                    sdkMode,
+                    systemPrompt: SDK_CUSTOM_SUBAGENT
+                });
+                assert.notEqual(child.subSessionId, first.subSessionId);
+            }
+        });
+    }
+
+    for (const change of ['model', 'protocol', 'provider'] as const) {
+        test(`SDK chain statistics survive a ${change} change without inheriting credentials`, async () => {
+            const systemPrompt = 'You are an AI assistant using Copilot SDK in VS Code.';
+            const first = await AffinityProvider.run([userMessage()], { systemPrompt });
+            await ApiKeyFailoverManager.captureAttempt('slot', first.balanceKey, 'busy-original-sdk');
+            const original = { ...first.marker };
+            original.encryptedReasoning = [{ encryptedContent: 'private-state', reasoningId: 'rs_old' }];
+            if (change === 'provider') {
+                original.provider = 'other-provider';
+            }
+            const part = new vscode.LanguageModelDataPart(
+                encodeStatefulMarker('affinity-model', original),
+                CustomDataPartMimeTypes.StatefulMarker
+            );
+            const next = await AffinityProvider.run(continuation([userMessage()], [part]), {
+                systemPrompt,
+                modelId: change === 'model' ? 'another-model' : undefined,
+                sdkMode: change === 'protocol' ? 'anthropic' : 'openai'
+            });
+            assert.equal(next.sessionId, first.sessionId);
+            assert.notEqual(next.usedKeys[0], first.usedKeys[0]);
+            const replayed = next.receivedMessages[0]
+                .flatMap(message => message.content)
+                .find(
+                    value =>
+                        value instanceof vscode.LanguageModelDataPart &&
+                        value.mimeType === CustomDataPartMimeTypes.StatefulMarker
+                );
+            assert.ok(replayed instanceof vscode.LanguageModelDataPart);
+            const replayedMarker = decodeStatefulMarker(replayed.data)?.marker;
+            assert.equal(replayedMarker?.encryptedReasoning, undefined);
+            assert.equal(replayedMarker?.responseId, '');
+            assert.equal(replayedMarker?.sessionId, first.sessionId);
+            assert.deepEqual(replayedMarker?.usage, original.usage);
+        });
+    }
 
     for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
         test(`${sdkMode}: fresh session binds its first key and keeps it after load changes`, async () => {
@@ -594,10 +887,8 @@ suite('balance turn affinity', () => {
                 identity(first.usedKeys[0])
             );
             const helper = await AffinityProvider.run(continuation(messages, first.parts), {
-                copilotOptions: {
-                    ...copilotOptions,
-                    modelOptions: { ...copilotOptions.modelOptions, requestKind }
-                }
+                copilotOptions,
+                requestKind
             });
             assert.notEqual(helper.usedKeys[0], first.usedKeys[0]);
             const next = await AffinityProvider.run(continuationWithoutMarker(messages, helper.parts), {

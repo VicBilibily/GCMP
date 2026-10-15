@@ -1,8 +1,254 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { StatsCalculator } from './statsCalculator';
 import type { TokenRequestLog } from './types';
+import type {
+    RequestClassificationMetadata,
+    RequestContinuity
+} from '../../handlers/classification/requestClassification';
+
+const classification: RequestClassificationMetadata = {
+    version: 1,
+    requestOrigin: 'copilot-sdk',
+    agentRole: 'undetermined',
+    evidence: {
+        origin: { level: 'signature', ruleId: 'sdk-identity' },
+        purpose: { level: 'unknown' },
+        role: { level: 'unknown' }
+    }
+};
+const continuity: RequestContinuity = { version: 1, scope: 'chain', source: 'marker' };
+
+for (const status of ['completed', 'failed', 'cancelled'] as const) {
+    test(`raw ${status} merge preserves estimated classification and continuity`, () => {
+        const estimated = { ...createLog(), requestClassification: classification, requestContinuity: continuity };
+        const terminal = createLog({
+            status,
+            timestamp: 2000,
+            rawUsage: { prompt_tokens: 80, completion_tokens: 20 },
+            estimatedCost: 0.125
+        });
+        const merged = StatsCalculator.mergeLogsByRequestId([estimated, terminal]).get('req-1')!;
+        assert.deepEqual(merged.requestClassification, classification);
+        assert.deepEqual(merged.requestContinuity, continuity);
+        assert.equal(merged.timestamp, estimated.timestamp);
+        assert.equal(merged.status, status);
+        assert.deepEqual(merged.rawUsage, terminal.rawUsage);
+        assert.equal(merged.estimatedCost, 0.125);
+    });
+}
+
+test('raw merge upgrades an old writer record without changing request kind or initiator', () => {
+    const estimated = createLog({ requestKind: 'background', requestInitiator: 'core' });
+    const terminal = {
+        ...createLog({ status: 'completed', rawUsage: { prompt_tokens: 80, completion_tokens: 20 } }),
+        requestClassification: classification,
+        requestContinuity: continuity
+    };
+    const merged = StatsCalculator.mergeLogsByRequestId([estimated, terminal]).get('req-1')!;
+    assert.deepEqual(merged.requestClassification, classification);
+    assert.deepEqual(merged.requestContinuity, continuity);
+    assert.equal(merged.requestKind, 'background');
+    assert.equal(merged.requestInitiator, 'core');
+});
+
+for (const level of ['heuristic', 'signature', 'contract'] as const) {
+    test(`raw merge selects kind and purpose together with ${level} incoming evidence`, () => {
+        const estimated = {
+            ...createLog({ requestKind: 'main-agent' }),
+            requestClassification: {
+                ...classification,
+                evidence: {
+                    ...classification.evidence,
+                    purpose: { level: 'signature' as const, ruleId: 'main-purpose' }
+                }
+            }
+        };
+        const terminal = {
+            ...createLog({
+                status: 'completed',
+                timestamp: 2000,
+                requestKind: 'chat-title',
+                rawUsage: { prompt_tokens: 80, completion_tokens: 20 },
+                estimatedCost: 0.125
+            }),
+            requestClassification: {
+                ...classification,
+                evidence: { ...classification.evidence, purpose: { level, ruleId: 'title-purpose' } }
+            }
+        };
+        const before = structuredClone([estimated, terminal]);
+        const merged = StatsCalculator.mergeLogsByRequestId([estimated, terminal]).get('req-1')!;
+        assert.equal(
+            merged.requestKind,
+            level === 'signature' ? 'unclassified'
+            : level === 'contract' ? 'chat-title'
+            : 'main-agent'
+        );
+        assert.deepEqual(
+            merged.requestClassification?.evidence.purpose,
+            level === 'signature' ?
+                { level: 'unknown', conflictLevel: 'signature', reasonCode: 'classification-conflict' }
+            :   (level === 'contract' ? terminal : estimated).requestClassification.evidence.purpose
+        );
+        assert.equal(merged.timestamp, 1000);
+        assert.equal(merged.status, 'completed');
+        assert.equal(merged.estimatedCost, 0.125);
+        assert.deepEqual(merged.rawUsage, terminal.rawUsage);
+        assert.deepEqual([estimated, terminal], before);
+    });
+}
+
+test('raw metadata without kind preserves the existing kind and purpose pair', () => {
+    const estimated = { ...createLog({ requestKind: 'main-agent' }), requestClassification: classification };
+    const terminal = {
+        ...createLog({ status: 'completed' }),
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level: 'contract' as const, ruleId: 'orphan-purpose' } }
+        }
+    };
+    const merged = StatsCalculator.mergeLogsByRequestId([estimated, terminal]).get('req-1')!;
+    assert.equal(merged.requestKind, 'main-agent');
+    assert.deepEqual(merged.requestClassification?.evidence.purpose, classification.evidence.purpose);
+});
+
+test('raw serialized signature conflict rejects equal/weaker evidence and accepts contract commit', () => {
+    const first = {
+        ...createLog({ requestKind: 'main-agent' }),
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level: 'signature' as const, ruleId: 'main-purpose' } }
+        }
+    };
+    const second = { ...first, requestKind: 'chat-title' };
+    const conflicted = StatsCalculator.mergeLogsByRequestId([first, second]).get('req-1')!;
+    assert.equal(conflicted.requestKind, 'unclassified');
+    assert.deepEqual(conflicted.requestClassification?.evidence.purpose, {
+        level: 'unknown',
+        conflictLevel: 'signature',
+        reasonCode: 'classification-conflict'
+    });
+    const restored = JSON.parse(JSON.stringify(conflicted)) as TokenRequestLog;
+    for (const level of ['unknown', 'heuristic', 'signature'] as const) {
+        const update = {
+            ...first,
+            requestClassification: {
+                ...classification,
+                evidence: { ...classification.evidence, purpose: { level, ruleId: 'repeated-main' } }
+            }
+        };
+        for (const logs of [
+            [restored, update],
+            [update, restored]
+        ]) {
+            const merged = StatsCalculator.mergeLogsByRequestId(logs).get('req-1')!;
+            assert.equal(merged.requestKind, 'unclassified');
+            assert.deepEqual(merged.requestClassification, conflicted.requestClassification);
+        }
+    }
+    const third = {
+        ...createLog({ requestKind: 'git-commit-message', status: 'completed', estimatedCost: 0.5 }),
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level: 'contract' as const, ruleId: 'commit-purpose' } }
+        }
+    };
+    const merged = StatsCalculator.mergeLogsByRequestId([restored, third]).get('req-1')!;
+    assert.equal(merged.requestKind, 'git-commit-message');
+    assert.deepEqual(merged.requestClassification, third.requestClassification);
+    assert.equal(merged.status, 'completed');
+    assert.equal(merged.estimatedCost, 0.5);
+});
+
+test('raw contract commit wins over signature main/title in all orders and merge groups', () => {
+    const [first, second, third] = (
+        [
+            ['main-agent', 'signature', 'main-purpose'],
+            ['chat-title', 'signature', 'title-purpose'],
+            ['git-commit-message', 'contract', 'commit-purpose']
+        ] as const
+    ).map(([requestKind, level, ruleId]) => ({
+        ...createLog({ requestKind }),
+        requestClassification: {
+            ...classification,
+            evidence: { ...classification.evidence, purpose: { level, ruleId } }
+        }
+    }));
+    const before = structuredClone([first, second, third]);
+    for (const [a, b, c] of [
+        [first, second, third],
+        [first, third, second],
+        [second, first, third],
+        [second, third, first],
+        [third, first, second],
+        [third, second, first]
+    ]) {
+        const ab = StatsCalculator.mergeLogsByRequestId([a, b]).get('req-1')!;
+        const bc = StatsCalculator.mergeLogsByRequestId([b, c]).get('req-1')!;
+        const restoredAB = JSON.parse(JSON.stringify(ab)) as TokenRequestLog;
+        const restoredBC = JSON.parse(JSON.stringify(bc)) as TokenRequestLog;
+        for (const logs of [
+            [a, b, c],
+            [ab, c],
+            [a, bc],
+            [restoredAB, c],
+            [a, restoredBC]
+        ]) {
+            const merged = StatsCalculator.mergeLogsByRequestId(logs).get('req-1')!;
+            assert.equal(merged.requestKind, 'git-commit-message');
+            assert.deepEqual(merged.requestClassification, third.requestClassification);
+        }
+    }
+    assert.deepEqual([first, second, third], before);
+});
+
+test('raw classification conflict does not overwrite stronger role evidence', () => {
+    const reliable: RequestClassificationMetadata = {
+        ...classification,
+        agentRole: 'main',
+        evidence: { ...classification.evidence, role: { level: 'contract', ruleId: 'explicit-main' } }
+    };
+    const weaker: RequestClassificationMetadata = {
+        ...classification,
+        agentRole: 'subagent',
+        evidence: { ...classification.evidence, role: { level: 'heuristic', ruleId: 'weak-role' } }
+    };
+    const merged = StatsCalculator.mergeLogsByRequestId([
+        { ...createLog(), requestClassification: reliable },
+        { ...createLog({ status: 'completed', estimatedCost: 0.5 }), requestClassification: weaker }
+    ]).get('req-1')!;
+    assert.equal(merged.requestClassification?.agentRole, 'main');
+    assert.equal(merged.requestClassification?.evidence.role.level, 'contract');
+    assert.equal(merged.status, 'completed');
+    assert.equal(merged.estimatedCost, 0.5);
+});
+
+for (const badMetadata of [null, { version: 2 }, { ...classification, requestOrigin: 'future-origin' }]) {
+    test(`raw reader drops unsupported metadata ${JSON.stringify(badMetadata)} but keeps costs`, () => {
+        const log = {
+            ...createLog({
+                status: 'completed',
+                rawUsage: { prompt_tokens: 80, completion_tokens: 20 },
+                estimatedCost: 0.5
+            }),
+            requestClassification: badMetadata,
+            requestContinuity: { version: 1, scope: 'future-scope', source: 'marker' }
+        } as unknown as TokenRequestLog;
+        const merged = StatsCalculator.mergeLogsByRequestId([log]).get('req-1')!;
+        assert.equal(merged.requestClassification, undefined);
+        assert.equal(merged.requestContinuity, undefined);
+        const legacy = { ...log, requestClassification: undefined, requestContinuity: undefined };
+        assert.deepEqual(StatsCalculator.aggregateLogs([log]), StatsCalculator.aggregateLogs([legacy]));
+        const preserved = StatsCalculator.mergeLogsByRequestId([
+            { ...createLog(), requestClassification: classification, requestContinuity: continuity },
+            log
+        ]).get('req-1')!;
+        assert.deepEqual(preserved.requestClassification, classification);
+        assert.deepEqual(preserved.requestContinuity, continuity);
+    });
+}
 
 function createLog(overrides: Partial<TokenRequestLog> = {}): TokenRequestLog {
     return {

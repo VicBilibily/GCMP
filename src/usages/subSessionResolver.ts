@@ -1,14 +1,12 @@
 /*---------------------------------------------------------------------------------------------
  *  子会话（sub-session）解析器
- *  为搜索/执行子代理请求生成稳定的子会话标识：优先从 GCMP 自己回写的 StatefulMarker 读回，
- *  首轮无标记时按 父会话|类型|任务文本 的确定性哈希生成，并随 marker 在后续轮次往返。
- *  纯函数实现（无 vscode 依赖），供 genericModelProvider 与单元测试直接使用。
+ *  无 vscode 依赖；旧 Copilot Chat 保留哈希身份，其他来源无子代理连续性时使用随机身份。
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'node:crypto';
-import { decodeStatefulMarkerPayload } from '../handlers/statefulMarkerCodec';
+import { decodeGCMPStatefulMarkerPayload } from '../handlers/stateful/statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from '../handlers/types';
-import type { StatefulMarkerContainer } from '../handlers/statefulMarker';
+import type { RequestOrigin } from '../handlers/classification/requestClassification';
 
 // 与 VS Code LanguageModelChatMessageRole 数值保持一致（vscode 枚举在 node:test 下不可用）
 const ROLE_USER = 1;
@@ -31,14 +29,19 @@ export function resolveSubSessionId(
     messages: readonly SubSessionMessageLike[],
     parentSessionId: string,
     requestKind: string,
-    parentSessionStable: boolean
+    parentSessionStable: boolean,
+    requestOrigin: RequestOrigin = 'copilot-chat'
 ): string | undefined {
-    if (requestKind !== 'search-subagent' && requestKind !== 'execution-subagent') {
+    if (requestKind !== 'search-subagent' && requestKind !== 'execution-subagent' && requestKind !== 'subagent') {
         return undefined;
     }
-    const fromMarker = readSubSessionIdFromMarkers(messages, parentSessionId);
+    const legacy = requestOrigin === 'copilot-chat';
+    const fromMarker = readSubSessionIdFromMarkers(messages, parentSessionId, legacy);
     if (fromMarker) {
         return fromMarker;
+    }
+    if (!legacy) {
+        return SUB_SESSION_ID_PREFIX + crypto.randomUUID().replace(/-/g, '');
     }
     const taskText = extractFirstUserText(messages);
     if (!taskText) {
@@ -50,14 +53,16 @@ export function resolveSubSessionId(
 
 function readSubSessionIdFromMarkers(
     messages: readonly SubSessionMessageLike[],
-    parentSessionId: string
+    parentSessionId: string,
+    legacy: boolean
 ): string | undefined {
     for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
         const message = messages[idx];
-        if (!message || message.role !== ROLE_ASSISTANT) {
+        if (!message || message.role !== ROLE_ASSISTANT || !Array.isArray(message.content)) {
             continue;
         }
-        for (const part of message.content) {
+        for (let partIdx = message.content.length - 1; partIdx >= 0; partIdx--) {
+            const part = message.content[partIdx];
             const candidate = part as { mimeType?: unknown; data?: unknown } | null;
             if (
                 candidate?.mimeType !== CustomDataPartMimeTypes.StatefulMarker ||
@@ -65,10 +70,13 @@ function readSubSessionIdFromMarkers(
             ) {
                 continue;
             }
-            const decoded = decodeStatefulMarkerPayload<StatefulMarkerContainer>(candidate.data);
+            const decoded = decodeGCMPStatefulMarkerPayload(candidate.data);
             const marker = decoded?.marker;
-            if (marker?.extension !== 'vicanent.gcmp' || marker.sessionId !== parentSessionId) {
+            if (!marker || marker.sessionId !== parentSessionId) {
                 continue;
+            }
+            if (!legacy && (marker.continuity?.scope !== 'subagent' || marker.continuity.agentRole !== 'subagent')) {
+                return undefined;
             }
             const subSessionId = marker.subSessionId;
             return typeof subSessionId === 'string' && SUB_SESSION_ID_PATTERN.test(subSessionId) ?
@@ -81,7 +89,7 @@ function readSubSessionIdFromMarkers(
 
 function extractFirstUserText(messages: readonly SubSessionMessageLike[]): string | undefined {
     for (const message of messages) {
-        if (message.role !== ROLE_USER) {
+        if (!message || message.role !== ROLE_USER || !Array.isArray(message.content)) {
             continue;
         }
         let text = '';

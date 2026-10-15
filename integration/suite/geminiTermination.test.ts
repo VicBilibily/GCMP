@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { GeminiHandler, hasGeminiPartialUsage } from '../../src/handlers/gemini/geminiHandler';
 import type { GeminiGenerateContentResponse } from '../../src/handlers/gemini/geminiType';
 import { onLiveMetrics, type LiveStreamMetricEvent } from '../../src/handlers/liveMetrics';
-import { decodeStatefulMarker } from '../../src/handlers/statefulMarker';
+import { decodeStatefulMarker } from '../../src/handlers/stateful/statefulMarker';
 import { CustomDataPartMimeTypes } from '../../src/handlers/types';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
 import { TokenUsagesManager, type UpdateActualTokensParams } from '../../src/usages/usagesManager';
