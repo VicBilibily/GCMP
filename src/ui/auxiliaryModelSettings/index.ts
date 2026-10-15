@@ -47,7 +47,7 @@ export class AuxiliaryModelSettingsPanel {
 
         this.panel = vscode.window.createWebviewPanel(
             'gcmpAuxiliaryModelSettings',
-            t('Auxiliary Model Settings', '辅助工具模型设置'),
+            t('Auxiliary Preferences', '设置辅助偏好'),
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
@@ -84,7 +84,9 @@ export class AuxiliaryModelSettingsPanel {
 
     private async sendInitialData(): Promise<void> {
         const providers = await this.getProviders();
+        const preference = vscode.workspace.getConfiguration().inspect<boolean>('chat.editor.preferCopilotHarness');
         const initialValues: InitialValues = {
+            preferCopilotHarness: preference?.globalValue ?? preference?.defaultValue ?? false,
             commit: ConfigManager.getCommitConfig().model,
             vision: ConfigManager.getConfig().vision.model,
             utility: this.parseUtilityModelId('chat.utilityModel'),
@@ -103,6 +105,11 @@ export class AuxiliaryModelSettingsPanel {
 
     private async saveSettings(values: FormValues): Promise<void> {
         try {
+            if (typeof values.preferCopilotHarness !== 'boolean') {
+                throw new Error(
+                    t('Copilot Harness preference must be a boolean.', 'Copilot Harness 偏好必须为布尔值。')
+                );
+            }
             const config = vscode.workspace.getConfiguration();
 
             // 前置检测：若 Agent 配置存在差异化且用户未选择覆盖，
@@ -113,6 +120,12 @@ export class AuxiliaryModelSettingsPanel {
                 return;
             }
 
+            for (const preferenceKey of ['chat.defaultToCopilotHarness', 'chat.editor.preferCopilotHarness']) {
+                const preference = config.inspect<boolean>(preferenceKey);
+                if ((preference?.globalValue ?? preference?.defaultValue ?? false) !== values.preferCopilotHarness) {
+                    await config.update(preferenceKey, values.preferCopilotHarness, vscode.ConfigurationTarget.Global);
+                }
+            }
             await this.updateModelSetting(config, 'gcmp.commit.model', values.commit);
             await this.updateModelSetting(config, 'gcmp.vision.model', values.vision);
             await this.updateCopilotUtilitySetting(config, 'chat.utilityModel', values.utility);
@@ -377,7 +390,7 @@ export class AuxiliaryModelSettingsPanel {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${t('Auxiliary Model Settings', '辅助工具模型设置')}</title>
+    <title>${t('Auxiliary Preferences', '设置辅助偏好')}</title>
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${cspSource}; script-src 'unsafe-inline' ${cspSource};" />
 </head>
 <body>

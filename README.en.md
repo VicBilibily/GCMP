@@ -24,11 +24,9 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### 3. Configure VS Code Utility and GCMP Auxiliary Models (Recommended)
 
-> **VS Code 1.128+**: A startup dialog will automatically detect if `chat.utilityModel` and `chat.utilitySmallModel` are configured. If both are unset, a prompt will guide you through the setup. When using non-official Copilot models (BYOK/custom providers), unconfigured utility models will cause "No utility model is configured" errors.
+VS Code uses background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP defaults `chat.byokUtilityModelDefault` to `mainAgent`, so BYOK utility tasks without a dedicated model follow the main agent; existing explicit settings still take precedence. You can optionally choose dedicated models for `chat.utilityModel` and `chat.utilitySmallModel`. GCMP features such as commit message generation and vision analysis still require their own model selections.
 
-VS Code uses lightweight background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP features such as commit message generation and vision analysis also require their own model selections. If not configured manually, VS Code falls back to Copilot's built-in models, which consume your monthly quota — especially limited for free-tier users. Pointing these tasks to GCMP-provided models saves Copilot quota for more important work.
-
-> 💡 **Quick configuration entry**: hover the Token-usage icon in the status bar and click the `Set auxiliary tool models` link at the bottom of the daily-statistics popup to open a visual panel for unified configuration of all the models below. You can also run `GCMP: Set Auxiliary Tool Models` from the command palette.
+> 💡 **Quick configuration entry**: hover the Token-usage icon in the status bar and click the `Set auxiliary preferences` link at the bottom of the daily-statistics popup to open a visual panel for unified configuration of all the models below. You can also run `GCMP: Set Auxiliary Preferences` from the command palette.
 
 <details>
 <summary>Click to expand detailed parameter descriptions</summary>
@@ -63,14 +61,14 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 > **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-v4-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks.
 >
-> When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models. **If left unset**, VS Code will use Copilot's built-in models for utility tasks, which may consume Copilot monthly quota for free-tier users. Using a GCMP model here helps avoid that.
+> When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models.
 >
-> You can also run `GCMP: Set Auxiliary Tool Models` from the command palette to open a visual panel for unified configuration of all the models above.
+> You can also run `GCMP: Set Auxiliary Preferences` from the command palette to open a visual panel for unified configuration of all the models above.
 >
-> Shortcut entry: hover the Token-usage icon in the status bar and click the `Set auxiliary tool models` link at the bottom of the daily-statistics popup to open the same panel.
+> Shortcut entry: hover the Token-usage icon in the status bar and click the `Set auxiliary preferences` link at the bottom of the daily-statistics popup to open the same panel.
 
-- `chat.utilitySmallModel`: Lightweight utility tasks (default: `gpt-4o-mini`). Covers `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, and `workspace-search`.
-- `chat.utilityModel`: General utility tasks (default: CAPI fallback). Covers `settings-resolver`, `explain-code`, and `vscode-qa`.
+- `chat.utilitySmallModel`: Lightweight utility tasks. Covers `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, and `workspace-search`.
+- `chat.utilityModel`: General utility tasks. Covers `settings-resolver`, `explain-code`, and `vscode-qa`.
 - `inlineChat.defaultModel`: Inline Chat default model, used for in-editor inline chat (`Ctrl+I` / right-click "Chat Inline").
 - `chat.exploreAgent.defaultModel`: Explore sub-agent default model, used for `search-subagent` codebase exploration and search.
 - `chat.planAgent.defaultModel`: Plan sub-agent default model, used for planning and task decomposition in Agent mode.
@@ -1055,7 +1053,7 @@ Vision tools are invoked via `#` references, e.g. `#gcmpUiToArtifact`. When call
 
 ### Configuring the Vision Analysis Model
 
-Vision tools rely on a multimodal model specified by `gcmp.vision.model`. If unset, a selection wizard is launched on first use; you can also manually run `GCMP: Select Vision Analysis Model` or configure it through the `GCMP: Set Auxiliary Tool Models` panel.
+Vision tools rely on a multimodal model specified by `gcmp.vision.model`. If unset, a selection wizard is launched on first use; you can also manually run `GCMP: Select Vision Analysis Model` or configure it through the `GCMP: Set Auxiliary Preferences` panel.
 
 ```json
 {

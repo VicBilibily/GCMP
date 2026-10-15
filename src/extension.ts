@@ -33,7 +33,6 @@ import {
 } from './utils/config/providerRegistry';
 import { t } from './utils/runtime/l10n';
 import { activateCopilotChatInBackground } from './utils/runtime/copilotChatActivation';
-import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityModelWizard';
 import { registerVisionModelCommand } from './wizards/visionWizard';
 import { registerAuxiliaryModelSettingsCommands } from './ui/auxiliaryModelSettings';
 
@@ -253,11 +252,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<GcmpEx
         stepStartTime = Date.now();
         registerGitAvailability(context);
         Logger.trace(`Git availability check scheduled (${Date.now() - stepStartTime}ms)`);
-
-        // 步骤12: 启动后提示 utility 模型配置（VS Code 1.128+）
-        stepStartTime = Date.now();
-        void runStartupUtilityModelWizardIfNeeded();
-        Logger.trace(`Utility model setup guidance scheduled (${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`GCMP extension activated successfully (${totalActivationTime}ms)`);

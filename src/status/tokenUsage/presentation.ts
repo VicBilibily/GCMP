@@ -66,7 +66,7 @@ export class UsageStatusPresentation {
         return this.fixedCost(currency === 'RMB' ? stats.estimatedCostRmb : stats.estimatedCost, currency);
     }
 
-    generateTooltip(stats: UsageStatusStats): vscode.MarkdownString {
+    generateTooltip(stats?: UsageStatusStats): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
         md.isTrusted = {
@@ -82,9 +82,13 @@ export class UsageStatusPresentation {
             `**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** <small>${role}${this.harSuffix()}</small>\n\n`
         );
         md.appendMarkdown('\n---\n');
-        const providers = Object.values(stats.providers);
-        if (providers.length === 0 && stats.total.requests === 0) {
-            md.appendMarkdown(t('No usage records yet.', '暂无使用记录。'));
+        const providers = Object.values(stats?.providers ?? {});
+        if (!stats || (providers.length === 0 && stats.total.requests === 0)) {
+            md.appendMarkdown(
+                stats ?
+                    t('No usage records yet.', '暂无使用记录。')
+                :   t('Loading token usage...', '正在加载 Token 统计...')
+            );
             md.appendMarkdown('\n\n---\n\n');
             md.appendMarkdown(this.actionLinks(false));
             return md;
@@ -127,7 +131,7 @@ export class UsageStatusPresentation {
         const links = [
             `[${t('Click to view details', '点击查看详情')}](command:gcmp.tokenUsage.showDetails)`,
             `[${t('Manage API Keys', 'API Key 管理')}](command:gcmp.configSet.manage)`,
-            `[${t('Set auxiliary tool models', '设置辅助工具模型')}](command:gcmp.modelSettings.wizard)`
+            `[${t('Set auxiliary preferences', '设置辅助偏好')}](command:gcmp.modelSettings.wizard)`
         ];
         return links.join(horizontal ? ' │ ' : '\n\n');
     }

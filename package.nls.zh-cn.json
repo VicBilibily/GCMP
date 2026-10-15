@@ -55,7 +55,7 @@
     "command.commit.generateMessageWorkingTree": "生成提交消息 - 未暂存的更改",
     "command.commit.selectModel": "选择 Commit 消息生成模型",
     "command.vision.selectModel": "选择视觉分析模型",
-    "command.modelSettings.wizard": "设置辅助工具模型",
+    "command.modelSettings.wizard": "设置辅助偏好",
     "extension.description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵、讯飞星辰、LongCat 模型支持的扩展，并提供 OpenAI / Anthropic Compatible 自定义模型支持。",
     "setting.proxy.description": "全局代理服务器地址，用于所有 API 请求。模型级别和提供商级别的代理设置优先于此设置。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。",
     "setting.machineOverrides.description": "以区分大小写的 Provider ID 为键配置当前机器专属覆盖，键名必须与模型或内置 Provider ID 完全一致。目前支持配置 Provider 级 proxy，或在 models 中按 id 配置模型级 proxy。代理值可为 URL 或 noproxy。此设置仅保存在本机，不参与设置同步。",

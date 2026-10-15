@@ -24,11 +24,9 @@
 
 ### 3. 配置 VS Code 后台实用模型与 GCMP 辅助模型（推荐）
 
-> **VS Code 1.128+**：启动时将自动检测 `chat.utilityModel` 与 `chat.utilitySmallModel` 是否已配置。若两者均未配置，会弹窗引导设置。使用非官方 Copilot 模型（BYOK/自定义提供商）时，缺少配置的辅助模型会触发 "No utility model is configured" 报错。
+VS Code 在后台使用模型执行标题生成、提交信息创建、搜索、意图检测等**实用任务**。GCMP 默认将 `chat.byokUtilityModelDefault` 设为 `mainAgent`，使未单独指定模型的 BYOK 实用任务跟随主模型；已有显式设置仍优先。可按需为 `chat.utilityModel` 和 `chat.utilitySmallModel` 指定独立模型。GCMP 的提交消息生成、视觉分析等功能仍需单独选择模型。
 
-VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、搜索、意图检测等**实用任务**；GCMP 的提交消息生成、视觉分析等功能也需要独立指定模型。若未手动配置，VS Code 会回退到 Copilot 内置模型，这会消耗月度额度（尤其是免费用户的有限配额）；将这些任务指向 GCMP 提供的模型可节省 Copilot 额度给更重要的用途。
-
-> 💡 **快速配置入口**：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单点击「设置辅助工具模型」，即可打开可视化面板统一配置下列全部模型；也可通过命令面板执行 `GCMP: 设置辅助工具模型`。
+> 💡 **快速配置入口**：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单点击「设置辅助偏好」，即可打开可视化面板统一配置下列全部模型；也可通过命令面板执行 `GCMP: 设置辅助偏好`。
 
 <details>
 <summary>展开查看各参数详细说明</summary>
@@ -63,14 +61,14 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 > 推荐规格：`utilitySmallModel` 选择响应快的模型（如 `deepseek-v4-flash`），可配合 `maxInputTokens: 16384` 等低规格满足快捷任务即可。通用任务（标题生成、摘要等）使用 `chat.utilityModel`。
 >
-> 在 `settings.json` 中编辑时，将光标置于值位置，使用 VS Code 智能提示从已注册的模型中选择即可。**若未配置**这些设置，VS Code 会使用 Copilot 内置模型执行实用任务，**这可能会消耗免费用户的 Copilot 月度额度**。推荐配置为 GCMP 模型，可避免实用任务占用 Copilot 配额。
+> 在 `settings.json` 中编辑时，将光标置于值位置，使用 VS Code 智能提示从已注册的模型中选择即可。
 >
-> 也可通过命令面板执行 `GCMP: 设置辅助工具模型`，在可视化面板中统一配置上述所有模型。
+> 也可通过命令面板执行 `GCMP: 设置辅助偏好`，在可视化面板中统一配置上述所有模型。
 >
-> 入口快捷方式：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单中点击「设置辅助工具模型」即可进入同一面板。
+> 入口快捷方式：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单中点击「设置辅助偏好」即可进入同一面板。
 
-- `chat.utilitySmallModel`：轻量实用任务模型（默认 `gpt-4o-mini`）。覆盖 `chat-title`（标题）、`git-commit-message`（提交信息）、`git-branch-name`（分支名）、`inline-progress-message`（进度消息）、`prompt-categorizer`（意图分类）、`todo-tracker`（待办跟踪）、`rename-suggestions`（重命名建议）、`terminal-command/quickfix/explain`（终端命令/修复/解释）、`workspace-search`（搜索助手）。
-- `chat.utilityModel`：通用实用任务模型（默认 CAPI fallback）。覆盖 `settings-resolver`（设置搜索）、`explain-code`（代码解释）、`vscode-qa`（VS Code 问答）。
+- `chat.utilitySmallModel`：轻量实用任务模型。覆盖 `chat-title`（标题）、`git-commit-message`（提交信息）、`git-branch-name`（分支名）、`inline-progress-message`（进度消息）、`prompt-categorizer`（意图分类）、`todo-tracker`（待办跟踪）、`rename-suggestions`（重命名建议）、`terminal-command/quickfix/explain`（终端命令/修复/解释）、`workspace-search`（搜索助手）。
+- `chat.utilityModel`：通用实用任务模型。覆盖 `settings-resolver`（设置搜索）、`explain-code`（代码解释）、`vscode-qa`（VS Code 问答）。
 - `inlineChat.defaultModel`：内联聊天（Inline Chat）默认模型，用于编辑器内联对话（`Ctrl+I` / 右键 "在行内聊天"）。
 - `chat.exploreAgent.defaultModel`：Explore 子 Agent 默认模型，用于 `search-subagent` 代码库探索与搜索。
 - `chat.planAgent.defaultModel`：Plan 子 Agent 默认模型，用于 Agent 模式中的方案规划与任务拆解。
@@ -1188,7 +1186,7 @@ GCMP 内置一组专用视觉分析工具，用于把图片/截图转换为可�
 
 ### 配置视觉分析模型
 
-视觉工具依赖 `gcmp.vision.model` 指定的多模态模型。首次调用视觉工具时若未配置，会自动拉起选择向导；也可手动运行命令 `GCMP: 选择视觉分析模型`，或通过 `GCMP: 设置辅助工具模型` 面板统一配置。
+视觉工具依赖 `gcmp.vision.model` 指定的多模态模型。首次调用视觉工具时若未配置，会自动拉起选择向导；也可手动运行命令 `GCMP: 选择视觉分析模型`，或通过 `GCMP: 设置辅助偏好` 面板统一配置。
 
 ```json
 {

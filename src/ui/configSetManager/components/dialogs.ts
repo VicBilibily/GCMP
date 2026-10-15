@@ -31,8 +31,8 @@ export function renderDeleteDialog(slotState: SlotState, row: ConfigSetRow): voi
     const subCopy =
         row.isActive ?
             t(
-                'It is currently active, and the current key will remain in effect until the next switch.',
-                '它当前处于激活状态，现有 Key 会继续生效直到下次切换。'
+                'It is currently active. Both its saved and active API keys will be removed.',
+                '此配置当前正在使用，删除后将清除其保存和生效的 API Key。'
             )
         :   t('This will also remove its stored API key.', '这也会删除它保存的 API Key。');
 

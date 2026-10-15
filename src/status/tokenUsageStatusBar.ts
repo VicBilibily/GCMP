@@ -12,7 +12,6 @@ import { InterInstanceBus, type TokenUsageUpdatedEvent } from '../interInstance'
 import { LeaderElectionService } from './leaderElectionService';
 import type { UsageStatusSnapshot, UsageStatusStats } from '../usages/status/snapshot';
 import { UsageStatusPresentation } from './tokenUsage/presentation';
-import { t } from '../utils/runtime/l10n';
 
 export class TokenUsageStatusBar {
     private statusBarItem: vscode.StatusBarItem | undefined;
@@ -235,7 +234,7 @@ export class TokenUsageStatusBar {
             return;
         }
         this.statusBarItem.text = this.presentation.icon();
-        this.statusBarItem.tooltip = t('Loading token usage...', '正在加载 Token 统计...');
+        this.statusBarItem.tooltip = this.presentation.generateTooltip();
         this.statusBarItem.show();
     }
 

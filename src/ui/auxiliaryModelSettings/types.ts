@@ -45,6 +45,7 @@ export interface AuxiliaryModelOption {
  * 表单初始值
  */
 export interface InitialValues {
+    preferCopilotHarness: boolean;
     commit?: { provider: string; model: string };
     vision?: { provider: string; model: string };
     utility?: { provider: string; model: string };
@@ -56,6 +57,7 @@ export interface InitialValues {
  * 表单提交值
  */
 export interface FormValues {
+    preferCopilotHarness: boolean;
     commit: { provider: string; model: string } | null;
     vision: { provider: string; model: string } | null;
     utility: { provider: string; model: string } | null;

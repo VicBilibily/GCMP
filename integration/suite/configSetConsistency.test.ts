@@ -4,7 +4,12 @@ import { LeaderElectionService } from '../../src/status/leaderElectionService';
 import { CrudHost } from '../../src/ui/configSetManager/crudHost';
 import type { HostMessage, PanelContext } from '../../src/ui/configSetManager/types';
 import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
-import { applyConfigSet } from '../../src/utils/config/configSetCommands';
+import {
+    applyConfigSet,
+    applyConfigSetUnlocked,
+    enqueueConfigSetMutation,
+    readCurrentSite
+} from '../../src/utils/config/configSetCommands';
 import { ConfigSetStore } from '../../src/utils/config/configSetStore';
 import { ApiKeyFailoverManager } from '../../src/utils/config/failover/apiKeyFailoverManager';
 
@@ -99,6 +104,226 @@ suite('config set consistency regressions', () => {
             ConfigSetStore.list('slot').map(item => item.id),
             ['b']
         );
+    });
+
+    for (const slot of ['zhipu', 'minimax-token', 'custom-remove']) {
+        test(`UI removal clears both saved and active secrets for ${slot}`, async () => {
+            const context = initialize();
+            await seed(slot);
+            const posts: HostMessage[] = [];
+            const changes: string[] = [];
+            const subscription = ApiKeyManager.onDidChangeApiKey(event => {
+                if (event.provider === slot) {
+                    changes.push(event.action);
+                }
+            });
+            try {
+                await createPanel(posts).handleRemove(slot, 'a');
+            } finally {
+                subscription.dispose();
+            }
+            const result = posts.at(-1);
+            assert.ok(result?.command === 'removeResult');
+            assert.equal(result.ok, true);
+            assert.equal(await context.secrets.get(`${slot}.apiKey`), undefined);
+            assert.equal(await context.secrets.get(`configSet.${slot}.a`), undefined);
+            assert.equal(await ApiKeyManager.hasValidApiKey(slot), false);
+            assert.equal(ConfigSetStore.getActiveId(slot), undefined);
+            assert.deepEqual(
+                ConfigSetStore.list(slot).map(item => item.id),
+                ['b']
+            );
+            assert.equal(await ConfigSetStore.getApiKey(slot, 'b'), `key-${slot}-b`);
+            assert.deepEqual(changes, ['delete']);
+            assert.equal(ConfigSetStore.getSwitchMode(slot), 'off');
+            assert.doesNotMatch(result.note ?? '', /continue|stays|继续生效/i);
+        });
+    }
+
+    test('UI removal clears a matching runtime key without an active marker', async () => {
+        const context = initialize();
+        await seed('slot');
+        await ConfigSetStore.clearActive('slot');
+        const posts: HostMessage[] = [];
+        await createPanel(posts).handleRemove('slot', 'a');
+        assert.equal(await context.secrets.get('slot.apiKey'), undefined);
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), undefined);
+        assert.equal(ConfigSetStore.getActiveId('slot'), undefined);
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'b'), 'key-slot-b');
+        const result = posts.at(-1);
+        assert.ok(result?.command === 'removeResult' && result.ok);
+    });
+
+    test('UI removal of an inactive configuration preserves the active key', async () => {
+        const context = initialize();
+        await seed('slot');
+        const posts: HostMessage[] = [];
+        await createPanel(posts).handleRemove('slot', 'b');
+        assert.equal(await context.secrets.get('slot.apiKey'), 'key-slot-a');
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-slot-a');
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'b'), undefined);
+        assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+        const result = posts.at(-1);
+        assert.ok(result?.command === 'removeResult' && result.ok);
+    });
+
+    for (const marked of [true, false]) {
+        test(`removing an inactive duplicate preserves the effective active configuration (marked=${marked})`, async () => {
+            const context = initialize();
+            await seed('slot');
+            await ConfigSetStore.setApiKey('slot', 'b', 'key-slot-a');
+            if (marked) {
+                await ConfigSetStore.setActive('slot', 'b');
+            } else {
+                await ConfigSetStore.clearActive('slot');
+            }
+            const removedId = marked ? 'a' : 'b';
+            const retainedId = marked ? 'b' : 'a';
+            const posts: HostMessage[] = [];
+            await createPanel(posts).handleRemove('slot', removedId);
+            assert.equal(await context.secrets.get('slot.apiKey'), 'key-slot-a');
+            assert.equal(await ConfigSetStore.getApiKey('slot', removedId), undefined);
+            assert.equal(await ConfigSetStore.getApiKey('slot', retainedId), 'key-slot-a');
+            assert.equal(ConfigSetStore.getActiveId('slot'), marked ? 'b' : undefined);
+            const result = posts.at(-1);
+            assert.ok(result?.command === 'removeResult' && result.ok);
+        });
+    }
+
+    test('UI removal resolves the active key after earlier queued switches complete', async () => {
+        const context = initialize();
+        await seed('slot');
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const switching = enqueueConfigSetMutation(async () => {
+            await gate;
+            await applyConfigSetUnlocked('slot', { id: 'b', label: 'b' });
+        });
+        const posts: HostMessage[] = [];
+        const removing = createPanel(posts).handleRemove('slot', 'b');
+        release();
+        await Promise.all([switching, removing]);
+        assert.equal(await context.secrets.get('slot.apiKey'), undefined);
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'b'), undefined);
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-slot-a');
+        assert.equal(ConfigSetStore.getActiveId('slot'), undefined);
+        const result = posts.at(-1);
+        assert.ok(result?.command === 'removeResult' && result.ok);
+    });
+
+    for (const fault of ['runtime', 'runtime-written', 'saved', 'saved-written', 'index'] as const) {
+        test(`failed UI removal restores the saved and runtime credentials (${fault})`, async () => {
+            const context = initialize();
+            await seed('slot');
+            const originalDelete = context.secrets.delete.bind(context.secrets);
+            const originalUpdate = context.globalState.update.bind(context.globalState);
+            let injected = false;
+            context.secrets.delete = async key => {
+                const target = fault.startsWith('runtime') ? 'slot.apiKey' : 'configSet.slot.a';
+                if (fault !== 'index' && key === target && !injected) {
+                    injected = true;
+                    if (fault.endsWith('written')) {
+                        await originalDelete(key);
+                    }
+                    throw new Error('removal-storage-failed');
+                }
+                await originalDelete(key);
+            };
+            context.globalState.update = async (key, value) => {
+                if (
+                    fault === 'index' &&
+                    key === 'configSets.items.slot' &&
+                    Array.isArray(value) &&
+                    value.length === 1 &&
+                    !injected
+                ) {
+                    injected = true;
+                    throw new Error('removal-storage-failed');
+                }
+                await originalUpdate(key, value);
+            };
+            const posts: HostMessage[] = [];
+            try {
+                await createPanel(posts).handleRemove('slot', 'a');
+            } finally {
+                context.secrets.delete = originalDelete;
+                context.globalState.update = originalUpdate;
+            }
+            assert.equal(injected, true);
+            const result = posts.at(-1);
+            assert.ok(result?.command === 'removeResult');
+            assert.equal(result.ok, false);
+            assert.match(result.error ?? '', /removal-storage-failed/);
+            assert.equal(await context.secrets.get('slot.apiKey'), 'key-slot-a');
+            assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-slot-a');
+            assert.equal(await ConfigSetStore.getApiKey('slot', 'b'), 'key-slot-b');
+            assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+            assert.deepEqual(
+                ConfigSetStore.list('slot').map(item => item.id),
+                ['a', 'b']
+            );
+            assert.equal(ConfigSetStore.getSwitchMode('slot'), 'failover');
+        });
+    }
+
+    test('failed UI removal does not restore its runtime key over a newer direct update', async () => {
+        const context = initialize();
+        await seed('slot');
+        const originalDelete = context.secrets.delete.bind(context.secrets);
+        let injected = false;
+        context.secrets.delete = async key => {
+            if (key === 'configSet.slot.a' && !injected) {
+                injected = true;
+                await ApiKeyManager.setApiKey('slot', 'newer-manual-key');
+                throw new Error('removal-storage-failed');
+            }
+            await originalDelete(key);
+        };
+        const posts: HostMessage[] = [];
+        try {
+            await createPanel(posts).handleRemove('slot', 'a');
+        } finally {
+            context.secrets.delete = originalDelete;
+        }
+        assert.equal(injected, true);
+        assert.equal(await context.secrets.get('slot.apiKey'), 'newer-manual-key');
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-slot-a');
+        const result = posts.at(-1);
+        assert.ok(result?.command === 'removeResult' && !result.ok);
+    });
+
+    test('UI removal preserves the same runtime key used on another site', async () => {
+        const context = initialize();
+        const currentSite = readCurrentSite('zhipu');
+        const otherSite = currentSite === 'api.z.ai' ? 'open.bigmodel.cn' : 'api.z.ai';
+        await ConfigSetStore.add('zhipu', { id: 'current', label: 'current', site: currentSite }, 'shared-key');
+        await ConfigSetStore.add('zhipu', { id: 'other', label: 'other', site: otherSite }, 'shared-key');
+        await ConfigSetStore.setActive('zhipu', 'current');
+        await ApiKeyManager.setApiKey('zhipu', 'shared-key');
+        const posts: HostMessage[] = [];
+        await createPanel(posts).handleRemove('zhipu', 'other');
+        assert.equal(await context.secrets.get('zhipu.apiKey'), 'shared-key');
+        assert.equal(await ConfigSetStore.getApiKey('zhipu', 'other'), undefined);
+        assert.equal(await ConfigSetStore.getApiKey('zhipu', 'current'), 'shared-key');
+        assert.equal(ConfigSetStore.getActiveId('zhipu'), 'current');
+        const result = posts.at(-1);
+        assert.ok(result?.command === 'removeResult' && result.ok);
+    });
+
+    test('UI removal of a missing configuration does not touch the active credentials', async () => {
+        const context = initialize();
+        await seed('slot');
+        const operation = ConfigSetStore.getApplyOperationToken('slot');
+        const posts: HostMessage[] = [];
+        await createPanel(posts).handleRemove('slot', 'missing');
+        assert.equal(await context.secrets.get('slot.apiKey'), 'key-slot-a');
+        assert.equal(await ConfigSetStore.getApiKey('slot', 'a'), 'key-slot-a');
+        assert.equal(ConfigSetStore.getActiveId('slot'), 'a');
+        assert.equal(ConfigSetStore.getApplyOperationToken('slot'), operation);
+        const result = posts.at(-1);
+        assert.ok(result?.command === 'removeResult' && !result.ok);
     });
 
     for (const maintenance of ['migration', 'site-backfill', 'existing-site'] as const) {

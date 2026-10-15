@@ -6,6 +6,8 @@ import './style.less';
 import type { HostMessage, WebViewMessage, AuxiliaryProviderData, FormValues } from './types';
 import { createElement, t } from './utils';
 
+type ModelSettingKey = Exclude<keyof FormValues, 'preferCopilotHarness'>;
+
 // ============= 全局状态 =============
 
 interface State {
@@ -16,6 +18,7 @@ interface State {
 const state: State = {
     providers: [],
     values: {
+        preferCopilotHarness: false,
         commit: null,
         vision: null,
         utility: null,
@@ -99,7 +102,7 @@ function createModelSelect(
 function updateModelSelect(
     row: HTMLElement,
     providerKey: string,
-    modelKey: keyof FormValues,
+    modelKey: ModelSettingKey,
     filter: (model: { hasToolCalling: boolean; hasImageInput: boolean }) => boolean
 ): void {
     const modelSelectContainer = row.querySelector('.ams-model-select') as HTMLElement;
@@ -142,11 +145,11 @@ function render(): void {
 function createHeader(): HTMLElement {
     const header = createElement('div', 'ams-header');
     const title = createElement('h2');
-    title.textContent = t('Auxiliary Model Settings', '辅助工具模型设置');
+    title.textContent = t('Auxiliary Preferences', '设置辅助偏好');
     const subtitle = createElement('p', 'ams-subtitle');
     subtitle.textContent = t(
-        'Configure models used by GCMP features and Copilot internal routes.',
-        '配置 GCMP 功能与 Copilot 内部路由使用的模型。'
+        'Configure chat preferences and models used by GCMP features and Copilot internal routes.',
+        '配置聊天偏好，以及 GCMP 功能与 Copilot 内部路由使用的模型。'
     );
     header.appendChild(title);
     header.appendChild(subtitle);
@@ -155,6 +158,46 @@ function createHeader(): HTMLElement {
 
 function createForm(): HTMLElement {
     const form = createElement('form', 'ams-form');
+
+    const preference = createElement('div', 'ams-row');
+    preference.dataset.key = 'preferCopilotHarness';
+    const preferenceTitle = createElement('div', 'ams-row-label');
+    preferenceTitle.textContent = t('Chat Mode Preference', '聊天模式偏好');
+    const modeControls = createElement('div', 'ams-mode-controls');
+    const localLabel = createElement('span');
+    localLabel.textContent = 'Local Agent';
+    const harnessLabel = createElement('span');
+    harnessLabel.textContent = 'Copilot Harness';
+    const modeSwitch = createElement('button', 'ams-mode-switch', { type: 'button' });
+    modeSwitch.setAttribute('role', 'switch');
+    modeSwitch.setAttribute('aria-label', t('Use Copilot Harness', '使用 Copilot Harness'));
+    modeSwitch.setAttribute('aria-describedby', 'harness-preference-description');
+    const thumb = createElement('span', 'ams-mode-switch-thumb');
+    thumb.setAttribute('aria-hidden', 'true');
+    modeSwitch.appendChild(thumb);
+    const updateMode = () => {
+        const useHarness = state.values.preferCopilotHarness;
+        modeSwitch.setAttribute('aria-checked', String(useHarness));
+        localLabel.className = 'ams-mode-label' + (!useHarness ? ' is-active' : '');
+        harnessLabel.className = 'ams-mode-label' + (useHarness ? ' is-active' : '');
+    };
+    modeSwitch.addEventListener('click', () => {
+        state.values.preferCopilotHarness = !state.values.preferCopilotHarness;
+        updateMode();
+    });
+    updateMode();
+    modeControls.appendChild(localLabel);
+    modeControls.appendChild(modeSwitch);
+    modeControls.appendChild(harnessLabel);
+    const preferenceDescription = createElement('div', 'ams-row-desc', { id: 'harness-preference-description' });
+    preferenceDescription.textContent = t(
+        'Choose the chat mode that suits your preferences. Local Agent currently offers better compatibility, while Copilot Harness still has some compatibility issues.',
+        '根据你的使用偏好选择聊天模式。目前 Local Agent 的兼容性更好，Copilot Harness 仍有部分兼容性问题。'
+    );
+    preference.appendChild(preferenceTitle);
+    preference.appendChild(modeControls);
+    preference.appendChild(preferenceDescription);
+    form.appendChild(preference);
 
     // 插件辅助模型组
     form.appendChild(createGroupTitle(t('GCMP Auxiliary Models', '插件辅助模型')));
@@ -176,14 +219,6 @@ function createForm(): HTMLElement {
 
     // Copilot 辅助模型组
     form.appendChild(createGroupTitle(t('Copilot Auxiliary Models', 'Copilot 辅助模型')));
-    form.appendChild(
-        createWarningBox(
-            t(
-                'Important: When the main agent uses a non-official Copilot model (BYOK/custom provider), unconfigured utility models will cause "No utility model is configured" errors.',
-                '重要：主 Agent 使用非官方 Copilot 模型（BYOK/自定义提供商）时，若未配置通用辅助模型会触发 "No utility model is configured" 报错。'
-            )
-        )
-    );
     form.appendChild(
         createModelRow(
             'utility',
@@ -236,17 +271,6 @@ function createSuggestion(text: string): HTMLElement {
     return note;
 }
 
-function createWarningBox(text: string): HTMLElement {
-    const note = createElement('div', 'ams-warning-box');
-    const icon = createElement('span', 'ams-warning-icon');
-    icon.textContent = '⚠️ ';
-    const content = createElement('span');
-    content.textContent = text;
-    note.appendChild(icon);
-    note.appendChild(content);
-    return note;
-}
-
 function createGroupTitle(text: string): HTMLElement {
     const title = createElement('div', 'ams-group-title');
     title.textContent = text;
@@ -254,7 +278,7 @@ function createGroupTitle(text: string): HTMLElement {
 }
 
 function createModelRow(
-    key: keyof FormValues,
+    key: ModelSettingKey,
     label: string,
     description: string,
     filter: (model: { hasToolCalling: boolean; hasImageInput: boolean }) => boolean = () => true,
@@ -341,7 +365,7 @@ function createActions(): HTMLElement {
 }
 
 function validateForm(): string {
-    const labels: Record<keyof FormValues, string> = {
+    const labels: Record<ModelSettingKey, string> = {
         commit: t('Commit Message Model', '提交消息模型'),
         vision: t('Vision Analysis Model', '视觉分析模型'),
         utility: t('Utility Model', '通用辅助模型'),
@@ -349,7 +373,7 @@ function validateForm(): string {
         agent: t('Agent Model (Unified)', 'Agent 模型（统一）')
     };
 
-    for (const key of Object.keys(state.values) as (keyof FormValues)[]) {
+    for (const key of Object.keys(labels) as ModelSettingKey[]) {
         const value = state.values[key];
         if (value && value.provider && !value.model) {
             return t('Please select a model for {0}.', '请为 {0} 选择模型。', labels[key]);
@@ -374,6 +398,7 @@ function handleMessage(event: MessageEvent): void {
     if (message.command === 'init') {
         state.providers = message.providers;
         state.values = {
+            preferCopilotHarness: message.initialValues.preferCopilotHarness,
             commit: message.initialValues.commit ?? null,
             vision: message.initialValues.vision ?? null,
             utility: message.initialValues.utility ?? null,

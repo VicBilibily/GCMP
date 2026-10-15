@@ -83,8 +83,8 @@ export default function Page() {
                 <h2>{t('Auxiliary Model Configuration (Recommended)', '辅助模型配置（推荐）')}</h2>
                 <p>
                     {t(
-                        'VS Code uses lightweight models in the background for tasks like title generation, commit message creation, and search. Without configuration, it falls back to the built-in Copilot model and consumes your monthly quota. Point these tasks to GCMP models to save quota:',
-                        'VS Code 在后台使用轻量模型执行标题生成、提交信息创建、搜索等实用任务。未配置时会回退到 Copilot 内置模型并消耗月度额度。将这些任务指向 GCMP 模型可节省额度：'
+                        'GCMP defaults chat.byokUtilityModelDefault to mainAgent, so BYOK utility tasks without a dedicated model follow the main agent; existing explicit settings still take precedence. You can optionally configure dedicated utility models below. GCMP commit message generation and vision analysis still require their own model selections:',
+                        'GCMP 默认将 chat.byokUtilityModelDefault 设为 mainAgent，未单独指定模型的 BYOK 实用任务会跟随主模型，已有显式设置仍优先。可按需使用下列配置指定独立实用模型；GCMP 提交消息生成和视觉分析仍需单独选择模型：'
                     )}
                 </p>
                 <pre>
@@ -101,10 +101,10 @@ export default function Page() {
                 </pre>
                 <p>
                     {t('You can also run ', '也可通过命令面板执行 ')}
-                    <code>{t('GCMP: Set Utility Model', 'GCMP: 设置辅助工具模型')}</code>
+                    <code>{t('GCMP: Set Auxiliary Preferences', 'GCMP: 设置辅助偏好')}</code>
                     {t(
-                        ' from the command palette, or click "Set Utility Model" in the daily stats menu of the status bar Token icon to configure in the visual panel.',
-                        '，或在状态栏 Token 消耗图标的每日统计菜单中点击「设置辅助工具模型」，在可视化面板统一配置。'
+                        ' from the command palette, or click "Set auxiliary preferences" in the daily stats menu of the status bar Token icon to configure in the visual panel.',
+                        '，或在状态栏 Token 消耗图标的每日统计菜单中点击「设置辅助偏好」，在可视化面板统一配置。'
                     )}
                 </p>
             </section>

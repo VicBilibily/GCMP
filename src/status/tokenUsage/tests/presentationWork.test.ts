@@ -34,7 +34,7 @@ test('token usage presentation avoids unnecessary work', { concurrency: false },
         const pending = deferred<UsageStatusSnapshot>();
         const { bar, item } = await host.start(c, () => pending.promise);
         const { render } = spyPresentation(c, bar);
-        const loading = { text: item.text, tooltip: item.tooltip, shows: item.shows };
+        const loading = { text: item.text, tooltip: tooltip(item), shows: item.shows };
         const pendingRenders = render.mock.callCount();
         await bar.initialize();
         const repeatedShows = item.shows;
@@ -46,7 +46,7 @@ test('token usage presentation avoids unnecessary work', { concurrency: false },
         assert.equal(pendingRenders, 0);
         assert.equal(repeatedShows, loading.shows);
         assert.equal(loading.text, '$(layers)');
-        assert.equal(loading.tooltip, '正在加载 Token 统计...');
+        assert.match(loading.tooltip.value, /正在加载 Token 统计\.\.\./);
         assert.equal(render.mock.callCount(), 1);
         assert.strictEqual(render.mock.calls[0].arguments[0], value.stats);
         assert.equal(item.text, '$(layers) 150 $0.02');
@@ -137,14 +137,16 @@ test('token usage presentation avoids unnecessary work', { concurrency: false },
                 throw error;
             };
             const refresh = bar.updateDisplay();
-            const loading = { text: item.text, tooltip: item.tooltip, shows: item.shows };
+            const loading = { text: item.text, tooltip: tooltip(item), shows: item.shows };
             gate.resolve();
             await refresh;
             assertReads(cache === 'cleared' ? 3 : 2);
             assert.deepEqual(host.state.errors, [error]);
-            assert.deepEqual(loading, { text: '$(layers)', tooltip: '正在加载 Token 统计...', shows: shows + 1 });
+            assert.equal(loading.text, '$(layers)');
+            assert.match(loading.tooltip.value, /正在加载 Token 统计\.\.\./);
+            assert.equal(loading.shows, shows + 1);
             assert.equal(item.text, loading.text);
-            assert.equal(item.tooltip, loading.tooltip);
+            assert.deepEqual(tooltip(item), loading.tooltip);
             assert.equal(render.mock.callCount(), 0);
             assert.equal(item.shows - shows, 2);
         });

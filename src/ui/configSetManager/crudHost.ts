@@ -561,16 +561,56 @@ export class CrudHost {
 
     async handleRemove(slot: string, id: string): Promise<void> {
         try {
-            const isActive = await this.isActuallyActive(slot, id);
-            const item = await enqueueConfigSetMutation(async () => {
-                const item = ConfigSetStore.list(slot).find(i => i.id === id);
+            const removed = await enqueueConfigSetMutation(async () => {
+                const items = ConfigSetStore.list(slot);
+                const item = items.find(i => i.id === id);
                 if (!item) {
                     return undefined;
                 }
-                await ConfigSetStore.remove(slot, id);
-                return item;
+                const operationToken = randomUUID();
+                await ConfigSetStore.setApplyOperationToken(slot, operationToken);
+                const previousActiveId = ConfigSetStore.getActiveId(slot);
+                const marked = items.find(entry => entry.id === previousActiveId);
+                const candidates = marked ? [marked, ...items.filter(entry => entry !== marked)] : items;
+                let isActive = false;
+                for (const candidate of candidates) {
+                    if (await this.isActuallyActive(slot, candidate.id)) {
+                        isActive = candidate.id === id;
+                        break;
+                    }
+                }
+                const previousKey = isActive ? await ApiKeyManager.getApiKey(slot) : undefined;
+                try {
+                    if (isActive) {
+                        await ApiKeyManager.deleteApiKey(slot, operationToken);
+                        await ConfigSetStore.clearActive(slot, operationToken);
+                    }
+                    await ConfigSetStore.remove(slot, id, operationToken);
+                } catch (error) {
+                    if (
+                        isActive &&
+                        previousKey !== undefined &&
+                        ConfigSetStore.getApplyOperationToken(slot) === operationToken
+                    ) {
+                        try {
+                            await ApiKeyManager.setApiKey(slot, previousKey, operationToken);
+                            if (previousActiveId) {
+                                await ConfigSetStore.setActive(slot, previousActiveId, operationToken);
+                            } else {
+                                await ConfigSetStore.clearActive(slot, operationToken);
+                            }
+                        } catch (rollbackError) {
+                            Logger.error('[ConfigSet] Failed to restore active API key after removal:', rollbackError);
+                        }
+                    }
+                    throw error;
+                }
+                if (isActive) {
+                    notifySlotProviderChanged(slot);
+                }
+                return { item, isActive };
             });
-            if (!item) {
+            if (!removed) {
                 this.ctx.post({
                     command: 'removeResult',
                     ok: false,
@@ -578,6 +618,7 @@ export class CrudHost {
                 });
                 return;
             }
+            const { item, isActive } = removed;
             const autoSwitchDisabled = await ApiKeyFailoverManager.disableIfUnavailable(slot);
             Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" removed`);
             await this.sendStatesAfterCommit('removing a configuration');
@@ -585,11 +626,7 @@ export class CrudHost {
                 command: 'removeResult',
                 ok: true,
                 note:
-                    isActive ?
-                        t(
-                            'Removed. The current key stays in effect until the next switch.',
-                            '已删除，当前 Key 将继续生效直至下次切换。'
-                        )
+                    isActive ? t('Removed. The active API key was cleared.', '已删除，当前生效的 API Key 已清除。')
                     : autoSwitchDisabled ?
                         t(
                             'Removed. Automatic failover was disabled because fewer than two usable configurations remain.',

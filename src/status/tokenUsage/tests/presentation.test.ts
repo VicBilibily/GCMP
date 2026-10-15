@@ -49,8 +49,8 @@ test('token usage status presentation preserves totals, costs and command safety
                 }
                 const labels =
                     language === 'zh-cn' ?
-                        ['点击查看详情', 'API Key 管理', '设置辅助工具模型']
-                    :   ['Click to view details', 'Manage API Keys', 'Set auxiliary tool models'];
+                        ['点击查看详情', 'API Key 管理', '设置辅助偏好']
+                    :   ['Click to view details', 'Manage API Keys', 'Set auxiliary preferences'];
                 for (const label of labels) {
                     assert.ok(md.value.includes(`[${label}]`));
                 }

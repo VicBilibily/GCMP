@@ -112,11 +112,11 @@ test(
                 late.resolve(yesterday);
                 await settle();
                 assert.equal(item.text, '$(layers)');
-                assert.equal(item.tooltip, '正在加载 Token 统计...');
+                assert.match(tooltip(item).value, /正在加载 Token 统计\.\.\./);
                 assert.equal(host.state.reads, 1);
                 host.state.read = async () => yesterday;
                 await bar.updateDisplay();
-                assert.equal(item.tooltip, '正在加载 Token 统计...');
+                assert.match(tooltip(item).value, /正在加载 Token 统计\.\.\./);
                 host.snapshots.emit(snapshot(4));
                 assert.equal(item.text, '$(layers) 300 $0.04');
                 assert.equal(host.state.reads, 2);
@@ -131,7 +131,7 @@ test(
             };
             await bar.updateDisplay();
             assert.equal(item.text, '$(layers)');
-            assert.equal(item.tooltip, '正在加载 Token 统计...');
+            assert.match(tooltip(item).value, /正在加载 Token 统计\.\.\./);
             assert.equal(host.state.errors.length, 1);
         });
 
@@ -245,8 +245,8 @@ test(
                     host.state.read = async () => undefined;
                     await bar.updateDisplay();
                     assert.equal(item.text, '$(layers)');
-                    assert.equal(item.tooltip, '正在加载 Token 统计...');
-                    assert.doesNotMatch(item.tooltip, /暂无使用记录|No usage records|\b0\b/);
+                    assert.match(tooltip(item).value, /正在加载 Token 统计\.\.\./);
+                    assert.doesNotMatch(tooltip(item).value, /暂无使用记录|No usage records|\b0\b/);
                 }
             );
         }
@@ -257,5 +257,63 @@ test(
             assert.equal(item.text, '$(layers)');
             assert.deepEqual(tooltip(item).isTrusted, { enabledCommands: allowedCommands });
         });
+
+        await t.test('pending initialization exposes action links before the first snapshot resolves', async c => {
+            const pending = deferred<UsageStatusSnapshot>();
+            const { item } = await host.start(c, () => pending.promise);
+            try {
+                const md = tooltip(item);
+                assert.match(md.value, /正在加载 Token 统计/);
+                for (const command of allowedCommands.slice(0, 3)) {
+                    assert.ok(md.value.includes(`](command:${command})`));
+                }
+                assert.deepEqual(md.isTrusted, { enabledCommands: allowedCommands });
+                assert.doesNotMatch(md.value, /暂无使用记录|Test Provider/);
+                assert.equal(host.state.reads, 1);
+            } finally {
+                pending.resolve(snapshot());
+                await settle();
+            }
+            assert.equal(item.text, '$(layers) 150 $0.02');
+            assert.match(tooltip(item).value, /Test Provider/);
+        });
+
+        for (const language of ['zh-cn', 'en']) {
+            for (const availability of ['missing', 'failed']) {
+                await t.test(`${language} unavailable statistics preserve menu commands (${availability})`, async c => {
+                    const { bar, item } = await host.start(c, async () => undefined);
+                    host.state.language = language;
+                    host.state.read = async () => {
+                        if (availability === 'failed') {
+                            throw new Error('Statistics unavailable');
+                        }
+                        return undefined;
+                    };
+                    await bar.updateDisplay();
+                    const md = tooltip(item);
+                    assert.ok(
+                        md.value.includes(language === 'zh-cn' ? '正在加载 Token 统计...' : 'Loading token usage...')
+                    );
+                    for (const command of allowedCommands.slice(0, 3)) {
+                        assert.ok(md.value.includes(`](command:${command})`));
+                    }
+                    const labels =
+                        language === 'zh-cn' ?
+                            ['点击查看详情', 'API Key 管理', '设置辅助偏好']
+                        :   ['Click to view details', 'Manage API Keys', 'Set auxiliary preferences'];
+                    for (const label of labels) {
+                        assert.ok(md.value.includes(`[${label}]`));
+                    }
+                    assert.deepEqual(md.isTrusted, { enabledCommands: allowedCommands });
+                    assert.doesNotMatch(md.value, /暂无使用记录|No usage records|\| Provider \||\| 提供商 \|/);
+                    assert.equal(item.command, 'gcmp.tokenUsage.showDetails');
+                    assert.equal(item.text, '$(layers)');
+                    assert.equal(host.state.reads, 2);
+                    host.snapshots.emit(snapshot(4));
+                    assert.match(tooltip(item).value, /Test Provider/);
+                    assert.equal(item.text, '$(layers) 300 $0.04');
+                });
+            }
+        }
     }
 );
