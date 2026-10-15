@@ -35,6 +35,7 @@ import { t } from './utils/runtime/l10n';
 import { activateCopilotChatInBackground } from './utils/runtime/copilotChatActivation';
 import { registerVisionModelCommand } from './wizards/visionWizard';
 import { registerAuxiliaryModelSettingsCommands } from './ui/auxiliaryModelSettings';
+import { runStartupWizardIfNeeded } from './wizards/startupWizard';
 
 // 注入仅限同一扩展宿主内的白名单实例，不发布全局服务对象。
 
@@ -242,6 +243,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GcmpEx
         registerAuxiliaryModelSettingsCommands(context);
         registerVisionModelCommand(context);
         Logger.trace(`Model settings wizard registered (${Date.now() - stepStartTime}ms)`);
+        void runStartupWizardIfNeeded();
 
         // 步骤10: 注册 Commit 消息生成命令
         stepStartTime = Date.now();

@@ -63,12 +63,6 @@
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
-        "configurationDefaults": {
-            "chat.byokUtilityModelDefault": "mainAgent",
-            "chat.defaultToCopilotHarness": false,
-            "chat.editor.localAgent.enabled": true,
-            "chat.editor.preferCopilotHarness": false
-        },
         "commands": [
             {
                 "command": "gcmp.zhipu.setApiKey",

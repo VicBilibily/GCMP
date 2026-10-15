@@ -14,6 +14,8 @@ import type {
 const preferenceKey = 'chat.editor.preferCopilotHarness';
 const defaultHarnessKey = 'chat.defaultToCopilotHarness';
 const preferenceKeys = [preferenceKey, defaultHarnessKey];
+const localAgentKey = 'chat.editor.localAgent.enabled';
+const modeKeys = [...preferenceKeys, localAgentKey];
 const modelKeys = [
     'gcmp.commit.model',
     'gcmp.vision.model',
@@ -156,7 +158,7 @@ suite('auxiliary preferences', () => {
 
     suiteSetup(() => {
         const config = vscode.workspace.getConfiguration();
-        for (const key of [...preferenceKeys, ...modelKeys]) {
+        for (const key of [...modeKeys, ...modelKeys]) {
             const value = config.inspect(key);
             originals.set(key, { globalValue: value?.globalValue, workspaceValue: value?.workspaceValue });
         }
@@ -164,12 +166,12 @@ suite('auxiliary preferences', () => {
 
     setup(async () => {
         const config = vscode.workspace.getConfiguration();
-        for (const key of [...preferenceKeys, ...modelKeys]) {
+        for (const key of [...modeKeys, ...modelKeys]) {
             if (config.inspect(key)?.globalValue !== undefined) {
                 await config.update(key, undefined, vscode.ConfigurationTarget.Global);
             }
         }
-        for (const key of preferenceKeys) {
+        for (const key of modeKeys) {
             if (config.inspect(key)?.workspaceValue !== undefined) {
                 await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
             }
@@ -181,30 +183,29 @@ suite('auxiliary preferences', () => {
         for (const [key, value] of originals) {
             await config.update(key, value.globalValue, vscode.ConfigurationTarget.Global);
         }
-        for (const key of preferenceKeys) {
+        for (const key of modeKeys) {
             await config.update(key, originals.get(key)?.workspaceValue, vscode.ConfigurationTarget.Workspace);
         }
     });
 
-    test('contributes a false default without writing explicit user or workspace settings', () => {
+    test('uses host defaults without writing explicit user or workspace settings', () => {
         const config = vscode.workspace.getConfiguration();
         for (const key of preferenceKeys) {
             const value = config.inspect<boolean>(key);
-            assert.equal(value?.defaultValue, false);
-            assert.equal(config.get(key), false);
+            assert.equal(config.get(key), value?.defaultValue);
             assert.equal(value?.globalValue, undefined);
             assert.equal(value?.workspaceValue, undefined);
         }
     });
 
-    for (const [globalValue, workspaceValue, expected] of [
-        [undefined, undefined, false],
-        [false, undefined, false],
-        [true, undefined, true],
-        [undefined, false, false],
-        [undefined, true, false],
-        [true, false, true],
-        [false, true, false]
+    for (const [globalValue, workspaceValue] of [
+        [undefined, undefined],
+        [false, undefined],
+        [true, undefined],
+        [undefined, false],
+        [undefined, true],
+        [true, false],
+        [false, true]
     ] as const) {
         test(`initial preference uses global=${globalValue} and ignores workspace=${workspaceValue}`, async () => {
             const config = vscode.workspace.getConfiguration();
@@ -215,7 +216,10 @@ suite('auxiliary preferences', () => {
             const message = messages.at(-1);
             assert.ok(message?.command === 'init');
             assert.ok('preferCopilotHarness' in message.initialValues);
-            assert.equal(message.initialValues.preferCopilotHarness, expected);
+            assert.equal(
+                message.initialValues.preferCopilotHarness,
+                globalValue ?? config.inspect<boolean>(preferenceKey)?.defaultValue ?? false
+            );
             assert.equal(config.inspect(preferenceKey)?.globalValue, globalValue);
             assert.equal(config.inspect(preferenceKey)?.workspaceValue, workspaceValue);
         });
@@ -238,37 +242,72 @@ suite('auxiliary preferences', () => {
         });
     }
 
-    test('saving models with the unchanged default does not materialize a user preference', async () => {
+    test('saving models preserves matching host defaults and aligns differing linked defaults', async () => {
+        const config = vscode.workspace.getConfiguration();
+        const selected = config.inspect<boolean>(preferenceKey)?.defaultValue ?? false;
         const { panel, messages } = createPanel();
-        await panel.handleMessage({ command: 'save', values: formValues(false) });
+        await panel.handleMessage({ command: 'save', values: formValues(selected) });
         assert.deepEqual(messages.at(-1), { command: 'saved', success: true });
         const current = vscode.workspace.getConfiguration();
         for (const key of preferenceKeys) {
-            assert.equal(current.inspect(key)?.globalValue, undefined);
+            assert.equal(
+                current.inspect(key)?.globalValue,
+                (config.inspect<boolean>(key)?.defaultValue ?? false) === selected ? undefined : selected
+            );
             assert.equal(current.inspect(key)?.workspaceValue, undefined);
         }
     });
 
-    test('unchanged global defaults do not materialize preferences despite workspace overrides', async () => {
+    test('saving the host preference preserves workspace overrides and matching defaults', async () => {
         const config = vscode.workspace.getConfiguration();
+        const selected = config.inspect<boolean>(preferenceKey)?.defaultValue ?? false;
         for (const key of preferenceKeys) {
-            await config.update(key, true, vscode.ConfigurationTarget.Workspace);
+            await config.update(key, !selected, vscode.ConfigurationTarget.Workspace);
         }
+        const { panel, messages } = createPanel();
+        await panel.handleMessage({ command: 'save', values: formValues(selected) });
+        assert.deepEqual(messages.at(-1), { command: 'saved', success: true });
+        const current = vscode.workspace.getConfiguration();
+        for (const key of preferenceKeys) {
+            assert.equal(
+                current.inspect(key)?.globalValue,
+                (config.inspect<boolean>(key)?.defaultValue ?? false) === selected ? undefined : selected
+            );
+            assert.equal(current.inspect(key)?.workspaceValue, !selected);
+        }
+    });
+
+    test('choosing Local Agent enables it globally without changing its workspace override', async () => {
+        const config = vscode.workspace.getConfiguration();
+        await config.update(localAgentKey, false, vscode.ConfigurationTarget.Global);
+        await config.update(localAgentKey, false, vscode.ConfigurationTarget.Workspace);
         const { panel, messages } = createPanel();
         await panel.handleMessage({ command: 'save', values: formValues(false) });
         assert.deepEqual(messages.at(-1), { command: 'saved', success: true });
         const current = vscode.workspace.getConfiguration();
+        assert.equal(current.inspect(localAgentKey)?.globalValue, true);
+        assert.equal(current.inspect(localAgentKey)?.workspaceValue, false);
         for (const key of preferenceKeys) {
-            assert.equal(current.inspect(key)?.globalValue, undefined);
-            assert.equal(current.inspect(key)?.workspaceValue, true);
+            const preference = current.inspect<boolean>(key);
+            assert.equal(preference?.globalValue ?? preference?.defaultValue ?? false, false);
         }
     });
 
-    test('extension activation no longer includes the legacy utility setup guide', () => {
+    test('choosing Copilot Harness does not disable or enable Local Agent', async () => {
+        const config = vscode.workspace.getConfiguration();
+        await config.update(localAgentKey, false, vscode.ConfigurationTarget.Global);
+        const { panel, messages } = createPanel();
+        await panel.handleMessage({ command: 'save', values: formValues(true) });
+        assert.deepEqual(messages.at(-1), { command: 'saved', success: true });
+        assert.equal(vscode.workspace.getConfiguration().inspect(localAgentKey)?.globalValue, false);
+    });
+
+    test('extension activation schedules the unified startup wizard without blocking', () => {
         const extension = vscode.extensions.getExtension('vicanent.gcmp');
         assert.ok(extension);
         const source = readFileSync(join(extension.extensionPath, 'src', 'extension.ts'), 'utf8');
-        assert.doesNotMatch(source, /runStartupUtilityModelWizardIfNeeded|startupUtilityModelWizard/);
+        assert.match(source, /void runStartupWizardIfNeeded\(\)/);
+        assert.doesNotMatch(source, /startupUtilityModelWizard|startupLocalAgentWizard/);
     });
 
     for (const language of ['zh-cn', 'en']) {
@@ -322,7 +361,13 @@ suite('auxiliary preferences', () => {
                     const initial = messages.at(-1);
                     assert.ok(initial?.command === 'init');
                     const webview = mountPreferenceWebview(initial, language);
-                    const initialPreference = original ?? false;
+                    const nativePreference = vscode.workspace
+                        .getConfiguration()
+                        .inspect<boolean>(preferenceKey)?.defaultValue;
+                    const nativeDefault = vscode.workspace
+                        .getConfiguration()
+                        .inspect<boolean>(defaultHarnessKey)?.defaultValue;
+                    const initialPreference = original ?? nativePreference ?? false;
                     assert.equal(webview.modeSwitch.attributes.get('aria-checked'), String(initialPreference));
                     assert.equal(webview.harnessLabel.className.includes('is-active'), initialPreference);
                     assert.equal(webview.localLabel.className.includes('is-active'), !initialPreference);
@@ -334,11 +379,14 @@ suite('auxiliary preferences', () => {
                     assert.equal(current.get(preferenceKey), useHarness);
                     assert.equal(
                         current.inspect(preferenceKey)?.globalValue,
-                        original === undefined && !useHarness ? undefined : useHarness
+                        original === undefined && (nativePreference ?? false) === useHarness ? undefined : useHarness
                     );
                     assert.equal(current.inspect(preferenceKey)?.workspaceValue, undefined);
                     assert.equal(current.get(defaultHarnessKey), useHarness);
-                    assert.equal(current.inspect(defaultHarnessKey)?.globalValue, useHarness ? true : undefined);
+                    assert.equal(
+                        current.inspect(defaultHarnessKey)?.globalValue,
+                        (nativeDefault ?? false) === useHarness ? undefined : useHarness
+                    );
                     assert.equal(current.inspect(defaultHarnessKey)?.workspaceValue, undefined);
                 });
             }
@@ -428,6 +476,16 @@ suite('auxiliary preferences', () => {
         assert.deepEqual(messages.at(-1), { command: 'savedPartial', skippedAgent: true });
         assert.equal(config.inspect(preferenceKey)?.globalValue, false);
         assert.equal(config.inspect(defaultHarnessKey)?.globalValue, false);
+    });
+
+    test('cancelling agent overwrite does not enable Local Agent', async () => {
+        const config = vscode.workspace.getConfiguration();
+        await config.update(localAgentKey, false, vscode.ConfigurationTarget.Global);
+        const { panel, messages } = createPanel();
+        panel.confirmAgentOverwriteIfNeeded = async () => false;
+        await panel.handleMessage({ command: 'save', values: formValues(false) });
+        assert.deepEqual(messages.at(-1), { command: 'savedPartial', skippedAgent: true });
+        assert.equal(vscode.workspace.getConfiguration().inspect(localAgentKey)?.globalValue, false);
     });
 
     for (const value of ['false', undefined]) {

@@ -120,6 +120,12 @@ export class AuxiliaryModelSettingsPanel {
                 return;
             }
 
+            if (!values.preferCopilotHarness) {
+                const localAgent = config.inspect<boolean>('chat.editor.localAgent.enabled');
+                if (localAgent && (localAgent.globalValue ?? localAgent.defaultValue) !== true) {
+                    await config.update('chat.editor.localAgent.enabled', true, vscode.ConfigurationTarget.Global);
+                }
+            }
             for (const preferenceKey of ['chat.defaultToCopilotHarness', 'chat.editor.preferCopilotHarness']) {
                 const preference = config.inspect<boolean>(preferenceKey);
                 if ((preference?.globalValue ?? preference?.defaultValue ?? false) !== values.preferCopilotHarness) {

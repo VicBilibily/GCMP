@@ -24,7 +24,9 @@
 
 ### 3. 配置 VS Code 后台实用模型与 GCMP 辅助模型（推荐）
 
-VS Code 在后台使用模型执行标题生成、提交信息创建、搜索、意图检测等**实用任务**。GCMP 默认将 `chat.byokUtilityModelDefault` 设为 `mainAgent`，使未单独指定模型的 BYOK 实用任务跟随主模型；已有显式设置仍优先。可按需为 `chat.utilityModel` 和 `chat.utilitySmallModel` 指定独立模型。GCMP 的提交消息生成、视觉分析等功能仍需单独选择模型。
+VS Code 在后台使用模型执行标题生成、提交信息创建、搜索、意图检测等**实用任务**。GCMP 不会覆盖 VS Code 或其他插件的默认设置。辅助模型未完整配置且未启用跟随主模型时，启动引导会提示手动配置 `chat.utilityModel` 和 `chat.utilitySmallModel`，或由你确认将 `chat.byokUtilityModelDefault` 设为 `mainAgent`。GCMP 的提交消息生成、视觉分析等功能仍需单独选择模型。
+
+Copilot Harness 暂未完整支持，建议使用默认的 Local Agent。仅在相关全局偏好未设置时显示引导，也可通过「设置辅助偏好」手动调整。
 
 > 💡 **快速配置入口**：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单点击「设置辅助偏好」，即可打开可视化面板统一配置下列全部模型；也可通过命令面板执行 `GCMP: 设置辅助偏好`。
 

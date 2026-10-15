@@ -83,8 +83,14 @@ export default function Page() {
                 <h2>{t('Auxiliary Model Configuration (Recommended)', '辅助模型配置（推荐）')}</h2>
                 <p>
                     {t(
-                        'GCMP defaults chat.byokUtilityModelDefault to mainAgent, so BYOK utility tasks without a dedicated model follow the main agent; existing explicit settings still take precedence. You can optionally configure dedicated utility models below. GCMP commit message generation and vision analysis still require their own model selections:',
-                        'GCMP 默认将 chat.byokUtilityModelDefault 设为 mainAgent，未单独指定模型的 BYOK 实用任务会跟随主模型，已有显式设置仍优先。可按需使用下列配置指定独立实用模型；GCMP 提交消息生成和视觉分析仍需单独选择模型：'
+                        'GCMP does not override defaults owned by VS Code or other extensions. When utility models are not fully configured and the main-agent fallback is not enabled, startup guidance offers manual configuration or sets chat.byokUtilityModelDefault to mainAgent after you confirm. GCMP commit message generation and vision analysis still require their own model selections:',
+                        'GCMP 不会覆盖 VS Code 或其他插件的默认设置。辅助模型未完整配置且未启用跟随主模型时，启动引导会提示手动配置，或由你确认将 chat.byokUtilityModelDefault 设为 mainAgent。GCMP 提交消息生成和视觉分析仍需单独选择模型：'
+                    )}
+                </p>
+                <p>
+                    {t(
+                        'Copilot Harness is not yet fully supported. Startup guidance recommends switching to the default Local Agent only when no related global chat preference has been set; an explicit enabled or disabled setting suppresses the prompt. Changes are saved globally only after confirmation, without changing workspace settings. Existing chats may require starting a new chat and selecting Local Agent again.',
+                        'Copilot Harness 暂时未能得到完整支持，仅在尚未设置相关全局聊天偏好时，启动引导才会建议切换到默认的 Local Agent；已有明确的启用或关闭设置时不再提示。仅经你确认后保存全局设置，不修改工作区设置；已有会话可能需要新建并重新选择 Local Agent。'
                     )}
                 </p>
                 <pre>

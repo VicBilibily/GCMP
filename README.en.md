@@ -24,7 +24,9 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### 3. Configure VS Code Utility and GCMP Auxiliary Models (Recommended)
 
-VS Code uses background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP defaults `chat.byokUtilityModelDefault` to `mainAgent`, so BYOK utility tasks without a dedicated model follow the main agent; existing explicit settings still take precedence. You can optionally choose dedicated models for `chat.utilityModel` and `chat.utilitySmallModel`. GCMP features such as commit message generation and vision analysis still require their own model selections.
+VS Code uses background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP does not override defaults owned by VS Code or other extensions. When utility models are not fully configured and the main-agent fallback is not enabled, startup guidance offers manual configuration of `chat.utilityModel` and `chat.utilitySmallModel`, or sets `chat.byokUtilityModelDefault` to `mainAgent` after you confirm. GCMP features such as commit message generation and vision analysis still require their own model selections.
+
+Copilot Harness is not yet fully supported. Startup guidance recommends switching to the default Local Agent only when no related global chat preference has been set; an explicit enabled or disabled setting suppresses the prompt. You can still select the mode in Auxiliary Preferences. Settings are saved globally only after confirmation, without changing workspace settings. Existing chats may require starting a new chat and selecting Local Agent again.
 
 > 💡 **Quick configuration entry**: hover the Token-usage icon in the status bar and click the `Set auxiliary preferences` link at the bottom of the daily-statistics popup to open a visual panel for unified configuration of all the models below. You can also run `GCMP: Set Auxiliary Preferences` from the command palette.
 
