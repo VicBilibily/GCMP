@@ -9,8 +9,7 @@ import {
     InterInstanceEventHandler,
     type RemoteInstanceDisconnectedEvent,
     USAGES_QUERY_PROTOCOL_VERSION,
-    isAuthorityEventType,
-    isUsagesQueryCapabilityCompatible
+    isAuthorityEventType
 } from './eventProtocol';
 import { IpcServer, type IpcTargetSendResult } from './ipcServer';
 import { IpcClient } from './ipcClient';
@@ -976,7 +975,9 @@ export class InterInstanceBus {
                 if (validAuthorityTerm) {
                     this.setAuthorityTerm(authorityTerm);
                 }
-                this.remoteUsagesQueryCompatible = isUsagesQueryCapabilityCompatible(this.extensionVersion, payload);
+                this.remoteUsagesQueryCompatible =
+                    (payload as { usagesQueryProtocolVersion?: unknown }).usagesQueryProtocolVersion ===
+                    USAGES_QUERY_PROTOCOL_VERSION;
                 if (source === 'ipc') {
                     this.confirmedLeaderAuthorityTerm =
                         this.clientTarget?.instanceId === event.senderInstanceId && validAuthorityTerm ?

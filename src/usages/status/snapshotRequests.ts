@@ -27,7 +27,7 @@ export class SnapshotRequests {
     }
 
     request(): Promise<UsageStatusSnapshot | undefined> {
-        if (!this.active() || !InterInstanceBus.hasCompatibleUsagesQueryTransport()) {
+        if (!this.active() || !InterInstanceBus.hasActiveTransport()) {
             return Promise.resolve(undefined);
         }
         const term = InterInstanceBus.getAuthorityTerm();

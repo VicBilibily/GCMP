@@ -363,18 +363,6 @@ export interface RemoteInstanceCapabilitiesEvent extends InterInstanceEventBase 
     };
 }
 
-export function isUsagesQueryCapabilityCompatible(localExtensionVersion: string, payload: unknown): boolean {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-        return false;
-    }
-    const capability = payload as Partial<RemoteInstanceCapabilitiesEvent['payload']>;
-    return (
-        localExtensionVersion.length > 0 &&
-        capability.extensionVersion === localExtensionVersion &&
-        capability.usagesQueryProtocolVersion === USAGES_QUERY_PROTOCOL_VERSION
-    );
-}
-
 /**
  * 远端实例已断开
  * 用于清理该实例残留的实时流式状态。

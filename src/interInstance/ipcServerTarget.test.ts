@@ -439,7 +439,7 @@ test('IPC server enforces immutable identities on real sockets', async () => {
     }
 });
 
-test('usage query transport requires a matching leader capability', async t => {
+test('usage query transport requires a matching leader protocol, not extension version', async t => {
     const originalRequire = NodeModule.prototype.require;
     let agentsWindow = false;
     NodeModule.prototype.require = function (id: string): unknown {
@@ -527,19 +527,41 @@ test('usage query transport requires a matching leader capability', async t => {
             timestamp: 1,
             senderInstanceId: 'leader'
         });
-        assert.equal(bus.hasCompatibleUsagesQueryTransport(), false);
-
-        bus.dispatchEvent({
-            type: 'remoteInstanceCapabilities',
-            payload: {
-                targetInstanceId: 'follower',
-                extensionVersion: '1.0.0',
-                usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
-            },
-            timestamp: 2,
-            senderInstanceId: 'leader'
-        });
         assert.equal(bus.hasCompatibleUsagesQueryTransport(), true);
+
+        for (const protocol of [
+            undefined,
+            null,
+            '1',
+            USAGES_QUERY_PROTOCOL_VERSION - 1,
+            USAGES_QUERY_PROTOCOL_VERSION + 1
+        ]) {
+            bus.dispatchEvent({
+                type: 'remoteInstanceCapabilities',
+                payload: {
+                    targetInstanceId: 'follower',
+                    extensionVersion: '1.0.0',
+                    usagesQueryProtocolVersion: protocol
+                },
+                timestamp: 2,
+                senderInstanceId: 'leader'
+            } as unknown as InterInstanceEvent);
+            assert.equal(bus.hasCompatibleUsagesQueryTransport(), false);
+        }
+
+        for (const extensionVersion of ['', '0.9.0', '1.0.0', '1.0.1']) {
+            bus.dispatchEvent({
+                type: 'remoteInstanceCapabilities',
+                payload: {
+                    targetInstanceId: 'follower',
+                    extensionVersion,
+                    usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
+                },
+                timestamp: 3,
+                senderInstanceId: 'leader'
+            });
+            assert.equal(bus.hasCompatibleUsagesQueryTransport(), true);
+        }
 
         await t.test('capabilities correct discovery terms only for a valid current leader identity', () => {
             const capability = (

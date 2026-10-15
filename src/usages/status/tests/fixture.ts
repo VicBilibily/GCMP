@@ -63,6 +63,7 @@ export async function createStatusHost() {
         leader: 'leader',
         term: 'leader:1',
         connected: true,
+        queryCompatible: true,
         send: true,
         deliver: true,
         savedReads: 0,
@@ -94,7 +95,8 @@ export async function createStatusHost() {
             return { dispose: () => authorityListeners.delete(listener) };
         },
         getAuthorityTerm: () => state.term,
-        hasCompatibleUsagesQueryTransport: () => state.connected,
+        hasActiveTransport: () => state.connected,
+        hasCompatibleUsagesQueryTransport: () => state.connected && state.queryCompatible,
         publishIpcOnly(event: Outgoing) {
             if (!state.send || !state.connected) {
                 return false;
@@ -185,6 +187,7 @@ export async function createStatusHost() {
                 state.leader = 'leader';
                 state.term = 'leader:1';
                 state.connected = true;
+                state.queryCompatible = true;
                 state.send = true;
                 state.deliver = true;
             },

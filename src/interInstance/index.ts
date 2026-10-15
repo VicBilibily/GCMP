@@ -45,7 +45,6 @@ export {
     type InterInstanceEventHandler,
     INTER_INSTANCE_EVENT_TYPES,
     USAGES_QUERY_PROTOCOL_VERSION,
-    isUsagesQueryCapabilityCompatible,
     serializeEvent,
     parseEventsFromBuffer
 } from './eventProtocol';

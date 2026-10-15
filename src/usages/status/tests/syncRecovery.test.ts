@@ -7,6 +7,21 @@ test('snapshot synchronization repairs missed pushes without file polling', asyn
     const host = await createStatusHost();
     t.after(() => host.restore());
 
+    await t.test('a connected follower requests its first snapshot despite incompatible detail queries', async c => {
+        host.reset();
+        const owner = host.fixture(c);
+        owner.update(DateUtils.getTodayDateString(), stats(2));
+        const follower = host.fixture(c, 'follower');
+        host.state.queryCompatible = false;
+
+        const snapshot = await host.run('follower', () => follower.get());
+
+        assert.equal(snapshot?.stats.total.requests, 2);
+        assert.equal(host.events.filter(event => event.type === 'usageStatusSnapshotRequested').length, 1);
+        assert.equal(host.state.savedReads, 0);
+        assert.equal(host.state.ownedReads, 0);
+    });
+
     await t.test(
         'aged follower cache requests only the owner memory snapshot and renews on identical replies',
         async c => {

@@ -6,7 +6,6 @@ import {
     INTER_INSTANCE_EVENT_TYPES,
     USAGES_QUERY_PROTOCOL_VERSION,
     isAuthorityEventType,
-    isUsagesQueryCapabilityCompatible,
     parseEventsFromBuffer,
     parseIncrementalEvents
 } from './eventProtocol';
@@ -177,30 +176,4 @@ test('parseEventsFromBuffer accepts rate limit events', () => {
     assert.equal(events[11]?.type, 'rateLimitReleased');
     assert.equal(events[12]?.type, 'rateLimitLeaseRenewed');
     assert.equal(remaining, '');
-});
-
-test('usage query capability requires matching extension and protocol versions', () => {
-    const capability = {
-        targetInstanceId: 'follower-a',
-        extensionVersion: '1.0.0',
-        usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION
-    };
-
-    assert.equal(isUsagesQueryCapabilityCompatible('1.0.0', capability), true);
-    assert.equal(isUsagesQueryCapabilityCompatible('1.0.1', capability), false);
-    assert.equal(
-        isUsagesQueryCapabilityCompatible('1.0.0', {
-            ...capability,
-            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION + 1
-        }),
-        false
-    );
-    assert.equal(isUsagesQueryCapabilityCompatible('1.0.0', undefined), false);
-    assert.equal(
-        isUsagesQueryCapabilityCompatible('1.0.0', {
-            ...capability,
-            usagesQueryProtocolVersion: USAGES_QUERY_PROTOCOL_VERSION - 1
-        }),
-        false
-    );
 });
