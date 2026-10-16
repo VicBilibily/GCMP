@@ -28,6 +28,7 @@ import { t } from '../utils/runtime/l10n';
 import { hasFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { ModelInfoCache } from '../utils/model/modelInfoCache';
 import { PromptAnalyzer } from '../utils/model/promptAnalyzer';
+import { SdkUsageCache } from '../utils/model/sdkUsageCache';
 import { RetryManager } from '../utils/retry/retryManager';
 import { TokenCounter } from '../utils/model/tokenCounter';
 import { getEffectiveMaxInputTokens } from '../utils/model/languageModelInfo';
@@ -42,34 +43,33 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openai/openaiResponsesHandler';
 import {
     decodeStatefulMarker,
-    encodeStatefulMarker,
     getAllStatefulMarkersAndIndicies,
     getStatefulMarkerDiagnostics,
     type StatefulMarkerContainer
 } from '../handlers/stateful/statefulMarker';
-import { describeStatefulMarkerPayload } from '../handlers/stateful/statefulMarkerCodec';
 import { canRestoreMarkerSession, getMarkerBalanceCredential } from '../handlers/stateful/statefulMarkerRecovery';
-import { CustomDataPartMimeTypes } from '../handlers/types';
-import { filterStatefulReplay } from '../handlers/stateful/statefulReplay';
-import {
-    classifyRequestContext,
-    getSdkSessionContextKey,
-    isSubRequest,
-    type RequestKind
-} from '../handlers/classification/requestClassifier';
+import { filterStatefulReplay, SdkReplayCache } from '../handlers/stateful/statefulReplay';
+import { classifyRequestContext, isSubRequest, type RequestKind } from '../handlers/classification/requestClassifier';
 import {
     getRequestClassificationMetadata,
     getRequestContinuity,
     isVerifiedCopilotChat,
-    usesLegacyTurnAffinity,
     type RequestClassification,
     type RequestClassificationMetadata,
     type RequestContinuity
 } from '../handlers/classification/requestClassification';
 import { ProviderRequestScopes } from '../handlers/classification/requestScope';
+import { resolveRequestBehavior } from '../handlers/classification/requestBehavior';
+import {
+    getRequestBalanceKey,
+    resolveRequestSession,
+    resolveRequestTracking,
+    type RequestTracking,
+    type SessionIdResolution
+} from './request/requestSession';
+import { createResponseProcessor } from './request/responseProcessor';
 import { SessionTitleService } from '../usages/sessionTitleService';
 import { SessionRecoveryService } from '../usages/sessionRecoveryService';
-import { resolveSubSessionId } from '../usages/subSessionResolver';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
 import { StatusBarManager } from '../status/statusBarManager';
@@ -92,6 +92,7 @@ interface EstimatedRequestTokens {
 }
 
 interface RuntimeModelOptionsTelemetry {
+    _conversationId?: string;
     _capturingTokenCorrelationId?: string;
     _otelTraceContext?: {
         traceId?: string;
@@ -109,43 +110,6 @@ type RuntimeProvideLanguageModelChatResponseOptions = ProvideLanguageModelChatRe
 };
 
 const requestScopes = new ProviderRequestScopes();
-
-function isSubagentRequestKind(requestKind?: string): boolean {
-    return requestKind === 'search-subagent' || requestKind === 'execution-subagent' || requestKind === 'subagent';
-}
-
-function getMainAgentBalanceKey(
-    sessionId: string,
-    messages: readonly LanguageModelChatMessage[],
-    requestKind: string,
-    telemetryTurn?: number
-): string {
-    if (requestKind !== 'main-agent') {
-        return `s:${sessionId}`;
-    }
-    const turnKey = getBalanceTurnKey(sessionId, telemetryTurn);
-    if (turnKey) {
-        return turnKey;
-    }
-    const userText = SessionTitleService.extractLatestUserRequestText(messages);
-    if (!userText) {
-        return `s:${sessionId}`;
-    }
-    const digest = crypto.createHash('sha256').update(userText.replace(/\s+/g, ' ').trim()).digest('hex');
-    return `m:${sessionId}:${digest}`;
-}
-
-function shouldPublishResolvedCrossProviderTraceHint(requestKind?: string): boolean {
-    return requestKind === 'main-agent' || requestKind === 'summarization' || isSubagentRequestKind(requestKind);
-}
-
-function shouldPublishNewSessionCrossProviderTraceHint(requestKind?: string): boolean {
-    return requestKind === 'main-agent' || requestKind === 'summarization';
-}
-
-function shouldPublishNewSessionProviderTraceHint(requestKind?: string): boolean {
-    return requestKind === 'main-agent' || requestKind === 'summarization';
-}
 
 interface EstimatedRequestTrackingParams {
     providerKey: string;
@@ -165,21 +129,12 @@ interface EstimatedRequestTrackingParams {
     timestamp?: number;
 }
 
-interface PreparedTrackedRequestContext extends EstimatedRequestTokens {
+interface PreparedTrackedRequestContext extends EstimatedRequestTokens, RequestTracking {
     classification: RequestClassification;
     requestClassification: RequestClassificationMetadata;
-    requestContinuity: RequestContinuity;
     requestKind: string;
-    sessionId: string;
-    subSessionId?: string;
     balanceKey: string;
-    sessionRecoverySource?: SessionRecoverySource;
     sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai';
-}
-
-interface SessionIdResolution {
-    sessionId: string;
-    sessionRecoverySource: SessionRecoverySource | 'sdk-session';
 }
 
 /**
@@ -198,6 +153,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected configListener?: vscode.Disposable; // 配置监听器
     protected modelInfoCache?: ModelInfoCache; // 模型信息缓存
     protected visionCache?: VisionCache; // 图片缓存服务
+    private sdkUsageCache = new SdkUsageCache();
+    private sdkReplayCache = new SdkReplayCache();
 
     // 模型信息变更事件
     protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
@@ -251,6 +208,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 释放资源
      */
     dispose(): void {
+        this.sdkUsageCache?.dispose();
+        this.sdkReplayCache?.dispose();
         // 释放配置监听器
         this.configListener?.dispose();
         // 释放事件发射器
@@ -468,14 +427,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const classification = this.getRequestClassification(messages, options);
         const requestClassification = getRequestClassificationMetadata(classification);
         const requestKind = this.ensureRequestKind(messages, options);
-        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.estimateRequestTokens(
-            model,
-            messages,
-            modelConfig,
-            options
-        );
+        const behavior = requestScopes.get(options)?.behavior ?? resolveRequestBehavior(classification);
         const sdkMode = modelConfig.sdkMode || 'openai';
-        const { sessionId, sessionRecoverySource: recoverySource } = this.getSessionIdFromMessages(
+        const resolution = this.getSessionIdFromMessages(
             messages,
             sdkMode,
             requestKind,
@@ -483,33 +437,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             this.getProviderKeyForModel(modelConfig),
             classification
         );
-        const sessionRecoverySource = recoverySource === 'sdk-session' ? undefined : recoverySource;
-        let subSessionId =
-            classification.agentRole === 'subagent' ?
-                resolveSubSessionId(
-                    messages,
-                    sessionId,
-                    requestKind,
-                    sessionRecoverySource !== 'new-uuid',
-                    classification.requestOrigin
-                )
-            :   undefined;
-        if (classification.agentRole === 'undetermined' && sessionRecoverySource === 'stateful-marker') {
-            for (const { statefulMarker } of getAllStatefulMarkersAndIndicies(messages)) {
-                const marker = statefulMarker.marker;
-                if (marker.sessionId !== sessionId) {
-                    continue;
-                }
-                if (
-                    marker.continuity?.scope === 'subagent' &&
-                    marker.subSessionId &&
-                    /^sub_[0-9a-f]{32}$/.test(marker.subSessionId)
-                ) {
-                    subSessionId = marker.subSessionId;
-                }
-                break;
-            }
-        }
+        const tracking = resolveRequestTracking(resolution, messages, classification);
+        const { sessionId, subSessionId, sessionRecoverySource, requestContinuity } = tracking;
         const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
         if (subSessionId) {
             rtOpts.modelOptions = rtOpts.modelOptions || {};
@@ -517,11 +446,32 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         } else if (rtOpts.modelOptions) {
             delete rtOpts.modelOptions.subSessionId;
         }
-        const requestContinuity = getRequestContinuity(recoverySource, subSessionId);
         const scope = requestScopes.get(options);
         if (scope) {
             scope.continuity = requestContinuity;
         }
+        if (behavior.cacheUsage && !subSessionId) {
+            this.sdkUsageCache ??= new SdkUsageCache();
+            this.sdkUsageCache.begin(
+                options,
+                {
+                    sessionId,
+                    provider: this.getProviderKeyForModel(modelConfig),
+                    modelId: model.id,
+                    sdkMode:
+                        sdkMode === 'openai-sse' ? 'openai'
+                        : sdkMode === 'gemini-sse' ? 'gemini'
+                        : sdkMode
+                },
+                messages
+            );
+        }
+        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.estimateRequestTokens(
+            model,
+            messages,
+            modelConfig,
+            options
+        );
         try {
             if (
                 Logger.isDebugEnabled() &&
@@ -537,7 +487,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         agentRole: classification.agentRole,
                         modelHash: crypto.createHash('sha256').update(model.id).digest('hex'),
                         sessionHash,
-                        recoverySource,
+                        recoverySource: resolution.sessionRecoverySource,
                         ...diagnostics,
                         markers: diagnostics.markers.map(marker => {
                             const part = messages[marker.messageIndex].content[marker.partIndex];
@@ -571,20 +521,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         return {
             classification,
             requestClassification,
-            requestContinuity,
             requestKind,
-            sessionId,
-            subSessionId,
-            balanceKey:
-                subSessionId ?
-                    `a:${subSessionId}`
-                :   getMainAgentBalanceKey(
-                        sessionId,
-                        messages,
-                        usesLegacyTurnAffinity(classification) ? requestKind : 'unknown',
-                        (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn
-                    ),
-            sessionRecoverySource,
+            ...tracking,
+            balanceKey: getRequestBalanceKey(
+                tracking,
+                messages,
+                behavior,
+                (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn
+            ),
             sdkMode,
             totalInputTokens,
             maxInputTokens,
@@ -935,8 +879,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         };
 
-        const requestKind = this.ensureRequestKind(messages, options);
+        this.ensureRequestKind(messages, options);
         const classification = this.getRequestClassification(messages, options);
+        const behavior = requestScopes.get(options)?.behavior ?? resolveRequestBehavior(classification);
         const requestClassification = getRequestClassificationMetadata(classification);
         const subSessionId = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?.subSessionId;
         const requestContinuity =
@@ -944,9 +889,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         const telemetryTurn = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn;
         const canRecoverAffinity =
-            usesLegacyTurnAffinity(classification) && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
+            behavior.legacyTurnAffinity && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
         let turnStartIndex = -1;
-        if (usesLegacyTurnAffinity(classification)) {
+        if (behavior.legacyTurnAffinity) {
             for (let index = messages.length - 1; index >= 0; index--) {
                 if (SessionTitleService.extractLatestUserRequestText([messages[index]])) {
                     turnStartIndex = index;
@@ -1020,8 +965,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let retryMessageDisposable: vscode.Disposable | undefined;
 
         // chat-title 请求：额外累积响应文本，请求成功后回填会话标题
-        const isTitleRequest = requestKind === 'chat-title' && isVerifiedCopilotChat(classification);
-        const isSummarizationRequest = requestKind === 'summarization' && isVerifiedCopilotChat(classification);
+        const isTitleRequest = behavior.auxiliaryResponse === 'title';
+        const isSummarizationRequest = behavior.auxiliaryResponse === 'summary';
         const titleRequestRawText =
             isTitleRequest ? SessionTitleService.extractTitleGenerationRequestText(messages) : undefined;
         let titleResponseBuffer = '';
@@ -1031,7 +976,24 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const requestMetadata = this.getEstimatedRequestMetadata(options);
 
         try {
+            const sdkReplayCache = behavior.kind === 'sdk' ? (this.sdkReplayCache ??= new SdkReplayCache()) : undefined;
             // 包装 progress：首次 report 时清除重试消息
+            const processResponse = createResponseProcessor({
+                behavior,
+                classification,
+                providerKey: effectiveProviderKey,
+                modelId: model.id,
+                sdkMode,
+                requestId,
+                sessionId,
+                subSessionId,
+                continuity: requestContinuity,
+                continuityAgentRole,
+                options,
+                token,
+                sdkUsageCache: this.sdkUsageCache,
+                sdkReplayCache
+            });
             const wrappedProgress: Progress<vscode.LanguageModelResponsePart> = {
                 report: (value: vscode.LanguageModelResponsePart) => {
                     if (token.isCancellationRequested && value instanceof vscode.LanguageModelToolCallPart) {
@@ -1046,67 +1008,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     if (isSummarizationRequest && value instanceof vscode.LanguageModelTextPart) {
                         summaryResponseBuffer += value.value;
                     }
-                    if (value instanceof vscode.LanguageModelThinkingPart) {
-                        value = new vscode.LanguageModelThinkingPart(value.value, value.id, {
-                            ...value.metadata,
-                            provider: effectiveProviderKey,
-                            modelId: model.id,
-                            sdkMode:
-                                sdkMode === 'openai-sse' ? 'openai'
-                                : sdkMode === 'gemini-sse' ? 'gemini'
-                                : sdkMode,
-                            statefulCredentialId
-                        }) as unknown as vscode.LanguageModelResponsePart;
+                    const output = processResponse(value, { balanceAffinity, statefulCredentialId });
+                    if (output !== undefined) {
+                        progress.report(output);
                     }
-                    if (
-                        value instanceof vscode.LanguageModelDataPart &&
-                        value.mimeType === CustomDataPartMimeTypes.StatefulMarker
-                    ) {
-                        const decoded = decodeStatefulMarker(value.data);
-                        if (
-                            decoded?.marker?.extension === 'vicanent.gcmp' &&
-                            decoded.marker.sessionId === sessionId &&
-                            decoded.marker.subSessionId === subSessionId
-                        ) {
-                            value = new vscode.LanguageModelDataPart(
-                                encodeStatefulMarker(model.id, {
-                                    ...decoded.marker,
-                                    provider: effectiveProviderKey,
-                                    balanceAffinity,
-                                    statefulCredentialId,
-                                    continuity: {
-                                        version: 1,
-                                        scope: requestContinuity.scope,
-                                        agentRole: continuityAgentRole
-                                    }
-                                }),
-                                CustomDataPartMimeTypes.StatefulMarker
-                            );
-                        }
-                        try {
-                            if (
-                                Logger.isDebugEnabled() &&
-                                (options.requestInitiator === 'core' || classification.requestOrigin === 'copilot-sdk')
-                            ) {
-                                Logger.debug(
-                                    `[MarkerContinuity] output ${JSON.stringify({
-                                        version: 1,
-                                        requestHash: crypto.createHash('sha256').update(requestId).digest('hex'),
-                                        origin: classification.requestOrigin,
-                                        modelHash: crypto.createHash('sha256').update(model.id).digest('hex'),
-                                        sessionHash: crypto.createHash('sha256').update(sessionId).digest('hex'),
-                                        ...describeStatefulMarkerPayload(
-                                            (value as vscode.LanguageModelDataPart).data,
-                                            model.id
-                                        )
-                                    })}`
-                                );
-                            }
-                        } catch {
-                            // 诊断失败不得影响模型请求。
-                        }
-                    }
-                    progress.report(value);
                 }
             };
 
@@ -1348,17 +1253,21 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                     .update(`${requestApiKey}\u0000${requestSite ?? ''}`)
                                     .digest('hex')
                             :   undefined;
-                        const attemptMessages = filterStatefulReplay(messages, {
-                            sessionId,
-                            subSessionId,
-                            provider: effectiveProviderKey,
-                            modelId: model.id,
-                            sdkMode:
-                                sdkMode === 'openai-sse' ? 'openai'
-                                : sdkMode === 'gemini-sse' ? 'gemini'
-                                : sdkMode,
-                            credentialId: statefulCredentialId
-                        });
+                        const attemptMessages = filterStatefulReplay(
+                            messages,
+                            {
+                                sessionId,
+                                subSessionId,
+                                provider: effectiveProviderKey,
+                                modelId: model.id,
+                                sdkMode:
+                                    sdkMode === 'openai-sse' ? 'openai'
+                                    : sdkMode === 'gemini-sse' ? 'gemini'
+                                    : sdkMode,
+                                credentialId: statefulCredentialId
+                            },
+                            sdkReplayCache
+                        );
                         attemptDispatched = true;
                         if (sdkMode === 'gemini-sse') {
                             await this.geminiHandler.handleRequest(
@@ -1763,7 +1672,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 从消息中提取或生成 sessionId
-     * 优先从已有 statefulMarker 中提取，不存在时根据 sdkMode 生成新的 UUID
+     * SDK 优先使用对话 ID，其余请求沿用 marker 与会话恢复规则，无法恢复时生成 UUID。
      * @param messages 聊天消息数组
      * @param sdkMode SDK 模式（如 'openai', 'anthropic' 等），用于新会话时生成 sessionId
      * @returns 会话ID
@@ -1771,178 +1680,22 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected getSessionIdFromMessages(
         messages: readonly LanguageModelChatMessage[],
         _sdkMode: string = 'openai',
-        requestKind?: string,
+        _requestKind?: string,
         options?: ProvideLanguageModelChatResponseOptions,
         providerKey = this.providerKey,
         classification = options ? this.getRequestClassification(messages, options) : classifyRequestContext(messages)
     ): SessionIdResolution {
-        requestKind = classification.requestKind;
-        const metadata = options ? this.getEstimatedRequestMetadata(options) : undefined;
-        const recoveryMetadata = {
-            requestClassification: getRequestClassificationMetadata(classification),
+        return resolveRequestSession({
+            messages,
+            options,
             providerKey,
-            telemetryTurn: metadata?.telemetryTurn,
-            traceId: metadata?.otelTraceContext?.traceId
-        };
-        const sdkSessionKey = getSdkSessionContextKey(messages, classification, options?.requestInitiator);
-
-        for (const result of getAllStatefulMarkersAndIndicies(messages)) {
-            const marker = result.statefulMarker.marker;
-            if (!canRestoreMarkerSession(marker, classification)) {
-                if (
-                    classification.agentRole === 'subagent' &&
-                    classification.requestOrigin !== 'copilot-chat' &&
-                    marker.sessionId &&
-                    !marker.subSessionId
-                ) {
-                    // 父链是新委派的边界，不能越过它恢复更早的子链。
-                    break;
-                }
-                continue;
+            classification,
+            behavior: (options && requestScopes.get(options)?.behavior) || resolveRequestBehavior(classification),
+            readMetadata: () => {
+                const metadata = options ? this.getEstimatedRequestMetadata(options) : undefined;
+                return { telemetryTurn: metadata?.telemetryTurn, traceId: metadata?.otelTraceContext?.traceId };
             }
-            let sessionId = marker.sessionId;
-            if (sessionId) {
-                // 向后兼容旧 anthropic 格式：user_xxx_account__session_UUID → UUID
-                const sessionIdx = sessionId.lastIndexOf('_session_');
-                if (sessionIdx !== -1) {
-                    sessionId = sessionId.slice(sessionIdx + '_session_'.length);
-                    Logger.debug(`Backward compat: extracted UUID from old sessionId format: ${sessionId}`);
-                }
-                if (sdkSessionKey && !marker.subSessionId && marker.continuity?.scope !== 'subagent') {
-                    SessionRecoveryService.instance.rememberSdkSession(sdkSessionKey, sessionId);
-                }
-                SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata, undefined, {
-                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
-                });
-                return {
-                    sessionId,
-                    sessionRecoverySource: 'stateful-marker'
-                };
-            }
-        }
-
-        if (sdkSessionKey) {
-            const sessionId = SessionRecoveryService.instance.resolveSdkSession(sdkSessionKey);
-            if (sessionId) {
-                return { sessionId, sessionRecoverySource: 'sdk-session' };
-            }
-        }
-
-        if (requestKind === 'main-agent' && options && isVerifiedCopilotChat(classification)) {
-            const recovered = SessionRecoveryService.instance.resolveSessionId(messages, {
-                requestClassification: recoveryMetadata.requestClassification,
-                providerKey: recoveryMetadata.providerKey,
-                telemetryTurn: recoveryMetadata.telemetryTurn,
-                traceId: recoveryMetadata.traceId
-            });
-            if (recovered) {
-                Logger.info(`Recovered sessionId via summary bridge (${recovered.matchType}): ${recovered.sessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(recovered.sessionId, recoveryMetadata, undefined, {
-                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
-                });
-                return {
-                    sessionId: recovered.sessionId,
-                    sessionRecoverySource: `summary-bridge-${recovered.matchType}`
-                };
-            }
-
-            const turnRecoveredSessionId = SessionRecoveryService.instance.resolveSessionIdFromTurn(recoveryMetadata);
-            if (turnRecoveredSessionId) {
-                Logger.info(`Recovered sessionId via turn bridge: ${turnRecoveredSessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(
-                    turnRecoveredSessionId,
-                    recoveryMetadata,
-                    undefined,
-                    {
-                        publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
-                    }
-                );
-                return {
-                    sessionId: turnRecoveredSessionId,
-                    sessionRecoverySource: 'turn-bridge'
-                };
-            }
-
-            // 这里会复用 SessionRecoveryService 内部 turn=1 的唯一候选放宽。
-            if (recoveryMetadata.traceId) {
-                const crossProviderSessionId =
-                    SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
-                if (crossProviderSessionId) {
-                    Logger.info(`Recovered sessionId via cross-provider trace bridge: ${crossProviderSessionId}`);
-                    SessionRecoveryService.instance.rememberSessionHint(
-                        crossProviderSessionId,
-                        recoveryMetadata,
-                        undefined,
-                        {
-                            publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
-                        }
-                    );
-                    return {
-                        sessionId: crossProviderSessionId,
-                        sessionRecoverySource: 'trace-bridge'
-                    };
-                }
-            }
-        }
-
-        if (requestKind === 'summarization' && recoveryMetadata.traceId && isVerifiedCopilotChat(classification)) {
-            // 同提供商优先；切换模型后压缩请求可能是新提供商在该 trace 下的首个请求，
-            // 其提供商维度尚无 hint，需跨提供商回退才能桥接到原会话，避免压缩边界会话分裂。
-            const tracedSessionId =
-                SessionRecoveryService.instance.resolveSessionIdFromTrace(recoveryMetadata) ??
-                SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
-            if (tracedSessionId) {
-                Logger.info(`Recovered sessionId via trace bridge: ${tracedSessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(tracedSessionId, recoveryMetadata, undefined, {
-                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
-                });
-                return {
-                    sessionId: tracedSessionId,
-                    sessionRecoverySource: 'trace-bridge'
-                };
-            }
-        }
-
-        if (isSubagentRequestKind(requestKind) && recoveryMetadata.traceId && isVerifiedCopilotChat(classification)) {
-            const parentSessionId =
-                SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
-            if (parentSessionId) {
-                Logger.info(`Recovered sessionId via subagent trace bridge: ${parentSessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(parentSessionId, recoveryMetadata, undefined, {
-                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
-                });
-                return {
-                    sessionId: parentSessionId,
-                    sessionRecoverySource: 'trace-bridge'
-                };
-            }
-        }
-
-        // 统一生成短格式 sessionId（UUID），各 handler 按需在 metadata 处拼接扩展格式。
-        // 这里也要立刻登记 trace hint：Copilot 可能在新会话首轮回答后立即触发 summarization，
-        // 若不先把“新建 session ↔ 当前 trace”记住，紧随其后的压缩请求会再次掉回 new-uuid。
-        const sessionId = crypto.randomUUID();
-        if (sdkSessionKey) {
-            SessionRecoveryService.instance.rememberSdkSession(sdkSessionKey, sessionId);
-        }
-        const publishNewSessionProviderTraceHint = shouldPublishNewSessionProviderTraceHint(requestKind);
-        SessionRecoveryService.instance.rememberSessionHint(
-            sessionId,
-            recoveryMetadata,
-            undefined,
-            publishNewSessionProviderTraceHint ?
-                {
-                    publishProviderAgnosticTraceHint: shouldPublishNewSessionCrossProviderTraceHint(requestKind)
-                }
-            :   {
-                    publishProviderTraceHint: false,
-                    publishProviderAgnosticTraceHint: false
-                }
-        );
-        return {
-            sessionId,
-            sessionRecoverySource: 'new-uuid'
-        };
+        });
     }
 
     /**
@@ -2095,7 +1848,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 model,
                 messages,
                 modelConfig,
-                options
+                options,
+                options ? this.sdkUsageCache?.get(options, messages) : undefined
             );
 
             const totalInputTokens = analysis.context || 0;

@@ -26,7 +26,7 @@ import type {
     ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources';
 import { ModelConfig } from '../../types/sharedTypes';
-import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
+import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
 
 /**
  * 思考部分的元数据接口
@@ -34,6 +34,7 @@ import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '..
 interface ThinkingPartMetadata {
     signature?: string;
     data?: string;
+    redactedData?: string;
     _completeThinking?: string;
     provider?: string;
     modelId?: string;
@@ -56,11 +57,7 @@ function getThinkingMetadata(part: vscode.LanguageModelThinkingPart): ThinkingPa
 function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['content']) {
     for (let index = content.length - 1; index >= 0; index--) {
         const part = content[index];
-        if (
-            isDataPart(part) &&
-            part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
-            part.data instanceof Uint8Array
-        ) {
+        if (isDataPart(part) && isStatefulMarkerMimeType(part.mimeType) && part.data instanceof Uint8Array) {
             const marker = decodeStatefulMarker(part.data)?.marker;
             if (marker) {
                 return marker;
@@ -130,9 +127,10 @@ function apiMessageToAnthropicContent(
         // 思考内容（thinking）- 用于保持多轮对话思维链连续性
         if (part instanceof vscode.LanguageModelThinkingPart) {
             const metadata = getThinkingMetadata(part);
+            const redactedData = metadata.data || metadata.redactedData;
 
             // 如果是加密的思考内容（redacted_thinking）
-            if (metadata.data) {
+            if (typeof redactedData === 'string' && redactedData) {
                 const origin = {
                     provider: metadata.provider ?? markerThinking?.provider,
                     modelId: metadata.modelId ?? markerThinking?.modelId
@@ -140,7 +138,7 @@ function apiMessageToAnthropicContent(
                 if (isEncryptedReasoningOriginMatch(origin, currentOrigin)) {
                     thinkingBlocks.push({
                         type: 'redacted_thinking',
-                        data: metadata.data
+                        data: redactedData
                     } as RedactedThinkingBlockParam);
                 }
             } else {
@@ -209,7 +207,7 @@ function apiMessageToAnthropicContent(
         // 图像数据
         else if (isDataPart(part) && part.mimeType.startsWith('image/')) {
             // 跳过 StatefulMarker
-            if (part.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
+            if (isStatefulMarkerMimeType(part.mimeType)) {
                 continue;
             }
             if (allowImages) {

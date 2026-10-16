@@ -5,7 +5,7 @@ import type { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../stateful/statefulMarker';
-import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
+import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
 import type { OpenAIHandler } from './openaiHandler';
 import {
     isEncryptedReasoningOriginMatch,
@@ -264,11 +264,7 @@ export class OpenAIResponsesMessageConverter {
         content: vscode.LanguageModelChatMessage['content']
     ): EncryptedReasoningItem[] {
         for (const part of content) {
-            if (
-                isDataPart(part) &&
-                part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
-                part.data instanceof Uint8Array
-            ) {
+            if (isDataPart(part) && isStatefulMarkerMimeType(part.mimeType) && part.data instanceof Uint8Array) {
                 const marker = decodeStatefulMarker(part.data)?.marker;
                 if (marker?.sdkMode === 'openai-responses' && marker.encryptedReasoning?.length) {
                     return marker.encryptedReasoning.map(item => ({
@@ -289,11 +285,7 @@ export class OpenAIResponsesMessageConverter {
      */
     private getCompleteThinkingFromMarker(content: vscode.LanguageModelChatMessage['content']): string | undefined {
         for (const part of content) {
-            if (
-                isDataPart(part) &&
-                part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
-                part.data instanceof Uint8Array
-            ) {
+            if (isDataPart(part) && isStatefulMarkerMimeType(part.mimeType) && part.data instanceof Uint8Array) {
                 const marker = decodeStatefulMarker(part.data)?.marker;
                 if (marker?.sdkMode === 'openai-responses' && marker.completeThinking?.trim()) {
                     return marker.completeThinking;

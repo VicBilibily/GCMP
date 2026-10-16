@@ -16,7 +16,8 @@ function assistantWithMarker(
     subSessionId: string | undefined,
     sessionId = 'parent-1',
     extension = 'vicanent.gcmp',
-    continuity?: unknown
+    continuity?: unknown,
+    mimeType = 'stateful_marker'
 ): SubSessionMessageLike {
     const data = encodeStatefulMarkerPayload('test-model', {
         extension,
@@ -28,7 +29,7 @@ function assistantWithMarker(
         continuity,
         responseId: 'response-1'
     });
-    return { role: ROLE_ASSISTANT, content: [{ mimeType: 'stateful_marker', data }] };
+    return { role: ROLE_ASSISTANT, content: [{ mimeType, data }] };
 }
 
 test('non-subagent request kinds resolve to undefined', () => {
@@ -92,6 +93,28 @@ test('subSessionId is read back from the most recent stateful marker', () => {
     const messages = [userMessage('Changed task text'), assistantWithMarker(recorded)];
     assert.equal(resolveSubSessionId(messages, 'parent-1', 'execution-subagent', true), recorded);
 });
+
+for (const mimeType of ['stateful_marker', 'application/x-gcmp-continuity']) {
+    test(`${mimeType} restores SDK sub-session and keeps parent boundaries`, () => {
+        const recorded = 'sub_' + 'd'.repeat(32);
+        const continuity = { version: 1, scope: 'subagent', agentRole: 'subagent' };
+        const child = assistantWithMarker(recorded, 'parent-1', 'vicanent.gcmp', continuity, mimeType);
+        assert.equal(resolveSubSessionId([child], 'parent-1', 'subagent', true, 'copilot-sdk'), recorded);
+        assert.notEqual(resolveSubSessionId([child], 'parent-2', 'subagent', true, 'copilot-sdk'), recorded);
+        const parent = assistantWithMarker(
+            undefined,
+            'parent-1',
+            'vicanent.gcmp',
+            {
+                version: 1,
+                scope: 'chain',
+                agentRole: 'main'
+            },
+            mimeType
+        );
+        assert.notEqual(resolveSubSessionId([child, parent], 'parent-1', 'subagent', true, 'copilot-sdk'), recorded);
+    });
+}
 
 test('malformed marker subSessionId falls back to generation', () => {
     const messages = [userMessage('Task'), assistantWithMarker('junk-value')];

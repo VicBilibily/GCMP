@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APIConnectionTimeoutError, APIError, APIUserAbortError } from 'openai';
 import * as vscode from 'vscode';
+import { decodeStatefulMarker } from '../../../src/handlers/stateful/statefulMarker';
+import { CustomDataPartMimeTypes } from '../../../src/handlers/types';
 import { InterInstanceBus } from '../../../src/interInstance';
 import type { ApiKeyBalanceFailureReportedEvent } from '../../../src/interInstance/eventProtocol';
 import { setBalanceHandoffDirectoryOverride } from '../../../src/interInstance/pathResolver';
@@ -287,6 +289,16 @@ suite('balance retry and coordination', () => {
             assert.equal(managerState.balanceLeaseRenewalTimers.size, 0);
             assert.equal(managerState.balanceAttemptSnapshots.size, 0);
             assert.ok(parts.some(part => part instanceof vscode.LanguageModelTextPart && part.value === 'recovered'));
+            const markers = parts.filter(
+                (part): part is vscode.LanguageModelDataPart =>
+                    part instanceof vscode.LanguageModelDataPart &&
+                    part.mimeType === CustomDataPartMimeTypes.StatefulMarker
+            );
+            assert.equal(markers.length, 1);
+            const marker = decodeStatefulMarker(markers[0].data)?.marker;
+            assert.equal(marker?.statefulCredentialId, identity(wireKeys[3]));
+            assert.notEqual(marker?.statefulCredentialId, identity(wireKeys[0]));
+            assert.deepEqual(marker?.balanceAffinity, { slot, balanceKey, credentialId: identity(wireKeys[3]) });
         });
 
         for (const option of ['disabled', 'zero'] as const) {

@@ -5,7 +5,7 @@
 
 import * as crypto from 'node:crypto';
 import { decodeGCMPStatefulMarkerPayload } from '../handlers/stateful/statefulMarkerCodec';
-import { CustomDataPartMimeTypes } from '../handlers/types';
+import { isStatefulMarkerMimeType } from '../handlers/types';
 import type { RequestOrigin } from '../handlers/classification/requestClassification';
 
 // 与 VS Code LanguageModelChatMessageRole 数值保持一致（vscode 枚举在 node:test 下不可用）
@@ -65,7 +65,8 @@ function readSubSessionIdFromMarkers(
             const part = message.content[partIdx];
             const candidate = part as { mimeType?: unknown; data?: unknown } | null;
             if (
-                candidate?.mimeType !== CustomDataPartMimeTypes.StatefulMarker ||
+                !candidate ||
+                !isStatefulMarkerMimeType(candidate.mimeType) ||
                 !(candidate.data instanceof Uint8Array)
             ) {
                 continue;

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import type { GeminiContent, GeminiPart, GeminiTool } from './geminiType';
-import { CustomDataPartMimeTypes } from '../types';
+import { CustomDataPartMimeTypes, isStatefulMarkerMimeType } from '../types';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import {
     decodeStatefulMarker,
@@ -622,10 +622,7 @@ function getGeminiMarker(
     identity: GeminiMarkerIdentity | undefined
 ): StatefulMarkerContainer | undefined {
     for (const part of content) {
-        if (
-            !(part instanceof vscode.LanguageModelDataPart) ||
-            part.mimeType !== CustomDataPartMimeTypes.StatefulMarker
-        ) {
+        if (!(part instanceof vscode.LanguageModelDataPart) || !isStatefulMarkerMimeType(part.mimeType)) {
             continue;
         }
         const marker = decodeStatefulMarker(part.data)?.marker;

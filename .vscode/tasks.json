@@ -4,6 +4,30 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "debug: start-insiders",
+            "type": "process",
+            "command": "pwsh",
+            "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/start-insiders-debug.ps1", "-Port", "9239"],
+            "dependsOn": "npm: compile:dev",
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "insiders-debug",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^GCMP_INSIDERS_STARTING$",
+                    "endsPattern": "^GCMP_INSIDERS_READY$"
+                }
+            }
+        },
+        {
             "type": "npm",
             "script": "watch",
             "problemMatcher": {

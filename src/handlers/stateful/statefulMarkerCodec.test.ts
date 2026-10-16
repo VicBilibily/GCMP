@@ -474,3 +474,58 @@ test('输入诊断限制 marker 数量和扫描长度，超限明确标记', asy
         true
     );
 });
+
+test('私有与旧 marker 混排按最新顺序读取并保留 usage 等字段', async () => {
+    const { getAllStatefulMarkersAndIndicies } = await getMarkerModule();
+    const payload = {
+        ...domainMarker,
+        usage: { prompt_tokens: 1200, completion_tokens: 80, total_tokens: 1280 },
+        completeThinking: 'private-thinking',
+        completeSignature: 'private-signature'
+    };
+    const messages = [
+        { role: 2, content: [new MockDataPart(encodeStatefulMarkerPayload('model', domainMarker))] },
+        {
+            role: 2,
+            content: [
+                new MockDataPart(encodeStatefulMarkerPayload('model', payload), 'application/x-gcmp-continuity'),
+                new MockDataPart(encodeStatefulMarkerPayload('model', null), 'application/x-gcmp-continuity'),
+                new MockDataPart(encodeStatefulMarkerPayload('model', payload), 'other_mime')
+            ]
+        }
+    ];
+    const before = structuredClone(messages);
+    const markers = [...getAllStatefulMarkersAndIndicies(messages as unknown as vscode.LanguageModelChatMessage[])];
+    assert.deepEqual(
+        markers.map(entry => entry.index),
+        [1, 0]
+    );
+    assert.deepEqual(markers[0].statefulMarker.marker, payload);
+    assert.deepEqual(markers[1].statefulMarker.marker, domainMarker);
+    assert.deepEqual(structuredClone(messages), before);
+});
+
+test('输入诊断将私有 MIME 纳入 marker 统计并保留载荷校验', async () => {
+    const { getStatefulMarkerDiagnostics } = await getMarkerModule();
+    const valid = encodeStatefulMarkerPayload('model', domainMarker);
+    const messages = [
+        {
+            role: 2,
+            content: [
+                new MockDataPart(valid),
+                new MockDataPart(valid, 'application/x-gcmp-continuity'),
+                new MockDataPart(new TextEncoder().encode('broken'), 'application/x-gcmp-continuity'),
+                new MockDataPart(valid, 'other_mime')
+            ]
+        }
+    ];
+    const diagnostic = getStatefulMarkerDiagnostics(messages as unknown as vscode.LanguageModelChatMessage[], 'model');
+    assert.equal(diagnostic.dataPartCount, 4);
+    assert.equal(diagnostic.markerCount, 3);
+    assert.equal(diagnostic.validMarkerCount, 2);
+    assert.equal(diagnostic.otherDataPartCount, 1);
+    assert.deepEqual(
+        diagnostic.markers.map(entry => entry.decodeStatus),
+        ['invalid', 'valid', 'valid']
+    );
+});

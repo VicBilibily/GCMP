@@ -15,7 +15,7 @@ import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikToken
 import { Logger } from '../runtime/logger';
 import { t } from '../runtime/l10n';
 import { sanitizeToolSchema } from '../text/schemaSanitizer';
-import { CustomDataPartMimeTypes } from '../../handlers/types';
+import { CustomDataPartMimeTypes, isStatefulMarkerMimeType } from '../../handlers/types';
 
 /* ---------------------------------------------------------------------------------------------
  *  Token Counter 主类
@@ -254,7 +254,7 @@ export class TokenCounter {
             if (obj.mimeType === CustomDataPartMimeTypes.CacheControl) {
                 return 0; // cache_control 类型的 part 不计入 token
             }
-            if (obj.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
+            if (isStatefulMarkerMimeType(obj.mimeType)) {
                 return 0; // stateful_marker 类型的 part 不计入 token
             }
             const bytes = getBinaryUint8Array(obj.data);

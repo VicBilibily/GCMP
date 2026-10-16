@@ -33,7 +33,7 @@ import { StreamReporter } from '../streamReporter';
 import * as liveMetrics from '../liveMetrics';
 import { decodeStatefulMarker } from '../stateful/statefulMarker';
 import { shouldInjectReasoningPlaceholder } from '../reasoningPlaceholder';
-import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
+import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
 import { shouldDisableThinkingForRequest, type RequestKind } from '../classification/requestClassifier';
 import { getScopedRequestClassification } from '../classification/requestClassification';
@@ -1867,7 +1867,7 @@ function getMarkerReasoningState(content: vscode.LanguageModelChatMessage['conte
     for (const part of content) {
         if (
             part instanceof vscode.LanguageModelDataPart &&
-            part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+            isStatefulMarkerMimeType(part.mimeType) &&
             part.data instanceof Uint8Array
         ) {
             const marker = decodeStatefulMarker(part.data)?.marker;

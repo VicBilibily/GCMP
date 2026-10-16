@@ -7,7 +7,11 @@ import { decodeGCMPStatefulMarkerPayload, encodeStatefulMarkerPayload } from './
 import { CustomDataPartMimeTypes } from '../types';
 
 type ReplayIdentity = Parameters<typeof import('./statefulReplay').filterStatefulReplay>[1];
-type ReplayModules = typeof import('./statefulReplay') & typeof import('../openai/openaiResponsesMessageConverter');
+type ReplayModules = typeof import('./statefulReplay') &
+    typeof import('../../providers/request/responseProcessor') &
+    typeof import('../openai/openaiResponsesMessageConverter') &
+    typeof import('../anthropic/anthropicConverter') &
+    typeof import('../gemini/geminiConverter');
 type Marker = Omit<StatefulMarkerContainer, 'extension'>;
 
 class MockDataPart {
@@ -21,6 +25,9 @@ interface MockThinkingMetadata {
     signature?: string;
     redactedData?: string;
     data?: string;
+    encrypted_content?: string;
+    encrypted?: string;
+    _completeThinking?: string;
     reasoningId?: string;
     provider?: string;
     modelId?: string;
@@ -79,13 +86,25 @@ function getReplayModule(): Promise<ReplayModules> {
             if (id === '../../utils/runtime/logger') {
                 return { Logger: { warn() {} } };
             }
+            if (id === '../../utils/runtime/l10n') {
+                return { t: (english: string) => english };
+            }
             return originalRequire.call(this, id);
         };
         replayModulePromise = Promise.all([
             import('./statefulReplay'),
-            import('../openai/openaiResponsesMessageConverter')
+            import('../../providers/request/responseProcessor'),
+            import('../openai/openaiResponsesMessageConverter'),
+            import('../anthropic/anthropicConverter'),
+            import('../gemini/geminiConverter')
         ])
-            .then(([replay, responses]) => ({ ...replay, ...responses }))
+            .then(([replay, processor, responses, anthropic, gemini]) => ({
+                ...replay,
+                ...processor,
+                ...responses,
+                ...anthropic,
+                ...gemini
+            }))
             .finally(() => {
                 NodeModule.prototype.require = originalRequire;
             });
@@ -202,6 +221,279 @@ function assertRejected(result: vscode.LanguageModelChatMessage): void {
     assert.ok(markerCount > 0);
 }
 
+for (const field of ['signature', 'data', 'redactedData', 'encrypted_content', 'encrypted'] as const) {
+    test(`SDK ${field} retains only locally bound same-identity state without mutating history`, async () => {
+        const { filterStatefulReplay, SdkReplayCache } = await getReplayModule();
+        const cache = new SdkReplayCache();
+        const metadata = { [field]: 'issued-state' };
+        const thinking = new MockThinkingPart('visible reasoning', 'rs_1', metadata);
+        const tool = new MockToolCallPart('call', 'read_file', { value: 'input' });
+        const answer = new MockTextPart('answer');
+        const source = message([thinking, tool, answer]);
+        const before = JSON.stringify(source);
+        cache.remember(metadata, expected);
+        const restored = filterStatefulReplay([source], expected, cache)[0];
+        assert.notEqual(restored, source);
+        assert.deepEqual(restored.content, [
+            new MockThinkingPart(thinking.value, thinking.id, { ...metadata, ...thinkingMetadata }),
+            tool,
+            answer
+        ]);
+        for (const changed of [
+            { provider: 'other-provider' },
+            { modelId: 'other-model' },
+            { sdkMode: 'other-protocol' },
+            { credentialId: 'other-credential' },
+            { credentialId: undefined },
+            { sessionId: 'other-session' },
+            { subSessionId: 'other-subagent' },
+            { subSessionId: undefined }
+        ]) {
+            const result = filterStatefulReplay([source], { ...expected, ...changed }, cache)[0];
+            assert.deepEqual(result.content, [new MockTextPart('visible reasoning'), tool, answer]);
+        }
+        assert.equal(JSON.stringify(source), before);
+        assert.deepEqual(filterStatefulReplay([source], expected, cache)[0].content, restored.content);
+    });
+}
+
+test('SDK source identity is not assigned to plain, non-assistant, marker-backed or non-SDK thinking', async () => {
+    const { filterStatefulReplay, SdkReplayCache } = await getReplayModule();
+    const cache = new SdkReplayCache();
+    const metadata = { redactedData: 'issued-state' };
+    cache.remember(metadata, expected);
+    const plain = message([new MockThinkingPart('plain reasoning')]);
+    const user = message([new MockThinkingPart('', undefined, metadata)], roles.User);
+    const marked = message([new MockThinkingPart('', undefined, metadata), markerPart()]);
+    const unfiltered = message([new MockThinkingPart('', undefined, metadata)]);
+    assert.equal(filterStatefulReplay([plain], expected, cache)[0], plain);
+    assert.equal(filterStatefulReplay([user], expected, cache)[0], user);
+    assert.equal(filterStatefulReplay([marked], expected, cache)[0], marked);
+    assert.equal(filterStatefulReplay([unfiltered], expected)[0], unfiltered);
+});
+
+for (const field of ['data', 'redactedData'] as const) {
+    test(`SDK Anthropic ${field} survives final tool continuation only with the bound identity`, async () => {
+        const { filterStatefulReplay, SdkReplayCache, apiMessageToAnthropicMessage } = await getReplayModule();
+        const identity = { ...expected, sdkMode: 'anthropic' };
+        const cache = new SdkReplayCache();
+        const signature = { signature: 'issued-signature' };
+        const redacted = { [field]: 'issued-cipher' };
+        const secondRedacted = { [field]: 'second-cipher' };
+        for (const metadata of [signature, redacted, secondRedacted]) {
+            cache.remember(metadata, identity);
+        }
+        const history = [
+            message([
+                new MockThinkingPart('signed thinking', 'thinking-1', signature),
+                new MockThinkingPart('', undefined, redacted),
+                new MockThinkingPart('', undefined, secondRedacted),
+                new MockToolCallPart('call', 'read_file', { value: 'input' })
+            ]),
+            message([new MockToolResultPart('call', [new MockTextPart('result')])], roles.User)
+        ];
+        const before = JSON.stringify(history);
+        const model = {
+            id: identity.modelId,
+            name: 'SDK Anthropic Test',
+            tooltip: 'SDK Anthropic Test',
+            provider: identity.provider,
+            sdkMode: 'anthropic' as const,
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false }
+        };
+        const convert = (replayIdentity: ReplayIdentity) =>
+            apiMessageToAnthropicMessage(
+                model,
+                filterStatefulReplay(history, replayIdentity, cache),
+                'slot'
+            ).messages.flatMap(item => (typeof item.content === 'string' ? [] : item.content));
+        const blocks = convert(identity);
+        assert.deepEqual(blocks.slice(0, 3), [
+            { type: 'thinking', thinking: 'signed thinking', signature: 'issued-signature' },
+            { type: 'redacted_thinking', data: 'issued-cipher' },
+            { type: 'redacted_thinking', data: 'second-cipher' }
+        ]);
+        assert.deepEqual(
+            blocks.map(block => block.type),
+            ['thinking', 'redacted_thinking', 'redacted_thinking', 'tool_use', 'tool_result']
+        );
+        for (const changed of [
+            { credentialId: 'other-credential' },
+            { provider: 'other-provider' },
+            { modelId: 'other-model' },
+            { sdkMode: 'openai-responses' },
+            { sessionId: 'other-session' },
+            { subSessionId: 'other-subagent' }
+        ]) {
+            const rejected = convert({ ...identity, ...changed });
+            assert.ok(!rejected.some(block => block.type === 'thinking' || block.type === 'redacted_thinking'));
+            assert.ok(rejected.some(block => block.type === 'tool_use'));
+            assert.ok(rejected.some(block => block.type === 'tool_result'));
+        }
+        assert.equal(JSON.stringify(history), before);
+    });
+}
+
+for (const modelId of ['gpt-test', 'o3']) {
+    test(`SDK Responses ${modelId} retains bound ciphertext in the final request without weakening origin checks`, async () => {
+        const { filterStatefulReplay, SdkReplayCache, OpenAIResponsesMessageConverter } = await getReplayModule();
+        const identity = { ...expected, modelId };
+        const cache = new SdkReplayCache();
+        const metadata = { redactedData: 'issued-cipher', reasoningId: 'rs_original' };
+        cache.remember(metadata, identity);
+        const history = [
+            message([
+                new MockThinkingPart('', 'rs_original', metadata),
+                new MockToolCallPart('call', 'read_file', { value: 'input' })
+            ]),
+            message([new MockToolResultPart('call', [new MockTextPart('result')])], roles.User)
+        ];
+        const before = JSON.stringify(history);
+        const handler = {
+            isImageMimeType: () => false,
+            createDataUrl: () => ''
+        } as unknown as ConstructorParameters<typeof OpenAIResponsesMessageConverter>[0];
+        const converter = new OpenAIResponsesMessageConverter(handler, 'SDK Replay Test');
+        const model = {
+            id: modelId,
+            name: 'SDK Responses Test',
+            tooltip: 'SDK Responses Test',
+            provider: identity.provider,
+            sdkMode: 'openai-responses' as const,
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false }
+        };
+        const convert = (replayIdentity: ReplayIdentity) =>
+            converter.convertMessagesToOpenAIResponses(
+                filterStatefulReplay(history, replayIdentity, cache),
+                model,
+                identity
+            ).messages;
+        assert.deepEqual(convert(identity)[0], {
+            type: 'reasoning',
+            summary: [],
+            encrypted_content: 'issued-cipher',
+            id: 'rs_original'
+        });
+        for (const changed of [
+            { credentialId: 'other-credential' },
+            { provider: 'other-provider' },
+            { modelId: 'other-model' },
+            { sdkMode: 'anthropic' },
+            { sessionId: 'other-session' },
+            { subSessionId: 'other-subagent' }
+        ]) {
+            const rejected = convert({ ...identity, ...changed });
+            assert.ok(!rejected.some(item => 'encrypted_content' in item));
+            assert.ok(rejected.some(item => item.type === 'function_call'));
+            assert.ok(rejected.some(item => item.type === 'function_call_output'));
+        }
+        if (modelId === 'o3') {
+            const restored = filterStatefulReplay(history, identity, cache);
+            const rejected = converter.convertMessagesToOpenAIResponses(restored, model, {
+                provider: 'other-provider',
+                modelId
+            });
+            assert.ok(!rejected.messages.some(item => 'encrypted_content' in item));
+        }
+        assert.equal(JSON.stringify(history), before);
+    });
+}
+
+test('SDK unbound state is downgraded while plain thinking, answers and tool results survive', async () => {
+    const { filterStatefulReplay, SdkReplayCache } = await getReplayModule();
+    const cache = new SdkReplayCache();
+    const plain = new MockThinkingPart('plain reasoning');
+    const tool = new MockToolCallPart('call', 'read_file', { value: 'input' });
+    const answer = new MockTextPart('answer');
+    const source = message([
+        new MockThinkingPart('partial', undefined, { signature: 'unknown', _completeThinking: 'complete reasoning' }),
+        new MockThinkingPart('', 'rs_unknown', { redactedData: 'unknown-cipher' }),
+        new MockDataPart(new TextEncoder().encode('{"signature":"unknown"}'), CustomDataPartMimeTypes.ThinkingData),
+        plain,
+        tool,
+        answer
+    ]);
+    const resultMessage = message([new MockToolResultPart('call', [new MockTextPart('result')])], roles.User);
+    const before = JSON.stringify([source, resultMessage]);
+    const result = filterStatefulReplay([source, resultMessage], expected, cache);
+    assert.deepEqual(result[0].content, [new MockTextPart('complete reasoning'), plain, tool, answer]);
+    assert.equal(result[1], resultMessage);
+    assert.equal(JSON.stringify([source, resultMessage]), before);
+    assert.equal(filterStatefulReplay([source], expected)[0], source);
+    const marked = message([...source.content, markerPart()] as MockInputPart[]);
+    assert.equal(filterStatefulReplay([marked], expected, cache)[0], marked);
+});
+
+test('SDK opaque bindings accept wire cipher aliases but require every supplied state to be bound', async () => {
+    const { SdkReplayCache } = await getReplayModule();
+    const cache = new SdkReplayCache();
+    cache.remember({ encrypted_content: 'cipher' }, expected);
+    assert.equal(cache.matches({ redactedData: 'cipher' }, expected), true);
+    assert.equal(cache.matches({ encrypted: 'cipher' }, expected), true);
+    assert.equal(cache.matches({ data: 'cipher' }, expected), true);
+    assert.equal(cache.matches({ signature: 'cipher' }, expected), false);
+    assert.equal(cache.matches({ redactedData: 'cipher', signature: 'unbound' }, expected), false);
+    cache.remember({ signature: 'bound' }, expected);
+    assert.equal(cache.matches({ redactedData: 'cipher', signature: 'bound' }, expected), true);
+    assert.equal(cache.matches({ redactedData: 'tampered', signature: 'bound' }, expected), false);
+    for (const value of [false, 123, ['signature'], { signature: 'nested' }]) {
+        cache.remember({ signature: value }, expected);
+        assert.equal(cache.matches({ signature: value }, expected), false);
+    }
+});
+
+test('SDK binding snapshots cannot be retagged by mutating caller metadata or identity', async () => {
+    const { SdkReplayCache } = await getReplayModule();
+    const cache = new SdkReplayCache();
+    const identity = { ...expected };
+    const metadata = { signature: 'original' };
+    cache.remember(metadata, identity);
+    identity.credentialId = 'other';
+    metadata.signature = 'replacement';
+    assert.equal(cache.matches({ signature: 'original' }, expected), true);
+    assert.equal(cache.matches({ signature: 'original' }, identity), false);
+    assert.equal(cache.matches(metadata, expected), false);
+    assert.equal(new SdkReplayCache().matches({ signature: 'original' }, expected), false);
+});
+
+test('SDK bindings expire, evict at capacity and reject late writes after disposal', async () => {
+    const { SdkReplayCache } = await getReplayModule();
+    let now = 0;
+    const cache = new SdkReplayCache(() => now);
+    const metadata = { signature: 'original' };
+    cache.remember(metadata, expected);
+    now = 7 * 24 * 60 * 60 * 1000 - 1;
+    assert.equal(cache.matches(metadata, expected), true);
+    now++;
+    assert.equal(cache.matches(metadata, expected), false);
+    for (let index = 0; index <= 1000; index++) {
+        cache.remember({ signature: `state-${index}` }, expected);
+    }
+    assert.equal(cache.matches({ signature: 'state-0' }, expected), false);
+    assert.equal(cache.matches({ signature: 'state-1' }, expected), true);
+    assert.equal(cache.matches({ signature: 'state-1000' }, expected), true);
+    cache.dispose();
+    cache.dispose();
+    cache.remember(metadata, expected);
+    assert.equal(cache.matches(metadata, expected), false);
+    assert.equal(cache.matches({ signature: 'state-1000' }, expected), false);
+});
+
+test('SDK opaque state without a concrete credential or session cannot establish a binding', async () => {
+    const { SdkReplayCache } = await getReplayModule();
+    const cache = new SdkReplayCache();
+    for (const changed of [{ credentialId: undefined }, { credentialId: '' }, { sessionId: '' }, { sessionId: '  ' }]) {
+        const identity = { ...expected, ...changed };
+        cache.remember({ signature: 'unbound' }, identity);
+        assert.equal(cache.matches({ signature: 'unbound' }, identity), false);
+    }
+    assert.equal(cache.matches({ signature: 'unbound' }, expected), false);
+});
+
 for (const sdkMode of ['openai', 'openai-responses', 'anthropic', 'gemini'] as const) {
     test(`${sdkMode} 同身份保留所有 part 与 marker 原始字节，仅返回新数组`, async () => {
         const { filterStatefulReplay } = await getReplayModule();
@@ -216,6 +508,158 @@ for (const sdkMode of ['openai', 'openai-responses', 'anthropic', 'gemini'] as c
         assert.deepEqual(part.data, bytes);
     });
 }
+
+for (const sdkMode of ['openai', 'openai-responses', 'anthropic', 'gemini'] as const) {
+    test(`${sdkMode} 私有 marker 保留同身份状态并剥离错误凭据状态`, async () => {
+        const { filterStatefulReplay } = await getReplayModule();
+        const original = markerPart({ sdkMode });
+        const privatePart = new MockDataPart(original.data, CustomDataPartMimeTypes.SdkContinuity);
+        const source = message([...thinkingParts(), privatePart]);
+        const identity = { ...expected, sdkMode };
+        assert.equal(filterStatefulReplay([source], identity)[0], source);
+        const rejected = filterStatefulReplay([source], { ...identity, credentialId: 'other-credential' })[0];
+        assert.equal(rejected.content.length, 1);
+        const retained = rejected.content[0];
+        assert.ok(retained instanceof MockDataPart);
+        assert.equal(retained.mimeType, CustomDataPartMimeTypes.SdkContinuity);
+        const decoded = readMarker(retained);
+        assertStrippedMarker(decoded);
+        assert.deepEqual(decoded.usage, baseMarker.usage);
+        assert.equal(decoded.completeThinking, baseMarker.completeThinking);
+        assert.deepEqual(privatePart.data, original.data);
+    });
+}
+
+for (const privateLatest of [false, true]) {
+    test(`混合新旧 MIME 仅最新 marker 控制回放，私有键在最后=${privateLatest}`, async () => {
+        const { filterStatefulReplay } = await getReplayModule();
+        const older = markerPart({ statefulCredentialId: 'other-credential' });
+        const latest = markerPart();
+        const source = message([
+            new MockDataPart(
+                older.data,
+                privateLatest ? CustomDataPartMimeTypes.StatefulMarker : CustomDataPartMimeTypes.SdkContinuity
+            ),
+            new MockDataPart(
+                latest.data,
+                privateLatest ? CustomDataPartMimeTypes.SdkContinuity : CustomDataPartMimeTypes.StatefulMarker
+            )
+        ]);
+        const filtered = filterStatefulReplay([source], expected)[0];
+        assertStrippedMarker(readMarker(filtered.content[0]));
+        assert.deepEqual(readMarker(filtered.content[1]), readMarker(source.content[1]));
+        assert.equal((filtered.content[0] as MockDataPart).mimeType, (source.content[0] as MockDataPart).mimeType);
+    });
+}
+
+test('Responses 从私有 marker 恢复密文与旧键一致', async () => {
+    const { OpenAIResponsesMessageConverter } = await getReplayModule();
+    const handler = {
+        isImageMimeType: () => false,
+        createDataUrl: () => ''
+    } as unknown as ConstructorParameters<typeof OpenAIResponsesMessageConverter>[0];
+    const converter = new OpenAIResponsesMessageConverter(handler, 'Replay Test');
+    const original = markerPart();
+    const convert = (part: MockDataPart) =>
+        converter.convertMessagesToOpenAIResponses([message([part, new MockTextPart('answer')])], undefined, expected);
+    const result = convert(new MockDataPart(original.data, CustomDataPartMimeTypes.SdkContinuity));
+    assert.deepEqual(result, convert(original));
+    assert.ok(result.messages.some(item => 'encrypted_content' in item && item.encrypted_content === 'cipher-1'));
+});
+
+for (const upstreamCallId of [undefined, 'upstream-call']) {
+    test(`SDK Gemini restores the complete native turn and tool mapping: upstream id=${upstreamCallId}`, async () => {
+        const { SdkReplayCache, createResponseProcessor, filterStatefulReplay, convertMessagesToGemini } =
+            await getReplayModule();
+        const cache = new SdkReplayCache();
+        const identity = { ...expected, sdkMode: 'gemini' };
+        const processor = createResponseProcessor({
+            behavior: { kind: 'sdk', cacheUsage: true, legacyTurnAffinity: false, auxiliaryResponse: undefined },
+            classification: { requestOrigin: 'copilot-sdk' } as Parameters<
+                typeof createResponseProcessor
+            >[0]['classification'],
+            providerKey: identity.provider,
+            modelId: identity.modelId,
+            sdkMode: 'gemini-sse',
+            requestId: 'gemini-request',
+            sessionId: identity.sessionId,
+            subSessionId: identity.subSessionId,
+            continuity: { version: 1, scope: 'subagent', source: 'sdk-session' },
+            continuityAgentRole: 'subagent',
+            options: { toolMode: 1, requestInitiator: 'sdk-replay-test' },
+            token: { isCancellationRequested: false } as vscode.CancellationToken,
+            sdkReplayCache: cache
+        });
+        const attempt = { statefulCredentialId: identity.credentialId };
+        const nativeParts = [
+            {
+                functionCall: {
+                    ...(upstreamCallId ? { id: upstreamCallId } : {}),
+                    name: 'read_file',
+                    args: { value: 'input' }
+                },
+                thoughtSignature: 'gemini-tool-signature'
+            }
+        ];
+        const thinking = new MockThinkingPart('', undefined, { signature: 'gemini-tool-signature' });
+        processor(thinking as unknown as vscode.LanguageModelResponsePart, attempt);
+        const emittedMarker = new MockDataPart(
+            encodeStatefulMarkerPayload(identity.modelId, {
+                extension: 'vicanent.gcmp',
+                provider: identity.provider,
+                modelId: identity.modelId,
+                sdkMode: 'gemini',
+                sessionId: identity.sessionId,
+                subSessionId: identity.subSessionId,
+                responseId: 'response-1',
+                geminiRequestIdentity: 'endpoint-model',
+                geminiContents: [{ role: 'model', parts: nativeParts }],
+                geminiToolCalls: [
+                    { localCallId: 'local-call', ...(upstreamCallId ? { upstreamCallId } : {}), name: 'read_file' }
+                ],
+                geminiThoughtSignatures: [
+                    { signature: 'gemini-tool-signature', callId: 'local-call', name: 'read_file' }
+                ],
+                hasToolCalls: true
+            }),
+            CustomDataPartMimeTypes.StatefulMarker
+        );
+        assert.equal(processor(emittedMarker as unknown as vscode.LanguageModelResponsePart, attempt), undefined);
+        const history = [
+            message([new MockTextPart('read the file')], roles.User),
+            message([thinking, new MockToolCallPart('local-call', 'read_file', { value: 'input' })]),
+            message([new MockToolResultPart('local-call', [new MockTextPart('tool result')])], roles.User)
+        ];
+        const before = JSON.stringify(history);
+        const filtered = filterStatefulReplay(history, identity, cache);
+        const converted = convertMessagesToGemini(filtered, {
+            provider: identity.provider,
+            modelId: identity.modelId,
+            requestIdentity: 'endpoint-model'
+        });
+        assert.deepEqual(converted.contents[1], { role: 'model', parts: nativeParts });
+        assert.deepEqual(converted.contents[2].parts[0].functionResponse, {
+            ...(upstreamCallId ? { id: upstreamCallId } : {}),
+            name: 'read_file',
+            response: { result: 'tool result' }
+        });
+        assert.equal(JSON.stringify(history), before);
+    });
+}
+
+test('Gemini 从私有 marker 恢复原始 model parts 与旧键一致', async () => {
+    const { convertMessagesToGemini } = await getReplayModule();
+    const original = markerPart({ sdkMode: 'gemini' });
+    const convert = (part: MockDataPart) =>
+        convertMessagesToGemini([message([part, new MockTextPart('fallback')])], {
+            provider: expected.provider,
+            modelId: expected.modelId,
+            requestIdentity: 'gemini-identity'
+        });
+    const result = convert(new MockDataPart(original.data, CustomDataPartMimeTypes.SdkContinuity));
+    assert.deepEqual(result, convert(original));
+    assert.deepEqual(result.contents, baseMarker.geminiContents);
+});
 
 for (const [field, value] of [
     ['provider', 'other-provider'],

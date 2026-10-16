@@ -106,6 +106,76 @@ function getAssistantContent(result: { messages: { role: string; content: unknow
     return assistant?.content as { type: string }[];
 }
 
+for (const field of ['data', 'redactedData'] as const) {
+    test(`Anthropic ${field} requires matching origin and does not duplicate marker ciphertext`, async () => {
+        const { apiMessageToAnthropicMessage } = await getConverterModule();
+        for (const provider of ['opencode', 'other-provider', undefined]) {
+            const thinking = new vscodeMock.LanguageModelThinkingPart('', undefined, {
+                [field]: 'cipher',
+                provider,
+                modelId: 'claude-haiku-4.5'
+            });
+            const convert = (marker?: { data: Uint8Array; mimeType: string }) =>
+                apiMessageToAnthropicMessage(makeModelConfig(), [
+                    {
+                        role: 'assistant',
+                        content: [thinking, ...(marker ? [marker] : []), new vscodeMock.LanguageModelTextPart('answer')]
+                    }
+                ] as never);
+            const blocks = getAssistantContent(convert()).filter(block => block.type === 'redacted_thinking');
+            assert.deepEqual(blocks, provider === 'opencode' ? [{ type: 'redacted_thinking', data: 'cipher' }] : []);
+            if (provider === 'opencode') {
+                for (const mimeType of [
+                    CustomDataPartMimeTypes.StatefulMarker,
+                    CustomDataPartMimeTypes.SdkContinuity
+                ]) {
+                    const marked = convert({
+                        data: encodeStatefulMarkerForTest({ provider, encryptedThinkingData: ['cipher'] }),
+                        mimeType
+                    });
+                    assert.deepEqual(
+                        getAssistantContent(marked).filter(block => block.type === 'redacted_thinking'),
+                        blocks
+                    );
+                }
+            }
+        }
+    });
+}
+
+test('Anthropic invalid redactedData is not emitted as ciphertext', async () => {
+    const { apiMessageToAnthropicMessage } = await getConverterModule();
+    for (const redactedData of ['', false, 123, ['cipher'], { value: 'cipher' }]) {
+        const result = apiMessageToAnthropicMessage(makeModelConfig(), [
+            {
+                role: 'assistant',
+                content: [
+                    new vscodeMock.LanguageModelThinkingPart('', undefined, { redactedData, provider: 'opencode' }),
+                    new vscodeMock.LanguageModelTextPart('answer')
+                ]
+            }
+        ] as never);
+        assert.deepEqual(getAssistantContent(result), [{ type: 'text', text: 'answer' }]);
+    }
+});
+
+test('Anthropic retains legacy data precedence when both encrypted fields are present', async () => {
+    const { apiMessageToAnthropicMessage } = await getConverterModule();
+    const result = apiMessageToAnthropicMessage(makeModelConfig(), [
+        {
+            role: 'assistant',
+            content: [
+                new vscodeMock.LanguageModelThinkingPart('', undefined, {
+                    data: 'legacy-cipher',
+                    redactedData: 'reporter-cipher',
+                    provider: 'opencode'
+                })
+            ]
+        }
+    ] as never);
+    assert.deepEqual(getAssistantContent(result), [{ type: 'redacted_thinking', data: 'legacy-cipher' }]);
+});
+
 test('空 thinking 块不下发，避免上游 400（each thinking block must contain non-whitespace thinking）', async () => {
     const { apiMessageToAnthropicMessage } = await getConverterModule();
     const messages = [
@@ -161,6 +231,33 @@ test('非空 thinking 块原样保留', async () => {
     const blocks = getAssistantContent(result);
     assert.deepEqual(blocks[0], { type: 'thinking', thinking: '真实思考内容', signature: 'sig' });
 });
+
+for (const encrypted of [false, true]) {
+    test(`私有 marker 恢复思考、签名与旧键一致，密文=${encrypted}`, async () => {
+        const { apiMessageToAnthropicMessage } = await getConverterModule();
+        const data = encodeStatefulMarkerForTest({
+            provider: 'opencode',
+            completeThinking: 'marker thinking',
+            completeSignature: 'marker-signature',
+            encryptedThinkingData: encrypted ? ['private-cipher'] : undefined
+        });
+        const convert = (mimeType: string) =>
+            apiMessageToAnthropicMessage(makeModelConfig(), [
+                {
+                    role: 'assistant',
+                    content: [{ data, mimeType }, new vscodeMock.LanguageModelTextPart('answer')]
+                }
+            ] as never);
+        const restored = convert(CustomDataPartMimeTypes.SdkContinuity);
+        assert.deepEqual(restored, convert(CustomDataPartMimeTypes.StatefulMarker));
+        assert.deepEqual(
+            getAssistantContent(restored)[0],
+            encrypted ?
+                { type: 'redacted_thinking', data: 'private-cipher' }
+            :   { type: 'thinking', thinking: 'marker thinking', signature: 'marker-signature' }
+        );
+    });
+}
 
 test('marker 恢复的空白 thinking 不下发；占位模型（DeepSeek V4）仍注入占位块', async () => {
     const { apiMessageToAnthropicMessage } = await getConverterModule();

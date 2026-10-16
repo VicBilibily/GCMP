@@ -84,3 +84,49 @@ test('only a one-shot delegated local scope is reused by a super entry', () => {
         external
     );
 });
+
+test('source behavior preserves the existing origin, evidence, role and purpose gates', () => {
+    for (const origin of ['copilot-sdk', 'copilot-chat', 'unknown', 'core', 'gcmp', 'other-extension'] as const) {
+        for (const level of ['unknown', 'heuristic', 'signature', 'contract'] as const) {
+            for (const role of ['main', 'subagent', 'undetermined', 'not-applicable'] as const) {
+                for (const requestKind of ['main-agent', 'chat-title', 'summarization', 'subagent'] as const) {
+                    const context = classification(origin);
+                    context.evidence.purpose.level = level;
+                    context.agentRole = role;
+                    context.requestKind = requestKind;
+                    const before = structuredClone(context);
+                    const scopes = new ProviderRequestScopes();
+                    const scoped = scopes.create({}, () => context);
+                    const verified = origin === 'copilot-chat' && (level === 'signature' || level === 'contract');
+                    assert.deepEqual(scopes.get(scoped)?.behavior, {
+                        kind:
+                            origin === 'copilot-sdk' ? 'sdk'
+                            : verified ? 'copilot-chat'
+                            : 'fallback',
+                        cacheUsage: origin === 'copilot-sdk' && role === 'main' && requestKind === 'main-agent',
+                        legacyTurnAffinity: verified && role === 'main' && requestKind === 'main-agent',
+                        auxiliaryResponse:
+                            !verified ? undefined
+                            : requestKind === 'chat-title' ? 'title'
+                            : requestKind === 'summarization' ? 'summary'
+                            : undefined
+                    });
+                    assert.deepEqual(context, before);
+                }
+            }
+        }
+    }
+});
+
+test('delegation keeps the same behavior without putting policy into caller options', () => {
+    const scopes = new ProviderRequestScopes();
+    const original = { modelOptions: { requestKind: 'stale' } };
+    const local = scopes.create(original, () => classification());
+    const behavior = scopes.get(local)?.behavior;
+    scopes.delegate(local);
+    const delegated = scopes.create(local, () => classification('copilot-chat'));
+    assert.equal(scopes.get(delegated)?.behavior, behavior);
+    assert.equal('behavior' in local, false);
+    assert.equal('behavior' in local.modelOptions, false);
+    assert.equal('behavior' in original, false);
+});

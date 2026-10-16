@@ -13,13 +13,18 @@ import { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../runtime/logger';
 import { sanitizeToolSchema } from '../text/schemaSanitizer';
 import { TokenCounter } from './tokenCounter';
-import { decodeStatefulMarker } from '../../handlers/stateful/statefulMarker';
-import { CustomDataPartMimeTypes } from '../../handlers/types';
+import { decodeStatefulMarker, type MarkerUsage } from '../../handlers/stateful/statefulMarker';
+import { isStatefulMarkerMimeType } from '../../handlers/types';
 
 /** analyzePromptParts 返回值 */
 export interface PromptAnalysis {
     context: number;
     requestIncrement?: number;
+}
+
+export interface PromptUsageReference {
+    usage: Readonly<MarkerUsage>;
+    messageCount: number;
 }
 
 /**
@@ -35,7 +40,8 @@ export class PromptAnalyzer {
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
         modelConfig?: Pick<ModelConfig, 'sdkMode'>,
-        options?: ProvideLanguageModelChatResponseOptions
+        options?: ProvideLanguageModelChatResponseOptions,
+        localUsage?: PromptUsageReference
     ): Promise<PromptAnalysis> {
         const result: PromptAnalysis = { context: 0 };
 
@@ -58,7 +64,7 @@ export class PromptAnalyzer {
                             typeof part === 'object' &&
                             part !== null &&
                             'mimeType' in part &&
-                            (part as { mimeType: string }).mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+                            isStatefulMarkerMimeType(part.mimeType) &&
                             'data' in part
                         ) {
                             try {
@@ -78,6 +84,20 @@ export class PromptAnalyzer {
                         break;
                     }
                 }
+            }
+
+            if (
+                usageBaseline === undefined &&
+                localUsage &&
+                Number.isFinite(localUsage.usage.prompt_tokens) &&
+                localUsage.usage.prompt_tokens > 0 &&
+                Number.isSafeInteger(localUsage.messageCount) &&
+                localUsage.messageCount > 0 &&
+                localUsage.messageCount <= messages.length
+            ) {
+                usageBaseline = localUsage.usage.prompt_tokens;
+                usageMarkerIndex = localUsage.messageCount;
+                Logger.debug(`[${providerKey}] Local SDK usage reference (approximate): baseline=${usageBaseline}`);
             }
 
             if (usageBaseline !== undefined) {

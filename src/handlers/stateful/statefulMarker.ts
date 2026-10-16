@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CustomDataPartMimeTypes } from '../types';
+import { CustomDataPartMimeTypes, isStatefulMarkerMimeType } from '../types';
 import {
     decodeGCMPStatefulMarkerPayload,
     describeStatefulMarkerPayload,
@@ -162,7 +162,7 @@ export function getStatefulMarkerDiagnostics(
                     continue;
                 }
                 result.dataPartCount++;
-                if (part.mimeType !== CustomDataPartMimeTypes.StatefulMarker) {
+                if (!isStatefulMarkerMimeType(part.mimeType)) {
                     result.otherDataPartCount++;
                     continue;
                 }
@@ -200,10 +200,7 @@ export function* getAllStatefulMarkersAndIndicies(messages: readonly vscode.Lang
         if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
             for (let partIdx = message.content.length - 1; partIdx >= 0; partIdx--) {
                 const part = message.content[partIdx];
-                if (
-                    part instanceof vscode.LanguageModelDataPart &&
-                    part.mimeType === CustomDataPartMimeTypes.StatefulMarker
-                ) {
+                if (part instanceof vscode.LanguageModelDataPart && isStatefulMarkerMimeType(part.mimeType)) {
                     const statefulMarker = decodeStatefulMarker(part.data);
                     if (statefulMarker) {
                         yield { statefulMarker: statefulMarker, index: idx };

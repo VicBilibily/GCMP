@@ -3,6 +3,7 @@ import {
     type RequestClassification,
     type RequestContinuity
 } from './requestClassification';
+import { resolveRequestBehavior, type RequestBehavior } from './requestBehavior';
 
 interface ScopeOptions {
     modelOptions?: { requestKind?: unknown; subSessionId?: unknown };
@@ -10,6 +11,7 @@ interface ScopeOptions {
 
 interface RequestScopeContext {
     classification: RequestClassification;
+    behavior: RequestBehavior;
     continuity?: RequestContinuity;
 }
 
@@ -28,7 +30,7 @@ export class ProviderRequestScopes {
         };
         delete scoped.modelOptions.subSessionId;
         setScopedRequestClassification(scoped, classification);
-        this.scopes.set(scoped, { classification });
+        this.scopes.set(scoped, { classification, behavior: resolveRequestBehavior(classification) });
         return scoped;
     }
 

@@ -6,7 +6,7 @@
 
 ### 新增
 
-- **Gemini 原生通道**：新增 `gemini` SDK 模式，支持 GenerateContent 流式请求、`v1` / `v1beta` 接入点、工具调用、多模态消息与思考签名回放，并统一取消、终态和用量处理。
+- **Gemini 原生通道**：新增 `gemini` SSE 模式，支持 GenerateContent 流式请求、`v1` / `v1beta` 接入点、工具调用、多模态消息与思考签名回放，并统一取消、终态和用量处理。
 - **API Key 自动故障切换**：配置集可按请求失败自动切换可用凭据，支持失败凭据临时隔离、轮次级粘滞与跨窗口状态协调，减少同轮请求反复切换 Key。
 - **加权负载均衡**：配置集新增负载均衡与权重设置，由主实例统一分配凭据，支持子代理子会话分配、凭据租约和主实例交接；无可用主实例时回退到当前可用凭据。
 - **多 Key 配额与请求身份**：状态栏集中展示多套凭据的配额与余额，用量面板记录请求实际使用的 Key 身份和配置名，便于核对各配置的消耗。
@@ -32,7 +32,7 @@
 
 ### Added
 
-- **Native Gemini channel**: Added the `gemini` SDK mode for streaming GenerateContent requests, `v1` / `v1beta` endpoints, tool calls, multimodal messages, and thought-signature replay, with unified cancellation, terminal state, and usage handling.
+- **Native Gemini channel**: Added the `gemini` SSE mode for streaming GenerateContent requests, `v1` / `v1beta` endpoints, tool calls, multimodal messages, and thought-signature replay, with unified cancellation, terminal state, and usage handling.
 - **Automatic API key failover**: Configuration sets can switch credentials after request failures, with temporary credential quarantine, turn-level stickiness, and cross-window coordination to avoid repeated key changes within a turn.
 - **Weighted load balancing**: Configuration sets support weighted credential allocation coordinated by the Leader, including subagent-session assignment, credential leases, and Leader handoff. Requests fall back to the current available credentials when no Leader is available.
 - **Multi-key quotas and request identity**: Status bars consolidate quotas and balances across credentials. Usage records include the actual key identity and configuration name used by each request.

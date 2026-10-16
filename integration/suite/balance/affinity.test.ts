@@ -10,7 +10,7 @@ import {
     type StatefulMarkerContainer
 } from '../../../src/handlers/stateful/statefulMarker';
 import { StreamReporter } from '../../../src/handlers/streamReporter';
-import { CustomDataPartMimeTypes } from '../../../src/handlers/types';
+import { CustomDataPartMimeTypes, isStatefulMarkerMimeType } from '../../../src/handlers/types';
 import {
     SDK_CUSTOM_SUBAGENT,
     SDK_HOST_IDENTITY
@@ -208,7 +208,25 @@ class AffinityProvider extends GenericModelProvider {
         } finally {
             cancellation.dispose();
         }
-        return { ...tracked, usedKeys, receivedMessages, parts, marker: readMarker(parts) };
+        if (tracked.classification.requestOrigin === 'copilot-sdk') {
+            assert.equal(
+                parts.some(
+                    part => part instanceof vscode.LanguageModelDataPart && isStatefulMarkerMimeType(part.mimeType)
+                ),
+                false
+            );
+        } else {
+            readMarker(parts);
+        }
+        return {
+            ...tracked,
+            usedKeys,
+            receivedMessages,
+            parts,
+            get marker() {
+                return readMarker(parts);
+            }
+        };
     }
 
     protected override async estimateRequestTokens() {
@@ -319,12 +337,12 @@ suite('balance turn affinity', () => {
         InterInstanceBus.publishIpcOnly = originalPublish;
     });
 
-    test('SDK unknown purpose restores statistics and chain affinity without a text hash', async () => {
+    test('SDK conversation ID restores chain tracking without emitting markers or using a text hash', async () => {
         const systemPrompt = 'You are an AI assistant using Copilot SDK in VS Code.';
         const copilotOptions: vscode.ProvideLanguageModelChatResponseOptions = {
             requestInitiator: 'core',
             toolMode: vscode.LanguageModelChatToolMode.Auto,
-            modelOptions: { requestKind: 'chat-title', subSessionId: 'stale-sub' }
+            modelOptions: { requestKind: 'chat-title', subSessionId: 'stale-sub', _conversationId: randomUUID() }
         };
         const messages = [userMessage()];
         const first = await AffinityProvider.run(messages, { systemPrompt, copilotOptions });
@@ -332,12 +350,7 @@ suite('balance turn affinity', () => {
         assert.equal(first.classification.agentRole, 'undetermined');
         assert.equal(first.subSessionId, undefined);
         assert.equal(first.balanceKey, `s:${first.sessionId}`);
-        assert.deepEqual(first.requestContinuity, { version: 1, scope: 'chain', source: 'new' });
-        assert.deepEqual(first.marker.continuity, { version: 1, scope: 'chain', agentRole: 'undetermined' });
-        assert.equal(first.marker.modelId, 'gcmp.slot:::affinity-model');
-        const markerPart = first.parts.find(part => part instanceof vscode.LanguageModelDataPart);
-        assert.ok(markerPart instanceof vscode.LanguageModelDataPart);
-        assert.equal(decodeStatefulMarker(markerPart.data)?.modelId, 'gcmp.slot:::affinity-model');
+        assert.deepEqual(first.requestContinuity, { version: 1, scope: 'chain', source: 'sdk-session' });
         await ApiKeyFailoverManager.captureAttempt('slot', first.balanceKey, 'busy-sdk-chain');
         const next = await AffinityProvider.run(
             [...continuation(messages, first.parts), userMessage('a new request')],
@@ -348,8 +361,8 @@ suite('balance turn affinity', () => {
         );
         assert.equal(next.sessionId, first.sessionId);
         assert.equal(next.balanceKey, first.balanceKey);
-        assert.deepEqual(next.usedKeys, first.usedKeys);
-        assert.deepEqual(next.requestContinuity, { version: 1, scope: 'chain', source: 'marker' });
+        assert.equal(next.usedKeys.length, 1);
+        assert.deepEqual(next.requestContinuity, { version: 1, scope: 'chain', source: 'sdk-session' });
         assert.equal(copilotOptions.modelOptions?.requestKind, 'chat-title');
         assert.equal(copilotOptions.modelOptions?.subSessionId, 'stale-sub');
     });
@@ -377,7 +390,7 @@ suite('balance turn affinity', () => {
     });
 
     for (const mode of ['debug', 'disabled', 'logger-failure'] as const) {
-        test(`SDK marker diagnostics preserve two-round recovery and privacy: ${mode}`, async () => {
+        test(`SDK markerless diagnostics preserve two-round conversation identity and privacy: ${mode}`, async () => {
             const originalDebug = Logger.debug;
             const originalEnabled = Logger.isDebugEnabled;
             const lines: string[] = [];
@@ -396,15 +409,18 @@ suite('balance turn affinity', () => {
                     systemPrompt: 'You are an AI assistant using Copilot SDK in VS Code.',
                     copilotOptions: {
                         requestInitiator: 'core',
-                        toolMode: vscode.LanguageModelChatToolMode.Auto
+                        toolMode: vscode.LanguageModelChatToolMode.Auto,
+                        modelOptions: { _conversationId: randomUUID() }
                     }
                 };
                 const first = await AffinityProvider.run(messages, settings);
                 const history = continuation(messages, first.parts);
                 const before = JSON.stringify(history);
                 const next = await AffinityProvider.run(history, settings);
-                assert.equal(first.sessionRecoverySource, 'new-uuid');
-                assert.equal(next.sessionRecoverySource, 'stateful-marker');
+                assert.equal(first.sessionRecoverySource, undefined);
+                assert.equal(next.sessionRecoverySource, undefined);
+                assert.equal(first.requestContinuity.source, 'sdk-session');
+                assert.equal(next.requestContinuity.source, 'sdk-session');
                 assert.equal(next.sessionId, first.sessionId);
                 assert.equal(JSON.stringify(history), before);
                 if (mode !== 'debug') {
@@ -427,30 +443,15 @@ suite('balance turn affinity', () => {
                                 }>;
                             }
                     );
-                const outputs = lines
-                    .filter(line => line.startsWith('[MarkerContinuity] output '))
-                    .map(
-                        line =>
-                            JSON.parse(line.slice('[MarkerContinuity] output '.length)) as {
-                                payloadHash: string;
-                                sessionHash: string;
-                                outerModelMatches: boolean;
-                                decodeStatus: string;
-                            }
-                    );
+                const outputs = lines.filter(line => line.startsWith('[MarkerContinuity] output '));
                 assert.equal(lines.filter(line => line.startsWith('[MarkerContinuity] entry ')).length, 2);
                 assert.equal(inputs.length, 2);
-                assert.equal(outputs.length, 2);
+                assert.equal(outputs.length, 0);
                 assert.equal(inputs[0].markerCount, 0);
-                assert.equal(inputs[0].recoverySource, 'new-uuid');
-                assert.equal(inputs[1].recoverySource, 'stateful-marker');
-                assert.equal(inputs[1].markers[0].payloadHash, outputs[0].payloadHash);
-                assert.equal(inputs[1].markers[0].sessionMatches, true);
-                assert.equal(inputs[1].markers[0].outerModelMatches, true);
-                assert.equal(inputs[1].markers[0].restoreStatus, 'eligible');
-                assert.equal(outputs[0].sessionHash, inputs[1].sessionHash);
-                assert.equal(outputs[0].outerModelMatches, true);
-                assert.equal(outputs[0].decodeStatus, 'valid');
+                assert.equal(inputs[1].markerCount, 0);
+                assert.equal(inputs[0].recoverySource, 'sdk-session');
+                assert.equal(inputs[1].recoverySource, 'sdk-session');
+                assert.equal(inputs[0].sessionHash, inputs[1].sessionHash);
                 assert.doesNotMatch(
                     lines.join('\n'),
                     /private-user-sentinel|fake-key-|affinity-model|affinity-response|fake-path|Copilot SDK in VS Code/
@@ -466,8 +467,8 @@ suite('balance turn affinity', () => {
         });
     }
 
-    test('未分类调用延续已建立的子链，但不继承子代理角色', async () => {
-        const systemPrompt = 'You are an AI assistant using Copilot SDK in VS Code.';
+    test('fallback 未分类调用延续已建立的子链，但不继承子代理角色', async () => {
+        const systemPrompt = 'Unrecognized assistant.';
         const first = await AffinityProvider.run([userMessage()], { requestKind: 'execution-subagent' });
         assert.ok(first.subSessionId);
         const next = await AffinityProvider.run(continuation([userMessage()], first.parts), { systemPrompt });
@@ -482,13 +483,14 @@ suite('balance turn affinity', () => {
 
     for (const sdkMode of ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'] as const) {
         for (const historyMode of ['latest', 'complete'] as const) {
-            test(`${sdkMode}: verified child survives uncertain rounds with ${historyMode} history`, async () => {
+            test(`${sdkMode}: SDK markerless uncertain rounds cannot inherit a child with ${historyMode} history`, async () => {
                 const settings = {
                     sdkMode,
                     systemPrompt: SDK_CUSTOM_SUBAGENT,
                     copilotOptions: {
                         requestInitiator: 'core',
-                        toolMode: vscode.LanguageModelChatToolMode.Auto
+                        toolMode: vscode.LanguageModelChatToolMode.Auto,
+                        modelOptions: { _conversationId: randomUUID() }
                     }
                 };
                 const first = await AffinityProvider.run([userMessage()], settings);
@@ -504,10 +506,9 @@ suite('balance turn affinity', () => {
                     assert.equal(previous.requestKind, 'unclassified');
                     assert.equal(previous.classification.evidence.role.level, 'unknown');
                     assert.equal(previous.sessionId, first.sessionId);
-                    assert.equal(previous.subSessionId, first.subSessionId);
-                    assert.equal(previous.balanceKey, first.balanceKey);
-                    assert.deepEqual(previous.usedKeys, first.usedKeys);
-                    assert.equal(previous.marker.continuity?.agentRole, 'subagent');
+                    assert.equal(previous.subSessionId, undefined);
+                    assert.equal(previous.balanceKey, `s:${first.sessionId}`);
+                    assert.deepEqual(previous.requestContinuity, { version: 1, scope: 'chain', source: 'sdk-session' });
                     assert.equal(JSON.stringify(history), before);
                 }
                 const resumed = await AffinityProvider.run(
@@ -515,16 +516,16 @@ suite('balance turn affinity', () => {
                     settings
                 );
                 assert.equal(resumed.classification.agentRole, 'subagent');
-                assert.equal(resumed.sessionRecoverySource, 'stateful-marker');
+                assert.equal(resumed.requestContinuity.source, 'sdk-session');
                 assert.equal(resumed.sessionId, first.sessionId);
-                assert.equal(resumed.subSessionId, first.subSessionId);
-                assert.equal(resumed.balanceKey, first.balanceKey);
-                assert.deepEqual(resumed.usedKeys, first.usedKeys);
+                assert.ok(resumed.subSessionId);
+                assert.notEqual(resumed.subSessionId, first.subSessionId);
+                assert.equal(resumed.balanceKey, `a:${resumed.subSessionId}`);
             });
         }
 
         test(`${sdkMode}: a sub-session ID without verified child continuity cannot acquire it`, async () => {
-            const first = await AffinityProvider.run([userMessage()], { sdkMode, systemPrompt: SDK_CUSTOM_SUBAGENT });
+            const first = await AffinityProvider.run([userMessage()], { sdkMode, requestKind: 'execution-subagent' });
             for (const agentRole of ['main', 'undetermined'] as const) {
                 const unverified = new vscode.LanguageModelDataPart(
                     encodeStatefulMarker(first.marker.modelId, {
@@ -539,7 +540,6 @@ suite('balance turn affinity', () => {
                 });
                 assert.equal(next.subSessionId, first.subSessionId);
                 assert.equal(next.classification.agentRole, 'undetermined');
-                assert.equal(next.marker.continuity?.agentRole, 'undetermined');
                 const child = await AffinityProvider.run(continuation([userMessage()], next.parts), {
                     sdkMode,
                     systemPrompt: SDK_CUSTOM_SUBAGENT
@@ -550,9 +550,9 @@ suite('balance turn affinity', () => {
     }
 
     for (const change of ['model', 'protocol', 'provider'] as const) {
-        test(`SDK chain statistics survive a ${change} change without inheriting credentials`, async () => {
+        test(`SDK legacy marker statistics survive a ${change} change without inheriting credentials`, async () => {
             const systemPrompt = 'You are an AI assistant using Copilot SDK in VS Code.';
-            const first = await AffinityProvider.run([userMessage()], { systemPrompt });
+            const first = await AffinityProvider.run([userMessage()]);
             await ApiKeyFailoverManager.captureAttempt('slot', first.balanceKey, 'busy-original-sdk');
             const original = { ...first.marker };
             original.encryptedReasoning = [{ encryptedContent: 'private-state', reasoningId: 'rs_old' }];

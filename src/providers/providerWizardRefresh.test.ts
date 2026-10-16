@@ -210,8 +210,10 @@ function compatibleWizardFixture(initialModels: CompatibleModelConfig[]) {
         'providers/compatibleProvider.ts',
         'providers/genericModelProvider.ts',
         'handlers/classification/requestScope.ts',
+        'handlers/stateful/statefulReplay.ts',
         'utils/config/compatibleModelManager.ts',
         'utils/model/modelInfoCache.ts',
+        'utils/model/sdkUsageCache.ts',
         'utils/model/languageModelInfo.ts',
         'utils/model/compatibleServiceTier.ts'
     ]);
