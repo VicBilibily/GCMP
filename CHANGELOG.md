@@ -2,6 +2,58 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.0] - 2026-10-15
+
+### 新增
+
+- **Gemini 原生通道**：新增 `gemini` SDK 模式，支持 GenerateContent 流式请求、`v1` / `v1beta` 接入点、工具调用、多模态消息与思考签名回放，并统一取消、终态和用量处理。
+- **API Key 自动故障切换**：配置集可按请求失败自动切换可用凭据，支持失败凭据临时隔离、轮次级粘滞与跨窗口状态协调，减少同轮请求反复切换 Key。
+- **加权负载均衡**：配置集新增负载均衡与权重设置，由主实例统一分配凭据，支持子代理子会话分配、凭据租约和主实例交接；无可用主实例时回退到当前可用凭据。
+- **多 Key 配额与请求身份**：状态栏集中展示多套凭据的配额与余额，用量面板记录请求实际使用的 Key 身份和配置名，便于核对各配置的消耗。
+- **多额度用量查询**：Compatible 用量查询支持数组项拆分、多额度命名、`[*]` 数值汇总，以及展示名称的字段路径、前缀和后缀配置。
+- **机器级代理覆盖**：新增 `gcmp.machineOverrides`，可为当前机器单独配置提供商或模型代理，不随配置同步影响其他设备。
+
+### 变更
+
+- **FIM / NES 改为可选安装**：代码补全拆分至 `vicanent.gcmp-fim-nes`，不再包含在主扩展中，也不会自动安装。旧用户如需继续使用补全，须在扩展市场手动安装子扩展；原有补全设置和主扩展 API Key 可继续使用，聊天功能不依赖补全扩展。
+- **启动引导与辅助偏好**：不再覆盖 VS Code 或其他扩展的默认设置；辅助模型与 Local Agent 偏好仅在用户确认后写入全局配置。辅助偏好面板新增聊天模式设置，已有明确全局偏好时不再显示对应启动提示。
+- **跨窗口用量与统计体验**：按需定向查询用量明细，优先显示轻量统计并预取相邻页面，减少重复读取和窗口间缓存副本；增强历史统计恢复、持久化与主实例交接的一致性。启动时尚无已知主实例可从本地读取当日摘要，收到权威快照后接管展示。
+- **请求分类与子代理思考**：统一 SDK 与 Copilot Chat 的请求作用域和分类元数据，子代理请求保留显式思考配置与默认思考强度。
+- **请求字段移除**：自定义请求头中的 `null` 可移除同名内置头；`extraBody` 中的 `null` 在自动参数注入后生效，可用于移除自动添加的同名字段。
+- **服务等级与模型缓存**：扩充 OpenAI 官方服务等级配置，支持 `fast` / `ultrafast`；模型信息缓存改为进程内复用，减少启动等待与重复构建，并提高远程元数据刷新频率。
+- **安装要求**：主扩展与补全扩展均要求 VS Code 1.138.0 或更高版本。
+
+### 移除
+
+- **上下文占用状态栏**：移除上下文窗口占用比例状态栏，保留请求 Token 增量预估、限流与用量统计。
+- **百炼 MCP 搜索工具**：移除内置 DashScope MCP 联网搜索工具；其他提供商搜索工具和模型自身的联网搜索能力不受此项移除影响。
+
+---
+
+### Added
+
+- **Native Gemini channel**: Added the `gemini` SDK mode for streaming GenerateContent requests, `v1` / `v1beta` endpoints, tool calls, multimodal messages, and thought-signature replay, with unified cancellation, terminal state, and usage handling.
+- **Automatic API key failover**: Configuration sets can switch credentials after request failures, with temporary credential quarantine, turn-level stickiness, and cross-window coordination to avoid repeated key changes within a turn.
+- **Weighted load balancing**: Configuration sets support weighted credential allocation coordinated by the Leader, including subagent-session assignment, credential leases, and Leader handoff. Requests fall back to the current available credentials when no Leader is available.
+- **Multi-key quotas and request identity**: Status bars consolidate quotas and balances across credentials. Usage records include the actual key identity and configuration name used by each request.
+- **Multiple usage entries**: Compatible usage queries support array-based quota entries, named quotas, `[*]` numeric aggregation, and display names configured with field paths, prefixes, and suffixes.
+- **Machine-specific proxy overrides**: Added `gcmp.machineOverrides` for provider-level or model-level proxies on the current machine without affecting other devices through configuration sync.
+
+### Changed
+
+- **Optional FIM / NES installation**: Completion moved to `vicanent.gcmp-fim-nes`; it is no longer bundled with the main extension or installed automatically. Existing users must manually install the companion from the Marketplace to continue using completion. Existing completion settings and main-extension API keys can be reused, and chat does not depend on the companion.
+- **Startup guidance and auxiliary preferences**: Defaults owned by VS Code or other extensions are no longer overridden. Utility model and Local Agent preferences are saved globally only after confirmation. Auxiliary Preferences now includes chat mode settings, and explicit global preferences suppress the corresponding startup prompt.
+- **Cross-window usage and statistics**: Usage details are queried on demand through targeted responses, with lightweight summaries and neighboring-page prefetch to reduce repeated reads and duplicate caches. Historical statistics recovery, persistence, and Leader handoff are more consistent. On startup without a known Leader, the daily summary can be read locally until an authoritative snapshot takes over.
+- **Request classification and subagent thinking**: SDK and Copilot Chat requests share consistent scope and classification metadata. Subagent requests preserve explicit thinking settings and default reasoning effort.
+- **Request field removal**: `null` custom headers can remove matching built-in headers. `null` fields in `extraBody` are applied after automatic parameter injection to remove matching generated fields.
+- **Service tiers and model caching**: Expanded official OpenAI service tier settings with `fast` / `ultrafast`. Model information is cached and reused in-process to reduce startup waits and repeated builds, with more frequent remote metadata refreshes.
+- **Installation requirements**: Both the main and completion extensions require VS Code 1.138.0 or later.
+
+### Removed
+
+- **Context usage status bar**: Removed the context-window usage percentage status bar while retaining incremental request token estimates, rate limiting, and usage statistics.
+- **DashScope MCP search tool**: Removed the built-in DashScope MCP web search tool. Other providers' search tools and model-native web search capabilities are unaffected by this removal.
+
 ## [0.28.4] - 2026-09-19
 
 ### 新增
@@ -177,8 +229,7 @@
 
 ### 0.14.0 - 0.15.23 (2025-11-30 - 2025-12-23)
 
-- **NES 代码补全**：新增 Next Edit Suggestions (NES) 代码补全功能，整合 FIM 和 NES 两种模式
-- **上下文窗口占用比例状态栏**：新增上下文窗口占用比例显示功能
+- **NES 代码补全**：新增 Next Edit Suggestions (NES) 代码补全功能，整合 FIM 和 NES 两种模式，现由可选补全扩展提供
 
 ### 0.9.0 - 0.13.6 (2025-10-29 - 2025-11-29)
 
