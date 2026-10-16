@@ -102,25 +102,9 @@ export function formatCompactCountdown(resetsAt?: string): string {
     return `${seconds}s`;
 }
 
-/** 本地化倒计时（"{0}天 {1}小时" 风格，面板表格用） */
+/** 面板倒计时，与状态栏统一使用紧凑格式 */
 export function formatQuotaCountdown(resetAt: string): string {
-    const diffMs = new Date(resetAt).getTime() - Date.now();
-    if (!Number.isFinite(diffMs) || diffMs <= 0) {
-        return t('expired', '已到期');
-    }
-
-    const totalMinutes = Math.floor(diffMs / 60000);
-    const days = Math.floor(totalMinutes / (60 * 24));
-    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-    const minutes = totalMinutes % 60;
-
-    if (days > 0) {
-        return t('{0}d {1}h', '{0}天 {1}小时', days, hours);
-    }
-    if (hours > 0) {
-        return t('{0}h {1}m', '{0}小时 {1}分', hours, minutes);
-    }
-    return t('{0}m', '{0}分', minutes);
+    return formatCompactCountdown(resetAt);
 }
 
 // ============= 货币格式化 =============

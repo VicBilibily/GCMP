@@ -1,53 +1,219 @@
+.catalog-controls {
+    border-top: 1px solid #e4e7ec;
+    border-bottom: 1px solid #e4e7ec;
+    padding: 20px 0;
+    margin-top: 24px;
+}
+
+.model-filter-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+    gap: 16px;
+}
+
+.filter-field {
+    display: grid;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 0;
+}
+
+.filter-field input,
+.filter-field select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2328;
+    font: inherit;
+    font-weight: 400;
+}
+
+.model-filter-options,
+.results-toolbar,
+.results-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.model-filter-options {
+    justify-content: space-between;
+    margin-top: 16px;
+}
+
+.model-filter-options fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.model-filter-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.model-filter-options input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #0969da;
+}
+
+.models-page button {
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    min-height: 36px;
+}
+
+.models-page button:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+
+.results-toolbar {
+    justify-content: space-between;
+    padding: 20px 0 8px;
+}
+
+.results-toolbar p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.pricing-note {
+    line-height: 1.7;
+    margin: 8px 0 20px;
+}
+
 .provider-section {
-  background: #fff;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  margin-bottom: 12px;
-  overflow: hidden;
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
 }
+
 .provider-section summary {
-  cursor: pointer;
-  padding: 14px 20px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  list-style: none;
+    cursor: pointer;
+    padding: 14px 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    list-style: none;
 }
+
 .provider-section summary::before {
-  content: '▸';
-  color: #656d76;
-  transition: transform 0.15s;
+    content: '>';
+    color: #656d76;
+    transition: transform 0.15s;
 }
-.provider-section[open] > summary::before {
-  transform: rotate(90deg);
+
+.provider-section[open]>summary::before {
+    transform: rotate(90deg);
 }
+
+.provider-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.provider-id {
+    margin-left: auto;
+    color: #656d76;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.provider-meta {
+    padding: 0 20px 12px;
+    font-size: 13px;
+}
+
 .table-wrap {
-  overflow-x: auto;
-  padding: 0 20px 16px;
+    min-width: 0;
+    overflow-x: auto;
+    padding: 0 20px 16px;
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+
+.models-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    font-size: 13px;
 }
-th,
-td {
-  border-top: 1px solid #eef0f2;
-  padding: 8px 10px;
-  text-align: left;
-  white-space: nowrap;
+
+.models-table th,
+.models-table td {
+    border-top: 1px solid #eef0f2;
+    padding: 8px 10px;
+    text-align: left;
+    white-space: nowrap;
 }
-th {
-  color: #57606a;
-  font-weight: 500;
-  border-top: none;
+
+.models-table th {
+    color: #57606a;
+    font-weight: 500;
+    border-top: none;
 }
+
 .model-name {
-  font-weight: 500;
+    font-weight: 500;
+    white-space: normal;
+    max-width: 250px;
+    overflow-wrap: anywhere;
 }
+
 .model-id {
-  color: #656d76;
-  font-size: 12px;
-  font-family: ui-monospace, Consolas, monospace;
+    color: #656d76;
+    font-size: 12px;
+    font-family: ui-monospace, Consolas, monospace;
+    white-space: normal;
+    max-width: 250px;
+    overflow-wrap: anywhere;
+}
+
+.model-price {
+    font-variant-numeric: tabular-nums;
+}
+
+.models-empty {
+    padding: 48px 16px;
+    text-align: center;
+}
+
+.models-empty h2 {
+    font-size: 18px;
+    margin: 0 0 20px;
+}
+
+@media (max-width: 600px) {
+    .model-filter-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .provider-section summary {
+        padding: 14px;
+        gap: 8px;
+    }
+
+    .provider-id {
+        display: none;
+    }
 }

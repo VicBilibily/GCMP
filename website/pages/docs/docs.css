@@ -1,12 +1,133 @@
-h1 {
-  margin: 16px 0;
+.docs-layout {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    align-items: start;
+    gap: 36px;
 }
-.card h2 {
-  font-size: 17px;
-  margin: 0 0 12px;
+
+.docs-sidebar {
+    position: sticky;
+    top: 24px;
+    padding-top: 16px;
 }
-.card p,
-.card li {
-  line-height: 1.8;
-  font-size: 14px;
+
+.docs-sidebar nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.docs-sidebar h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: #656d76;
+}
+
+.docs-sidebar a {
+    padding: 8px 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.docs-content {
+    min-width: 0;
+}
+
+.docs-content h1 {
+    margin: 12px 0;
+}
+
+.docs-section {
+    padding: 28px 0;
+    border-bottom: 1px solid #e4e7ec;
+    scroll-margin-top: 24px;
+}
+
+.docs-section:last-child {
+    border-bottom: 0;
+}
+
+.docs-section h2 {
+    font-size: 20px;
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+
+.docs-section h3 {
+    font-size: 15px;
+    margin: 24px 0 12px;
+    line-height: 1.6;
+}
+
+.docs-section p,
+.docs-section li {
+    line-height: 1.8;
+    font-size: 14px;
+}
+
+.docs-section li+li {
+    margin-top: 10px;
+}
+
+.docs-section ul,
+.docs-section ol {
+    padding-left: 24px;
+}
+
+.docs-section a {
+    overflow-wrap: anywhere;
+}
+
+.docs-section pre {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.docs-section p code,
+.docs-section li code {
+    overflow-wrap: anywhere;
+}
+
+.docs-faq {
+    border-bottom: 1px solid #e4e7ec;
+    padding: 16px 0;
+}
+
+.docs-faq:last-child {
+    border-bottom: 0;
+}
+
+.docs-faq summary {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.7;
+}
+
+.docs-faq p {
+    margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+    .docs-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+
+    .docs-sidebar {
+        position: static;
+        padding: 8px 0 20px;
+        border-bottom: 1px solid #e4e7ec;
+    }
+
+    .docs-sidebar nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px 20px;
+    }
+
+    .docs-sidebar h2 {
+        width: 100%;
+        margin-bottom: 4px;
+    }
 }
