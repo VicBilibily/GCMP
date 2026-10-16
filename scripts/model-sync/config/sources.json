@@ -6,7 +6,7 @@
         "target": "src/providers/config/hyper.json",
         "nameSuffix": "(Hyper)",
         "tooltipPrefix": "Charm Hyper",
-        "excludedModelIds": [],
+        "excludedModelIds": ["prism"],
         "defaults": {
             "sdkMode": "openai-sse"
         },
@@ -40,7 +40,7 @@
         // Anthropic / Gemini 系条目端点不同源，由 modelRules 命中归属
         "localBaseUrl": "https://opencode.ai/inference/go/openai/v1",
         "excludedModelIds": [],
-        "excludedModelIdPrefixes": ["minimax-m2.5", "deepseek-flash", "glm-5.1"],
+        "excludedModelIdPrefixes": ["minimax-m2.5", "deepseek-flash", "glm-5.1", "qwen3.6"],
         // 免费模型不入预置，-free 后缀一律过滤
         "excludedModelIdSuffixes": ["-free", "-alpha"],
         "defaults": {
@@ -131,6 +131,13 @@
         ],
         "models": {
             "Qwen/Qwen3.8-Max-0902": { "ref": "qwen/qwen3.8-max-0902" },
+            "Qwen/Qwen3.8-Max-Prime": { "ref": "qwen/qwen3.8-max-prime", "localId": "qwen-3.8-max-prime" },
+            "meta/muse-spark-open": { "ref": "meta/muse-spark-open", "localId": "muse-spark-open" },
+            "meta/muse-wonder-1.0": { "ref": "meta/muse-wonder-1.0", "localId": "muse-wonder-1.0" },
+            "nvidia/nemotron-3.5-super-vl": {
+                "ref": "nvidia/nemotron-3.5-super-vl",
+                "localId": "nemotron-3.5-super-vl"
+            },
             "meituan/LongCat-2.0": { "ref": "meituan/longcat-2.0", "localId": "longcat-2.0" },
             "poolside/laguna-s-2.1-free": { "ref": "poolside/laguna-s-2.1", "localId": "laguna-s-2.1-free" },
             "xai/grok-4.7": { "localId": "grok-4.7" },

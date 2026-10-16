@@ -520,6 +520,30 @@
             "tokenPricing": [0.1, 0.2, 0.002]
         },
         {
+            "id": "muse-spark-open",
+            "name": "Muse-Spark-Open (CmdC)",
+            "model": "meta/muse-spark-open",
+            "tooltip": "CommandCode GOAT Plan — Muse-Spark-Open。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.25, 4.25, 0.15]
+        },
+        {
+            "id": "muse-wonder-1.0",
+            "name": "Muse-Wonder-1.0 (CmdC)",
+            "model": "meta/muse-wonder-1.0",
+            "tooltip": "CommandCode GOAT Plan — Muse-Wonder-1.0。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [4, 20, 0.2]
+        },
+        {
             "id": "nemotron-3-ultra",
             "name": "Nemotron 3 Ultra (CmdC)",
             "model": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -530,6 +554,17 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.6, 2.4, 0.12]
+        },
+        {
+            "id": "nemotron-3.5-super-vl",
+            "name": "Nemotron-3.5-Super-VL (CmdC)",
+            "model": "nvidia/nemotron-3.5-super-vl",
+            "tooltip": "CommandCode GOAT Plan — Nemotron-3.5-Super-VL。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.2, 0.5, 0.04]
         },
         {
             "id": "qwen-3.8-27b",
@@ -580,6 +615,20 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [2, 6, 0.25]
+        },
+        {
+            "id": "qwen-3.8-max-prime",
+            "name": "Qwen3.8-Max-Prime (CmdC)",
+            "model": "Qwen/Qwen3.8-Max-Prime",
+            "tooltip": "CommandCode GOAT Plan — Qwen3.8-Max-Prime。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [4, 12, 0.5, 5]
         },
         {
             "id": "step-3.5-flash",
