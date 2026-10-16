@@ -79,6 +79,7 @@ export class LogStatsManager {
     private getStatsAuthorityGeneration: () => number | undefined = () => undefined;
     private readonly publication = new StatsPublication();
     private readonly publicationWrites = new Set<Promise<void>>();
+    private readonly statsTasks = new Set<Promise<TokenUsageStatsFromFile>>();
     private publicationRecoveryCursor = '';
     private readonly rawHourlyStats = new RawHourlyStats();
     private disposed = false;
@@ -164,7 +165,20 @@ export class LogStatsManager {
      * @param dateStr 日期字符串 (YYYY-MM-DD)
      * @param ignoreCache 是否忽略缓存，强制重新计算
      */
-    async getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
+    getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
+        if (this.disposed) {
+            return Promise.resolve(StatsCalculator.aggregateLogs([]));
+        }
+        const task = this.readOrRegenerateDateStats(dateStr, ignoreCache);
+        this.statsTasks.add(task);
+        void task.then(
+            () => this.statsTasks.delete(task),
+            () => this.statsTasks.delete(task)
+        );
+        return task;
+    }
+
+    private async readOrRegenerateDateStats(dateStr: string, ignoreCache: boolean): Promise<TokenUsageStatsFromFile> {
         const authorityTerm = this.getStatsAuthorityTerm();
         const authorityGeneration = this.getStatsAuthorityGeneration();
         const revision = ++this.resultRevision;
@@ -354,10 +368,11 @@ export class LogStatsManager {
         }
     }
 
-    dispose(): void {
+    async dispose(): Promise<void> {
         this.disposed = true;
         this.latestStatus = undefined;
         this.rawHourlyStats.dispose();
+        await Promise.allSettled(this.statsTasks);
     }
 
     private statsFingerprint(stats: Pick<TokenUsageStatsFromFile, 'total'>): string {

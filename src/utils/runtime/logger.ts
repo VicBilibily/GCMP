@@ -10,12 +10,13 @@ import { t } from './l10n';
  * 日志管理器类 - 直接使用VS Code的LogLevel和LogOutputChannel
  */
 export class Logger {
-    private static outputChannel: vscode.LogOutputChannel;
+    private static outputChannel: vscode.LogOutputChannel | undefined;
 
     /**
      * 初始化日志管理器
      */
     static initialize(channelName = 'GCMP'): void {
+        this.dispose();
         // 使用LogOutputChannel (VS Code 1.74+)，支持原生的日志级别和格式化
         this.outputChannel = vscode.window.createOutputChannel(channelName, { log: true });
     }
@@ -122,8 +123,8 @@ export class Logger {
      * 销毁日志管理器
      */
     static dispose(): void {
-        if (this.outputChannel) {
-            this.outputChannel.dispose();
-        }
+        const channel = this.outputChannel;
+        this.outputChannel = undefined;
+        channel?.dispose();
     }
 }

@@ -11,12 +11,13 @@ import * as vscode from 'vscode';
  * 用于记录主实例选举、心跳、状态同步等高频操作的日志
  */
 export class StatusLogger {
-    private static outputChannel: vscode.LogOutputChannel;
+    private static outputChannel: vscode.LogOutputChannel | undefined;
 
     /**
      * 初始化高频状态日志管理器
      */
     static initialize(channelName = 'GCMP-Status'): void {
+        this.dispose();
         // 使用LogOutputChannel (VS Code 1.74+)，支持原生的日志级别和格式化
         this.outputChannel = vscode.window.createOutputChannel(channelName, { log: true });
     }
@@ -70,8 +71,8 @@ export class StatusLogger {
      * 销毁日志管理器
      */
     static dispose(): void {
-        if (this.outputChannel) {
-            this.outputChannel.dispose();
-        }
+        const channel = this.outputChannel;
+        this.outputChannel = undefined;
+        channel?.dispose();
     }
 }

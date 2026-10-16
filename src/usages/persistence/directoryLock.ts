@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, type BigIntStats } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { finishPendingRelease, releaseLock, withLockCleanup } from './lockRelease';
@@ -9,6 +9,8 @@ interface LockOwner {
     pid: number;
     token: string;
 }
+
+type OwnerFileIdentity = Pick<BigIntStats, 'dev' | 'ino' | 'birthtimeNs'>;
 
 interface DirectoryLockOptions {
     waitMs: number;
@@ -96,7 +98,12 @@ async function retryIo<T>(
     }
 }
 
-async function releaseOwnedLock(lockPath: string, token: string, options: DirectoryLockOptions): Promise<void> {
+async function releaseOwnedLock(
+    lockPath: string,
+    token: string,
+    options: DirectoryLockOptions,
+    ownerIdentity?: OwnerFileIdentity
+): Promise<void> {
     let started = false;
     await retryIo(
         () => {
@@ -109,6 +116,24 @@ async function releaseOwnedLock(lockPath: string, token: string, options: Direct
                 if (owner?.pid === process.pid && owner.token === token) {
                     await fs.rm(lockPath, { recursive: true, force: true });
                 } else if (!owner) {
+                    if (ownerIdentity) {
+                        const ownerPath = join(lockPath, 'owner.json');
+                        try {
+                            const current = await fs.stat(ownerPath, { bigint: true });
+                            if (
+                                current.dev !== ownerIdentity.dev ||
+                                current.ino !== ownerIdentity.ino ||
+                                current.birthtimeNs !== ownerIdentity.birthtimeNs
+                            ) {
+                                return;
+                            }
+                            await fs.rm(ownerPath, { force: true });
+                        } catch (error) {
+                            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                                throw error;
+                            }
+                        }
+                    }
                     try {
                         await fs.rmdir(lockPath);
                     } catch (error) {
@@ -178,16 +203,25 @@ export async function withDirectoryLock<T>(
             } else {
                 try {
                     await fs.mkdir(lockPath);
+                    let ownerIdentity: OwnerFileIdentity | undefined;
                     try {
-                        await fs.writeFile(join(lockPath, 'owner.json'), JSON.stringify({ pid: process.pid, token }), {
-                            flag: 'wx'
-                        });
+                        const ownerPath = join(lockPath, 'owner.json');
+                        const ownerFile = await fs.open(ownerPath, 'wx');
+                        await withLockCleanup(
+                            async () => {
+                                ownerIdentity = await ownerFile.stat({ bigint: true });
+                                await fs.writeFile(ownerPath, JSON.stringify({ pid: process.pid, token }), {
+                                    flag: 'r+'
+                                });
+                            },
+                            () => ownerFile.close()
+                        );
                     } catch (error) {
                         await withLockCleanup(
                             async () => {
                                 throw error;
                             },
-                            () => releaseOwnedLock(lockPath, token, options)
+                            () => releaseOwnedLock(lockPath, token, options, ownerIdentity)
                         );
                     }
                     break;

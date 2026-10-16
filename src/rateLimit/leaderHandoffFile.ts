@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { resolveRateLimitHandoffFilePath } from '../interInstance/pathResolver';
 import { AtomicJsonFile } from '../usages/atomicJsonFile';
+import { releaseLock } from '../usages/persistence/lockRelease';
 import { isRateLimitStoreSnapshot, type RateLimitStoreSnapshot } from './rateLimitStore';
 
 export interface RateLimitLeaderHandoffPayload {
@@ -140,7 +141,7 @@ async function withHandoffLock<TResult>(filePath: string, action: () => Promise<
             await new Promise<void>(resolve => setTimeout(resolve, 10));
         }
     } finally {
-        await fs.rm(ticketPath, { force: true });
+        await releaseLock(ticketPath, () => fs.rm(ticketPath, { force: true }));
     }
 }
 

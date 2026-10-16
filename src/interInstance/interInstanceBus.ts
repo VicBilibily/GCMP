@@ -168,10 +168,18 @@ export class InterInstanceBus {
      * 释放总线资源
      */
     static async dispose(): Promise<void> {
+        const errors: unknown[] = [];
+        const cleanup = async (dispose: () => void | PromiseLike<void>): Promise<void> => {
+            try {
+                await dispose();
+            } catch (error) {
+                errors.push(error);
+            }
+        };
         // 先使所有已排队/执行中的角色切换与重连任务失效，再等待切换链排空。
         this.initialized = false;
         this.lifecycleGeneration++;
-        this.cancelLeaderLiveness();
+        await cleanup(() => this.cancelLeaderLiveness());
         this.remoteLeaderLivenessCompatible = false;
         this.confirmedLeaderAuthorityTerm = undefined;
 
@@ -181,22 +189,22 @@ export class InterInstanceBus {
         }
         this.reconnectAttempts = 0;
 
-        this.leaderChangeDisposable?.dispose();
+        await cleanup(() => this.leaderChangeDisposable?.dispose());
         this.leaderChangeDisposable = undefined;
 
-        await this.roleSwitchChain.catch(error =>
-            StatusLogger.warn('[InterInstanceBus] Failed to drain role switch chain during dispose', error)
-        );
+        await cleanup(() => this.roleSwitchChain);
 
-        await this.client?.disconnect();
+        await cleanup(() => this.client?.disconnect());
         this.client = undefined;
         this.clientTarget = undefined;
 
-        await this.stopLeaderFilePublisher();
-        await this.server?.stop();
+        await cleanup(() => this.stopLeaderFilePublisher());
+        this.leaderFilePublisher = undefined;
+        this.leaderFileAuthorityTerm = undefined;
+        await cleanup(() => this.server?.stop());
         this.server = undefined;
 
-        await this.fallbackTransport?.stop();
+        await cleanup(() => this.fallbackTransport?.stop());
         this.fallbackTransport = undefined;
 
         this.handlers.clear();
@@ -206,6 +214,9 @@ export class InterInstanceBus {
         this.roleSwitchChain = Promise.resolve();
         this.roleTransitioning = 0;
 
+        if (errors.length > 0) {
+            throw new AggregateError(errors, 'Failed to dispose inter-instance bus resources');
+        }
         StatusLogger.info('[InterInstanceBus] Inter-instance bus disposed');
     }
 

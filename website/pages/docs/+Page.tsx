@@ -42,11 +42,33 @@ export default function Page() {
                     </li>
                     <li>
                         {t(
-                            'Prerequisites: VS Code >= 1.125.0, with the GitHub Copilot Chat extension installed.',
-                            '前置要求：VS Code >= 1.125.0，并已安装 GitHub Copilot Chat 扩展。'
+                            'Prerequisites: VS Code >= 1.138.0, with the GitHub Copilot Chat extension installed.',
+                            '前置要求：VS Code >= 1.138.0，并已安装 GitHub Copilot Chat 扩展。'
+                        )}
+                    </li>
+                    <li>
+                        {t('Optional code completion: install ', '可选代码补全：按需安装 ')}
+                        <a
+                            href="https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp-fim-nes"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            AI Chat Models - FIM/NES Completion
+                        </a>
+                        {t(' (extension ID: ', '（扩展标识 ')}
+                        <code>vicanent.gcmp-fim-nes</code>
+                        {t(
+                            '). The main extension does not install it automatically, and chat does not require it.',
+                            '）。主扩展不会自动安装补全，聊天功能不依赖补全扩展。'
                         )}
                     </li>
                 </ul>
+                <p>
+                    {t(
+                        'When upgrading to 0.29.0, manually install the companion from the Marketplace to keep using completion; existing gcmp.fimCompletion.* and gcmp.nesCompletion.* settings and API keys can be reused.',
+                        '升级到 0.29.0 后，如需继续使用补全，请在扩展市场手动安装补全扩展；原有 gcmp.fimCompletion.*、gcmp.nesCompletion.* 设置和 API Key 可继续使用。'
+                    )}
+                </p>
             </section>
 
             <section className="card">

@@ -13,7 +13,11 @@ Additionally, the extension supports any OpenAI or Anthropic API-compatible mode
 
 ### 1. Install the Extension
 
+Requires **VS Code 1.138.0 or later**.
+
 Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [`vicanent.gcmp`](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
+
+**Optional code completion**: Install the separate [FIM / NES extension](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp-fim-nes) as needed.
 
 ### 2. Get Started
 
@@ -691,6 +695,10 @@ The status bar will therefore query and display two named modes:
 </details>
 
 ## 💡 FIM / NES Inline Completion Suggestions
+
+Starting with **0.29.0**, FIM / NES is an optional companion extension. To use completion, manually install [`AI Chat Models - FIM/NES Completion`](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp-fim-nes) from the Marketplace.
+
+**Upgrading from an earlier version**: Existing `gcmp.fimCompletion.*` and `gcmp.nesCompletion.*` settings keep their names and can be reused after installing the companion. Upgrading only the main extension does not restore completion. FIM and NES are disabled by default and can be enabled as needed. API keys are still managed by the main extension; they do not need to be entered again.
 
 - **FIM**: Predicts and completes missing code at the cursor position based on context, suitable for single-line/short snippet completion.
 - **NES**: Provides intelligent code suggestions based on editing context, supporting multi-line code generation.

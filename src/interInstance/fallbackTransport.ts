@@ -84,7 +84,9 @@ export class FallbackTransport {
     private disposed = false;
     private cleanupTimer: NodeJS.Timeout | undefined;
     private darwinPollTimer: NodeJS.Timeout | undefined;
+    private watcherRecoveryTimer: NodeJS.Timeout | undefined;
     private directoryWatcher: fs.FSWatcher | undefined;
+    private readonly readTasks = new Set<Promise<void>>();
     private readonly DARWIN_POLL_INTERVAL_MS = 2000;
     /** 本实例事件文件写队列，保证截断与追加是不可交错的单一操作序列 */
     private publishChain: Promise<void> = Promise.resolve();
@@ -97,7 +99,7 @@ export class FallbackTransport {
      * 启动文件传输
      */
     start(context: vscode.ExtensionContext): void {
-        if (this.disposed) {
+        if (this.disposed || this.context) {
             return;
         }
         this.context = context;
@@ -141,6 +143,10 @@ export class FallbackTransport {
             clearInterval(this.darwinPollTimer);
             this.darwinPollTimer = undefined;
         }
+        if (this.watcherRecoveryTimer) {
+            clearTimeout(this.watcherRecoveryTimer);
+            this.watcherRecoveryTimer = undefined;
+        }
         this.directoryWatcher?.close();
         this.directoryWatcher = undefined;
         for (const state of this.fileStates.values()) {
@@ -148,7 +154,7 @@ export class FallbackTransport {
         }
         this.fileStates.clear();
         this.context = undefined;
-        await this.publishChain;
+        await Promise.allSettled([this.publishChain, ...this.readTasks]);
         StatusLogger.debug('[FallbackTransport] Stopped file-based fallback transport');
     }
 
@@ -216,8 +222,8 @@ export class FallbackTransport {
         return true;
     }
 
-    private initializeExistingFiles(): void {
-        if (!this.eventsDir) {
+    private initializeExistingFiles(replayed = true): void {
+        if (this.disposed || !this.eventsDir) {
             return;
         }
         try {
@@ -227,22 +233,25 @@ export class FallbackTransport {
                     continue;
                 }
                 const filePath = path.join(this.eventsDir, entry);
-                this.fileStates.set(filePath, { position: 0, remaining: '' });
+                const existing = this.fileStates.has(filePath);
+                if (!existing) {
+                    this.fileStates.set(filePath, { position: 0, remaining: '' });
+                }
                 this.watchFile(filePath);
-                void this.readNewEvents(filePath, true);
+                void this.readNewEvents(filePath, replayed && !existing);
             }
         } catch {
-            // 目录可能不存在或为空，忽略
+            this.scheduleWatcherRecovery();
         }
     }
 
     private watchDirectory(): void {
-        if (!this.eventsDir) {
+        if (this.disposed || !this.eventsDir || this.directoryWatcher) {
             return;
         }
         try {
-            this.directoryWatcher = fs.watch(this.eventsDir, (eventType, filename) => {
-                if (eventType !== 'rename' || !filename || !this.isEventFile(filename)) {
+            const watcher = fs.watch(this.eventsDir, (eventType, filename) => {
+                if (this.disposed || eventType !== 'rename' || !filename || !this.isEventFile(filename)) {
                     return;
                 }
                 const filePath = path.join(this.eventsDir!, filename);
@@ -258,7 +267,18 @@ export class FallbackTransport {
                     // 文件可能已被删除
                 }
             });
+            this.directoryWatcher = watcher;
+            watcher.on('error', error => {
+                if (this.disposed || this.directoryWatcher !== watcher) {
+                    return;
+                }
+                this.directoryWatcher = undefined;
+                watcher.close();
+                this.scheduleWatcherRecovery();
+                StatusLogger.warn('[FallbackTransport] Events directory watcher failed', error);
+            });
         } catch (error) {
+            this.scheduleWatcherRecovery();
             StatusLogger.warn('[FallbackTransport] Failed to watch events directory', error);
         }
     }
@@ -272,15 +292,63 @@ export class FallbackTransport {
             return;
         }
         try {
-            state.watcher = fs.watch(filePath, () => {
+            const watcher = fs.watch(filePath, () => {
                 void this.readNewEvents(filePath);
             });
+            state.watcher = watcher;
+            watcher.on('error', error => {
+                if (this.disposed || this.fileStates.get(filePath) !== state || state.watcher !== watcher) {
+                    return;
+                }
+                state.watcher = undefined;
+                watcher.close();
+                this.scheduleWatcherRecovery();
+                void this.readNewEvents(filePath);
+                StatusLogger.warn(`[FallbackTransport] File watcher failed: ${filePath}`, error);
+            });
         } catch (error) {
+            this.scheduleWatcherRecovery();
             StatusLogger.warn(`[FallbackTransport] Failed to watch file ${filePath}`, error);
         }
     }
 
-    private async readNewEvents(filePath: string, replayed = false): Promise<void> {
+    private scheduleWatcherRecovery(): void {
+        if (this.disposed || this.watcherRecoveryTimer) {
+            return;
+        }
+        this.watcherRecoveryTimer = setTimeout(() => {
+            this.watcherRecoveryTimer = undefined;
+            if (this.disposed || !this.eventsDir) {
+                return;
+            }
+            try {
+                fs.mkdirSync(this.eventsDir, { recursive: true });
+                this.watchDirectory();
+                this.initializeExistingFiles(false);
+            } catch (error) {
+                this.scheduleWatcherRecovery();
+                StatusLogger.warn('[FallbackTransport] Failed to restore file watchers', error);
+            }
+        }, 1000);
+        this.watcherRecoveryTimer.unref();
+    }
+
+    private readNewEvents(filePath: string, replayed = false): Promise<void> {
+        if (this.disposed) {
+            return Promise.resolve();
+        }
+        const task = this.readFileEvents(filePath, replayed).catch(error => {
+            StatusLogger.warn(`[FallbackTransport] Failed to finish reading ${filePath}`, error);
+        });
+        this.readTasks.add(task);
+        void task.then(
+            () => this.readTasks.delete(task),
+            () => this.readTasks.delete(task)
+        );
+        return task;
+    }
+
+    private async readFileEvents(filePath: string, replayed: boolean): Promise<void> {
         if (this.disposed) {
             return;
         }
@@ -297,6 +365,9 @@ export class FallbackTransport {
         let handle: fs.promises.FileHandle | undefined;
         try {
             let stats = await fs.promises.stat(filePath).catch(() => null);
+            if (this.disposed || this.fileStates.get(filePath) !== state) {
+                return;
+            }
             if (!stats) {
                 // 文件被删除：同步关闭 watcher，避免句柄泄漏
                 state.watcher?.close();
@@ -372,7 +443,7 @@ export class FallbackTransport {
 
             const buffer = Buffer.alloc(readLength);
             const read = await handle.read(buffer, 0, readLength, state.position);
-            if (read.bytesRead <= 0) {
+            if (this.disposed || this.fileStates.get(filePath) !== state || read.bytesRead <= 0) {
                 return;
             }
             const bytes = buffer.subarray(0, read.bytesRead);
@@ -420,6 +491,9 @@ export class FallbackTransport {
                 state.rewrite = undefined;
             }
             for (let index = 0; index < records.length; index++) {
+                if (this.disposed || this.fileStates.get(filePath) !== state) {
+                    return;
+                }
                 const record = records[index];
                 if ('boundary' in record) {
                     continue;
@@ -456,11 +530,14 @@ export class FallbackTransport {
         } catch (error) {
             StatusLogger.warn(`[FallbackTransport] Failed to read events from ${filePath}`, error);
         } finally {
-            await handle?.close();
-            state.reading = false;
-            if (state.readAgain && this.fileStates.get(filePath) === state) {
-                state.readAgain = false;
-                void this.readNewEvents(filePath);
+            try {
+                await handle?.close();
+            } finally {
+                state.reading = false;
+                if (state.readAgain && this.fileStates.get(filePath) === state) {
+                    state.readAgain = false;
+                    void this.readNewEvents(filePath);
+                }
             }
         }
     }

@@ -1292,24 +1292,42 @@ export class TokenUsagesManager {
      */
     async dispose() {
         this.lifecycleGeneration++;
-        if (!this.initialized) {
-            await this.fileLogger?.dispose();
-            return;
-        }
         this.initialized = false;
+        const errors: unknown[] = [];
+        const cleanup = (dispose: () => void): void => {
+            try {
+                dispose();
+            } catch (error) {
+                errors.push(error);
+            }
+        };
         this.statsNotifications.clear();
-        this.statusSnapshots?.dispose();
+        const statusSnapshots = this.statusSnapshots;
         this.statusSnapshots = undefined;
-        this.usagesQueryCoordinator?.dispose();
+        cleanup(() => statusSnapshots?.dispose());
+        const usagesQueryCoordinator = this.usagesQueryCoordinator;
         this.usagesQueryCoordinator = undefined;
-        this.leaderChangeDisposable?.dispose();
+        cleanup(() => usagesQueryCoordinator?.dispose());
+        const leaderChangeDisposable = this.leaderChangeDisposable;
         this.leaderChangeDisposable = undefined;
-        this.cacheInvalidationDisposable?.dispose();
+        cleanup(() => leaderChangeDisposable?.dispose());
+        const cacheInvalidationDisposable = this.cacheInvalidationDisposable;
         this.cacheInvalidationDisposable = undefined;
-        this.clearDateRecordsCache();
+        cleanup(() => cacheInvalidationDisposable?.dispose());
+        cleanup(() => this.clearDateRecordsCache());
         this.dateRecordsBuilds.clear();
         this.dateStatsReads.clear();
         this.backgroundSessionTitleIds.clear();
-        await this.fileLogger.dispose();
+        try {
+            await this.fileLogger?.dispose();
+        } catch (error) {
+            errors.push(error);
+        }
+        if (errors.length === 1) {
+            throw errors[0];
+        }
+        if (errors.length > 1) {
+            throw new AggregateError(errors, 'Failed to dispose token usage manager resources');
+        }
     }
 }

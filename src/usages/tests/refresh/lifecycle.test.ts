@@ -26,18 +26,26 @@ test('statistics refresh lifecycle boundaries', async suite => {
                 f = await refreshFixture(host, context);
             const ids = await f.seed(1),
                 held = f.holdRead();
+            let disposing: Promise<void> | undefined;
+            let disposed = false;
             try {
                 f.manager.updateActualTokens(terminal(ids[0]));
                 await f.fileLogger.flush();
                 clock.fire();
                 await held.entered;
-                await f.manager.dispose();
+                disposing = f.manager.dispose().then(() => {
+                    disposed = true;
+                });
+                await nextTurn();
+                assert.equal(disposed, false);
                 held.release();
+                await disposing;
                 await f.settled();
                 assert.equal(f.broadcasts().length, 0);
                 assert.equal(f.counters.notifications, 0);
             } finally {
                 held.release();
+                await disposing;
                 await f.settled();
             }
         });

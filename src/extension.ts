@@ -110,6 +110,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GcmpEx
     };
 
     const activationStartTime = Date.now();
+    const subscriptionStart = context.subscriptions.length;
 
     try {
         Logger.initialize('GitHub Copilot Models Provider (GCMP)'); // 初始化日志管理器
@@ -270,88 +271,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<GcmpEx
         };
     } catch (error) {
         const errorMessage = `GCMP extension activation failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        Logger.error(errorMessage, error instanceof Error ? error : undefined);
-
-        // 尝试显示用户友好的错误消息
-        vscode.window.showErrorMessage(
-            t(
-                'GCMP failed to start. Check the output window for details.',
-                'GCMP 扩展启动失败。请检查输出窗口获取详细信息。'
-            )
-        );
-        // 重新抛出错误，让VS Code知道扩展启动失败
+        try {
+            Logger.error(errorMessage, error instanceof Error ? error : undefined);
+            void vscode.window.showErrorMessage(
+                t(
+                    'GCMP failed to start. Check the output window for details.',
+                    'GCMP 扩展启动失败。请检查输出窗口获取详细信息。'
+                )
+            );
+        } catch (reportError) {
+            console.warn(errorMessage, reportError);
+        } finally {
+            await disposeResources(context.subscriptions.splice(subscriptionStart));
+        }
         throw error;
     }
 }
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
-    // 必须执行的清理（尾部统计落盘与 Logger 句柄）独立成段，
-    // 避免前面任意一步抛错时被整体跳过
-    const disposeEssentials = async (): Promise<void> => {
+    await disposeResources();
+}
+
+async function disposeResources(subscriptions: vscode.Disposable[] = []): Promise<void> {
+    const cleanup = async (name: string, dispose: () => void | PromiseLike<void>): Promise<void> => {
         try {
-            // 清理 Token 用量管理器：必须 await，确保写队列中最后一批统计落盘，
-            // 否则窗口关闭/扩展升级时会丢失尾部请求统计
-            await TokenUsagesManager.instance.dispose();
-            Logger.trace('Token usage manager disposed');
+            await dispose();
         } catch (error) {
-            Logger.warn('Failed to dispose token usage manager:', error);
-        }
-        try {
-            StatusLogger.dispose(); // 清理状态日志管理器
-            Logger.dispose(); // 在扩展销毁时才 dispose Logger
-        } catch (error) {
-            console.warn('Failed to dispose loggers during deactivation:', error);
+            try {
+                Logger.warn(`Failed to dispose ${name}:`, error);
+            } catch {
+                console.warn(`Failed to dispose ${name}:`, error);
+            }
         }
     };
 
-    try {
-        Logger.info('Starting GCMP extension deactivation...');
+    await cleanup('API key consumer refresher', () => ApiKeyManager.setApiKeyConsumerRefresher(undefined));
+    await cleanup('status bars', () => StatusBarManager.disposeAll());
+    await cleanup('leader election service', () => LeaderElectionService.stop());
+    await cleanup('inter-instance bus', () => InterInstanceBus.dispose());
 
-        ApiKeyManager.setApiKeyConsumerRefresher(undefined);
-
-        // 清理所有状态栏
-        StatusBarManager.disposeAll();
-        Logger.trace('All status bars disposed');
-
-        // 先停止主实例竞选服务：Leader 会在此步骤广播 leaderResigning 并清除 globalState。
-        // InterInstanceBus 必须在它之后 dispose，否则 IPC Server 已关闭，leaderResigning 无法发出。
-        await LeaderElectionService.stop();
-        Logger.trace('Leader election service stopped');
-
-        // 再停止跨实例总线
-        await InterInstanceBus.dispose();
-        Logger.trace('Inter-instance bus disposed');
-
-        // 清理所有已注册提供商的资源
-        for (const [providerKey, provider] of Object.entries(registeredProviders)) {
-            try {
-                if (typeof provider.dispose === 'function') {
-                    provider.dispose();
-                    Logger.trace(`Disposed resources for provider ${providerKey}`);
-                }
-            } catch (error) {
-                Logger.warn(`Failed to dispose resources for provider ${providerKey}:`, error);
+    for (const [providerKey, provider] of Object.entries(registeredProviders)) {
+        await cleanup(`provider ${providerKey}`, () => {
+            if (typeof provider.dispose === 'function') {
+                return provider.dispose();
             }
-        }
-
-        clearRegisteredProviders();
-        Logger.trace('All registered providers cleared');
-
-        // 清理兼容模型管理器
-        CompatibleModelManager.dispose();
-        Logger.trace('Compatible model manager disposed');
-
-        await ConfigManager.dispose(); // 清理配置管理器，并等待 HAR 尾部记录完成落盘
-
-        // 关闭所有 ProxyAgent 连接池和 fetch 缓存
-        await closeProxyAgents();
-        Logger.trace('Proxy agents disposed');
-
-        Logger.info('GCMP extension deactivated successfully');
-    } catch (error) {
-        Logger.error('Error during GCMP extension deactivation:', error);
-    } finally {
-        await disposeEssentials();
+        });
     }
+
+    await cleanup('provider registry', () => clearRegisteredProviders());
+    await cleanup('compatible model manager', () => CompatibleModelManager.dispose());
+    await cleanup('configuration manager', () => ConfigManager.dispose());
+    await cleanup('proxy agents', closeProxyAgents);
+    for (const subscription of subscriptions.reverse()) {
+        await cleanup('activation subscription', () => subscription.dispose());
+    }
+    await cleanup('token usage manager', () => TokenUsagesManager.instance.dispose());
+    await cleanup('status logger', () => StatusLogger.dispose());
+    await cleanup('logger', () => Logger.dispose());
 }

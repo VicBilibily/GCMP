@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { AtomicJsonFile } from '../../atomicJsonFile';
+import { finishPendingRelease } from '../lockRelease';
 
 const promises = createRequire(import.meta.url)('node:fs/promises') as typeof fs;
 const write = (path: string, requests: number) =>
@@ -101,6 +102,132 @@ test('repeated cleanup failures retain the ended owner until recovery succeeds',
     await write(f.path, 2);
     assert.deepEqual(JSON.parse(await fs.readFile(f.path, 'utf8')), { requests: 2 });
     assert.deepEqual(await fs.readdir(f.dir), ['stats.json']);
+});
+
+for (const phase of ['partial', 'empty'] as const) {
+    for (const code of ['ENOSPC', 'EIO'] as const) {
+        test(`owner initialization cleans its ${phase} file after ${code}`, async context => {
+            const fixtureState = await fixture(context);
+            const ownerPath = join(fixtureState.lock, 'owner.json');
+            const writeFile = promises.writeFile;
+            const failure = Object.assign(new Error('injected incomplete owner write'), { code });
+            const openFile = promises.open.bind(promises);
+            const openHandles = new Set<fs.FileHandle>();
+            context.mock.method(promises, 'open', async (...args: Parameters<typeof openFile>) => {
+                const handle = await openFile(...args);
+                if (String(args[0]) === ownerPath) {
+                    openHandles.add(handle);
+                    const close = handle.close.bind(handle);
+                    context.mock.method(handle, 'close', async () => {
+                        await close();
+                        openHandles.delete(handle);
+                    });
+                }
+                return handle;
+            });
+            let injected = false;
+            context.mock.method(promises, 'writeFile', async (...args: Parameters<typeof writeFile>) => {
+                if (!injected && String(args[0]) === ownerPath) {
+                    injected = true;
+                    await writeFile(args[0], phase === 'partial' ? '{"pid":' : '', args[2]);
+                    throw failure;
+                }
+                return writeFile(...args);
+            });
+            try {
+                await assert.rejects(
+                    write(fixtureState.path, 1),
+                    error => error === failure || (error instanceof AggregateError && error.errors.includes(failure))
+                );
+                assert.equal(injected, true);
+                assert.equal(openHandles.size, 0);
+                await assert.rejects(fs.stat(fixtureState.lock), { code: 'ENOENT' });
+                await write(fixtureState.path, 2);
+                assert.equal(openHandles.size, 0);
+                assert.deepEqual(JSON.parse(await fs.readFile(fixtureState.path, 'utf8')), { requests: 2 });
+                assert.deepEqual(await fs.readdir(fixtureState.dir), ['stats.json']);
+            } finally {
+                await Promise.all([...openHandles].map(handle => handle.close()));
+                await fs.rm(fixtureState.lock, { recursive: true, force: true });
+                await finishPendingRelease(fixtureState.lock);
+            }
+        });
+    }
+}
+
+test('owner initialization cleanup retries a transient partial-file removal failure', async context => {
+    const fixtureState = await fixture(context);
+    const ownerPath = join(fixtureState.lock, 'owner.json');
+    const writeFile = promises.writeFile;
+    const remove = promises.rm;
+    const rmdir = promises.rmdir;
+    const cleaned = gate();
+    const writeFailure = Object.assign(new Error('injected partial owner write'), { code: 'ENOSPC' });
+    const cleanupFailure = Object.assign(new Error('injected partial owner cleanup'), { code: 'EBUSY' });
+    let injected = false;
+    let removals = 0;
+    context.mock.method(promises, 'writeFile', async (...args: Parameters<typeof writeFile>) => {
+        if (!injected && String(args[0]) === ownerPath) {
+            injected = true;
+            await writeFile(args[0], '{"pid":', args[2]);
+            throw writeFailure;
+        }
+        return writeFile(...args);
+    });
+    context.mock.method(promises, 'rm', async (...args: Parameters<typeof remove>) => {
+        if (String(args[0]) === ownerPath && ++removals === 1) {
+            throw cleanupFailure;
+        }
+        return remove(...args);
+    });
+    context.mock.method(promises, 'rmdir', async (...args: Parameters<typeof rmdir>) => {
+        await rmdir(...args);
+        if (String(args[0]) === fixtureState.lock) {
+            cleaned.release();
+        }
+    });
+    try {
+        await assert.rejects(write(fixtureState.path, 1), error => {
+            assert.ok(error instanceof AggregateError);
+            assert.deepEqual(error.errors, [writeFailure, cleanupFailure]);
+            return true;
+        });
+        await bounded(cleaned.promise);
+        await finishPendingRelease(fixtureState.lock);
+        assert.equal(removals, 2);
+        await write(fixtureState.path, 2);
+        assert.deepEqual(await fs.readdir(fixtureState.dir), ['stats.json']);
+    } finally {
+        await remove(fixtureState.lock, { recursive: true, force: true });
+        await finishPendingRelease(fixtureState.lock);
+    }
+});
+
+test('owner initialization cleanup preserves a replacement incomplete owner file', async context => {
+    const fixtureState = await fixture(context);
+    const ownerPath = join(fixtureState.lock, 'owner.json');
+    const writeFile = promises.writeFile;
+    const failure = Object.assign(new Error('injected owner replacement'), { code: 'EIO' });
+    let injected = false;
+    context.mock.method(promises, 'writeFile', async (...args: Parameters<typeof writeFile>) => {
+        if (!injected && String(args[0]) === ownerPath) {
+            injected = true;
+            await writeFile(args[0], '{"pid":', args[2]);
+            await fs.rename(ownerPath, join(fixtureState.dir, 'original-owner'));
+            await writeFile(ownerPath, '{"replacement":', { flag: 'wx' });
+            throw failure;
+        }
+        return writeFile(...args);
+    });
+    try {
+        await assert.rejects(write(fixtureState.path, 1));
+        assert.equal(injected, true);
+        assert.equal(await fs.readFile(ownerPath, 'utf8'), '{"replacement":');
+        assert.equal(await fs.readFile(join(fixtureState.dir, 'original-owner'), 'utf8'), '{"pid":');
+    } finally {
+        await fs.rm(fixtureState.lock, { recursive: true, force: true });
+        await finishPendingRelease(fixtureState.lock);
+    }
 });
 
 for (const phase of ['partial-removal', 'owner-initialization'] as const) {

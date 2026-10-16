@@ -13,7 +13,11 @@
 
 ### 1. 安装扩展
 
+前置要求：VS Code **1.138.0 或更高版本**。
+
 在VS Code扩展市场搜索 `GCMP` 并安装，或使用扩展标识符：[`vicanent.gcmp`](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
+
+**可选代码补全**：按需安装独立的 [FIM / NES 扩展](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp-fim-nes)。
 
 ### 2. 开始使用
 
@@ -825,6 +829,10 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 </details>
 
 ## 💡 FIM / NES 内联补全建议功能
+
+从 **0.29.0** 起，FIM / NES 已拆分为主扩展的可选安装项目。如需使用补全，请在扩展市场手动安装 [`AI Chat Models - FIM/NES Completion`](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp-fim-nes)。
+
+**从旧版升级**：已有 `gcmp.fimCompletion.*` 和 `gcmp.nesCompletion.*` 设置无需改名，安装补全扩展后可继续使用；仅升级主扩展不会恢复补全。FIM 和 NES 默认关闭，按需启用。API Key 仍在主扩展中管理，无需重复录入。
 
 - **FIM**：根据上下文预测并补全光标处缺失的代码，适合单行/短片段补全。
 - **NES**：基于编辑上下文提供智能代码建议，支持多行代码生成。

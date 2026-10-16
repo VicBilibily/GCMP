@@ -8,6 +8,7 @@ import { performance } from 'node:perf_hooks';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { AtomicJsonFile } from '../usages/atomicJsonFile';
+import { finishPendingRelease } from '../usages/persistence/lockRelease';
 
 import {
     clearRateLimitLeaderHandoff,
@@ -34,6 +35,53 @@ function payload(overrides?: Partial<RateLimitLeaderHandoffPayload>): RateLimitL
         snapshot: snapshot(),
         ...overrides
     };
+}
+
+for (const code of ['EBUSY', 'EPERM', 'EACCES']) {
+    for (const failures of [1, 3]) {
+        test(
+            `ticket cleanup recovers from ${failures} ${code} failures without blocking successors`,
+            { timeout: 5000 },
+            async context => {
+                const filePath = tempFilePath();
+                const originalRemove = fsPromises.rm.bind(fsPromises);
+                const failure = Object.assign(new Error(`Injected ${code}`), { code });
+                let ticketPath: string | undefined;
+                let attempts = 0;
+                const mocked = context.mock.method(
+                    fsPromises,
+                    'rm',
+                    async (...args: Parameters<typeof originalRemove>) => {
+                        const filename = String(args[0]);
+                        if (path.dirname(filename) === `${filePath}.lock`) {
+                            ticketPath ??= filename;
+                            if (filename === ticketPath && ++attempts <= failures) {
+                                throw failure;
+                            }
+                        }
+                        return originalRemove(...args);
+                    }
+                );
+                try {
+                    await assert.rejects(
+                        writeRateLimitLeaderHandoff(payload(), filePath, { strict: true }),
+                        error => error === failure
+                    );
+                    assert.equal(fs.readdirSync(`${filePath}.lock`).length, 1);
+                    await writeRateLimitLeaderHandoff(payload({ receivedAt: 200 }), filePath, { strict: true });
+                    assert.deepEqual(fs.readdirSync(`${filePath}.lock`), []);
+                    assert.equal((await consumeRateLimitLeaderHandoff(filePath, { strict: true }))?.receivedAt, 200);
+                    assert.equal(attempts, failures + 1);
+                } finally {
+                    mocked.mock.restore();
+                    if (ticketPath) {
+                        await finishPendingRelease(ticketPath);
+                    }
+                    await fsPromises.rm(path.dirname(filePath), { recursive: true, force: true });
+                }
+            }
+        );
+    }
 }
 
 test('consume returns undefined when file does not exist', async () => {

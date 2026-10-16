@@ -458,6 +458,30 @@ test('verified but incomplete method sets are rejected', () => {
     }
 });
 
+test('main activation does not register a dedicated completion installation command', async () => {
+    const fixtureState = fixture();
+    await fixtureState.loadMain().activate({ subscriptions: [], extensionMode: 1 });
+    assert.equal(fixtureState.commands.has('gcmp.completion.install'), false);
+});
+
+test('optional completion is not automatically installed by the main manifest', () => {
+    const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
+        extensionDependencies?: string[];
+        extensionPack?: string[];
+        contributes: { commands: Array<{ command: string }> };
+    };
+    assert.equal(manifest.extensionDependencies?.includes('vicanent.gcmp-fim-nes') ?? false, false);
+    assert.equal(manifest.extensionPack?.includes('vicanent.gcmp-fim-nes') ?? false, false);
+    assert.equal(
+        manifest.contributes.commands.some(entry => entry.command === 'gcmp.completion.install'),
+        false
+    );
+    for (const filename of ['package.nls.json', 'package.nls.zh-cn.json']) {
+        const localization = JSON.parse(readFileSync(resolve(root, filename), 'utf8')) as Record<string, string>;
+        assert.equal(Object.hasOwn(localization, 'command.completion.install'), false);
+    }
+});
+
 test('real main injects only the runtime minimum into the actual whitelist target', async () => {
     const f = fixture();
     const injections: Services[] = [];

@@ -1390,14 +1390,16 @@ export class ConfigManager {
      * 清理资源
      */
     static async dispose(): Promise<void> {
-        if (this.configListener) {
-            this.configListener.dispose();
-            this.configListener = null;
-        }
+        const configListener = this.configListener;
+        this.configListener = null;
         this.cache = null;
         this.context = null;
         this.extensionVersion = null;
-        await HarRecorder.getInstance().dispose();
+        try {
+            configListener?.dispose();
+        } finally {
+            await HarRecorder.getInstance().dispose();
+        }
         Logger.trace('Config manager disposed');
     }
 }

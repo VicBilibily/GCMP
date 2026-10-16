@@ -69,6 +69,12 @@ export class TokenFileLogger {
     private readonly statsRefreshQueue = new StatsRefreshQueue(date => this.doRefreshCurrentStats(date));
     private readonly fallbackPublicationPermissions = new WeakMap<StatsRefreshResult, () => boolean>();
     private publicationRecovery: Promise<void> | undefined;
+    private initialization: Promise<void> | undefined;
+    private historicalMaintenance: Promise<void> | undefined;
+    private readonly retentionTasks = new Set<Promise<number>>();
+    private readonly backfillTasks = new Set<Promise<boolean>>();
+    private readonly requestDetailsTasks = new Set<Promise<TokenRequestLog[]>>();
+    private readonly snapshotBuildTasks = new Set<Promise<void>>();
     private disposed = false;
 
     // 跨实例 statsRefreshCompleted 等待：Follower 调 regenerateOutdatedStats 时同步等待 Leader 完成回执
@@ -137,7 +143,15 @@ export class TokenFileLogger {
     /**
      * 初始化日志系统
      */
-    async initialize(): Promise<void> {
+    initialize(): Promise<void> {
+        if (this.disposed) {
+            return Promise.resolve();
+        }
+        this.initialization ??= this.initializeOnce();
+        return this.initialization;
+    }
+
+    private async initializeOnce(): Promise<void> {
         const startTime = Date.now();
         StatusLogger.info('[TokenFileLogger] File logging system initialization started');
 
@@ -146,6 +160,9 @@ export class TokenFileLogger {
 
         // 初始化缓存版本时间戳
         await this.initCacheVersionTimestamp();
+        if (this.disposed) {
+            return;
+        }
 
         // 启动 pendingLogs 清理任务
         this.startPendingLogsCleanup();
@@ -153,7 +170,7 @@ export class TokenFileLogger {
         // 启动后后台清理历史日志。
         // 不 await，避免拖慢扩展初始化；阈值为 2，只处理 2 天前及更早的日期，
         // 今天/昨天只读原始 hourly .jsonl，不生成 requests.jsonl。
-        void this.snapshotManager
+        this.historicalMaintenance ??= this.snapshotManager
             .compactHistoricalDates(this.startupHistoricalCompactionDaysThreshold)
             .then(async compactedCount => {
                 const sanitizedCount =
@@ -519,7 +536,20 @@ export class TokenFileLogger {
         }
     }
 
-    async backfillSessionTitle(params: {
+    backfillSessionTitle(params: { requestId: string; sessionId: string; sessionTitle: string }): Promise<boolean> {
+        if (this.disposed) {
+            return Promise.resolve(false);
+        }
+        const task = this.persistSessionTitle(params);
+        this.backfillTasks.add(task);
+        void task.then(
+            () => this.backfillTasks.delete(task),
+            () => this.backfillTasks.delete(task)
+        );
+        return task;
+    }
+
+    private async persistSessionTitle(params: {
         requestId: string;
         sessionId: string;
         sessionTitle: string;
@@ -731,7 +761,20 @@ export class TokenFileLogger {
      * 今天/昨天直接读取原始 hourly .jsonl；更早的日期读取 requests.jsonl，必要时从 jsonl 构建。
      * 兜底：raw jsonl 可能因手动清理/迁移已被删除，若不存在 raw 文件则尝试历史 requests.jsonl 快照。
      */
-    async getRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
+    getRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
+        if (this.disposed) {
+            return Promise.resolve([]);
+        }
+        const task = this.readRequestDetails(dateStr);
+        this.requestDetailsTasks.add(task);
+        void task.then(
+            () => this.requestDetailsTasks.delete(task),
+            () => this.requestDetailsTasks.delete(task)
+        );
+        return task;
+    }
+
+    private async readRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
         if (this.shouldReadRawJsonl(dateStr)) {
             const hasRaw = this.hasRawJsonlFiles(dateStr);
             if (hasRaw) {
@@ -752,11 +795,16 @@ export class TokenFileLogger {
         }
         const details = await this.readManager.getRequestDetails(dateStr);
         if (details.length > 0) {
-            this.snapshotManager
+            const task = this.snapshotManager
                 .buildSnapshotFromLogs(dateStr, details)
                 .catch(err =>
                     StatusLogger.warn(`[TokenFileLogger] Failed to build requests snapshot from logs: ${dateStr}`, err)
                 );
+            this.snapshotBuildTasks.add(task);
+            void task.then(
+                () => this.snapshotBuildTasks.delete(task),
+                () => this.snapshotBuildTasks.delete(task)
+            );
         }
         return details;
     }
@@ -815,7 +863,20 @@ export class TokenFileLogger {
      * 清理过期日志和统计(保留最近N天)
      * 先将 2 天前及更早的历史日期整理为 requests.jsonl 快照并删除原始 .jsonl
      */
-    async cleanupExpiredLogs(retentionDays: number): Promise<number> {
+    cleanupExpiredLogs(retentionDays: number): Promise<number> {
+        if (this.disposed) {
+            return Promise.resolve(0);
+        }
+        const task = this.compactAndCleanupExpiredLogs(retentionDays);
+        this.retentionTasks.add(task);
+        void task.then(
+            () => this.retentionTasks.delete(task),
+            () => this.retentionTasks.delete(task)
+        );
+        return task;
+    }
+
+    private async compactAndCleanupExpiredLogs(retentionDays: number): Promise<number> {
         // 与读取策略保持一致：今天/昨天保留 raw .jsonl，更早历史优先整理为 requests.jsonl 快照
         await this.snapshotManager
             .compactHistoricalDates(this.startupHistoricalCompactionDaysThreshold)
@@ -839,8 +900,16 @@ export class TokenFileLogger {
      */
     async dispose(): Promise<void> {
         this.disposed = true;
-        this.statsRefreshQueue.dispose();
-        this.logStatsManager.dispose();
+        const errors: unknown[] = [];
+        const cleanup = async (dispose: () => void | PromiseLike<void>): Promise<void> => {
+            try {
+                await dispose();
+            } catch (error) {
+                errors.push(error);
+            }
+        };
+        const statsDisposal = cleanup(() => this.logStatsManager.dispose());
+        await cleanup(() => this.statsRefreshQueue.dispose());
         try {
             // 停止 pendingLogs 清理任务
             if (this.pendingLogsCleanupTimer) {
@@ -861,11 +930,11 @@ export class TokenFileLogger {
             this.finalizingRequestIds.clear();
 
             // 取消 live metrics 订阅
-            this.liveMetricsDisposable.dispose();
+            await cleanup(() => this.liveMetricsDisposable.dispose());
             StatusLogger.debug('[TokenFileLogger] Live metrics subscription disposed');
 
             // 取消跨实例 statsRefreshCompleted 订阅，并拒绝所有等待中的请求
-            this.statsRefreshCompletedDisposable.dispose();
+            await cleanup(() => this.statsRefreshCompletedDisposable.dispose());
             for (const [, pending] of this.pendingStatsRefreshRequests) {
                 clearTimeout(pending.timer);
                 pending.resolve({ status: 'disposed' });
@@ -873,18 +942,38 @@ export class TokenFileLogger {
             this.pendingStatsRefreshRequests.clear();
             StatusLogger.debug('[TokenFileLogger] Stats refresh subscription disposed');
 
+            await cleanup(async () => {
+                await Promise.allSettled(this.backfillTasks);
+            });
+
+            await statsDisposal;
+
             // 等待写入队列完成并销毁
-            await this.logStatsManager.flushStatsPublications();
-            await this.writeManager.dispose();
+            await cleanup(() => this.logStatsManager.flushStatsPublications());
+            await cleanup(() => this.writeManager.dispose());
             StatusLogger.debug('[TokenFileLogger] Write manager disposed');
 
+            await cleanup(() => this.initialization);
+            await cleanup(() => this.historicalMaintenance);
+            await cleanup(async () => {
+                await Promise.allSettled(this.retentionTasks);
+            });
+
+            await cleanup(async () => {
+                await Promise.allSettled(this.requestDetailsTasks);
+                await Promise.allSettled(this.snapshotBuildTasks);
+            });
+
             // 清理历史快照管理器缓存
-            this.snapshotManager.clearCache();
+            await cleanup(() => this.snapshotManager.clearCache());
             StatusLogger.debug('[TokenFileLogger] Snapshot manager cache cleared');
 
-            this.readManager.dispose();
+            await cleanup(() => this.readManager.dispose());
             StatusLogger.debug('[TokenFileLogger] Read manager cache cleared');
 
+            if (errors.length > 0) {
+                throw new AggregateError(errors, 'Failed to dispose logging system resources');
+            }
             StatusLogger.info('[TokenFileLogger] File logging system disposed');
         } catch (error) {
             StatusLogger.error('[TokenFileLogger] Failed to dispose logging system:', error);
