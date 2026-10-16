@@ -1035,6 +1035,71 @@ test('modelRules idPrefixes 多模型共用一套规则，多条命中按序叠�
     assert.equal(m2?.target?.maxOutputTokens, undefined);
 });
 
+test('modelRules 改写端点的既有条目仍归属来源：按规则收敛，不重复新增', () => {
+    const policy = makePolicy({
+        endpoint: 'https://opencode.ai/zen/go/v1/models',
+        localIdSuffix: '-go',
+        defaults: { sdkMode: 'openai-sse', baseUrl: 'https://opencode.ai/zen/go/v1' },
+        modelRules: [
+            {
+                idPrefix: 'gemini-',
+                overrides: { baseUrl: 'https://opencode.ai/inference/go/google/v1beta', sdkMode: 'gemini-sse' }
+            }
+        ]
+    });
+    // 条目端点已被规则改写（与来源 base 字面不同源），远端 ID 命中规则前缀
+    const config = makeConfig(
+        [
+            {
+                id: 'gemini-x-go',
+                model: 'gemini-x',
+                name: 'Gemini-X (Go)',
+                sdkMode: 'gemini-sse',
+                baseUrl: 'https://opencode.ai/inference/go/google/v1beta'
+            }
+        ],
+        'https://opencode.ai/zen/go/v1'
+    );
+    const plan = planSource({
+        sourceId: 'go',
+        policy,
+        remote: [{ id: 'gemini-x' }],
+        config,
+        defaults
+    });
+    assert.deepEqual(plan.errors, []);
+    assert.ok(!plan.entries.some(entry => entry.action === 'add'));
+    // 条目字段与规则一致时零变更（幂等）
+    assert.deepEqual(plan.entries, []);
+
+    // 旧端点条目首次被规则接管：update 收敛到规则端点，而非新增撞占用
+    const staleConfig = makeConfig(
+        [
+            {
+                id: 'gemini-x-go',
+                model: 'gemini-x',
+                name: 'Gemini-X (Go)',
+                sdkMode: 'openai-sse',
+                baseUrl: 'https://opencode.ai/zen/go/v1'
+            }
+        ],
+        'https://opencode.ai/zen/go/v1'
+    );
+    const stalePlan = planSource({
+        sourceId: 'go',
+        policy,
+        remote: [{ id: 'gemini-x' }],
+        config: staleConfig,
+        defaults
+    });
+    assert.deepEqual(stalePlan.errors, []);
+    const update = stalePlan.entries.find(entry => entry.action === 'update');
+    assert.equal(update?.localId, 'gemini-x-go');
+    assert.equal(update?.target?.sdkMode, 'gemini-sse');
+    assert.equal(update?.target?.baseUrl, 'https://opencode.ai/inference/go/google/v1beta');
+    assert.ok(!stalePlan.entries.some(entry => entry.action === 'add'));
+});
+
 test('非法 removeFields 与身份字段覆盖被拒绝', () => {
     const config = makeConfig([{ id: 'm', sdkMode: 'openai-sse' }]);
     const plan = planSource({

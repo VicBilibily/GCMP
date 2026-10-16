@@ -87,16 +87,26 @@
                 // Claude 系列走 Anthropic 端点，baseUrl 不带 /v1
                 "idPrefix": "claude-",
                 "overrides": {
-                    "baseUrl": "https://opencode.ai/zen/go",
+                    "baseUrl": "https://opencode.ai/inference/go/anthropic",
                     "sdkMode": "anthropic",
                     "extraBody": { "thinking": { "type": "adaptive" } }
+                }
+            },
+            {
+                // Gemini 4 系走 Google 兼容端点，原生 streamGenerateContent + thinkingConfig 透传思考档位
+                "idPrefix": "gemini-",
+                "overrides": {
+                    "baseUrl": "https://opencode.ai/inference/go/google/v1beta",
+                    "sdkMode": "gemini-sse"
                 }
             }
         ],
         "models": {
             "mimo-v2.6-pro": { "ref": "xiaomi/mimo-v2.6-pro" },
             "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" },
-            "gpt-6-luna": { "ref": "openai/gpt-6-luna" }
+            "gpt-6-luna": { "ref": "openai/gpt-6-luna" },
+            "gemini-4-argon-contributor": { "ref": "google/gemini-4-argon-contributor" },
+            "step-5-preview": { "ref": "stepfun/step-5-preview" }
         }
     },
     "commandcode": {

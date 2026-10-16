@@ -161,15 +161,19 @@ export function planSource(input: {
     const matchedExcluded = new Set<string>();
     const extraRegistered = new Set(Object.keys(policy.extra ?? {}));
 
+    // modelRules/models 登记的 overrides 会改写条目端点（如 gemini- 钉到独立兼容端点），
+    // 改写后条目 base 与来源 base 不再字面同源，但来源仍声明管理该模型：命中规则即视为归属本来源。
+    const ruleManaged = (requestId: string): boolean => resolvePolicyEntry(policy, requestId)?.overrides !== undefined;
+
     const existing = new Map<string, ProviderModelEntry>();
     const groupOrder: string[] = [];
     for (const model of config.models) {
+        const requestId = model.model ?? model.id;
         const effectiveBase = effectiveEntryBase(model, config);
-        if (effectiveBase !== base) {
+        if (effectiveBase !== base && !ruleManaged(requestId)) {
             continue;
         }
         groupOrder.push(model.id);
-        const requestId = model.model ?? model.id;
         if (existing.has(requestId)) {
             plan.errors.push(`${sourceId}: 本地存在重复的请求模型 ID "${requestId}"`);
             continue;

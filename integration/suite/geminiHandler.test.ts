@@ -12,6 +12,7 @@ import type { RawUsageData } from '../../src/usages/fileLogger/types';
 import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import { RetryManager } from '../../src/utils/retry/retryManager';
+import { createOpenCodeHeaders } from '../../src/utils/text/formatUtils';
 
 interface GeminiHandlerTestAccess {
     processStream(
@@ -227,6 +228,69 @@ suite('Gemini handler stream lifecycle', () => {
             );
 
             assert.equal(authorization, 'Bearer attempt-api-key');
+        } finally {
+            cancellationSource.dispose();
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+            ApiKeyManager.getApiKey = originalGetApiKey;
+            TokenUsagesManager.instance.updateActualTokens = originalUpdateActualTokens;
+        }
+    });
+
+    test('opencode 提供商注入 x-opencode 跟踪头，其他提供商不注入', async () => {
+        const originalGetApiKey = ApiKeyManager.getApiKey;
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        const originalUpdateActualTokens = TokenUsagesManager.instance.updateActualTokens;
+        const cancellationSource = new vscode.CancellationTokenSource();
+        const capturedHeaders: Headers[] = [];
+
+        ApiKeyManager.getApiKey = async () => 'test-api-key';
+        TokenUsagesManager.instance.updateActualTokens = () => {};
+        ConfigManager.fetchWithProxy = (async (_input, init) => {
+            capturedHeaders.push(new Headers(init?.headers as HeadersInit));
+            return new Response(
+                'data: {"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}\n\n',
+                { status: 200, headers: { 'content-type': 'text/event-stream' } }
+            );
+        }) as typeof ConfigManager.fetchWithProxy;
+
+        const runRequest = async (providerId: string): Promise<void> => {
+            const handler = new GeminiHandler({
+                provider: providerId,
+                providerConfig: { displayName: 'OpenCode', baseUrl: 'https://opencode.ai/inference/go/google/v1beta' }
+            } as unknown as GenericModelProvider);
+
+            await handler.handleRequest(
+                {
+                    id: 'gemini-4-argon-contributor-go',
+                    name: 'Gemini-4-Argon-Contributor (Go)',
+                    maxOutputTokens: 32000
+                } as vscode.LanguageModelChatInformation,
+                {
+                    id: 'gemini-4-argon-contributor-go',
+                    name: 'Gemini-4-Argon-Contributor (Go)',
+                    model: 'gemini-4-argon-contributor',
+                    baseUrl: 'https://opencode.ai/inference/go/google/v1beta'
+                } as never,
+                [],
+                {} as never,
+                { report() {} },
+                'request-opencode-headers',
+                'session-opencode-headers',
+                cancellationSource.token
+            );
+        };
+
+        try {
+            await runRequest('opencode');
+            await runRequest('compatible');
+
+            const [openCodeHeaders, otherHeaders] = capturedHeaders;
+            const expected = createOpenCodeHeaders('request-opencode-headers', 'session-opencode-headers');
+            assert.equal(openCodeHeaders.get('x-opencode-project'), expected['x-opencode-project']);
+            assert.equal(openCodeHeaders.get('x-opencode-request'), expected['x-opencode-request']);
+            assert.equal(openCodeHeaders.get('x-opencode-session'), expected['x-opencode-session']);
+            assert.equal(otherHeaders.get('x-opencode-session'), null);
+            assert.equal(otherHeaders.get('x-opencode-request'), null);
         } finally {
             cancellationSource.dispose();
             ConfigManager.fetchWithProxy = originalFetchWithProxy;

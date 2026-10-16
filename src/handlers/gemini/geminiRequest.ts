@@ -69,6 +69,10 @@ const allGeminiThinkingLevels: readonly GeminiThinkingLevel[] = ['MINIMAL', 'LOW
 
 /** 未识别模型不下发 thinkingLevel，避免代理或旧模型拒绝未知字段。 */
 function getSupportedThinkingLevels(model: string): readonly GeminiThinkingLevel[] | undefined {
+    // Gemini 4 系（Argon 已核实仅 low/medium/high，无 minimal 独立档）
+    if (/^gemini-4(?:[.-]|$)/.test(model)) {
+        return ['LOW', 'MEDIUM', 'HIGH'];
+    }
     if (/^gemini-3\.1-flash-lite-image(?:[.-]|$)/.test(model)) {
         return ['MINIMAL', 'HIGH'];
     }
@@ -112,7 +116,8 @@ function buildThinkingConfig(
         settings.reasoningEffort === 'none' ||
         settings.reasoningEffort === 'minimal';
 
-    if (/^gemini-3(?:[.-]|$)/.test(model)) {
+    // Gemini 3/4 系：reasoningEffort 映射为 thinkingLevel
+    if (/^gemini-[34](?:[.-]|$)/.test(model)) {
         const thinkingLevel = getSupportedThinkingLevel(getThinkingLevel(settings), getSupportedThinkingLevels(model));
         return {
             includeThoughts: !hideThoughts,

@@ -166,12 +166,15 @@ function apiMessageToAnthropicContent(
                     }
                 }
 
-                const thinkingBlock: ThinkingBlockParam = {
-                    type: 'thinking',
-                    thinking: thinking || ' ', // Anthropic 不接受空字符串，使用空格
-                    signature: metadata.signature || ''
-                };
-                thinkingBlocks.push(thinkingBlock);
+                // Anthropic（含上游代理）要求 thinking 块必须含非空白内容；空白块一律不下发，
+                // 旧 fallback 用单个空格，恰属全空白，会被上游以 400 拒绝
+                if (thinking.trim() !== '') {
+                    thinkingBlocks.push({
+                        type: 'thinking',
+                        thinking,
+                        signature: metadata.signature || ''
+                    });
+                }
             }
         }
         // 工具调用
@@ -312,10 +315,19 @@ function apiMessageToAnthropicContent(
                         data: redactedData
                     } as RedactedThinkingBlockParam);
                 }
-            } else if (markerThinking?.thinking || shouldInjectReasoningPlaceholder({ modelConfig })) {
+            } else if (
+                // Anthropic 上游拒绝全空白 thinking 块：仅非空白内容才恢复下发；
+                // shouldInjectReasoningPlaceholder 仅服务 DeepSeek V4 / 小米 MiMo 兼容端点（要求字段存在但容忍空白），不受影响
+                (typeof markerThinking?.thinking === 'string' && markerThinking.thinking.trim() !== '') ||
+                shouldInjectReasoningPlaceholder({ modelConfig })
+            ) {
+                const restoredThinking =
+                    typeof markerThinking?.thinking === 'string' && markerThinking.thinking.trim() !== '' ?
+                        markerThinking.thinking
+                    :   ' ';
                 thinkingBlocks.push({
                     type: 'thinking',
-                    thinking: markerThinking?.thinking || ' ',
+                    thinking: restoredThinking,
                     signature: markerThinking?.signature || ''
                 } as ThinkingBlockParam);
             }

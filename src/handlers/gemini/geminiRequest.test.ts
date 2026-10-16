@@ -273,6 +273,42 @@ test('buildGeminiRequest omits unsupported levels for unknown Gemini 3 models', 
     });
 });
 
+test('buildGeminiRequest maps Gemini 4 reasoningEffort to thinkingLevel', () => {
+    const config = modelConfig();
+    config.id = 'gemini-4-argon-contributor';
+    config.model = 'gemini-4-argon-contributor';
+
+    for (const [effort, level] of [
+        ['low', 'LOW'],
+        ['medium', 'MEDIUM'],
+        ['high', 'HIGH']
+    ] as const) {
+        const body = buildGeminiRequest(
+            { contents: [{ role: 'user', parts: [{ text: 'hello' }] }] },
+            config,
+            { reasoningEffort: effort },
+            undefined,
+            []
+        );
+        assert.deepEqual(body.generationConfig?.thinkingConfig, { includeThoughts: true, thinkingLevel: level });
+    }
+});
+
+test('buildGeminiRequest omits unsupported Gemini 4 minimal effort', () => {
+    const config = modelConfig();
+    config.id = 'gemini-4-argon-contributor';
+    config.model = 'gemini-4-argon-contributor';
+    const body = buildGeminiRequest(
+        { contents: [{ role: 'user', parts: [{ text: 'hello' }] }] },
+        config,
+        { reasoningEffort: 'minimal' },
+        undefined,
+        []
+    );
+
+    assert.deepEqual(body.generationConfig?.thinkingConfig, { includeThoughts: false });
+});
+
 test('buildGeminiRequest maps Gemini 2.5 reasoning effort to thinking budget', () => {
     const config = modelConfig();
     config.id = 'gemini-2.5-pro';

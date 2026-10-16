@@ -412,42 +412,6 @@
             }
         },
         {
-            "id": "deepseek-v4-flash-go",
-            "name": "DeepSeek-V4-Flash (Go)",
-            "model": "deepseek-v4-flash",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/go/v1",
-            "tooltip": "OpenCode Go 套餐 - DeepSeek V4 Flash，快速经济的 API 服务。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinkingFormat": "object-none",
-            "reasoningEffort": ["high", "max", "low", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": [0.15, 0.6, 0.003],
-                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
-            }
-        },
-        {
-            "id": "deepseek-v4-flash-vision-exp-go",
-            "name": "DeepSeek-V4-Flash-Vision-Exp (Go)",
-            "model": "deepseek-v4-flash-vision-exp",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/go/v1",
-            "tooltip": "OpenCode Go 套餐 - DeepSeek V4 Flash-Vision-Exp。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinkingFormat": "object-none",
-            "reasoningEffort": ["high", "max", "low", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": [0.15, 0.6, 0.003],
-                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
-            }
-        },
-        {
             "id": "hy4-preview-go",
             "name": "Hy4 Preview (Go)",
             "model": "hy4-preview",
@@ -507,7 +471,7 @@
             "id": "claude-haiku-5-5-go",
             "name": "Claude-Haiku-5.5 (Go)",
             "model": "claude-haiku-5-5",
-            "baseUrl": "https://opencode.ai/zen/go",
+            "baseUrl": "https://opencode.ai/inference/go/anthropic",
             "tooltip": "OpenCode Go 套餐 — Claude-Haiku-5.5。",
             "sdkMode": "anthropic",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
@@ -528,6 +492,34 @@
                     }
                 ]
             }
+        },
+        {
+            "id": "gemini-4-argon-contributor-go",
+            "name": "Gemini-4-Argon-Contributor (Go)",
+            "model": "gemini-4-argon-contributor",
+            "baseUrl": "https://opencode.ai/inference/go/google/v1beta",
+            "tooltip": "OpenCode Go 套餐 — Gemini-4-Argon-Contributor。",
+            "sdkMode": "gemini-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [4, 20, 0.2]
+        },
+        {
+            "id": "step-5-preview-go",
+            "name": "Step-5-Preview (Go)",
+            "model": "step-5-preview",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 — Step-5-Preview。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1, 2.7, 0.1]
         },
         {
             "id": "deepseek-v4.1-flash-zen",

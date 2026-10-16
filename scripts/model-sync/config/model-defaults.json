@@ -81,6 +81,14 @@
         "gemini-3.8-flash": {
             "name": "Gemini-3.8-Flash",
             "template": ["1m", "vision"]
+        },
+        "gemini-4-argon": {
+            "name": "Gemini-4-Argon",
+            "template": ["1m", "vision", "lmh"]
+        },
+        "gemini-4-argon-contributor": {
+            "variantOf": "gemini-4-argon",
+            "name": "Gemini-4-Argon-Contributor"
         }
     },
     "zhipu": {

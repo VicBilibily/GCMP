@@ -12,7 +12,7 @@ import { Logger } from '../../utils/runtime/logger';
 import { isCancellationError } from '../../utils/text/cancellationError';
 import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
 import { applyCustomHeaders, mergeCustomHeaders } from '../../utils/net/httpHeaders';
-import { replaceSessionIdInBody } from '../../utils/text/formatUtils';
+import { createOpenCodeHeaders, replaceSessionIdInBody } from '../../utils/text/formatUtils';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
@@ -286,6 +286,11 @@ export class GeminiHandler {
             ...buildGeminiAuthHeaders(baseUrl, apiKey)
         };
         applyCustomHeaders(requestHeaders, processedHeaders);
+
+        // opencode 专有：传递请求级跟踪标识头（Go 套餐要求 x-opencode-session 以路由，请求级优先于 customHeader，与 openai/anthropic 一致）
+        if (this.provider === 'opencode') {
+            applyCustomHeaders(requestHeaders, createOpenCodeHeaders(requestId, sessionId));
+        }
 
         const wireModelId = modelConfig.model || modelConfig.id;
         const endpoint = buildGeminiEndpoint(baseUrl, wireModelId);
