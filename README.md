@@ -180,7 +180,7 @@ LongCat API 开放平台的 Agentic 模型，采用 Anthropic SDK 模式接入�
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- **模型列表**：详见 [config/opencode.json](src/providers/config/opencode.json)（[Go](https://opencode.ai/go?ref=2TEVV934MY) / Zen）。
+- **模型列表**：详见 [config/opencode.json](src/providers/config/opencode.json)（[Go](https://opencode.ai/go?ref=2TEVV934MY)）。
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
 

@@ -180,7 +180,7 @@ Agentic models from the LongCat API platform, accessed via Anthropic SDK mode.
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- **Model list**: See [config/opencode.json](src/providers/config/opencode.json) ([Go](https://opencode.ai/go?ref=2TEVV934MY) / Zen).
+- **Model list**: See [config/opencode.json](src/providers/config/opencode.json) ([Go](https://opencode.ai/go?ref=2TEVV934MY)).
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
 

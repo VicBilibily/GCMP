@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models - FIM/NES Completion",
     "description": "%extension.description%",
-    "version": "0.28.4",
+    "version": "0.29.0",
     "license": "MIT",
     "keywords": [
         "ai",

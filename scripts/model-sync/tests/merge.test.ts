@@ -70,7 +70,7 @@ test('localBaseUrl 让端点与 provider baseUrl 不同源的来源仍能匹配�
 });
 
 test('所有 provider 的推理档位比对均忽略 none，但仍报告其他差异', () => {
-    for (const sourceId of ['hyper', 'opencode-zen', 'opencode-go', 'commandcode', 'clinepass']) {
+    for (const sourceId of ['hyper', 'opencode-go', 'commandcode', 'clinepass']) {
         const isClinePass = sourceId === 'clinepass';
         const baseUrl = isClinePass ? 'https://api.cline.bot/api/v1' : 'https://example.com/v1';
         const noneMissingId = isClinePass ? 'cline-pass/none-missing' : 'none-missing';

@@ -4,12 +4,16 @@
     "files.eol": "\n",
     "files.exclude": {
         "out": true, // hide the old "out" folder since we use esbuild now
-        "dist": false // show the "dist" folder with esbuild compiled JS files
+        "dist": false, // show the "dist" folder with esbuild compiled JS files
+        "discuss/temp": true,
+        "logs": true
     },
     "search.exclude": {
+        "node_modules": true,
         "out": true, // exclude old "out" folder from search
         "dist": true, // exclude "dist" folder from search results
-        "node_modules": true
+        "discuss/temp": false,
+        "logs": false
     },
     // Turn off tsc task auto detection since we use esbuild
     "js/ts.tsc.autoDetect": "off",
