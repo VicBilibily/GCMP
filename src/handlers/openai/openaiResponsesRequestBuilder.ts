@@ -7,7 +7,8 @@ import { isSubRequest, shouldDisableThinkingForRequest, type RequestKind } from 
 import { getScopedRequestClassification } from '../classification/requestClassification';
 import { canDisableThinking } from '../thinkingSupport';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
-import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
+import type { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
+import { filterResponsesExtraBodyParams } from './responses/requestParameters';
 import { preprocessOpenAIResponsesInputItems } from './openaiResponsesInputPreprocessor';
 import { ENCRYPTED_REASONING_INCLUDE, isEncryptedReasoningEnabled } from './encryptedReasoning';
 import { applyOpenAIServiceTier } from './serviceTier';
@@ -205,7 +206,7 @@ export class OpenAIResponsesRequestBuilder {
             return;
         }
 
-        const filteredExtraBody = this.messageConverter.filterExtraBodyParams(
+        const filteredExtraBody = filterResponsesExtraBodyParams(
             replaceSessionIdInBody(modelConfig.extraBody, sessionId)
         );
         Object.assign(requestBody, filteredExtraBody);

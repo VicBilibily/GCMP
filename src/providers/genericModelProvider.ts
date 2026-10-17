@@ -36,6 +36,9 @@ import { getEffectiveMaxInputTokens } from '../utils/model/languageModelInfo';
 import type { RetryableError } from '../utils/retry/retryManager';
 import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openai/openaiHandler';
+import { OpenAIClientFactory } from '../handlers/openai/transport/clientFactory';
+import { OpenAIChatMessageConverter } from '../handlers/openai/chat/messageConverter';
+import { OpenAIChatRequestBuilder } from '../handlers/openai/chat/requestBuilder';
 import { OpenAICustomHandler } from '../handlers/openai/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropic/anthropicHandler';
 import { GeminiHandler, hasGeminiPartialUsage } from '../handlers/gemini/geminiHandler';
@@ -195,11 +198,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         });
 
         // 创建 OpenAI SDK 处理器
-        this.openaiHandler = new OpenAIHandler(this);
+        const openaiClientFactory = new OpenAIClientFactory(this);
+        const openaiMessageConverter = new OpenAIChatMessageConverter(this);
+        const openaiRequestBuilder = new OpenAIChatRequestBuilder(this, openaiMessageConverter);
+        this.openaiHandler = new OpenAIHandler(this, {
+            clientFactory: openaiClientFactory,
+            messageConverter: openaiMessageConverter,
+            requestBuilder: openaiRequestBuilder
+        });
         // 创建 OpenAI 自定义 SSE 处理器
-        this.openaiCustomHandler = new OpenAICustomHandler(this, this.openaiHandler);
+        this.openaiCustomHandler = new OpenAICustomHandler(this, openaiRequestBuilder);
         // 创建 OpenAI Responses API 处理器
-        this.openaiResponsesHandler = new OpenAIResponsesHandler(this, this.openaiHandler);
+        this.openaiResponsesHandler = new OpenAIResponsesHandler(this, openaiClientFactory);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
         this.geminiHandler = new GeminiHandler(this);

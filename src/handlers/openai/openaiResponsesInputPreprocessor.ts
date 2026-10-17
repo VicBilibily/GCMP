@@ -1,4 +1,4 @@
-﻿import { canonicalizeJsonString, sortObjectKeysRecursively } from './openaiChatRequestPreprocessor';
+﻿import { canonicalizeJsonString, sortObjectKeysRecursively } from './shared/json';
 
 interface OpenAIResponsesInputLikeItem {
     type?: unknown;

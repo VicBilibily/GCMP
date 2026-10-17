@@ -278,7 +278,10 @@ suite('OpenAI SDK SSE preprocessing', () => {
             'partial',
             'failed',
             'empty',
-            'completion-callback-error'
+            'completion-callback-error',
+            'tool-callback-error',
+            'tool-final-callback-error',
+            'tool-invalid-json'
         ]) {
             for (const captureHar of [false, true]) {
                 test(`preserves event and failure order: ${media}, ${ending}, HAR=${captureHar}`, async () => {
@@ -286,9 +289,22 @@ suite('OpenAI SDK SSE preprocessing', () => {
                         cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' })
                     });
                     const callbackError = new Error('completion callback failed');
+                    let toolCallbacks = 0;
+                    const tool = {
+                        type: 'function_call',
+                        id: 'item-tool',
+                        call_id: 'call-tool',
+                        name: 'read_file',
+                        arguments: ending === 'tool-invalid-json' ? '{invalid' : '{"path":"test"}'
+                    };
                     let pulls = 0;
                     const firstFrame =
-                        ending === 'partial' ?
+                        ending.startsWith('tool-') ?
+                            (ending === 'tool-final-callback-error' ? '' : (
+                                `data: ${JSON.stringify({ type: 'response.output_item.done', output_index: 0, item: tool })}\n\n`
+                            )) +
+                            `data: ${JSON.stringify({ type: 'response.completed', response: { id: 'tool-response', output: [tool] } })}\n\n`
+                        : ending === 'partial' ?
                             `data: ${JSON.stringify({ type: 'response.output_text.delta', item_id: 'item-test', output_index: 0, content_index: 0, delta: 'partial' })}\n\n`
                         : ending === 'failed' ?
                             `data: ${JSON.stringify({ type: 'response.failed', response: { id: 'failed-test', error: { message: 'original protocol failure', code: 'usage_limit_reached' } } })}\n\n`
@@ -334,6 +350,12 @@ suite('OpenAI SDK SSE preprocessing', () => {
                     });
                     if (ending === 'completion-callback-error') {
                         reporter.flushAll = () => {
+                            throw callbackError;
+                        };
+                    }
+                    if (ending.startsWith('tool-')) {
+                        reporter.reportToolCall = () => {
+                            toolCallbacks++;
                             throw callbackError;
                         };
                     }
@@ -384,8 +406,15 @@ suite('OpenAI SDK SSE preprocessing', () => {
                                 entries.some(entry => entry.phase === 'error'),
                                 false
                             );
-                        } else if (ending === 'completion-callback-error') {
+                        } else if (ending === 'completion-callback-error' || ending.endsWith('callback-error')) {
                             assert.equal(failure, callbackError);
+                            if (ending.startsWith('tool-')) {
+                                assert.equal(toolCallbacks, 1);
+                            }
+                        } else if (ending === 'tool-invalid-json') {
+                            assert.equal(failure, undefined);
+                            assert.equal(processor.isResponseFinalized(), true);
+                            assert.equal(toolCallbacks, 0);
                         } else if (ending === 'failed') {
                             assert.ok(failure instanceof OpenAI.APIError);
                             assert.match(failure.message, /original protocol failure/);
@@ -544,6 +573,8 @@ suite('HAR flush scheduling', () => {
     let failWrite: boolean;
     let failedPath: string | undefined;
     let failedWritesRemaining: number;
+    let partialWrite: boolean;
+    let failReplace: boolean;
 
     setup(() => {
         mock.timers.enable({ apis: ['Date', 'setInterval'], now: new Date(2026, 9, 17, 12).getTime() });
@@ -554,18 +585,25 @@ suite('HAR flush scheduling', () => {
         failWrite = false;
         failedPath = undefined;
         failedWritesRemaining = 0;
+        partialWrite = false;
+        failReplace = false;
         mock.method(StatusLogger, 'info', (message: string) => {
             messages.push(message);
         });
         const writeFileSync = fs.writeFileSync;
         mock.method(fs, 'writeFileSync', (...args: Parameters<typeof fs.writeFileSync>) => {
             const filePath = String(args[0]);
-            if (filePath.startsWith(captureDirectory) && filePath.endsWith('.har')) {
-                writes.push(filePath);
+            const targetPath = filePath.replace(/\.tmp$/, '');
+            if (filePath.startsWith(captureDirectory) && targetPath.endsWith('.har')) {
+                writes.push(targetPath);
                 const options = args[2];
                 assert.ok(options && typeof options === 'object');
                 assert.equal(options.flush, true);
-                if ((failWrite && (!failedPath || filePath === failedPath)) || failedWritesRemaining > 0) {
+                if (partialWrite) {
+                    writeFileSync(args[0], String(args[1]).slice(0, 32), args[2]);
+                    throw Object.assign(new Error('injected partial HAR write failure'), { code: 'ENOSPC' });
+                }
+                if ((failWrite && (!failedPath || targetPath === failedPath)) || failedWritesRemaining > 0) {
                     if (failedWritesRemaining > 0) {
                         failedWritesRemaining--;
                     }
@@ -573,10 +611,17 @@ suite('HAR flush scheduling', () => {
                 }
             }
             const result = writeFileSync(...args);
-            if (filePath.startsWith(captureDirectory) && filePath.endsWith('.har')) {
+            if (filePath.startsWith(captureDirectory) && targetPath.endsWith('.har')) {
                 fs.utimesSync(filePath, new Date(), new Date());
             }
             return result;
+        });
+        const renameSync = fs.renameSync;
+        mock.method(fs, 'renameSync', (...args: Parameters<typeof fs.renameSync>) => {
+            if (failReplace && String(args[1]).startsWith(captureDirectory)) {
+                throw Object.assign(new Error('injected HAR replacement failure'), { code: 'EPERM' });
+            }
+            return renameSync(...args);
         });
         options = {
             enabled: true,
@@ -592,6 +637,8 @@ suite('HAR flush scheduling', () => {
         try {
             failWrite = false;
             failedWritesRemaining = 0;
+            partialWrite = false;
+            failReplace = false;
             await recorder.dispose();
         } finally {
             mock.restoreAll();
@@ -610,6 +657,49 @@ suite('HAR flush scheduling', () => {
 
     function readHar(filePath: string): CapturedHar {
         return JSON.parse(readFileSync(filePath, 'utf8')) as CapturedHar;
+    }
+
+    for (const failure of ['partial-write', 'replace']) {
+        for (const recovery of ['interval', 'dispose']) {
+            test(`preserves durable HAR after ${failure} and recovers on ${recovery}`, async () => {
+                const filePath = recorder.getCurrentFilePath();
+                assert.ok(filePath);
+                await recordRequests(1);
+                mock.timers.tick(15_000);
+                const saved = readFileSync(filePath, 'utf8');
+                assert.equal(readHar(filePath).log.entries.length, 1);
+                await recordRequests(1);
+                partialWrite = failure === 'partial-write';
+                failReplace = failure === 'replace';
+                mock.timers.tick(15_000);
+                assert.equal(readFileSync(filePath, 'utf8'), saved);
+                assert.equal(existsSync(`${filePath}.tmp`), false);
+                const failedAttempts = writes.length;
+                mock.timers.tick(14_999);
+                assert.equal(writes.length, failedAttempts);
+                if (recovery === 'dispose') {
+                    await assert.rejects(recorder.dispose(), error => {
+                        assert.ok(error instanceof AggregateError);
+                        assert.equal(
+                            (error.errors[0] as NodeJS.ErrnoException).code,
+                            failure === 'partial-write' ? 'ENOSPC' : 'EPERM'
+                        );
+                        return true;
+                    });
+                    assert.equal(readFileSync(filePath, 'utf8'), saved);
+                    assert.equal(existsSync(`${filePath}.tmp`), false);
+                }
+                partialWrite = false;
+                failReplace = false;
+                if (recovery === 'dispose') {
+                    await recorder.dispose();
+                } else {
+                    mock.timers.tick(1);
+                }
+                assert.equal(readHar(filePath).log.entries.length, 2);
+                assert.equal(existsSync(`${filePath}.tmp`), false);
+            });
+        }
     }
 
     test('batches requests until 15 seconds and skips unchanged intervals', async () => {

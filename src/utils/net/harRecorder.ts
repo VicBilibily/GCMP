@@ -736,10 +736,12 @@ export class HarRecorder {
             return false;
         }
 
+        const temporaryPath = `${state.filePath}.tmp`;
         try {
             const har = this.buildHar(state);
             const data = JSON.stringify(har, null, 2);
-            fs.writeFileSync(state.filePath, data, { encoding: 'utf8', flush: true });
+            fs.writeFileSync(temporaryPath, data, { encoding: 'utf8', flush: true });
+            fs.renameSync(temporaryPath, state.filePath);
             state.flushedEntryCount = state.entries.length;
             state.nextFlushAttemptAt = 0;
             state.flushError = undefined;
@@ -749,6 +751,12 @@ export class HarRecorder {
             state.flushError = error instanceof Error ? error : new Error(String(error));
             StatusLogger.warn('[HAR] Failed to flush HAR file', error);
             return false;
+        } finally {
+            try {
+                fs.rmSync(temporaryPath, { force: true });
+            } catch (error) {
+                StatusLogger.warn('[HAR] Failed to remove temporary HAR file', error);
+            }
         }
     }
 

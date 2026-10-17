@@ -1,23 +1,15 @@
-/*---------------------------------------------------------------------------------------------
- *  OpenAI SDK 处理器
- *  使用 OpenAI SDK 实现流式聊天完成
- *--------------------------------------------------------------------------------------------*/
-
+import { OpenAIChatRequestBuilder, filterChatExtraBodyParams } from './chat/requestBuilder';
+import { OpenAIChatMessageConverter } from './chat/messageConverter';
+import { isImageMimeType, createDataUrl } from './shared/images';
+import { runStreamCleanup } from './shared/streamCleanup';
+import { OpenAIClientFactory } from './transport/clientFactory';
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { Logger } from '../../utils/runtime/logger';
 import { markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
-import { VersionManager } from '../../utils/runtime/versionManager';
-import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
-import { createOpenCodeHeaders, removeNullExtraBodyParams, replaceSessionIdInBody } from '../../utils/text/formatUtils';
-import { redactHeaders } from '../../utils/net/proxyAgent';
+import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
 import { RequestDiagnostics } from '../../utils/net/requestDiagnostics';
-import {
-    canonicalizeUserAgentHeader,
-    getCustomHeaderDeletionMarkers,
-    mergeCustomHeaders,
-    preserveRequiredHeaders
-} from '../../utils/net/httpHeaders';
+import { mergeCustomHeaders } from '../../utils/net/httpHeaders';
 import { isCancellationError } from '../../utils/text/cancellationError';
 import {
     calculateCostWithBreakdown,
@@ -25,21 +17,12 @@ import {
     toNanoAiu,
     toCostBreakdownLog
 } from '../../utils/pricing/costCalculator';
-import { ConfigManager } from '../../utils/config/configManager';
-import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { t } from '../../utils/runtime/l10n';
 import { TokenUsagesManager } from '../../usages/usagesManager';
 import type { CustomHeaders, ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../../types/sharedTypes';
 import { StreamReporter } from '../streamReporter';
 import * as liveMetrics from '../liveMetrics';
-import { decodeStatefulMarker } from '../stateful/statefulMarker';
-import { shouldInjectReasoningPlaceholder } from '../reasoningPlaceholder';
-import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
-import { shouldDisableThinkingForRequest, type RequestKind } from '../classification/requestClassifier';
-import { getScopedRequestClassification } from '../classification/requestClassification';
-import { preprocessOpenAIChatRequest } from './openaiChatRequestPreprocessor';
-import { applyOpenAIServiceTier } from './serviceTier';
 import { reportChatCompletionText } from './openaiChatStreamText';
 
 /**
@@ -61,57 +44,6 @@ interface ExtendedChoice extends OpenAI.Chat.Completions.ChatCompletionChunk.Cho
         reasoning_content?: string;
         reasoning?: string;
     };
-}
-
-interface ParsedSSEChoice {
-    message?: Record<string, unknown>;
-    delta?: Record<string, unknown>;
-    finish_reason?: unknown;
-    index?: number | null;
-}
-
-interface ParsedSSEResponsePayload {
-    object?: string;
-    output?: unknown[];
-}
-
-interface ParsedSSEItemPayload {
-    type?: string;
-    content?: unknown[];
-}
-
-interface ParsedSSEChunk {
-    choices?: ParsedSSEChoice[];
-    type?: string;
-    response?: ParsedSSEResponsePayload;
-    item?: ParsedSSEItemPayload;
-    output_index?: number | null;
-}
-
-function normalizeResponsesOutput(response?: ParsedSSEResponsePayload): boolean {
-    if (!response) {
-        return false;
-    }
-
-    let modified = false;
-    if (!Array.isArray(response.output)) {
-        response.output = [];
-        modified = true;
-    }
-
-    for (const outputItem of response.output) {
-        if (!outputItem || typeof outputItem !== 'object') {
-            continue;
-        }
-
-        const item = outputItem as ParsedSSEItemPayload;
-        if (item.type === 'message' && !Array.isArray(item.content)) {
-            item.content = [];
-            modified = true;
-        }
-    }
-
-    return modified;
 }
 
 /**
@@ -153,13 +85,6 @@ function extractReasoningDetailsText(details: unknown): string | undefined {
 }
 
 /**
- * 扩展助手消息类型，支持 reasoning_content 字段
- */
-interface ExtendedAssistantMessageParam extends OpenAI.Chat.ChatCompletionAssistantMessageParam {
-    reasoning_content?: string;
-}
-
-/**
  * OpenAI API 错误详情类型
  */
 interface APIErrorDetail {
@@ -178,6 +103,12 @@ interface APIErrorWithError extends Error {
     headers?: Headers;
 }
 
+interface OpenAIHandlerDependencies {
+    clientFactory: OpenAIClientFactory;
+    messageConverter: OpenAIChatMessageConverter;
+    requestBuilder: OpenAIChatRequestBuilder;
+}
+
 /**
  * OpenAI SDK 处理器
  * 使用 OpenAI SDK 实现流式聊天完成，支持工具调用
@@ -186,8 +117,19 @@ export class OpenAIHandler {
     // SDK事件去重跟踪器（基于请求级别）
     private currentRequestProcessedEvents = new Set<string>();
 
-    constructor(private providerInstance: GenericModelProvider) {
+    private readonly clientFactory: OpenAIClientFactory;
+    private readonly messageConverter: OpenAIChatMessageConverter;
+    private readonly requestBuilder: OpenAIChatRequestBuilder;
+
+    constructor(
+        private providerInstance: GenericModelProvider,
+        dependencies: Partial<OpenAIHandlerDependencies> = {}
+    ) {
         // providerInstance 提供动态获取 providerConfig 和 providerKey 的能力
+        this.clientFactory = dependencies.clientFactory ?? new OpenAIClientFactory(providerInstance);
+        this.messageConverter = dependencies.messageConverter ?? new OpenAIChatMessageConverter(providerInstance);
+        this.requestBuilder =
+            dependencies.requestBuilder ?? new OpenAIChatRequestBuilder(providerInstance, this.messageConverter);
     }
     private get provider(): string {
         return this.providerInstance.provider;
@@ -198,13 +140,10 @@ export class OpenAIHandler {
     private get displayName(): string {
         return this.providerConfig?.displayName || this.provider;
     }
-    private get baseURL(): string | undefined {
-        return this.providerConfig?.baseUrl;
-    }
 
     /** 返回 OpenAI 模型请求可删除的自定义 header 标记。 */
     getModelRequestHeaderDeletions(modelConfig?: ModelConfig): CustomHeaders {
-        return getCustomHeaderDeletionMarkers(this.providerConfig?.customHeader, modelConfig?.customHeader);
+        return this.clientFactory.getModelRequestHeaderDeletions(modelConfig);
     }
 
     /**
@@ -215,53 +154,7 @@ export class OpenAIHandler {
         sessionId?: string,
         diagnostics?: RequestDiagnostics
     ): Promise<OpenAI> {
-        // 优先级：model.provider -> this.provider
-        const providerKey = modelConfig?.provider || this.provider;
-        const currentApiKey = await ApiKeyManager.getApiKeyForRequest(providerKey, modelConfig);
-        if (!currentApiKey) {
-            throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', this.displayName));
-        }
-        // 优先使用模型特定的baseUrl，如果没有则使用提供商级别的baseUrl
-        // 站点/接入点切换已上移至 provider 层的 resolveRequestBaseUrl 统一处理
-        const baseURL = modelConfig?.baseUrl || this.baseURL;
-
-        // 构建默认头部，包含自定义头部
-        let defaultHeaders: CustomHeaders = {
-            'User-Agent': VersionManager.getUserAgent('OpenAI')
-        };
-        if (sessionId) {
-            defaultHeaders['X-Session-ID'] = sessionId;
-        }
-
-        // 合并提供商级别和模型级别的 customHeader
-        // 模型级别的 customHeader 会覆盖提供商级别的同名头部
-        const mergedCustomHeader = mergeCustomHeaders(this.providerConfig?.customHeader, modelConfig?.customHeader);
-
-        // 处理合并后的 customHeader
-        const processedCustomHeader = preserveRequiredHeaders(
-            ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey, sessionId)
-        );
-        ApiKeyManager.validateRequestApiKeyHash(modelConfig, currentApiKey, processedCustomHeader);
-        if (Object.keys(processedCustomHeader).length > 0) {
-            defaultHeaders = mergeCustomHeaders(defaultHeaders, processedCustomHeader);
-            Logger.debug(
-                `${this.displayName} applying custom headers: ${JSON.stringify(redactHeaders(mergedCustomHeader))}`
-            );
-        }
-        canonicalizeUserAgentHeader(defaultHeaders);
-
-        const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
-        let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现
-        customFetch = this.createCustomFetch(modelConfig, baseURL, proxyUrl, diagnostics);
-        const client = new OpenAI({
-            apiKey: currentApiKey,
-            baseURL: baseURL,
-            defaultHeaders: defaultHeaders,
-            fetch: customFetch,
-            maxRetries: 0
-        });
-        Logger.trace(`${this.displayName} OpenAI SDK client created with baseURL: ${baseURL}`);
-        return client;
+        return this.clientFactory.createOpenAIClient(modelConfig, sessionId, diagnostics);
     }
 
     /**
@@ -275,146 +168,7 @@ export class OpenAIHandler {
         proxyUrl?: string,
         diagnostics?: RequestDiagnostics
     ): typeof fetch {
-        const proxiedFetch = ConfigManager.createProxyAwareFetch({ proxyUrl });
-        return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-            let requestUrl: string | URL | Request = url;
-            // 若配置了自定义 endpoint，则覆盖 SDK 内部构造的请求 URL
-            if (modelConfig?.endpoint) {
-                const customEndpoint = modelConfig.endpoint;
-                if (customEndpoint.startsWith('http://') || customEndpoint.startsWith('https://')) {
-                    // 完整 URL，直接使用
-                    requestUrl = customEndpoint;
-                } else {
-                    // 相对路径，拼接到 baseURL
-                    const base = (resolvedBaseURL || '').replace(/\/$/, '');
-                    requestUrl = `${base}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`;
-                }
-                Logger.debug(`Custom endpoint: ${String(url)} -> ${String(requestUrl)}`);
-            }
-            diagnostics?.dispatched(requestUrl, proxyUrl);
-            try {
-                const response = (await proxiedFetch(requestUrl, init)) as Response;
-                diagnostics?.headers(response);
-                return await this.preprocessSSEResponse(response, diagnostics);
-            } catch (error) {
-                diagnostics?.error(error);
-                throw error;
-            }
-        };
-    }
-
-    /**
-     * 兼容部分网关在 JSON 字符串字面量中直接输出控制字符，导致 OpenAI SDK 的 SSE JSON.parse 提前失败。
-     * 仅在字符串上下文中转义 U+0000-U+001F，不改动正常 JSON 结构。
-     */
-    private escapeControlCharsInJsonString(input: string): { text: string; changed: boolean } {
-        let changed = false;
-        let inString = false;
-        let isEscaped = false;
-        let output = '';
-
-        for (const char of input) {
-            if (!inString) {
-                if (char === '"') {
-                    inString = true;
-                }
-                output += char;
-                continue;
-            }
-
-            if (isEscaped) {
-                output += char;
-                isEscaped = false;
-                continue;
-            }
-
-            if (char === '\\') {
-                output += char;
-                isEscaped = true;
-                continue;
-            }
-
-            if (char === '"') {
-                inString = false;
-                output += char;
-                continue;
-            }
-
-            const code = char.charCodeAt(0);
-            if (code <= 0x1f) {
-                changed = true;
-                switch (char) {
-                    case '\b':
-                        output += '\\b';
-                        break;
-                    case '\f':
-                        output += '\\f';
-                        break;
-                    case '\n':
-                        output += '\\n';
-                        break;
-                    case '\r':
-                        output += '\\r';
-                        break;
-                    case '\t':
-                        output += '\\t';
-                        break;
-                    default:
-                        output += `\\u${code.toString(16).padStart(4, '0')}`;
-                        break;
-                }
-                continue;
-            }
-
-            output += char;
-        }
-
-        return { text: output, changed };
-    }
-
-    private createErrorResponse(response: Response, text: string): Response {
-        let payload: unknown = text;
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            // 非 JSON 错误保留原始文本。
-        }
-
-        const record =
-            payload && typeof payload === 'object' && !Array.isArray(payload) ?
-                (payload as Record<string, unknown>)
-            :   {};
-        const { error: nestedError, ...outerDetails } = record;
-        const nestedDetails =
-            nestedError && typeof nestedError === 'object' && !Array.isArray(nestedError) ?
-                (nestedError as Record<string, unknown>)
-            :   {};
-        const message = [
-            typeof nestedError === 'string' ? nestedError : undefined,
-            nestedDetails.message,
-            outerDetails.message,
-            typeof payload === 'string' ? payload : undefined,
-            text
-        ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
-        const error = {
-            ...outerDetails,
-            ...nestedDetails,
-            message: message ?? `HTTP ${response.status} ${response.statusText}`
-        };
-        const init = { status: response.status, statusText: response.statusText, headers: response.headers };
-        if (!response.ok) {
-            return new Response(JSON.stringify({ error }), init);
-        }
-
-        const apiError = OpenAI.APIError.generate(response.status, { error }, undefined, response.headers);
-        return new Response(
-            new ReadableStream<Uint8Array>({
-                start(controller) {
-                    controller.error(apiError);
-                }
-            }),
-            init
-        );
+        return this.clientFactory.createCustomFetch(modelConfig, resolvedBaseURL, proxyUrl, diagnostics);
     }
 
     /**
@@ -422,507 +176,7 @@ export class OpenAIHandler {
      * 修复部分模型输出 "data:" 后不带空格的问题
      */
     private async preprocessSSEResponse(response: Response, diagnostics?: RequestDiagnostics): Promise<Response> {
-        let contentType = response.headers.get('Content-Type');
-        let streamCancelled = false;
-
-        // HTTP 错误交由 SDK 解析，避免被 fetch 异常路径误判为连接超时。
-        if (!response.ok && response.status >= 400) {
-            return this.createErrorResponse(response, await response.text());
-        }
-
-        // 如果返回 application/json，业务错误不能进入 SDK 的 fetch 超时判定。
-        if (contentType && contentType.includes('application/json') && response.body) {
-            return this.createErrorResponse(response, await response.text());
-        }
-        if (response?.url?.endsWith('/responses') && !contentType && response.body) {
-            // 缺少 Content-Type 时先探测前缀，避免将正常 SSE 整体缓冲。
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            const bufferedChunks: Uint8Array[] = [];
-            let bufferedLength = 0;
-            let sniffedText = '';
-            let streamEndedDuringProbe = false;
-
-            const looksLikeSSEPrefix = (text: string): boolean => {
-                const trimmed = text.trimStart();
-                return /^(data|event|id|retry):|^:/.test(trimmed);
-            };
-
-            try {
-                while (bufferedLength < 512) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                        streamEndedDuringProbe = true;
-                        break;
-                    }
-                    if (!value || value.length === 0) {
-                        continue;
-                    }
-                    diagnostics?.data();
-                    bufferedChunks.push(value);
-                    bufferedLength += value.length;
-                    sniffedText += decoder.decode(value, { stream: true });
-
-                    const trimmed = sniffedText.trimStart();
-                    if (trimmed.startsWith('{') || looksLikeSSEPrefix(trimmed)) {
-                        break;
-                    }
-                }
-                sniffedText += decoder.decode();
-            } finally {
-                reader.releaseLock();
-            }
-
-            const trimmedText = sniffedText.trimStart();
-            if (trimmedText.startsWith('{') || trimmedText.startsWith('[')) {
-                if (!streamEndedDuringProbe) {
-                    const remainingReader = response.body.getReader();
-                    try {
-                        while (true) {
-                            const { done, value } = await remainingReader.read();
-                            if (done) {
-                                break;
-                            }
-                            if (!value || value.length === 0) {
-                                continue;
-                            }
-                            diagnostics?.data();
-                            bufferedChunks.push(value);
-                            sniffedText += decoder.decode(value, { stream: true });
-                        }
-                        sniffedText += decoder.decode();
-                    } finally {
-                        remainingReader.releaseLock();
-                    }
-                }
-
-                return this.createErrorResponse(response, sniffedText);
-            }
-
-            const clonedHeaders = new Headers(response.headers);
-            if (looksLikeSSEPrefix(trimmedText)) {
-                clonedHeaders.set('Content-Type', 'text/event-stream');
-                contentType = 'text/event-stream';
-            }
-
-            const remainingReader = response.body.getReader();
-            const prependBufferedStream = new ReadableStream<Uint8Array>(
-                {
-                    start(controller) {
-                        for (const chunk of bufferedChunks) {
-                            controller.enqueue(chunk);
-                        }
-                    },
-                    async pull(controller) {
-                        try {
-                            while (true) {
-                                const { done, value } = await remainingReader.read();
-                                if (done) {
-                                    remainingReader.releaseLock();
-                                    controller.close();
-                                    break;
-                                }
-                                if (value) {
-                                    diagnostics?.data();
-                                    controller.enqueue(value);
-                                    break;
-                                }
-                            }
-                        } catch (error) {
-                            if (!streamCancelled) {
-                                diagnostics?.error(error, true);
-                                controller.error(error);
-                            }
-                            remainingReader.releaseLock();
-                        }
-                    },
-                    cancel(reason) {
-                        streamCancelled = true;
-                        void remainingReader.cancel(reason).catch(() => undefined);
-                        remainingReader.releaseLock();
-                    }
-                },
-                { highWaterMark: 0 }
-            );
-
-            response = new Response(prependBufferedStream, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: clonedHeaders
-            });
-        }
-        if (!contentType || !contentType.includes('text/event-stream') || !response.body) {
-            // 只处理 SSE 响应，其他类型直接返回原始 response
-            return response;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        const encoder = new TextEncoder();
-        const displayName = this.displayName;
-        const escapeControlCharsInJsonString = this.escapeControlCharsInJsonString.bind(this);
-        // 跟踪已见的 content_part.added，用于在缺失时自动注入
-        const addedContentParts = new Set<string>();
-        const processSSELine = (line: string): string => {
-            const trimmedLine = line.trimStart();
-            if (
-                !trimmedLine.startsWith('data:') &&
-                !trimmedLine.startsWith('event:') &&
-                !trimmedLine.startsWith('id:') &&
-                !trimmedLine.startsWith('retry:') &&
-                !trimmedLine.startsWith(':') &&
-                (trimmedLine.startsWith('{') || trimmedLine.startsWith('['))
-            ) {
-                const malformedSSEError = new Error(trimmedLine);
-                malformedSSEError.name = 'SSEFatalError';
-                throw malformedSSEError;
-            }
-
-            const normalizedLine = line.replace(/^data:([^\s])/g, 'data: $1');
-            if (!normalizedLine.startsWith('data:')) {
-                // 过滤 keepalive 心跳与 codex.rate_limits 的 event 行：后者 data 行会被清空，
-                // 残留 event 行会让 SDK 组合出空 data 事件并在 JSON.parse('') 时抛错
-                // 上游兼容服务可能发送无空格的紧凑格式（如 "event:keepalive"），用正则容忍任意空白。
-                const trimmedEventLine = normalizedLine.trimStart();
-                if (
-                    /^event:\s*keepalive/.test(trimmedEventLine) ||
-                    /^event:\s*codex\.rate_limits/.test(trimmedEventLine)
-                ) {
-                    return '';
-                }
-                return normalizedLine;
-            }
-
-            const dataMatch = normalizedLine.match(/^data:\s?(.*)$/s);
-            if (!dataMatch) {
-                return normalizedLine;
-            }
-
-            const jsonStr = dataMatch[1];
-            if (!jsonStr || jsonStr === '[DONE]') {
-                return normalizedLine;
-            }
-
-            let candidateJson = jsonStr;
-            try {
-                let obj: ParsedSSEChunk;
-                try {
-                    obj = JSON.parse(candidateJson) as ParsedSSEChunk;
-                } catch (parseError) {
-                    const escaped = escapeControlCharsInJsonString(candidateJson);
-                    if (!escaped.changed) {
-                        throw parseError;
-                    }
-                    candidateJson = escaped.text;
-                    obj = JSON.parse(candidateJson) as ParsedSSEChunk;
-                    Logger.debug(
-                        `${displayName} SSE event contained unescaped control characters; auto-fixed and continued parsing`
-                    );
-                }
-
-                if (obj.type === 'codex.rate_limits') {
-                    // rate_limits 是 Codex 的配额状态告知事件，并非"本次请求被拒绝"的信号：
-                    // 即使 limit_reached=true / allowed=false，后端仍可能接受并完成当前请求
-                    // （紧随其后出现 response.created 即为接受）。仅记录状态后透传，
-                    // 真正的拒绝由后续 response.failed 或 HTTP 429 + usage_limit_reached 表达。
-                    const rateLimits = (
-                        obj as ParsedSSEChunk & {
-                            rate_limits?: { allowed?: boolean; limit_reached?: boolean; used_percent?: number };
-                        }
-                    ).rate_limits;
-                    if (rateLimits?.allowed === false || rateLimits?.limit_reached === true) {
-                        Logger.warn(
-                            `${displayName} received codex.rate_limits (limit_reached=${rateLimits?.limit_reached}, allowed=${rateLimits?.allowed}, used_percent=${rateLimits?.used_percent ?? 'n/a'}); continuing current response`
-                        );
-                    }
-                    return '';
-                }
-
-                // 过滤网关 keepalive 心跳事件，避免 SDK ResponseStream 的 _accumulateResponse 在
-                // response.created 之前收到 keepalive 时抛出异常
-                if (obj.type === 'keepalive') {
-                    return '';
-                }
-
-                let objModified = false;
-
-                //#region OpenAI Chat Completion 兼容性处理
-                if (obj && Array.isArray(obj.choices)) {
-                    for (const ch of obj.choices) {
-                        if (ch && ch.message && (!ch.delta || Object.keys(ch.delta).length === 0)) {
-                            ch.delta = ch.message;
-                            delete ch.message;
-                            objModified = true;
-                        }
-                    }
-                }
-
-                if (obj.choices && obj.choices.length > 0) {
-                    for (let choiceIndex = obj.choices.length - 1; choiceIndex >= 0; choiceIndex--) {
-                        const choice = obj.choices[choiceIndex];
-                        if (choice?.finish_reason) {
-                            if (!choice.delta || Object.keys(choice.delta).length === 0) {
-                                Logger.trace(
-                                    `preprocessSSEResponse received finish_reason only (choice ${choiceIndex}); added empty content to delta`
-                                );
-                                choice.delta = { role: 'assistant', content: '' };
-                                objModified = true;
-                            }
-                            if (!choice.delta.role) {
-                                choice.delta.role = 'assistant';
-                                objModified = true;
-                            }
-                        }
-                        if (choice?.delta && Object.keys(choice.delta).length === 0) {
-                            if (choice?.finish_reason) {
-                                continue;
-                            }
-                            Logger.trace(`preprocessSSEResponse removed invalid delta (choice ${choiceIndex})`);
-                            obj.choices.splice(choiceIndex, 1);
-                            objModified = true;
-                        }
-                    }
-
-                    if (obj.choices.length === 1) {
-                        for (const choice of obj.choices) {
-                            if (choice.index == null || choice.index !== 0) {
-                                choice.index = 0;
-                                objModified = true;
-                            }
-                        }
-                    }
-                }
-                //#endregion
-
-                //#region OpenAI Response 事件兼容性处理
-                if (
-                    (obj.type === 'response.created' ||
-                        obj.type === 'response.completed' ||
-                        obj.type === 'response.failed' ||
-                        obj.type === 'response.incomplete') &&
-                    obj.response?.object === 'response'
-                ) {
-                    if (normalizeResponsesOutput(obj.response)) {
-                        objModified = true;
-                    }
-                } else if (
-                    (obj.type === 'response.output_item.added' || obj.type === 'response.output_item.done') &&
-                    obj.item?.type === 'message' &&
-                    !Array.isArray(obj.item.content)
-                ) {
-                    obj.item.content = [];
-                    objModified = true;
-                } else if (obj.type === 'response.content_part.added' && obj.output_index == null) {
-                    obj.output_index = 0;
-                    objModified = true;
-                }
-                //#endregion
-
-                // #region 注入缺失的 response.content_part.added 事件
-                // 某些兼容网关只发送 output_text.delta 而不发送 content_part.added，
-                // 导致 OpenAI SDK 的 ResponseStream.#accumulateResponse 找不到 content[index]。
-                let injectedContentPart: string | undefined;
-                if (obj.type === 'response.content_part.added') {
-                    const ev = obj as unknown as Record<string, unknown>;
-                    if (ev.item_id != null && ev.content_index != null) {
-                        addedContentParts.add(`${ev.item_id}:${ev.content_index}`);
-                    }
-                } else if (obj.type === 'response.output_text.delta' || obj.type === 'response.reasoning_text.delta') {
-                    const ev = obj as unknown as Record<string, unknown>;
-                    const key = `${ev.item_id}:${ev.content_index}`;
-                    if (!addedContentParts.has(key)) {
-                        const isReasoning = obj.type === 'response.reasoning_text.delta';
-                        const syntheticEvent: Record<string, unknown> = {
-                            type: 'response.content_part.added',
-                            item_id: ev.item_id,
-                            output_index: ev.output_index,
-                            content_index: ev.content_index,
-                            part:
-                                isReasoning ?
-                                    { type: 'reasoning_text', text: '' }
-                                :   { type: 'output_text', text: '', annotations: [] },
-                            sequence_number: ((ev.sequence_number as number) ?? 0) - 0.5
-                        };
-                        injectedContentPart = `data: ${JSON.stringify(syntheticEvent)}`;
-                        addedContentParts.add(key);
-                        Logger.debug(`${displayName} injected missing response.content_part.added for ${key}`);
-                    }
-                }
-                // #endregion
-
-                const resultLine =
-                    objModified || candidateJson !== jsonStr || jsonStr.includes('\n') ?
-                        `data: ${JSON.stringify(obj)}`
-                    :   normalizedLine;
-
-                return injectedContentPart ? `${injectedContentPart}\n\n${resultLine}` : resultLine;
-            } catch (parseError) {
-                if (parseError instanceof Error && parseError.name === 'SSEFatalError') {
-                    throw parseError;
-                }
-                Logger.trace(`JSON parsing failed: ${parseError}`);
-                return normalizedLine;
-            }
-        };
-
-        const processSSEEvent = (lines: readonly string[]): string => {
-            const data = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).replace(/^ /, ''));
-            if (data.length === 0) {
-                return lines.join('\n');
-            }
-            const combinedLine = `data: ${data.join('\n')}`;
-            const processed = processSSELine(combinedLine);
-            if (!processed) {
-                return '';
-            }
-            if (processed === combinedLine) {
-                return lines.map(line => line.replace(/^data:([^\s])/g, 'data: $1')).join('\n');
-            }
-            let replacedData = false;
-            return lines
-                .flatMap(line => {
-                    if (!line.startsWith('data:')) {
-                        return [line];
-                    }
-                    if (replacedData) {
-                        return [];
-                    }
-                    replacedData = true;
-                    return [processed];
-                })
-                .join('\n');
-        };
-
-        // 行缓冲区：用于累积不完整的 SSE 行
-        let lineBuffer = '';
-        let eventLines: string[] = [];
-        let skipLineFeed = false;
-        let pendingLines: string[] = [];
-        let pendingLineIndex = 0;
-        let malformedJsonStreamBuffer = '';
-        let isMalformedJsonStream = false;
-
-        const transformedStream = new ReadableStream<Uint8Array>(
-            {
-                async pull(controller) {
-                    try {
-                        while (true) {
-                            if (pendingLineIndex < pendingLines.length) {
-                                while (pendingLineIndex < pendingLines.length) {
-                                    const line = pendingLines[pendingLineIndex++];
-                                    if (line.length === 0) {
-                                        const processed = processSSEEvent(eventLines);
-                                        eventLines = [];
-                                        if (processed) {
-                                            controller.enqueue(encoder.encode(`${processed}\n\n`));
-                                            return;
-                                        }
-                                    } else {
-                                        const normalized = line.startsWith('data:') ? line : processSSELine(line);
-                                        if (normalized) {
-                                            eventLines.push(normalized);
-                                        }
-                                    }
-                                }
-                            }
-
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                if (isMalformedJsonStream) {
-                                    throw new Error(malformedJsonStreamBuffer.trim() || lineBuffer.trim());
-                                }
-                                // 流结束时，处理缓冲区剩余的内容
-                                if (lineBuffer.trim().length > 0) {
-                                    Logger.trace(
-                                        `Stream ended, processing remaining buffered content: ${lineBuffer.length} chars`
-                                    );
-                                    const normalized =
-                                        lineBuffer.startsWith('data:') ? lineBuffer : processSSELine(lineBuffer);
-                                    if (normalized) {
-                                        eventLines.push(normalized);
-                                    }
-                                }
-                                const remaining = processSSEEvent(eventLines);
-                                eventLines = [];
-                                if (remaining) {
-                                    controller.enqueue(encoder.encode(remaining));
-                                }
-                                reader.releaseLock();
-                                controller.close();
-                                return;
-                            }
-
-                            if (!value?.length) {
-                                continue;
-                            }
-                            diagnostics?.data();
-                            const chunk = decoder.decode(value, { stream: true });
-
-                            if (isMalformedJsonStream) {
-                                malformedJsonStreamBuffer += chunk;
-                                continue;
-                            }
-
-                            // 将新内容追加到缓冲区
-                            lineBuffer += chunk;
-                            if (!lineBuffer) {
-                                continue;
-                            }
-                            if (skipLineFeed && lineBuffer.startsWith('\n')) {
-                                lineBuffer = lineBuffer.slice(1);
-                            }
-                            skipLineFeed = lineBuffer.endsWith('\r');
-
-                            const trimmedBuffer = lineBuffer.trimStart();
-                            if (
-                                trimmedBuffer.length > 0 &&
-                                !trimmedBuffer.startsWith('data:') &&
-                                !trimmedBuffer.startsWith('event:') &&
-                                !trimmedBuffer.startsWith('id:') &&
-                                !trimmedBuffer.startsWith('retry:') &&
-                                !trimmedBuffer.startsWith(':') &&
-                                (trimmedBuffer.startsWith('{') || trimmedBuffer.startsWith('['))
-                            ) {
-                                isMalformedJsonStream = true;
-                                malformedJsonStreamBuffer = lineBuffer;
-                                lineBuffer = '';
-                                continue;
-                            }
-
-                            // 按行分割，保留最后一行（可能不完整）
-                            pendingLines = lineBuffer.split(/\r\n|\r|\n/);
-                            // 保留最后一个元素（可能是不完整的行）
-                            const lastLine = pendingLines.pop() || '';
-                            lineBuffer = lastLine;
-                            pendingLineIndex = 0;
-                        }
-                    } catch (error) {
-                        if (!streamCancelled) {
-                            diagnostics?.error(error, true);
-                            // 确保错误能够被正确传播
-                            controller.error(error);
-                        }
-                        reader.releaseLock();
-                    }
-                },
-                cancel(reason) {
-                    streamCancelled = true;
-                    eventLines = [];
-                    pendingLines = [];
-                    lineBuffer = '';
-                    // 当流被取消时，确保释放 reader
-                    void reader.cancel(reason).catch(() => undefined);
-                    reader.releaseLock();
-                }
-            },
-            { highWaterMark: 0 }
-        );
-
-        return new Response(transformedStream, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers
-        });
+        return this.clientFactory.preprocessSSEResponse(response, diagnostics);
     }
 
     /**
@@ -935,191 +189,7 @@ export class OpenAIHandler {
         options: vscode.ProvideLanguageModelChatResponseOptions,
         sessionId?: string
     ): OpenAI.Chat.ChatCompletionCreateParamsStreaming {
-        const requestModel = modelConfig.model || modelConfig.id;
-        const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-            model: requestModel,
-            messages: this.convertMessagesToOpenAI(messages, modelConfig),
-            max_tokens: model.maxOutputTokens,
-            stream: true,
-            stream_options: { include_usage: true }
-        };
-
-        // 添加工具支持（如果有）
-        if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
-            createParams.tools = this.convertToolsToOpenAI([...options.tools]);
-        }
-
-        // 合并 extraBody 参数（如果有），过滤掉不可修改的核心参数
-        let filteredExtraBody: Record<string, unknown> | undefined;
-        if (modelConfig.extraBody) {
-            filteredExtraBody = OpenAIHandler.filterExtraBodyParams(
-                replaceSessionIdInBody(modelConfig.extraBody, sessionId ?? '')
-            );
-            Object.assign(createParams, filteredExtraBody);
-        }
-
-        // 根据模型配置设置思考模式和推理长度
-        // 注意：extraBody 中可能已注入 thinking/reasoning 等参数，以下逻辑会覆盖它们，
-        // 确保 Chat UI 的选择或模型默认值始终生效。
-        const settings = options.modelConfiguration as ModelChatResponseOptions;
-        applyOpenAIServiceTier(
-            createParams as unknown as Record<string, unknown>,
-            modelConfig,
-            settings,
-            this.provider
-        );
-        const customParams = createParams as unknown as {
-            enable_thinking?: boolean;
-            thinking?: { type: 'enabled' | 'disabled' };
-            reasoning_effort?: string;
-            reasoning?: { effort?: string };
-        };
-        const thinkingFormat = modelConfig.thinkingFormat ?? 'boolean';
-        const effortOnly = thinkingFormat === 'effort-only';
-        const reasoningFormat = modelConfig.reasoningFormat ?? 'flat';
-        if (effortOnly) {
-            // effort-only 模式下只保留一种 reasoning 形态
-            customParams.thinking = undefined;
-            customParams.enable_thinking = undefined;
-            if (reasoningFormat === 'nested') {
-                delete customParams.reasoning_effort;
-            } else {
-                delete customParams.reasoning;
-            }
-        }
-        // 解析最终生效的 thinking / reasoningEffort：
-        // 优先使用 Chat UI 传入的 settings；若未传入，则回退到模型配置的默认值。
-        // 默认值规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致，
-        // 否则会出现"UI 显示默认 medium，实际请求却发 low"的不一致。
-        const effectiveThinking = settings?.thinking ?? modelConfig.thinking?.[0];
-        const effectiveReasoningEffort = settings?.reasoningEffort ?? getReasoningDefault(modelConfig);
-        // 注意：仅在 settings 存在时才写入 thinking/effort 参数；settings 缺失时保留 extraBody
-        // 注入的原始参数不做任何覆盖，由服务端或 extraBody 配置自行决定思考行为。
-        if (settings) {
-            if (effectiveThinking && (!thinkingFormat || thinkingFormat === 'boolean' || thinkingFormat === 'object')) {
-                if (effectiveThinking === 'enabled') {
-                    if (thinkingFormat === 'object') {
-                        customParams.thinking = { type: 'enabled' };
-                    } else {
-                        customParams.enable_thinking = true;
-                    }
-                } else if (effectiveThinking === 'disabled') {
-                    if (thinkingFormat === 'object') {
-                        customParams.thinking = { type: 'disabled' };
-                    } else {
-                        customParams.enable_thinking = false;
-                    }
-                } else {
-                    if (thinkingFormat === 'object') {
-                        customParams.thinking = undefined;
-                    } else {
-                        customParams.enable_thinking = undefined;
-                    }
-                }
-            }
-            if (effectiveReasoningEffort) {
-                if (effortOnly) {
-                    // effort-only 不做 reasoningEffort 值映射，仅保留 reasoning 其余字段
-                    if (reasoningFormat === 'nested') {
-                        customParams.reasoning = {
-                            ...(customParams.reasoning || {}),
-                            effort: effectiveReasoningEffort
-                        };
-                        delete customParams.reasoning_effort;
-                    } else {
-                        customParams.reasoning_effort = effectiveReasoningEffort;
-                        delete customParams.reasoning;
-                    }
-                    customParams.thinking = undefined;
-                    customParams.enable_thinking = undefined;
-                } else if (effectiveReasoningEffort === 'none') {
-                    if (
-                        modelConfig.thinkingFormat === 'effort-none' ||
-                        (modelConfig.thinkingFormat === undefined &&
-                            effectiveThinking === undefined &&
-                            customParams.enable_thinking === undefined)
-                    ) {
-                        // 缺省格式不代表端点支持 enable_thinking。
-                        if (reasoningFormat === 'nested') {
-                            customParams.reasoning = { effort: 'none' };
-                        } else {
-                            customParams.reasoning_effort = 'none';
-                        }
-                    } else {
-                        if (reasoningFormat === 'nested') {
-                            customParams.reasoning = undefined;
-                        } else {
-                            customParams.reasoning_effort = undefined;
-                        }
-                        if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
-                            customParams.thinking = { type: 'disabled' };
-                        } else if (thinkingFormat === 'boolean' || thinkingFormat === 'boolean-none') {
-                            customParams.enable_thinking = false;
-                        }
-                    }
-                } else if (reasoningFormat === 'nested') {
-                    // OpenAI 新版嵌套格式: { reasoning: { effort: '...' } }
-                    if (effectiveReasoningEffort === 'minimal') {
-                        customParams.reasoning = { effort: 'low' };
-                    } else {
-                        customParams.reasoning = { effort: effectiveReasoningEffort };
-                    }
-                } else {
-                    customParams.reasoning_effort = effectiveReasoningEffort;
-                    if (modelConfig.thinkingFormat === 'object' && effectiveReasoningEffort !== 'minimal') {
-                        customParams.thinking = { type: 'enabled' };
-                    }
-                }
-            }
-        }
-        const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
-        const isDisableThinking =
-            !effortOnly &&
-            (requestKind === 'git-commit-message' || settings?.thinking) &&
-            shouldDisableThinkingForRequest(requestKind, getScopedRequestClassification(options));
-        if (isDisableThinking) {
-            if (reasoningFormat === 'nested') {
-                customParams.reasoning = undefined;
-            }
-            if (thinkingFormat === 'object' || thinkingFormat === 'object-none') {
-                customParams.thinking = { type: 'disabled' };
-                customParams.reasoning_effort = undefined;
-            } else if (thinkingFormat === 'boolean-none') {
-                customParams.enable_thinking = false;
-            } else if (thinkingFormat === 'effort-none') {
-                // effort-none 模式：子请求通过 effort=none 关闭思考
-                if (reasoningFormat === 'nested') {
-                    customParams.reasoning = { effort: 'none' };
-                } else {
-                    customParams.reasoning_effort = 'none';
-                }
-            } else {
-                if (customParams.enable_thinking) {
-                    customParams.enable_thinking = false;
-                }
-            }
-            if (customParams.thinking === undefined && customParams.reasoning_effort) {
-                let effort: 'none' | 'minimal' | undefined;
-                if (modelConfig.reasoningEffort?.includes('none')) {
-                    effort = 'none';
-                } else if (modelConfig.reasoningEffort?.includes('minimal')) {
-                    effort = 'minimal';
-                }
-                if (effort && modelConfig.reasoningEffort?.indexOf(effort) === 0) {
-                    customParams.enable_thinking = undefined;
-                    customParams.reasoning_effort = effort;
-                }
-            }
-        }
-
-        preprocessOpenAIChatRequest(
-            createParams.messages as unknown as { tool_calls?: { function?: { arguments?: unknown } }[] }[],
-            createParams.tools as unknown as { function?: { parameters?: unknown } }[] | undefined
-        );
-
-        removeNullExtraBodyParams(createParams, filteredExtraBody);
-
-        return createParams;
+        return this.requestBuilder.buildChatCompletionParams(model, modelConfig, messages, options, sessionId);
     }
 
     /**
@@ -1162,13 +232,6 @@ export class OpenAIHandler {
         let requestMetricStartTime = requestStartTime;
 
         try {
-            const client = await this.createOpenAIClient(modelConfig, sessionId, trace);
-            Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
-
-            const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options, sessionId);
-
-            Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
-
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
@@ -1178,6 +241,7 @@ export class OpenAIHandler {
                 abortController.abort();
             });
             let streamError: Error | null = null; // 用于捕获流错误
+            let streamFailed = false;
             // 保存最后一个 chunk 的 usage 信息（若有），部分提供商会在每个 chunk 返回 usage
             let finalUsage: OpenAI.Completions.CompletionUsage | undefined = undefined;
             // 记录流处理的开始和结束时间
@@ -1185,6 +249,19 @@ export class OpenAIHandler {
             let streamEndTime: number | undefined = undefined;
 
             try {
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
+                }
+                const client = await this.createOpenAIClient(modelConfig, sessionId, trace);
+                if (token.isCancellationRequested) {
+                    throw new vscode.CancellationError();
+                }
+                Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
+
+                const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options, sessionId);
+
+                Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
+
                 // opencode 专有：传递请求级跟踪标识头
                 const streamOptions: Record<string, unknown> = { signal: abortController.signal };
                 const requestHeaders = mergeCustomHeaders(
@@ -1369,19 +446,26 @@ export class OpenAIHandler {
 
                 Logger.debug(`${model.name} ${this.displayName} SDK stream completed`);
             } catch (streamError) {
+                streamFailed = true;
                 trace.error(streamError);
                 if (token.isCancellationRequested || isCancellationError(streamError)) {
                     Logger.info(`${model.name} request was cancelled`);
                     // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
-                    TokenUsagesManager.instance.updateActualTokens({
-                        requestId,
-                        sessionId,
-                        status: 'cancelled',
-                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                        wasThrottled,
-                        streamStartTime,
-                        streamEndTime: streamEndTime ?? Date.now()
-                    });
+                    runStreamCleanup(
+                        [
+                            () =>
+                                TokenUsagesManager.instance.updateActualTokens({
+                                    requestId,
+                                    sessionId,
+                                    status: 'cancelled',
+                                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                    wasThrottled,
+                                    streamStartTime,
+                                    streamEndTime: streamEndTime ?? Date.now()
+                                })
+                        ],
+                        true
+                    );
                     throw new vscode.CancellationError();
                 } else {
                     const finalStreamEndTime = streamEndTime ?? Date.now();
@@ -1405,28 +489,35 @@ export class OpenAIHandler {
                                 costNanoAiu = toNanoAiu(breakdown.total);
                             }
                         }
-                        reporter.reportUsage(finalUsage, costNanoAiu);
-                        reporter.discardToolCalls();
-                        reporter.flushAll(null, undefined, finalUsage);
-                        TokenUsagesManager.instance.updateActualTokens({
-                            requestId,
-                            sessionId,
-                            rawUsage: finalUsage,
-                            status: 'failed',
-                            ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                            wasThrottled,
-                            streamStartTime,
-                            streamEndTime: finalStreamEndTime,
-                            estimatedCost: breakdown?.total,
-                            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
-                        });
-                        markFinalStatusRecorded(streamError);
+                        runStreamCleanup(
+                            [
+                                () => reporter?.reportUsage(finalUsage, costNanoAiu),
+                                () => reporter?.discardToolCalls(),
+                                () => reporter?.flushAll(null, undefined, finalUsage),
+                                () => {
+                                    TokenUsagesManager.instance.updateActualTokens({
+                                        requestId,
+                                        sessionId,
+                                        rawUsage: finalUsage,
+                                        status: 'failed',
+                                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                        wasThrottled,
+                                        streamStartTime,
+                                        streamEndTime: finalStreamEndTime,
+                                        estimatedCost: breakdown?.total,
+                                        costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+                                    });
+                                    markFinalStatusRecorded(streamError);
+                                }
+                            ],
+                            true
+                        );
                     }
                     Logger.error(`${model.name} SDK stream processing error: ${streamError}`);
                     throw streamError;
                 }
             } finally {
-                cancellationListener.dispose();
+                runStreamCleanup([() => cancellationListener.dispose()], streamFailed);
             }
 
             outcome = token.isCancellationRequested ? 'cancelled' : 'completed';
@@ -1496,10 +587,17 @@ export class OpenAIHandler {
                 throw error;
             }
         } finally {
-            reporter?.finishMetrics();
-            if (!diagnostics) {
-                trace.finish(outcome);
-            }
+            runStreamCleanup(
+                [
+                    () => reporter?.finishMetrics(),
+                    () => {
+                        if (!diagnostics) {
+                            trace.finish(outcome);
+                        }
+                    }
+                ],
+                outcome !== 'completed'
+            );
         }
     }
 
@@ -1512,18 +610,7 @@ export class OpenAIHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
-        const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-        for (const message of messages) {
-            const convertedMessage = this.convertSingleMessage(message, modelConfig);
-            if (convertedMessage) {
-                if (Array.isArray(convertedMessage)) {
-                    result.push(...convertedMessage);
-                } else {
-                    result.push(convertedMessage);
-                }
-            }
-        }
-        return result;
+        return this.messageConverter.convertMessagesToOpenAI(messages, modelConfig);
     }
 
     /**
@@ -1533,299 +620,7 @@ export class OpenAIHandler {
         message: vscode.LanguageModelChatMessage,
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam | OpenAI.Chat.ChatCompletionMessageParam[] | null {
-        switch (message.role) {
-            case vscode.LanguageModelChatMessageRole.System:
-                return this.convertSystemMessage(message);
-            case vscode.LanguageModelChatMessageRole.User:
-                // GCMP 构造的系统提示词用 name=GCMP_SYSTEM_MESSAGE_NAME 标记，转为 OpenAI system 消息
-                if (message.name === GCMP_SYSTEM_MESSAGE_NAME) {
-                    return this.convertSystemMessage(message);
-                }
-                return this.convertUserMessage(message, modelConfig);
-            case vscode.LanguageModelChatMessageRole.Assistant:
-                return this.convertAssistantMessage(message, modelConfig);
-            default:
-                Logger.warn(`Unknown message role: ${message.role}`);
-                return null;
-        }
-    }
-
-    /**
-     * 转换系统消息 - 参照官方 ChatCompletionSystemMessageParam
-     */
-    private convertSystemMessage(
-        message: vscode.LanguageModelChatMessage
-    ): OpenAI.Chat.ChatCompletionSystemMessageParam | null {
-        const textContent = this.extractTextContent(message.content);
-        if (!textContent) {
-            return null;
-        }
-        return {
-            role: 'system',
-            content: textContent
-        };
-    }
-
-    /**
-     * 转换用户消息 - 支持多模态和工具结果
-     */
-    private convertUserMessage(
-        message: vscode.LanguageModelChatMessage,
-        modelConfig?: ModelConfig
-    ): OpenAI.Chat.ChatCompletionMessageParam[] {
-        const results: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-        // 处理文本和图片内容
-        const userMessage = this.convertUserContentMessage(message, modelConfig);
-        if (userMessage) {
-            results.push(userMessage);
-        }
-        // 处理工具结果
-        const toolMessages = this.convertToolResultMessages(message);
-        results.push(...toolMessages);
-        return results;
-    }
-
-    /**
-     * 转换用户内容消息（文本+图片）
-     */
-    private convertUserContentMessage(
-        message: vscode.LanguageModelChatMessage,
-        modelConfig?: ModelConfig
-    ): OpenAI.Chat.ChatCompletionUserMessageParam | null {
-        const textParts = message.content.filter(
-            part => part instanceof vscode.LanguageModelTextPart
-        ) as vscode.LanguageModelTextPart[];
-        const imageParts: vscode.LanguageModelDataPart[] = [];
-        // 收集图片（如果支持）
-        if (modelConfig?.capabilities?.imageInput === true) {
-            // Logger.debug('Model supports image input, collecting image parts');
-            for (const part of message.content) {
-                if (part instanceof vscode.LanguageModelDataPart) {
-                    // Logger.debug(`📷 发现数据部分: MIME=${part.mimeType}, 大小=${part.data.length}字节`);
-                    if (this.isImageMimeType(part.mimeType)) {
-                        imageParts.push(part);
-                        Logger.debug(`✅ Added image: MIME=${part.mimeType}, size=${part.data.length} bytes`);
-                    } else {
-                        // // 分类处理不同类型的数据
-                        // if (part.mimeType === 'cache_control') {
-                        //     Logger.trace('Ignoring Claude cache marker: cache_control');
-                        // } else if (part.mimeType.startsWith('image/')) {
-                        //     Logger.warn(`❌ 不支持的图像MIME类型: ${part.mimeType}`);
-                        // } else {
-                        //     Logger.trace(`📄 跳过非图像数据: ${part.mimeType}`);
-                        // }
-                    }
-                } else {
-                    // Logger.trace(`📝 非数据部分: ${part.constructor.name}`);
-                }
-            }
-        }
-        // 如果没有文本和图片内容，返回 null
-        if (textParts.length === 0 && imageParts.length === 0) {
-            return null;
-        }
-        if (imageParts.length > 0) {
-            // 多模态消息：文本 + 图片
-            Logger.debug(
-                `🖼️ Building multimodal message: ${textParts.length} text parts + ${imageParts.length} image parts`
-            );
-            const contentArray: OpenAI.Chat.ChatCompletionContentPart[] = [];
-            if (textParts.length > 0) {
-                const textContent = textParts.map(part => part.value).join('\n');
-                contentArray.push({
-                    type: 'text',
-                    text: textContent
-                });
-                Logger.trace(`📝 Added text content: ${textContent.length} chars`);
-            }
-            for (const imagePart of imageParts) {
-                const dataUrl = this.createDataUrl(imagePart);
-                contentArray.push({
-                    type: 'image_url',
-                    image_url: { url: dataUrl }
-                });
-                Logger.trace(`📷 Added image URL: MIME=${imagePart.mimeType}, base64Length=${dataUrl.length} chars`);
-            }
-            Logger.debug(`✅ Multimodal message built: ${contentArray.length} content parts`);
-            return { role: 'user', content: contentArray };
-        } else {
-            // 纯文本消息
-            return {
-                role: 'user',
-                content: textParts.map(part => part.value).join('\n')
-            };
-        }
-    }
-
-    /**
-     * 转换工具结果消息 - 使用 OpenAI SDK 标准类型
-     */
-    private convertToolResultMessages(
-        message: vscode.LanguageModelChatMessage
-    ): OpenAI.Chat.ChatCompletionToolMessageParam[] {
-        const toolMessages: OpenAI.Chat.ChatCompletionToolMessageParam[] = [];
-        const seenCallIds = new Set<string>();
-
-        for (const part of message.content) {
-            if (part instanceof vscode.LanguageModelToolResultPart) {
-                if (seenCallIds.has(part.callId)) {
-                    Logger.warn(`Skipping duplicate tool_result callId: ${part.callId}`);
-                    continue;
-                }
-                seenCallIds.add(part.callId);
-                const toolContent = this.convertToolResultContent(part.content);
-                // 使用 OpenAI SDK 标准的 ChatCompletionToolMessageParam 类型
-                const toolMessage: OpenAI.Chat.ChatCompletionToolMessageParam = {
-                    role: 'tool',
-                    content: toolContent,
-                    tool_call_id: part.callId
-                };
-                toolMessages.push(toolMessage);
-                // Logger.debug(`添加工具结果: callId=${part.callId}, 内容长度=${toolContent.length}`);
-            }
-        }
-
-        return toolMessages;
-    }
-
-    /**
-     * 转换助手消息 - 处理文本和工具调用
-     */
-    private convertAssistantMessage(
-        message: vscode.LanguageModelChatMessage,
-        modelConfig?: ModelConfig
-    ): OpenAI.Chat.ChatCompletionAssistantMessageParam | null {
-        const textContent = this.extractTextContent(message.content);
-        const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
-        let thinkingContent: string | null = null;
-
-        // 处理工具调用和思考内容（去重：同一 callId 只保留第一个）
-        const seenCallIds = new Set<string>();
-        for (const part of message.content) {
-            if (part instanceof vscode.LanguageModelToolCallPart) {
-                if (seenCallIds.has(part.callId)) {
-                    Logger.warn(`Skipping duplicate tool_call_id: ${part.callId} (${part.name})`);
-                    continue;
-                }
-                seenCallIds.add(part.callId);
-                toolCalls.push({
-                    id: part.callId,
-                    type: 'function',
-                    function: {
-                        name: part.name,
-                        arguments: JSON.stringify(part.input)
-                    }
-                });
-            }
-        }
-
-        // 从消息中提取思考内容（若存在），用于兼容部分网关/模型的上下文传递。
-        for (const part of message.content) {
-            if (part instanceof vscode.LanguageModelThinkingPart) {
-                // 处理思考内容，可能是字符串或字符串数组
-                if (Array.isArray(part.value)) {
-                    thinkingContent = part.value.join('');
-                } else {
-                    thinkingContent = part.value;
-                }
-                Logger.trace(`Extracted thinking content: ${thinkingContent.length} chars`);
-                break; // 只取第一个思考内容部分
-            }
-        }
-
-        // 如果 ThinkingPart 被 VS Code 剥离，则从 StatefulMarker 恢复 reasoning_content（对所有模型生效，
-        // 服务端对与自身无关的 reasoning 会智能忽略）
-        if (!thinkingContent) {
-            const markerReasoning = getMarkerReasoningState(message.content);
-            if (markerReasoning.completeThinking) {
-                thinkingContent = markerReasoning.completeThinking;
-                Logger.trace(`Restored reasoning_content from StatefulMarker: ${thinkingContent.length} chars`);
-            } else if (shouldInjectReasoningPlaceholder({ providerKey: this.provider, modelConfig })) {
-                thinkingContent = ' '; // 保底占位，避免兼容接口因为字段缺失直接报错
-                Logger.trace('StatefulMarker thinking not found, using placeholder to fill reasoning_content');
-            }
-        }
-
-        // 如果没有文本内容、思考内容和工具调用，返回 null
-        if (!textContent && !thinkingContent && toolCalls.length === 0) {
-            return null;
-        }
-
-        // 创建扩展的助手消息，支持 reasoning_content 字段
-        const assistantMessage: ExtendedAssistantMessageParam = {
-            role: 'assistant',
-            content: textContent || null // 只包含普通文本内容，不包含思考内容
-        };
-
-        // 如果有思考内容，添加到 reasoning_content 字段
-        if (thinkingContent) {
-            assistantMessage.reasoning_content = thinkingContent;
-            Logger.trace(`Added reasoning_content: ${thinkingContent.length} chars`);
-        }
-
-        if (toolCalls.length > 0) {
-            assistantMessage.tool_calls = toolCalls;
-            // Logger.debug(`Assistant消息包含 ${toolCalls.length} 个工具调用`);
-        }
-
-        return assistantMessage;
-    }
-
-    /**
-     * 提取文本内容
-     */
-    private extractTextContent(
-        content: readonly (
-            | vscode.LanguageModelTextPart
-            | vscode.LanguageModelDataPart
-            | vscode.LanguageModelToolCallPart
-            | vscode.LanguageModelToolResultPart
-            | vscode.LanguageModelThinkingPart
-        )[]
-    ): string | null {
-        const textParts = content
-            .filter(part => part instanceof vscode.LanguageModelTextPart)
-            .map(part => (part as vscode.LanguageModelTextPart).value);
-        return textParts.length > 0 ? textParts.join('\n') : null;
-    }
-
-    /**
-     * 转换工具结果内容
-     *
-     * 仅保留有意义的语义内容：文本取 value，图片用 [Image] 占位符。
-     * 其他所有 DataPart（cache_control / stateful_marker / thinking / context_management / usage
-     * 等扩展内部元数据）一律跳过，不序列化，避免污染请求体和模型上下文。
-     */
-    private convertToolResultContent(content: unknown): string {
-        if (typeof content === 'string') {
-            return content;
-        }
-        if (content instanceof vscode.LanguageModelTextPart) {
-            return content.value;
-        }
-        if (content instanceof vscode.LanguageModelDataPart) {
-            // 图片用占位符，其他 DataPart 全部跳过
-            return this.isImageMimeType(content.mimeType) ? '[Image]' : '';
-        }
-        if (Array.isArray(content)) {
-            return content
-                .flatMap(resultPart => {
-                    if (resultPart instanceof vscode.LanguageModelTextPart) {
-                        return [resultPart.value];
-                    }
-                    if (
-                        resultPart instanceof vscode.LanguageModelDataPart &&
-                        this.isImageMimeType(resultPart.mimeType)
-                    ) {
-                        return ['[Image]'];
-                    }
-                    // 其他 DataPart（扩展内部元数据）和其他非文本 part 统一跳过
-                    return [];
-                })
-                .join('\n');
-        }
-        // 兜底：未知结构不序列化，返回空字符串
-        return '';
+        return this.messageConverter.convertSingleMessage(message, modelConfig);
     }
 
     /**
@@ -1833,85 +628,21 @@ export class OpenAIHandler {
      * 公共方法，可被其他 Provider 复用
      */
     public convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[] {
-        return tools.map(tool => {
-            const functionDef: OpenAI.Chat.ChatCompletionTool = {
-                type: 'function',
-                function: {
-                    name: tool.name,
-                    description: tool.description || ''
-                }
-            };
-
-            // 处理参数schema
-            if (tool.inputSchema) {
-                if (typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
-                    functionDef.function.parameters = sanitizeToolSchema(tool.inputSchema as Record<string, unknown>);
-                } else {
-                    // 如果不是对象，提供默认schema
-                    functionDef.function.parameters = {
-                        type: 'object',
-                        properties: {},
-                        required: []
-                    };
-                }
-            } else {
-                // 默认schema
-                functionDef.function.parameters = {
-                    type: 'object',
-                    properties: {},
-                    required: []
-                };
-            }
-
-            return functionDef;
-        });
+        return this.messageConverter.convertToolsToOpenAI(tools);
     }
 
     /**
      * 检查是否为图片MIME类型
      */
     public isImageMimeType(mimeType: string): boolean {
-        // 标准化MIME类型
-        const normalizedMime = mimeType.toLowerCase().trim();
-        // 支持的图像类型
-        const supportedTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/bmp',
-            'image/svg+xml'
-        ];
-        const isImageCategory = normalizedMime.startsWith('image/');
-        const isSupported = supportedTypes.includes(normalizedMime);
-        // 调试日志
-        if (isImageCategory && !isSupported) {
-            Logger.warn(
-                `🚫 Image type is not in the supported list: ${mimeType}, supported types: ${supportedTypes.join(', ')}`
-            );
-        } else if (!isImageCategory && normalizedMime !== 'cache_control') {
-            // 对于cache_control（Claude缓存标识）不记录调试信息，对其他非图像类型记录trace级别日志
-            // Logger.trace(`📄 非图像数据类型: ${mimeType}`);
-        }
-        return isImageCategory && isSupported;
+        return isImageMimeType(mimeType);
     }
 
     /**
      * 创建图片的data URL
      */
     public createDataUrl(dataPart: vscode.LanguageModelDataPart): string {
-        try {
-            const base64Data = Buffer.from(dataPart.data).toString('base64');
-            const dataUrl = `data:${dataPart.mimeType};base64,${base64Data}`;
-            Logger.debug(
-                `🔗 Created image DataURL: MIME=${dataPart.mimeType}, originalSize=${dataPart.data.length} bytes, base64Size=${base64Data.length} chars`
-            );
-            return dataUrl;
-        } catch (error) {
-            Logger.error(`❌ Failed to create image DataURL: ${error}`);
-            throw error;
-        }
+        return createDataUrl(dataPart);
     }
 
     /**
@@ -1920,70 +651,6 @@ export class OpenAIHandler {
      * @returns 过滤后的参数，移除了不可修改的核心参数
      */
     public static filterExtraBodyParams(extraBody: Record<string, unknown>): Record<string, unknown> {
-        const coreParams = new Set([
-            'model', // 模型名称
-            'messages', // 消息数组
-            'stream', // 流式开关
-            'stream_options', // 流式选项
-            'tools' // 工具定义
-        ]);
-
-        const filtered: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(extraBody)) {
-            if (!coreParams.has(key)) {
-                filtered[key] = value;
-                if (value == null) {
-                    filtered[key] = undefined;
-                }
-            }
-        }
-
-        return filtered;
+        return filterChatExtraBodyParams(extraBody);
     }
-}
-
-/**
- * 解析模型配置的默认 reasoningEffort。
- * 规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致：
- * - 若配置了 reasoningDefault 且包含在 reasoningEffort 数组中，使用该值
- * - 若 reasoningEffort 数组包含 'medium'，默认值为 'medium'
- * - 否则默认值为数组首项
- */
-function getReasoningDefault(modelConfig: ModelConfig): string | undefined {
-    const efforts = modelConfig.reasoningEffort;
-    if (!efforts || efforts.length === 0) {
-        return modelConfig.reasoningDefault;
-    }
-    if (modelConfig.reasoningDefault && efforts.includes(modelConfig.reasoningDefault)) {
-        return modelConfig.reasoningDefault;
-    }
-    if (efforts.includes('medium')) {
-        return 'medium';
-    }
-    return efforts[0];
-}
-
-/**
- * 从消息内容的 StatefulMarker 中提取 completeThinking
- */
-function getMarkerReasoningState(content: vscode.LanguageModelChatMessage['content']): {
-    completeThinking?: string;
-    hasToolCalls?: boolean;
-} {
-    for (const part of content) {
-        if (
-            part instanceof vscode.LanguageModelDataPart &&
-            isStatefulMarkerMimeType(part.mimeType) &&
-            part.data instanceof Uint8Array
-        ) {
-            const marker = decodeStatefulMarker(part.data)?.marker;
-            if (marker) {
-                return {
-                    completeThinking: marker.completeThinking,
-                    hasToolCalls: marker.hasToolCalls
-                };
-            }
-        }
-    }
-    return {};
 }

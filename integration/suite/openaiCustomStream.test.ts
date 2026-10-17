@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { OpenAICustomHandler } from '../../src/handlers/openai/openaiCustomHandler';
 import { OpenAIHandler } from '../../src/handlers/openai/openaiHandler';
 import { OpenAIResponsesHandler } from '../../src/handlers/openai/openaiResponsesHandler';
+import { runStreamCleanup } from '../../src/handlers/openai/shared/streamCleanup';
 import { StreamReporter } from '../../src/handlers/streamReporter';
 import { TokenUsagesManager } from '../../src/usages/usagesManager';
 import type { GenericModelProvider } from '../../src/providers/genericModelProvider';
@@ -352,7 +353,7 @@ suite('OpenAI custom SSE lifecycle', () => {
         }
     }
 
-    for (const sdkMode of ['openai-sse', 'openai-responses'] as const) {
+    for (const sdkMode of ['openai-sse', 'openai-responses', 'openai'] as const) {
         for (const cancelAt of ['none', 'before', 'during']) {
             for (const outcome of ['resolve', 'reject']) {
                 test(`handler initialization cancellation: ${sdkMode}, ${cancelAt}, ${outcome}`, async () => {
@@ -372,9 +373,9 @@ suite('OpenAI custom SSE lifecycle', () => {
                     } as unknown as GenericModelProvider;
                     const openai = new OpenAIHandler(provider);
                     const handler =
-                        sdkMode === 'openai-sse' ?
-                            new OpenAICustomHandler(provider, openai)
-                        :   new OpenAIResponsesHandler(provider, openai);
+                        sdkMode === 'openai-sse' ? new OpenAICustomHandler(provider, openai)
+                        : sdkMode === 'openai-responses' ? new OpenAIResponsesHandler(provider, openai)
+                        : openai;
                     const source = trackedCancellation();
                     const originalGet = ApiKeyManager.getApiKeyForRequest;
                     const originalFetch = ConfigManager.createProxyAwareFetch;
@@ -383,6 +384,7 @@ suite('OpenAI custom SSE lifecycle', () => {
                     const storageError = new Error('secret storage unavailable');
                     let reads = 0;
                     let requests = 0;
+                    let dispatched = 0;
                     ApiKeyManager.getApiKeyForRequest = async () => {
                         reads++;
                         await Promise.resolve();
@@ -396,7 +398,7 @@ suite('OpenAI custom SSE lifecycle', () => {
                     };
                     ConfigManager.createProxyAwareFetch = () => async () => {
                         requests++;
-                        return successResponse(sdkMode === 'openai-sse' ? 'openai' : 'openai-responses');
+                        return successResponse(sdkMode === 'openai-responses' ? 'openai-responses' : 'openai');
                     };
                     TokenUsagesManager.instance.updateActualTokens = update => {
                         statuses.push(update.status);
@@ -413,12 +415,16 @@ suite('OpenAI custom SSE lifecycle', () => {
                             { report() {} },
                             'initialization-test',
                             'test-session',
-                            source.token
+                            source.token,
+                            undefined,
+                            () => {
+                                dispatched++;
+                            }
                         ];
                         const result =
-                            handler instanceof OpenAICustomHandler ?
-                                handler.handleRequest(...args)
-                            :   handler.handleResponsesRequest(...args);
+                            handler instanceof OpenAIResponsesHandler ?
+                                handler.handleResponsesRequest(...args)
+                            :   handler.handleRequest(...args);
                         if (cancelAt !== 'none') {
                             await assert.rejects(result, vscode.CancellationError);
                             assert.deepEqual(statuses, ['cancelled']);
@@ -431,6 +437,7 @@ suite('OpenAI custom SSE lifecycle', () => {
                         }
                         assert.equal(reads, cancelAt === 'before' ? 0 : 1);
                         assert.equal(requests, cancelAt === 'none' && outcome === 'resolve' ? 1 : 0);
+                        assert.equal(dispatched, requests);
                         assert.equal(source.subscriptions, source.disposals);
                     } finally {
                         ApiKeyManager.getApiKeyForRequest = originalGet;
@@ -684,7 +691,11 @@ suite('OpenAI custom SSE lifecycle', () => {
 suite('OpenAI transport recovery diagnostics', () => {
     const originalFetch = ConfigManager.createProxyAwareFetch;
     const originalDebug = Logger.debug;
+    const originalWarn = Logger.warn;
     const originalUpdate = TokenUsagesManager.instance.updateActualTokens;
+    const originalFlush = StreamReporter.prototype.flushAll;
+    const originalUsage = StreamReporter.prototype.reportUsage;
+    const originalMetrics = StreamReporter.prototype.finishMetrics;
     let context: vscode.ExtensionContext;
 
     setup(async () => {
@@ -699,20 +710,74 @@ suite('OpenAI transport recovery diagnostics', () => {
     teardown(() => {
         ConfigManager.createProxyAwareFetch = originalFetch;
         Logger.debug = originalDebug;
+        Logger.warn = originalWarn;
         TokenUsagesManager.instance.updateActualTokens = originalUpdate;
+        StreamReporter.prototype.flushAll = originalFlush;
+        StreamReporter.prototype.reportUsage = originalUsage;
+        StreamReporter.prototype.finishMetrics = originalMetrics;
         for (const disposable of context.subscriptions) {
             disposable.dispose();
         }
     });
 
+    for (const preservePrimaryError of [false, true]) {
+        for (const failLogging of [false, true]) {
+            test(`cleanup preserves first failure and runs all steps: primary=${preservePrimaryError}, logger=${failLogging}`, () => {
+                const firstError = new Error('first cleanup failure');
+                const secondError = new Error('second cleanup failure');
+                const steps: string[] = [];
+                let warnings = 0;
+                Logger.warn = () => {
+                    warnings++;
+                    if (failLogging) {
+                        throw new Error('log backend failure');
+                    }
+                };
+                const cleanup = () =>
+                    runStreamCleanup(
+                        [
+                            () => {
+                                steps.push('first');
+                                throw firstError;
+                            },
+                            () => {
+                                steps.push('second');
+                                throw secondError;
+                            },
+                            () => {
+                                steps.push('listener');
+                            }
+                        ],
+                        preservePrimaryError
+                    );
+                if (preservePrimaryError) {
+                    assert.doesNotThrow(cleanup);
+                } else {
+                    assert.throws(cleanup, error => error === firstError);
+                }
+                assert.deepEqual(steps, ['first', 'second', 'listener']);
+                assert.equal(warnings, 2);
+            });
+        }
+    }
+
     for (const sdkMode of ['openai', 'openai-responses', 'openai-sse'] as const) {
         for (const ending of [
             'before-output',
             'after-text',
+            'after-text-flush-error',
+            'after-text-flush-logger-error',
+            'after-text-usage-error',
+            'after-text-metrics-error',
+            'after-text-metrics-logger-error',
             'after-thinking',
             'after-tool',
             'host-cancel',
+            'host-cancel-metrics-error',
+            'host-cancel-metrics-logger-error',
             'completed',
+            'completed-metrics-error',
+            'completed-metrics-logger-error',
             'har-clone-failure',
             'invalid-json',
             'invalid-json-with-har',
@@ -720,10 +785,45 @@ suite('OpenAI transport recovery diagnostics', () => {
         ]) {
             const invalidJson = ending.startsWith('invalid-json');
             const missingContentType = ending === 'invalid-json-without-content-type';
+            const cancelledRequest = ending.startsWith('host-cancel');
+            const completedRequest = ending.startsWith('completed');
+            const failureEnding = ending.replace('-logger-error', '-error');
+            const failLogging = ending.endsWith('-logger-error');
             if ((invalidJson && sdkMode === 'openai-sse') || (missingContentType && sdkMode !== 'openai-responses')) {
                 continue;
             }
             test(`real socket lifecycle: ${sdkMode}, ${ending}`, async () => {
+                const cleanupError = new Error('injected cleanup failure');
+                let failedWarnings = 0;
+                if (failLogging) {
+                    Logger.warn = (...args: Parameters<typeof originalWarn>) => {
+                        if (args[0] === '[OpenAI] Stream cleanup failed') {
+                            failedWarnings++;
+                            throw Object.assign(new Error('injected log backend failure'), { code: 'EIO' });
+                        }
+                        originalWarn.apply(Logger, args);
+                    };
+                }
+                const updates: Parameters<typeof originalUpdate>[0][] = [];
+                TokenUsagesManager.instance.updateActualTokens = update => {
+                    updates.push(update);
+                };
+                if (failureEnding === 'after-text-flush-error') {
+                    StreamReporter.prototype.flushAll = function (...args) {
+                        originalFlush.apply(this, args);
+                        throw cleanupError;
+                    };
+                } else if (failureEnding === 'after-text-usage-error') {
+                    StreamReporter.prototype.reportUsage = function (...args) {
+                        originalUsage.apply(this, args);
+                        throw cleanupError;
+                    };
+                } else if (failureEnding.endsWith('metrics-error')) {
+                    StreamReporter.prototype.finishMetrics = function () {
+                        originalMetrics.call(this);
+                        throw cleanupError;
+                    };
+                }
                 const cancellation = trackedCancellation();
                 const dispatcher = new Agent({ connections: 1 });
                 const recorder = new HarRecorder();
@@ -831,7 +931,7 @@ suite('OpenAI transport recovery diagnostics', () => {
                         ...(missingContentType ? {} : { 'content-type': 'text/event-stream' }),
                         'x-request-id': `local-${requests}`
                     });
-                    if (requests > 1 || ending === 'completed' || ending === 'har-clone-failure') {
+                    if (requests > 1 || completedRequest || ending === 'har-clone-failure') {
                         response.end(success);
                     } else {
                         pendingResponse = response;
@@ -848,11 +948,11 @@ suite('OpenAI transport recovery diagnostics', () => {
                     if (
                         entry.attempt === 1 &&
                         entry.phase === trigger &&
-                        ending !== 'completed' &&
+                        !completedRequest &&
                         ending !== 'har-clone-failure' &&
                         !invalidJson
                     ) {
-                        if (ending === 'host-cancel') {
+                        if (cancelledRequest) {
                             cancellation.cancel();
                         } else {
                             pendingResponse?.destroy();
@@ -911,8 +1011,10 @@ suite('OpenAI transport recovery diagnostics', () => {
                             assert.equal((transportError.cause as { code?: string }).code, 'UND_ERR_SOCKET');
                             return true;
                         });
-                    } else if (ending === 'host-cancel') {
+                    } else if (cancelledRequest) {
                         await assert.rejects(result, vscode.CancellationError);
+                    } else if (failureEnding === 'completed-metrics-error') {
+                        await assert.rejects(result, error => error === cleanupError);
                     } else if (invalidJson) {
                         await assert.rejects(result, error => {
                             assert.ok(error instanceof Error);
@@ -926,6 +1028,7 @@ suite('OpenAI transport recovery diagnostics', () => {
                     assert.equal(requests, expected);
                     assert.equal(observed.grants, expected);
                     assert.equal(cancellation.disposals, cancellation.subscriptions);
+                    assert.equal(failedWarnings > 0, failLogging);
                     assert.equal(entries.filter(entry => entry.phase === 'started').length, expected);
                     const firstFailure = entries.find(entry => entry.phase === 'error');
                     const decision = entries.find(entry => entry.phase === 'retry_decision');
@@ -933,10 +1036,13 @@ suite('OpenAI transport recovery diagnostics', () => {
                         assert.equal(firstFailure, undefined);
                         assert.equal(decision, undefined);
                         assert.equal(entries.at(-1)?.outcome, 'completed');
-                    } else if (ending === 'host-cancel') {
+                    } else if (cancelledRequest) {
                         assert.equal(decision?.reason, 'cancelled');
                         assert.equal(entries.at(-1)?.outcome, 'cancelled');
                         assert.ok(entries.some(entry => entry.source === 'host_token'));
+                    } else if (failureEnding === 'completed-metrics-error') {
+                        assert.equal(decision?.retry, false);
+                        assert.equal(entries.at(-1)?.outcome, 'failed');
                     } else if (invalidJson) {
                         assert.ok(firstFailure?.errors?.some(error => error.name === 'SyntaxError'));
                         assert.equal(
@@ -962,6 +1068,7 @@ suite('OpenAI transport recovery diagnostics', () => {
                     }
                     if (partial) {
                         assert.ok(parts.length > 0);
+                        assert.equal(updates.filter(update => update.status === 'failed').length, 1);
                     }
                 } finally {
                     cancellation.cancel();

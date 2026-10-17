@@ -30,24 +30,8 @@ import { StreamReporter } from '../streamReporter';
 import * as liveMetrics from '../liveMetrics';
 import { t } from '../../utils/runtime/l10n';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
-
-/**
- * OpenAI Handler 接口（用于类型安全的消息和工具转换）
- */
-interface IOpenAIHandler {
-    convertMessagesToOpenAI(
-        messages: readonly vscode.LanguageModelChatMessage[],
-        modelConfig?: ModelConfig
-    ): OpenAI.Chat.ChatCompletionMessageParam[];
-    convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[];
-    buildChatCompletionParams(
-        model: vscode.LanguageModelChatInformation,
-        modelConfig: ModelConfig,
-        messages: readonly vscode.LanguageModelChatMessage[],
-        options: vscode.ProvideLanguageModelChatResponseOptions,
-        sessionId?: string
-    ): OpenAI.Chat.ChatCompletionCreateParamsStreaming;
-}
+import type { OpenAIChatRequestBuilder } from './chat/requestBuilder';
+import { runStreamCleanup } from './shared/streamCleanup';
 
 /**
  * 扩展Delta类型以支持reasoning_content和reasoning字段
@@ -120,7 +104,7 @@ function extractReasoningDetailsText(details: unknown): string | undefined {
 export class OpenAICustomHandler {
     constructor(
         private providerInstance: GenericModelProvider,
-        private openaiHandler: IOpenAIHandler
+        private requestBuilder: Pick<OpenAIChatRequestBuilder, 'buildChatCompletionParams'>
     ) {}
     private get provider(): string {
         return this.providerInstance.provider;
@@ -199,11 +183,11 @@ export class OpenAICustomHandler {
 
             Logger.info(`[${model.name}] Processing ${messages.length} messages with custom SSE handler`);
 
-            if (!this.openaiHandler) {
+            if (!this.requestBuilder) {
                 throw new Error(t('OpenAI handler is not initialized', 'OpenAI 处理器未初始化'));
             }
 
-            const requestBody = this.openaiHandler.buildChatCompletionParams(
+            const requestBody = this.requestBuilder.buildChatCompletionParams(
                 model,
                 modelConfig,
                 messages,
@@ -308,42 +292,62 @@ export class OpenAICustomHandler {
                 outcome = 'cancelled';
                 Logger.warn(`[${model.name}] Request was cancelled`);
                 // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
-                TokenUsagesManager.instance.updateActualTokens({
-                    requestId: requestId || '',
-                    sessionId: reporter?.getSessionId(),
-                    status: 'cancelled',
-                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                    wasThrottled,
-                    streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
-                    streamEndTime: Date.now()
-                });
+                runStreamCleanup(
+                    [
+                        () =>
+                            TokenUsagesManager.instance.updateActualTokens({
+                                requestId: requestId || '',
+                                sessionId: reporter?.getSessionId(),
+                                status: 'cancelled',
+                                ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                wasThrottled,
+                                streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
+                                streamEndTime: Date.now()
+                            })
+                    ],
+                    true
+                );
                 throw new vscode.CancellationError();
             }
             if (requestId && reporter?.hasContent) {
                 if (!hasFinalStatusRecorded(error)) {
-                    reporter.discardToolCalls();
-                    reporter.flushAll(null);
-                    TokenUsagesManager.instance.updateActualTokens({
-                        requestId: requestId || '',
-                        sessionId: reporter?.getSessionId(),
-                        status: 'failed',
-                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                        wasThrottled,
-                        streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
-                        streamEndTime: Date.now()
-                    });
-                    markFinalStatusRecorded(error);
+                    runStreamCleanup(
+                        [
+                            () => reporter?.discardToolCalls(),
+                            () => reporter?.flushAll(null),
+                            () => {
+                                TokenUsagesManager.instance.updateActualTokens({
+                                    requestId: requestId || '',
+                                    sessionId: reporter?.getSessionId(),
+                                    status: 'failed',
+                                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                    wasThrottled,
+                                    streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
+                                    streamEndTime: Date.now()
+                                });
+                                markFinalStatusRecorded(error);
+                            }
+                        ],
+                        true
+                    );
                 }
             }
             throw error;
         } finally {
-            trace.abort('finally_cleanup');
-            abortController.abort();
-            reporter?.finishMetrics();
-            cancellationListener.dispose();
-            if (!diagnostics) {
-                trace.finish(outcome);
-            }
+            runStreamCleanup(
+                [
+                    () => trace.abort('finally_cleanup'),
+                    () => abortController.abort(),
+                    () => reporter?.finishMetrics(),
+                    () => cancellationListener.dispose(),
+                    () => {
+                        if (!diagnostics) {
+                            trace.finish(outcome);
+                        }
+                    }
+                ],
+                outcome !== 'completed'
+            );
         }
     }
 

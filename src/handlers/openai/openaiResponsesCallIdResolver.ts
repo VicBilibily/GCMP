@@ -1,6 +1,6 @@
 ﻿import * as crypto from 'node:crypto';
 
-import { canonicalizeJsonString } from './openaiChatRequestPreprocessor';
+import { canonicalizeJsonString } from './shared/json';
 import { uniquifyCallId } from '../toolCallIdUtils';
 
 interface ResolveToolCallIdParams {

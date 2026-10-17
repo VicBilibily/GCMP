@@ -6,7 +6,8 @@ import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../stateful/statefulMarker';
 import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
-import type { OpenAIHandler } from './openaiHandler';
+import type { openAIImages } from './shared/images';
+import { filterResponsesExtraBodyParams } from './responses/requestParameters';
 import {
     isEncryptedReasoningOriginMatch,
     isResponsesReasoningId,
@@ -61,7 +62,7 @@ function isToolResultPart(part: unknown): part is vscode.LanguageModelToolResult
 
 export class OpenAIResponsesMessageConverter {
     constructor(
-        private readonly handler: OpenAIHandler,
+        private readonly images: typeof openAIImages,
         private readonly displayName: string
     ) {}
 
@@ -120,7 +121,7 @@ export class OpenAIResponsesMessageConverter {
                     }
                 } else if (part instanceof vscode.LanguageModelTextPart) {
                     textParts.push(part.value);
-                } else if (isDataPart(part) && this.handler.isImageMimeType(part.mimeType)) {
+                } else if (isDataPart(part) && this.images.isImageMimeType(part.mimeType)) {
                     if (modelConfig?.capabilities?.imageInput === true) {
                         imageParts.push(part);
                     } else {
@@ -234,7 +235,7 @@ export class OpenAIResponsesMessageConverter {
                 for (const imagePart of imageParts) {
                     contentArray.push({
                         type: 'input_image' as const,
-                        image_url: this.handler.createDataUrl(imagePart),
+                        image_url: this.images.createDataUrl(imagePart),
                         detail: 'auto' as const
                     });
                 }
@@ -410,16 +411,7 @@ export class OpenAIResponsesMessageConverter {
     }
 
     filterExtraBodyParams(extraBody: Record<string, unknown>): Record<string, unknown> {
-        const coreParams = new Set(['model', 'input', 'stream', 'tools']);
-        const filtered: Record<string, unknown> = {};
-
-        for (const [key, value] of Object.entries(extraBody)) {
-            if (!coreParams.has(key)) {
-                filtered[key] = value == null ? undefined : value;
-            }
-        }
-
-        return filtered;
+        return filterResponsesExtraBodyParams(extraBody);
     }
 
     private mapRole(role: number): 'user' | 'assistant' | 'system' {
@@ -444,7 +436,7 @@ export class OpenAIResponsesMessageConverter {
         for (const item of part.content) {
             if (isTextPart(item)) {
                 texts.push(item.value);
-            } else if (isDataPart(item) && this.handler.isImageMimeType(item.mimeType)) {
+            } else if (isDataPart(item) && this.images.isImageMimeType(item.mimeType)) {
                 texts.push('[Image]');
             }
         }

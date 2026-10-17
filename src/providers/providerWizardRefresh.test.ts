@@ -220,6 +220,9 @@ function compatibleWizardFixture(initialModels: CompatibleModelConfig[]) {
     const modules = new Map<string, { exports: unknown }>();
     const handlerNames: Record<string, string> = {
         openaiHandler: 'OpenAIHandler',
+        clientFactory: 'OpenAIClientFactory',
+        messageConverter: 'OpenAIChatMessageConverter',
+        requestBuilder: 'OpenAIChatRequestBuilder',
         openaiCustomHandler: 'OpenAICustomHandler',
         openaiResponsesHandler: 'OpenAIResponsesHandler',
         anthropicHandler: 'AnthropicHandler',

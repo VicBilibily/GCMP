@@ -803,7 +803,10 @@ suite('genericModelProvider retry gating', () => {
             await ConfigSetStore.add(slot, { id: 'b', label: 'b' }, 'key-b');
             await applyConfigSet(slot, { id: 'a', label: 'a' });
             await ConfigSetStore.setAutoSwitchEnabled(slot, true);
-            const preprocessor = Object.create(OpenAIHandler.prototype) as {
+            const preprocessor = new OpenAIHandler({
+                provider: slot,
+                providerConfig: { displayName: 'Test', models: [] }
+            } as unknown as GenericModelProvider) as unknown as {
                 preprocessSSEResponse(response: Response): Promise<Response>;
             };
             const usedKeys: string[] = [];

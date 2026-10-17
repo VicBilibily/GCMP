@@ -24,7 +24,9 @@ import { isCancellationError } from '../../utils/text/cancellationError';
 import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
 import { getCustomHeaderDeletionMarkers } from '../../utils/net/httpHeaders';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../../types/sharedTypes';
-import { OpenAIHandler } from './openaiHandler';
+import type { OpenAIClientFactory } from './transport/clientFactory';
+import { openAIImages } from './shared/images';
+import { runStreamCleanup } from './shared/streamCleanup';
 import { StreamReporter } from '../streamReporter';
 import * as liveMetrics from '../liveMetrics';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
@@ -64,16 +66,16 @@ function compactUsageForLog(usage: GenericUsageData | undefined): Record<string,
  * 专门处理 Responses API 的消息转换和请求
  */
 export class OpenAIResponsesHandler {
-    private handler: OpenAIHandler;
+    private clientFactory: Pick<OpenAIClientFactory, 'createOpenAIClient'>;
     private messageConverter: OpenAIResponsesMessageConverter;
     private requestBuilder: OpenAIResponsesRequestBuilder;
 
     constructor(
         private providerInstance: GenericModelProvider,
-        handler: OpenAIHandler
+        clientFactory: Pick<OpenAIClientFactory, 'createOpenAIClient'>
     ) {
-        this.handler = handler;
-        this.messageConverter = new OpenAIResponsesMessageConverter(handler, this.displayName);
+        this.clientFactory = clientFactory;
+        this.messageConverter = new OpenAIResponsesMessageConverter(openAIImages, this.displayName);
         this.requestBuilder = new OpenAIResponsesRequestBuilder(
             this.displayName,
             this.messageConverter,
@@ -140,12 +142,13 @@ export class OpenAIResponsesHandler {
             let streamStartTime: number | undefined;
             let streamEndTime: number | undefined = undefined;
             let streamProcessor: OpenAIResponsesStreamProcessor | undefined;
+            let streamFailed = false;
 
             try {
                 if (token.isCancellationRequested) {
                     throw new vscode.CancellationError();
                 }
-                const client = await this.handler.createOpenAIClient(modelConfig, sessionId, trace);
+                const client = await this.clientFactory.createOpenAIClient(modelConfig, sessionId, trace);
                 if (token.isCancellationRequested) {
                     throw new vscode.CancellationError();
                 }
@@ -234,20 +237,27 @@ export class OpenAIResponsesHandler {
                 });
                 streamStartTime = completionResult.streamStartTime;
             } catch (error) {
+                streamFailed = true;
                 trace.error(error);
                 if (token.isCancellationRequested || isCancellationError(error)) {
                     outcome = 'cancelled';
                     streamStartTime ??= streamProcessor?.getStreamStartTime() ?? reporter?.getMetricStreamStartTime();
                     streamEndTime ??= streamProcessor?.getStreamEndTime() ?? Date.now();
-                    this.reportCancellation({
-                        modelName: model.name,
-                        requestId,
-                        sessionId,
-                        requestMetricStartTime,
-                        streamStartTime,
-                        streamEndTime,
-                        wasThrottled
-                    });
+                    runStreamCleanup(
+                        [
+                            () =>
+                                this.reportCancellation({
+                                    modelName: model.name,
+                                    requestId,
+                                    sessionId,
+                                    requestMetricStartTime,
+                                    streamStartTime,
+                                    streamEndTime,
+                                    wasThrottled
+                                })
+                        ],
+                        true
+                    );
                     throw new vscode.CancellationError();
                 } else {
                     streamStartTime ??= streamProcessor?.getStreamStartTime() ?? reporter?.getMetricStreamStartTime();
@@ -273,29 +283,38 @@ export class OpenAIResponsesHandler {
                                 costNanoAiu = toNanoAiu(breakdown.total);
                             }
                         }
-                        reporter.reportUsage(finalUsage, costNanoAiu);
-                        if (!streamProcessor?.isResponseFinalized()) {
-                            reporter.flushAll(null, undefined, finalUsage);
-                        }
-                        TokenUsagesManager.instance.updateActualTokens({
-                            requestId,
-                            sessionId,
-                            rawUsage: finalUsage,
-                            status: 'failed',
-                            ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                            wasThrottled,
-                            streamStartTime,
-                            streamEndTime,
-                            estimatedCost: breakdown?.total,
-                            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
-                        });
-                        markFinalStatusRecorded(error);
+                        runStreamCleanup(
+                            [
+                                () => reporter?.reportUsage(finalUsage, costNanoAiu),
+                                () => {
+                                    if (!streamProcessor?.isResponseFinalized()) {
+                                        reporter?.flushAll(null, undefined, finalUsage);
+                                    }
+                                },
+                                () => {
+                                    TokenUsagesManager.instance.updateActualTokens({
+                                        requestId,
+                                        sessionId,
+                                        rawUsage: finalUsage,
+                                        status: 'failed',
+                                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                        wasThrottled,
+                                        streamStartTime,
+                                        streamEndTime,
+                                        estimatedCost: breakdown?.total,
+                                        costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+                                    });
+                                    markFinalStatusRecorded(error);
+                                }
+                            ],
+                            true
+                        );
                     }
                     Logger.error(`${model.name} Responses API stream processing error: ${error}`);
                     throw error;
                 }
             } finally {
-                cancellationListener.dispose();
+                runStreamCleanup([() => cancellationListener.dispose()], streamFailed);
             }
 
             outcome = token.isCancellationRequested ? 'cancelled' : 'completed';
@@ -304,10 +323,17 @@ export class OpenAIResponsesHandler {
             trace.error(error);
             this.rethrowResponsesError(error, model.name);
         } finally {
-            reporter?.finishMetrics();
-            if (!diagnostics) {
-                trace.finish(outcome);
-            }
+            runStreamCleanup(
+                [
+                    () => reporter?.finishMetrics(),
+                    () => {
+                        if (!diagnostics) {
+                            trace.finish(outcome);
+                        }
+                    }
+                ],
+                outcome !== 'completed'
+            );
         }
     }
 
