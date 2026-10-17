@@ -137,6 +137,43 @@ test('reportEncryptedThinking：仅思考内容也应被视为有内容', async 
     assert.equal(reporter.flushAll(null), true);
 });
 
+for (const finishReason of ['tool_use', 'end_turn']) {
+    test(`Anthropic signature-only output is preserved without visible thinking: ${finishReason}`, async () => {
+        const { StreamReporter } = await getStreamReporterModule();
+        const parts: Array<{
+            value?: string | string[];
+            metadata?: Record<string, unknown>;
+            mimeType?: string;
+            data?: Uint8Array;
+            callId?: string;
+        }> = [];
+        const reporter = new StreamReporter({
+            modelName: 'claude-haiku-5-5',
+            modelId: 'claude-haiku-5-5',
+            provider: 'opencode',
+            sdkMode: 'anthropic',
+            sessionId: 'signed-empty-session',
+            progress: { report: part => parts.push(part) }
+        });
+        reporter.bufferSignature('opaque-');
+        reporter.bufferSignature('signature');
+        reporter.flushSignature();
+        reporter.flushSignature();
+        assert.equal(reporter.hasContent, true);
+        if (finishReason === 'tool_use') {
+            reporter.reportToolCall('tool-1', 'read_file', { path: 'example.ts' });
+        }
+        assert.equal(reporter.flushAll(finishReason), true);
+        const signed = parts.filter(part => part.metadata?.signature);
+        assert.equal(signed.length, 1);
+        assert.equal(signed[0].value, '');
+        assert.equal(signed[0].metadata?.signature, 'opaque-signature');
+        const marker = parts.find(part => part.mimeType === 'stateful_marker');
+        assert.ok(marker?.data);
+        assert.equal(decodeGCMPStatefulMarkerPayload(marker.data)?.marker.completeSignature, 'opaque-signature');
+    });
+}
+
 test('Gemini thought signature 元数据不改变流开始时间', async () => {
     const { StreamReporter } = await getStreamReporterModule();
     const events: Array<{ type: string; streamStartTime?: number }> = [];

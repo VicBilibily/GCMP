@@ -107,6 +107,9 @@ const SUB_REQUEST_TYPES = new Set<RequestKind>([
     'ai-evaluator'
 ]);
 
+const WORKSPACE_SPECIFICATION_PREFIX =
+    'You are a VS Code assistant. Your job is to generate the project specification when given the user description and file tree structure of the project that a user wants to create.';
+
 /** 系统提示词前缀 → RequestKind 映射
  * 来源文件路径基于 microsoft/vscode 仓库 `extensions/copilot/src/extension/`
  */
@@ -174,8 +177,29 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
         'You are a Visual Studio Code assistant. Your job is to assist users in using Visual Studio Code by providing knowledge',
         'vscode-qa'
     ],
+    [
+        'You are a Visual Studio Code assistant who helps the user create well-formed and unambiguous queries about their Visual Studio Code development environment.',
+        'vscode-qa'
+    ],
     // newWorkspace.tsx → workspace-gen (文件生成)
     ['You are a Visual Studio Code assistant. Your job is to generate the contents of a new file', 'workspace-gen'],
+    [
+        'You are a Visual Studio Code assistant focused on aiding users in crafting clear and specific specifications about project or file creation within Visual Studio Code.',
+        'workspace-gen'
+    ],
+    [
+        'You are a VS Code assistant. Your job is to suggest a filetree directory structure for a project that a user wants to create.',
+        'workspace-gen'
+    ],
+    [
+        'You are a Visual Studio Code assistant. The user has identified a project URL for a new project they want to create.',
+        'workspace-gen'
+    ],
+    [
+        'You are a VS Code assistant. Your job is to generate the contents of a file in a project when given the user description, specification and tree structure of the project that a user wants to create.',
+        'workspace-gen'
+    ],
+    [WORKSPACE_SPECIFICATION_PREFIX, 'workspace-gen'],
     // languageToolsProvider.tsx → terminal-command (开发工具助手)
     ['You are an AI programming assistant that is specialized for usage of command-line tools', 'terminal-command'],
     // codeMapperPrompt.tsx → code-mapper
@@ -243,6 +267,33 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     // agentPrompt.tsx / minimaxPrompts.tsx / familyHPrompts.tsx → main-agent
     ['You are an expert AI programming assistant', 'main-agent']
 ];
+
+function getSystemPromptPrefix(text: string): [string, RequestKind] | undefined {
+    const prefix = SYSTEM_PROMPT_PREFIXES.find(([candidate]) => text.startsWith(candidate));
+    if (prefix?.[0] !== WORKSPACE_SPECIFICATION_PREFIX) {
+        return prefix;
+    }
+    const heading = /^[ \t]*Additional Rules[ \t]*\r?$/m.exec(text);
+    if (!heading || /^[ \t]*(?:`{3,}|~{3,}|>)/m.test(text.slice(0, heading.index))) {
+        return prefix;
+    }
+    const rules = text
+        .slice(heading.index + heading[0].length)
+        .trimStart()
+        .replace(/\s+/g, ' ');
+    if (
+        rules.startsWith(
+            'You will be given a user query and a tree of files they wish to edit or create in order to accomplish a task. ' +
+                "Think step by step and respond with a text description that lists and summarizes what needs to be done in each file to accomplish the user's task."
+        ) ||
+        rules.startsWith(
+            "The user will describe the task they're trying to accomplish, and ask you to generate or edit a file in persuit of that task."
+        )
+    ) {
+        return [prefix[0], 'test-gen'];
+    }
+    return prefix;
+}
 
 export function isSubRequest(kind: RequestKind, metadata?: RequestClassificationMetadata): boolean {
     return SUB_REQUEST_TYPES.has(kind) && (metadata === undefined || hasStrongEvidence(metadata.evidence.purpose));
@@ -517,7 +568,7 @@ export function classifyRequestContext(
         const prefixes = features.systemTexts.map((text, index) =>
             (allowSdkFrame && sdkPurposes[index].length > 0) || sharedSummaries[index] ?
                 undefined
-            :   SYSTEM_PROMPT_PREFIXES.find(([prefix]) => text.startsWith(prefix))
+            :   getSystemPromptPrefix(text)
         );
         const hasSdkIdentity = features.systemTexts.some(text => text.startsWith(SDK_IDENTITY));
         const hasSdkFrame = allowSdkFrame && sdkPurposes.some(purposes => purposes.length > 0);

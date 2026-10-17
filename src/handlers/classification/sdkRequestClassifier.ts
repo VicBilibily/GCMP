@@ -33,36 +33,43 @@ function readStructure(text: string): PromptStructure | undefined {
         if (/^\s*>/.test(line)) {
             continue;
         }
-        const inline = /^\s*<([a-z][a-z0-9_-]*)>([^<>]*)<\/\1>\s*$/.exec(line);
-        const open = inline ?? /^\s*<([a-z][a-z0-9_-]*)>\s*$/.exec(line);
-        if (open) {
-            const parent = stack.at(-1);
-            const siblings = parent?.children ?? blocks;
-            if (
-                siblings.has(open[1]) &&
-                open[1] !== 'example' &&
-                !(parent?.name === 'available_skills' && open[1] === 'skill')
-            ) {
-                return undefined;
+        const segments = line.split(/(?<=<\/?[a-z][a-z0-9_-]*>)[ \t]*(?=<\/?[a-z][a-z0-9_-]*>)/);
+        const currentBlock = stack.at(-1);
+        const startsWithStructure =
+            /^\s*</.test(segments[0]) ||
+            (currentBlock !== undefined && segments[0].trimEnd().endsWith(`</${currentBlock.name}>`));
+        for (const segment of startsWithStructure ? segments : [line]) {
+            const inline = /^\s*<([a-z][a-z0-9_-]*)>([^<>]*)<\/\1>\s*$/.exec(segment);
+            const open = inline ?? /^\s*<([a-z][a-z0-9_-]*)>\s*$/.exec(segment);
+            if (open) {
+                const parent = stack.at(-1);
+                const siblings = parent?.children ?? blocks;
+                if (
+                    siblings.has(open[1]) &&
+                    open[1] !== 'example' &&
+                    !(parent?.name === 'available_skills' && open[1] === 'skill')
+                ) {
+                    return undefined;
+                }
+                const block: PromptBlock = { name: open[1], lines: inline ? [inline[2]] : [], children: new Map() };
+                siblings.set(block.name, block);
+                if (!inline) {
+                    stack.push(block);
+                }
+                continue;
             }
-            const block: PromptBlock = { name: open[1], lines: inline ? [inline[2]] : [], children: new Map() };
-            siblings.set(block.name, block);
-            if (!inline) {
-                stack.push(block);
+            const close = /<\/([a-z][a-z0-9_-]*)>\s*$/.exec(segment);
+            if (close) {
+                const block = stack.pop();
+                const content = segment.slice(0, close.index);
+                if (block?.name !== close[1] || /^\s*</.test(content) || /<\/[a-z][a-z0-9_-]*>/.test(content)) {
+                    return undefined;
+                }
+                block.lines.push(content);
+                continue;
             }
-            continue;
+            (stack.at(-1)?.lines ?? rootLines).push(segment);
         }
-        const close = /<\/([a-z][a-z0-9_-]*)>\s*$/.exec(line);
-        if (close) {
-            const block = stack.pop();
-            const content = line.slice(0, close.index);
-            if (block?.name !== close[1] || /^\s*</.test(content) || /<\/[a-z][a-z0-9_-]*>/.test(content)) {
-                return undefined;
-            }
-            block.lines.push(content);
-            continue;
-        }
-        (stack.at(-1)?.lines ?? rootLines).push(line);
     }
     return stack.length === 0 && !fence ? { blocks, text: rootLines.join('\n').trim() } : undefined;
 }

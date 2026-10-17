@@ -707,6 +707,14 @@ suite('SDK purpose provider preparation', () => {
             ['claude', SDK_CLAUDE_MAIN],
             ['gemini', SDK_GEMINI_MAIN],
             ['generic with skills', SDK_GENERIC_MAIN_WITH_SKILLS],
+            ['adjacent generic tags', SDK_GENERIC_MAIN_WITH_SKILLS.replace(/>\n\s*(?=<\/?[a-z])/g, '>')],
+            [
+                'adjacent reference and tool tags',
+                SDK_GENERIC_MAIN_WITH_SKILLS.replace(
+                    '<tool_calling>',
+                    '<github_reference_formatting>\nSynthetic references.\n</github_reference_formatting><tool_calling>'
+                )
+            ],
             ['selected custom', SDK_SELECTED_CUSTOM_MAIN],
             ['alternative identity', SDK_MAIN.replace(SDK_HOST_IDENTITY, 'Synthetic alternative identity.')],
             ['legacy identity', SDK_MAIN.replace(SDK_HOST_IDENTITY, 'You are an expert AI programming assistant.')]
@@ -746,6 +754,7 @@ suite('SDK purpose provider preparation', () => {
 
         for (const [name, prompt, kind] of [
             ['custom', SDK_CUSTOM_SUBAGENT, 'subagent'],
+            ['adjacent custom tags', SDK_CUSTOM_SUBAGENT.replace(/>\n\s*(?=<\/?[a-z])/g, '>'), 'subagent'],
             ['code-review', SDK_CODE_REVIEW_SUBAGENT, 'subagent'],
             ['security-review', SDK_SECURITY_REVIEW_SUBAGENT, 'subagent'],
             ['research', SDK_RESEARCH_SUBAGENT, 'search-subagent']
@@ -844,6 +853,42 @@ suite('SDK purpose provider preparation', () => {
                 });
             }
         }
+
+        test(`${mode}: adjacent SDK tags preserve classification and session in usage records`, async () => {
+            const prompt = `${SDK_GENERIC_MAIN_WITH_SKILLS}\n${SDK_SESSION_CONTEXT}`.replace(
+                />\n\s*(?=<\/?[a-z])/g,
+                '>'
+            );
+            const sessionId = randomUUID();
+            const original = { ...options(), modelOptions: { _conversationId: sessionId } };
+            const manager = TokenUsagesManager.instance;
+            const recordEstimatedTokens = manager.recordEstimatedTokens;
+            let recorded: Parameters<typeof recordEstimatedTokens>[0] | undefined;
+            manager.recordEstimatedTokens = async params => {
+                recorded = params;
+                return 'synthetic-adjacent-tag-record';
+            };
+            try {
+                for (const latestUser of ['Synthetic assignment.', SDK_COMPACTION]) {
+                    const input = messages(prompt, latestUser);
+                    const before = JSON.stringify(input);
+                    const tracked = await provider.prepare(input, original, mode);
+                    assert.equal(tracked.requestKind, latestUser === SDK_COMPACTION ? 'summarization' : 'main-agent');
+                    assert.equal(tracked.sessionId, sessionId);
+                    assert.equal(await provider.record(tracked), 'synthetic-adjacent-tag-record');
+                    assert.ok(recorded);
+                    assert.equal(recorded.requestKind, tracked.requestKind);
+                    assert.deepEqual(recorded.requestClassification, tracked.requestClassification);
+                    assert.equal(recorded.sessionId, sessionId);
+                    assert.deepEqual(recorded.requestContinuity, { version: 1, scope: 'chain', source: 'sdk-session' });
+                    assert.equal(JSON.stringify(input), before);
+                    recorded = undefined;
+                }
+                assert.deepEqual(original.modelOptions, { _conversationId: sessionId });
+            } finally {
+                manager.recordEstimatedTokens = recordEstimatedTokens;
+            }
+        });
 
         test(`${mode}: shared handoff summary preserves marker without acquiring legacy recovery`, async () => {
             const sessionId = randomUUID();

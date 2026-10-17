@@ -69,6 +69,111 @@ const childCases = [
     ['general-purpose', SDK_GENERAL_SUBAGENT, 'subagent']
 ] as const;
 
+for (const [name, prompt, kind] of [
+    ['main', SDK_MAIN, 'main-agent'],
+    ['claude', SDK_CLAUDE_MAIN, 'main-agent'],
+    ['gemini', SDK_GEMINI_MAIN, 'main-agent'],
+    ['generic', SDK_GENERIC_MAIN_WITH_SKILLS, 'main-agent'],
+    ...childCases
+] as const) {
+    test(`SDK ${name} 相邻结构标签不改变用途和角色`, async () => {
+        const classifier = await getClassifier();
+        for (const compact of [
+            prompt.replace(/(<\/[a-z][a-z0-9_-]*>)\s*\n\s*(?=<[a-z])/g, '$1'),
+            prompt.replace(/>\n\s*(?=<\/?[a-z])/g, '>'),
+            prompt.replace(/>\n\s*(?=<\/?[a-z])/g, '>  ')
+        ]) {
+            assert.notEqual(compact, prompt);
+            const result = classifier.classifyRequestContext([system(compact)], { requestInitiator: 'core' });
+            assert.equal(result.requestOrigin, 'copilot-sdk');
+            assert.equal(result.requestKind, kind);
+            assert.equal(result.agentRole, kind === 'main-agent' ? 'main' : 'subagent');
+            assert.equal(result.evidence.purpose.level, 'signature');
+        }
+    });
+}
+
+test('SDK 相邻 github_reference_formatting 和 tool_calling 标签保持主框架', async () => {
+    const classifier = await getClassifier();
+    const prompt = SDK_GENERIC_MAIN.replace(
+        '<tool_calling>',
+        '<github_reference_formatting>\nSynthetic reference rules.\n</github_reference_formatting><tool_calling>'
+    );
+    assert.notEqual(prompt, SDK_GENERIC_MAIN);
+    const result = classifier.classifyRequestContext([system(prompt)], { requestInitiator: 'core' });
+    assert.equal(result.requestKind, 'main-agent');
+    assert.equal(result.agentRole, 'main');
+});
+
+test('SDK 紧邻标签不使引用、围栏或重复关键块获得主角色', async () => {
+    const classifier = await getClassifier();
+    const compact = SDK_MAIN.replace(/>\n\s*(?=<\/?[a-z])/g, '>');
+    for (const prompt of [
+        `<reference-prompt><reference-note>\n${compact}\n</reference-note></reference-prompt>`,
+        `\`\`\`text\n${compact}\n\`\`\``,
+        compact
+            .split('\n')
+            .map(line => `> ${line}`)
+            .join('\n'),
+        `${compact}\n<system_notifications></system_notifications>`,
+        `<reference-prompt><reference-note>\n${compact}\n</reference-prompt></reference-note>`
+    ]) {
+        const result = classifier.classifyRequestContext([system(prompt)], { requestInitiator: 'core' });
+        assert.equal(result.requestKind, 'unclassified');
+        assert.equal(result.agentRole, 'undetermined');
+    }
+});
+
+test('SDK 正文中的相邻标签示例不被拆成结构', async () => {
+    const classifier = await getClassifier();
+    for (const note of [
+        'The literal delimiter is </example><example> and is not a directive.',
+        'Use `</reference-prompt><tool_calling>` when describing this boundary.',
+        'The sample is <reference-prompt><tool_calling> without closing tags.'
+    ]) {
+        const result = classifier.classifyRequestContext([system(`${SDK_MAIN}\n${note}`)]);
+        assert.equal(result.requestKind, 'main-agent');
+        assert.equal(result.agentRole, 'main');
+    }
+});
+
+test('SDK 相邻标签跨消息片段并保持压缩证据与会话哈希', async () => {
+    const classifier = await getClassifier();
+    const original = `${SDK_GENERIC_MAIN_WITH_SKILLS}\n${SDK_SESSION_CONTEXT}`;
+    const baseline = [system(original)];
+    const expectedKey = classifier.getSdkSessionContextKey(baseline, classifier.classifyRequestContext(baseline));
+    assert.ok(expectedKey);
+    const compact = original.replace(/>\n\s*(?=<\/?[a-z])/g, '>\t');
+    const boundary = compact.indexOf('</system_notifications>') + '</system_notifications>'.length;
+    assert.ok(boundary > '</system_notifications>'.length);
+    for (const prompt of [compact, compact.replace(/\n/g, '\r\n')]) {
+        const parts = [prompt.slice(0, boundary), prompt.slice(boundary)];
+        for (const latestUser of ['Synthetic assignment.', SDK_COMPACTION]) {
+            const input = [system(...parts), user(latestUser)];
+            const result = classifier.classifyRequestContext(input, { requestInitiator: 'core' });
+            assert.equal(result.requestKind, latestUser === SDK_COMPACTION ? 'summarization' : 'main-agent');
+            assert.equal(result.agentRole, latestUser === SDK_COMPACTION ? 'undetermined' : 'main');
+            assert.equal(
+                result.evidence.purpose.reasonCode,
+                latestUser === SDK_COMPACTION ? 'sdk-compaction-unconfirmed' : undefined
+            );
+            assert.equal(classifier.getSdkSessionContextKey(input, result), expectedKey);
+        }
+    }
+});
+
+test('共用摘要相邻标签保留辅助用途且不能借嵌套模板推断来源', async () => {
+    const classifier = await getClassifier();
+    const compact = SHARED_HANDOFF_SUMMARY.replace('</analysis>\n<summary>', '</analysis><summary>');
+    assert.notEqual(compact, SHARED_HANDOFF_SUMMARY);
+    assert.equal(isSharedHandoffSummary(compact), true);
+    const result = classifier.classifyRequestContext([system(compact)], { requestInitiator: 'core' });
+    assert.equal(result.requestKind, 'summarization');
+    assert.equal(result.requestOrigin, 'core');
+    assert.equal(result.agentRole, 'not-applicable');
+    assert.equal(isSharedHandoffSummary(`<reference-prompt>\n${compact}\n</reference-prompt>`), false);
+});
+
 for (const [name, prompt] of [
     ['default', SDK_MAIN],
     ['claude', SDK_CLAUDE_MAIN],

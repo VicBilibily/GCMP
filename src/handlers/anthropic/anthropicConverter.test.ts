@@ -176,7 +176,7 @@ test('Anthropic retains legacy data precedence when both encrypted fields are pr
     assert.deepEqual(getAssistantContent(result), [{ type: 'redacted_thinking', data: 'legacy-cipher' }]);
 });
 
-test('空 thinking 块不下发，避免上游 400（each thinking block must contain non-whitespace thinking）', async () => {
+test('缺少来源的空 thinking 块不下发', async () => {
     const { apiMessageToAnthropicMessage } = await getConverterModule();
     const messages = [
         { role: 'user', content: [new vscodeMock.LanguageModelTextPart('hi')] },
@@ -194,6 +194,90 @@ test('空 thinking 块不下发，避免上游 400（each thinking block must co
     assert.ok(!blocks.some(block => block.type === 'thinking'));
     assert.ok(blocks.some(block => block.type === 'text'));
 });
+
+for (const value of ['', []]) {
+    test(`Anthropic preserves matching signed empty thinking: array=${Array.isArray(value)}`, async () => {
+        const { apiMessageToAnthropicMessage } = await getConverterModule();
+        const model = 'claude-haiku-5-5';
+        const result = apiMessageToAnthropicMessage(makeModelConfig(model), [
+            {
+                role: 'assistant',
+                content: [
+                    new vscodeMock.LanguageModelThinkingPart(value, 'thinking-omitted', {
+                        signature: 'opaque-signature',
+                        provider: 'opencode',
+                        modelId: model
+                    }),
+                    new vscodeMock.LanguageModelTextPart('answer')
+                ]
+            }
+        ] as never);
+        assert.deepEqual(getAssistantContent(result), [
+            { type: 'thinking', thinking: '', signature: 'opaque-signature' },
+            { type: 'text', text: 'answer' }
+        ]);
+    });
+}
+
+test('Anthropic rejects mismatched or unsigned empty thinking and signed whitespace', async () => {
+    const { apiMessageToAnthropicMessage } = await getConverterModule();
+    const model = 'claude-haiku-5-5';
+    for (const metadata of [
+        { signature: 'opaque', provider: 'other', modelId: model },
+        { signature: 'opaque', provider: 'opencode', modelId: 'other-model' },
+        { signature: '', provider: 'opencode', modelId: model },
+        { signature: '   ', provider: 'opencode', modelId: model },
+        { signature: 'opaque' }
+    ]) {
+        const result = apiMessageToAnthropicMessage(makeModelConfig(model), [
+            {
+                role: 'assistant',
+                content: [new vscodeMock.LanguageModelThinkingPart('', undefined, metadata)]
+            }
+        ] as never);
+        assert.ok(!getAssistantContent(result)?.some(block => block.type === 'thinking'));
+    }
+    for (const value of [' ', [' ', '\n']]) {
+        const result = apiMessageToAnthropicMessage(makeModelConfig(model), [
+            {
+                role: 'assistant',
+                content: [
+                    new vscodeMock.LanguageModelThinkingPart(value, undefined, {
+                        signature: 'opaque',
+                        provider: 'opencode',
+                        modelId: model
+                    })
+                ]
+            }
+        ] as never);
+        assert.ok(!getAssistantContent(result)?.some(block => block.type === 'thinking'));
+    }
+});
+
+for (const completeThinking of [undefined, '']) {
+    test(`Anthropic restores signed empty marker thinking: explicit=${completeThinking !== undefined}`, async () => {
+        const { apiMessageToAnthropicMessage } = await getConverterModule();
+        const data = encodeStatefulMarkerForTest({
+            provider: 'opencode',
+            completeThinking,
+            completeSignature: 'opaque-marker-signature'
+        });
+        const result = apiMessageToAnthropicMessage(makeModelConfig(), [
+            {
+                role: 'assistant',
+                content: [
+                    { data, mimeType: CustomDataPartMimeTypes.StatefulMarker },
+                    new vscodeMock.LanguageModelTextPart('answer')
+                ]
+            }
+        ] as never);
+        assert.deepEqual(getAssistantContent(result)[0], {
+            type: 'thinking',
+            thinking: '',
+            signature: 'opaque-marker-signature'
+        });
+    });
+}
 
 test('空白 _completeThinking 与空白分片同样不下发', async () => {
     const { apiMessageToAnthropicMessage } = await getConverterModule();

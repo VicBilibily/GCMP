@@ -54,6 +54,27 @@ function getThinkingMetadata(part: vscode.LanguageModelThinkingPart): ThinkingPa
     return (part as unknown as { metadata?: ThinkingPartMetadata }).metadata ?? {};
 }
 
+function canReplaySignedEmptyThinking(
+    thinking: string | undefined,
+    signature: string | undefined,
+    origin: Pick<ThinkingPartMetadata, 'provider' | 'modelId'>,
+    model: ModelConfig,
+    providerKey?: string
+): boolean {
+    return (
+        (thinking === undefined || thinking === '') &&
+        typeof signature === 'string' &&
+        signature.trim() !== '' &&
+        !!origin.provider &&
+        origin.provider === (model.provider || providerKey || '') &&
+        [model.id, model.model].some(
+            modelId =>
+                typeof modelId === 'string' &&
+                (origin.modelId === modelId || origin.modelId === `gcmp.${origin.provider}:::${modelId}`)
+        )
+    );
+}
+
 function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['content']) {
     for (let index = content.length - 1; index >= 0; index--) {
         const part = content[index];
@@ -164,9 +185,20 @@ function apiMessageToAnthropicContent(
                     }
                 }
 
-                // Anthropic（含上游代理）要求 thinking 块必须含非空白内容；空白块一律不下发，
-                // 旧 fallback 用单个空格，恰属全空白，会被上游以 400 拒绝
-                if (thinking.trim() !== '') {
+                const visibleThinking = typeof part.value === 'string' ? part.value : part.value.join('');
+                const signedEmpty =
+                    visibleThinking === '' &&
+                    canReplaySignedEmptyThinking(
+                        thinking,
+                        metadata.signature,
+                        {
+                            provider: metadata.provider ?? markerThinking?.provider,
+                            modelId: metadata.modelId ?? markerThinking?.modelId
+                        },
+                        modelConfig,
+                        providerKey
+                    );
+                if (thinking.trim() !== '' || signedEmpty) {
                     thinkingBlocks.push({
                         type: 'thinking',
                         thinking,
@@ -299,6 +331,15 @@ function apiMessageToAnthropicContent(
         // 如果 VS Code 剥离了 ThinkingPart，则从 StatefulMarker 恢复思考内容（对所有模型生效，
         // 服务端对与自身无关的 thinking 块会智能忽略）
         if (thinkingBlocks.length === 0) {
+            const signedEmpty =
+                !!markerThinking &&
+                canReplaySignedEmptyThinking(
+                    markerThinking.thinking,
+                    markerThinking.signature,
+                    markerThinking,
+                    modelConfig,
+                    providerKey
+                );
             // 优先恢复 redacted_thinking 加密块（anthropic 模式），保持加密思维链连续性
             if (
                 markerThinking?.redactedData?.length &&
@@ -314,15 +355,16 @@ function apiMessageToAnthropicContent(
                     } as RedactedThinkingBlockParam);
                 }
             } else if (
-                // Anthropic 上游拒绝全空白 thinking 块：仅非空白内容才恢复下发；
                 // shouldInjectReasoningPlaceholder 仅服务 DeepSeek V4 / 小米 MiMo 兼容端点（要求字段存在但容忍空白），不受影响
                 (typeof markerThinking?.thinking === 'string' && markerThinking.thinking.trim() !== '') ||
+                signedEmpty ||
                 shouldInjectReasoningPlaceholder({ modelConfig })
             ) {
                 const restoredThinking =
                     typeof markerThinking?.thinking === 'string' && markerThinking.thinking.trim() !== '' ?
                         markerThinking.thinking
-                    :   ' ';
+                    : signedEmpty ? ''
+                    : ' ';
                 thinkingBlocks.push({
                     type: 'thinking',
                     thinking: restoredThinking,

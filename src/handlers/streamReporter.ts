@@ -390,8 +390,13 @@ export class StreamReporter {
      * （签名独立于思考文本输出）。
      */
     flushSignature(): void {
-        if (!this.signatureBuffer.hasPending || !this.thinkingBuffer.isActive) {
+        if (!this.signatureBuffer.hasPending) {
             return;
+        }
+        if (!this.thinkingBuffer.isActive) {
+            this.thinkingBuffer.append('');
+            this.tracker.reportOutputEvent();
+            this.hasThinkingContent = true;
         }
         const signature = this.signatureBuffer.take();
         const part = this.thinkingBuffer.buildSignaturePart(signature);

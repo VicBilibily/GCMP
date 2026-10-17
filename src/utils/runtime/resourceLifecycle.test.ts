@@ -427,21 +427,32 @@ interface FallbackInternals {
     directoryWatcher?: Watcher;
     fileStates: Map<string, { position: number; watcher?: Watcher }>;
     readTasks: Set<Promise<void>>;
+    activeReadCount: number;
+    readWaiters: Array<() => void>;
     readNewEvents(filename: string, replayed?: boolean): Promise<void>;
     initializeExistingFiles(replayed?: boolean): void;
+    cleanupStaleFiles(): void;
 }
 
-async function fallbackFixture(context: TestContext, watchFailures = 0) {
+async function fallbackFixture(context: TestContext, watchFailures = 0, autoStart = true) {
     const directory = await fs.promises.mkdtemp(join(tmpdir(), 'gcmp-fallback-lifecycle-'));
     const eventsDir = join(directory, 'inter-instance');
+    await fs.promises.mkdir(eventsDir);
     const received: Array<{ event: eventProtocol.InterInstanceEvent; replayed: boolean }> = [];
     const watchers: Watcher[] = [];
+    const watchedFiles: string[] = [];
     const timers = new Map<object, () => void>();
     const intervals = new Set<object>();
     const state = {
         watchFailures,
         openHandles: 0,
+        peakOpenHandles: 0,
+        statCalls: [] as string[],
+        openedFiles: [] as string[],
+        ioFailures: new Map<string, 'open' | 'read' | 'close'>(),
+        raisedFailures: 0,
         readGate: undefined as { entered: ReturnType<typeof gate>; release: ReturnType<typeof gate> } | undefined,
+        onStat: undefined as (() => void) | undefined,
         onEvent: undefined as (() => void) | undefined
     };
     const { FallbackTransport: Transport } = evaluate<typeof import('../../interInstance/fallbackTransport')>(
@@ -451,7 +462,8 @@ async function fallbackFixture(context: TestContext, watchFailures = 0) {
             '../utils/runtime/statusLogger': { StatusLogger: silentLogger },
             'node:fs': {
                 ...fs,
-                watch(_filename: string, callback: (...args: unknown[]) => void) {
+                watch(filename: string, callback: (...args: unknown[]) => void) {
+                    watchedFiles.push(filename);
                     if (state.watchFailures > 0) {
                         state.watchFailures--;
                         throw Object.assign(new Error('Injected watch failure'), { code: 'EPERM' });
@@ -463,11 +475,28 @@ async function fallbackFixture(context: TestContext, watchFailures = 0) {
                 },
                 promises: {
                     ...fs.promises,
+                    async stat(filename: string) {
+                        state.statCalls.push(filename);
+                        const stats = await fs.promises.stat(filename);
+                        state.onStat?.();
+                        return stats;
+                    },
                     async open(...args: Parameters<typeof fs.promises.open>) {
+                        const filename = String(args[0]);
+                        state.openedFiles.push(filename);
+                        if (state.ioFailures.get(filename) === 'open') {
+                            state.raisedFailures++;
+                            throw new Error('Injected open failure');
+                        }
                         const handle = await fs.promises.open(...args);
                         state.openHandles++;
+                        state.peakOpenHandles = Math.max(state.peakOpenHandles, state.openHandles);
                         return {
                             async read(buffer: Buffer, offset: number, length: number, position: number) {
+                                if (state.ioFailures.get(filename) === 'read') {
+                                    state.raisedFailures++;
+                                    throw new Error('Injected read failure');
+                                }
                                 if (state.readGate) {
                                     state.readGate.entered.release();
                                     await state.readGate.release.promise;
@@ -478,6 +507,10 @@ async function fallbackFixture(context: TestContext, watchFailures = 0) {
                             async close() {
                                 await handle.close();
                                 state.openHandles--;
+                                if (state.ioFailures.get(filename) === 'close') {
+                                    state.raisedFailures++;
+                                    throw new Error('Injected close failure');
+                                }
                             }
                         };
                     }
@@ -517,7 +550,9 @@ async function fallbackFixture(context: TestContext, watchFailures = 0) {
         await transport.stop();
         await fs.promises.rm(directory, { recursive: true, force: true });
     });
-    transport.start(extensionContext);
+    if (autoStart) {
+        transport.start(extensionContext);
+    }
     async function drainReads(): Promise<void> {
         while (internals.readTasks.size > 0) {
             await Promise.all(internals.readTasks);
@@ -531,11 +566,13 @@ async function fallbackFixture(context: TestContext, watchFailures = 0) {
             payload: { changedKeys: [`key-${sequence}`] }
         };
     }
-    async function writeEvents(sequences: number[]): Promise<string> {
-        const filename = join(eventsDir, 'events-remote.jsonl');
+    async function writeEvents(sequences: number[], instanceId = 'remote'): Promise<string> {
+        const filename = join(eventsDir, `events-${instanceId}.jsonl`);
         await fs.promises.appendFile(
             filename,
-            sequences.map(sequence => JSON.stringify(event(sequence)) + '\n').join('')
+            sequences
+                .map(sequence => JSON.stringify({ ...event(sequence), senderInstanceId: instanceId }) + '\n')
+                .join('')
         );
         return filename;
     }
@@ -552,6 +589,7 @@ async function fallbackFixture(context: TestContext, watchFailures = 0) {
         extensionContext,
         received,
         watchers,
+        watchedFiles,
         timers,
         intervals,
         state,
@@ -675,3 +713,204 @@ test('fallback lifecycle repeated start does not replace watchers or cleanup tim
     assert.equal(fixture.watchers.length, 1);
     assert.equal(fixture.intervals.size, 1);
 });
+
+for (const fileCount of [8, 64]) {
+    test(`fallback limits concurrent reads across ${fileCount} event files`, { timeout: 5000 }, async context => {
+        const fixture = await fallbackFixture(context);
+        for (let index = 0; index < fileCount; index++) {
+            await fixture.writeEvents([index + 1], `remote-${index}`);
+        }
+        const scanned = gate();
+        let statCount = 0;
+        fixture.state.onStat = () => {
+            if (++statCount === fileCount) {
+                scanned.release();
+            }
+        };
+        fixture.state.readGate = { entered: gate(), release: gate() };
+        fixture.internals.initializeExistingFiles();
+        await scanned.promise;
+        await fixture.state.readGate.entered.promise;
+        await new Promise<void>(resolve => setImmediate(resolve));
+        const admittedReads = fixture.state.openedFiles.length;
+        fixture.state.readGate.release.release();
+        await fixture.drainReads();
+
+        assert.ok(admittedReads <= 4, `Admitted ${admittedReads} reads while the first batch was blocked`);
+        assert.ok(fixture.state.peakOpenHandles <= 4, `Opened ${fixture.state.peakOpenHandles} files at once`);
+        assert.equal(fixture.state.openHandles, 0);
+        assert.equal(fixture.received.length, fileCount);
+        assert.equal(new Set(fixture.received.map(entry => entry.event.timestamp)).size, fileCount);
+        assert.ok(fixture.received.every(entry => entry.replayed));
+    });
+}
+
+test('fallback stop drains active reads without opening queued files', { timeout: 5000 }, async context => {
+    const fixture = await fallbackFixture(context);
+    for (let index = 0; index < 8; index++) {
+        await fixture.writeEvents([index + 1], `remote-${index}`);
+    }
+    fixture.state.readGate = { entered: gate(), release: gate() };
+    fixture.internals.initializeExistingFiles();
+    await fixture.state.readGate.entered.promise;
+    const openedBeforeStop = fixture.state.openedFiles.length;
+    let returned = false;
+    const stopping = fixture.transport.stop().then(() => {
+        returned = true;
+    });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(returned, false);
+    fixture.state.readGate.release.release();
+    await stopping;
+
+    assert.ok(openedBeforeStop <= 4, `Opened ${openedBeforeStop} files before stop`);
+    assert.equal(fixture.state.openedFiles.length, openedBeforeStop);
+    assert.equal(fixture.state.openHandles, 0);
+    assert.equal(fixture.internals.readTasks.size, 0);
+    assert.equal(fixture.internals.activeReadCount, 0);
+    assert.equal(fixture.internals.readWaiters.length, 0);
+    assert.equal(fixture.received.length, 0);
+    assert.ok(fixture.watchers.every(watcher => watcher.closeCount === 1));
+});
+
+test('fallback startup removes stale files before watching or reading them', async context => {
+    const fixture = await fallbackFixture(context, 0, false);
+    const staleFile = await fixture.writeEvents([1], 'stale');
+    const freshFile = await fixture.writeEvents([2], 'fresh');
+    const expired = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    await fs.promises.utimes(staleFile, expired, expired);
+    fixture.transport.start(fixture.extensionContext);
+    await fixture.drainReads();
+
+    assert.equal(fs.existsSync(staleFile), false);
+    assert.equal(fixture.watchedFiles.includes(staleFile), false);
+    assert.equal(fixture.state.statCalls.includes(staleFile), false);
+    assert.ok(fixture.watchedFiles.includes(freshFile));
+    assert.deepEqual(
+        fixture.received.map(entry => [entry.event.timestamp, entry.replayed]),
+        [[2, true]]
+    );
+});
+
+test(
+    'fallback queued reads preserve replay boundaries and coalesce notifications',
+    { timeout: 5000 },
+    async context => {
+        const fixture = await fallbackFixture(context);
+        const files: string[] = [];
+        for (let index = 0; index < 8; index++) {
+            files.push(await fixture.writeEvents([index + 1], `remote-${index}`));
+        }
+        const scanned = gate();
+        let statCount = 0;
+        fixture.state.onStat = () => {
+            if (++statCount === files.length) {
+                scanned.release();
+            }
+        };
+        fixture.state.readGate = { entered: gate(), release: gate() };
+        fixture.internals.initializeExistingFiles();
+        await scanned.promise;
+        await fixture.state.readGate.entered.promise;
+        await new Promise<void>(resolve => setImmediate(resolve));
+        const queuedIndex = files.findIndex(filename => !fixture.state.openedFiles.includes(filename));
+        assert.ok(queuedIndex >= 0, 'Expected an event file to remain queued');
+        const filename = await fixture.writeEvents([100], `remote-${queuedIndex}`);
+        await Promise.all(Array.from({ length: 20 }, () => fixture.internals.readNewEvents(filename)));
+        assert.equal(fixture.internals.readTasks.size, files.length);
+        fixture.state.readGate.release.release();
+        await fixture.drainReads();
+
+        assert.deepEqual(
+            fixture.received
+                .filter(entry => entry.event.senderInstanceId === `remote-${queuedIndex}`)
+                .map(entry => [entry.event.timestamp, entry.replayed]),
+            [
+                [queuedIndex + 1, true],
+                [100, false]
+            ]
+        );
+        assert.equal(fixture.state.openedFiles.filter(opened => opened === filename).length, 2);
+        assert.equal(fixture.received.length, 9);
+        assert.ok(fixture.state.peakOpenHandles <= 4);
+        assert.equal(fixture.state.openHandles, 0);
+    }
+);
+
+for (const operation of ['open', 'read', 'close'] as const) {
+    test(`fallback releases read slots after ${operation} errors`, { timeout: 5000 }, async context => {
+        const fixture = await fallbackFixture(context);
+        for (let index = 0; index < 8; index++) {
+            const filename = await fixture.writeEvents([index + 1], `remote-${index}`);
+            if (index < 4) {
+                fixture.state.ioFailures.set(filename, operation);
+            }
+        }
+        fixture.internals.initializeExistingFiles();
+        await fixture.drainReads();
+
+        assert.equal(fixture.state.raisedFailures, 4);
+        assert.equal(fixture.received.length, operation === 'close' ? 8 : 4);
+        assert.ok(fixture.state.peakOpenHandles <= 4);
+        assert.equal(fixture.state.openHandles, 0);
+        assert.equal(fixture.internals.activeReadCount, 0);
+        assert.equal(fixture.internals.readWaiters.length, 0);
+        fixture.state.ioFailures.clear();
+        const filename = await fixture.writeEvents([100], 'remote-0');
+        await fixture.internals.readNewEvents(filename);
+        await fixture.drainReads();
+        assert.ok(fixture.received.some(entry => entry.event.timestamp === 100 && !entry.replayed));
+        assert.equal(fixture.state.openHandles, 0);
+    });
+}
+
+for (const recreate of [false, true]) {
+    test(`fallback skips expired queued reader state: recreate=${recreate}`, { timeout: 5000 }, async context => {
+        const fixture = await fallbackFixture(context);
+        const files: string[] = [];
+        for (let index = 0; index < 8; index++) {
+            files.push(await fixture.writeEvents([index + 1], `remote-${index}`));
+        }
+        const scanned = gate();
+        let statCount = 0;
+        fixture.state.onStat = () => {
+            if (++statCount === files.length) {
+                scanned.release();
+            }
+        };
+        fixture.state.readGate = { entered: gate(), release: gate() };
+        fixture.internals.initializeExistingFiles();
+        await scanned.promise;
+        await fixture.state.readGate.entered.promise;
+        await new Promise<void>(resolve => setImmediate(resolve));
+        const queuedIndex = files.findIndex(filename => !fixture.state.openedFiles.includes(filename));
+        assert.ok(queuedIndex >= 0);
+        const filename = files[queuedIndex];
+        const oldState = fixture.internals.fileStates.get(filename)!;
+        const expired = new Date(Date.now() - 25 * 60 * 60 * 1000);
+        await fs.promises.utimes(filename, expired, expired);
+        fixture.internals.cleanupStaleFiles();
+        assert.equal(fixture.internals.fileStates.has(filename), false);
+        assert.equal(oldState.watcher!.closeCount, 1);
+        if (recreate) {
+            await fixture.writeEvents([200], `remote-${queuedIndex}`);
+            fixture.internals.initializeExistingFiles(false);
+            assert.notEqual(fixture.internals.fileStates.get(filename), oldState);
+        }
+        fixture.state.readGate.release.release();
+        await fixture.drainReads();
+
+        assert.equal(fixture.state.openedFiles.filter(opened => opened === filename).length, recreate ? 1 : 0);
+        assert.deepEqual(
+            fixture.received
+                .filter(entry => entry.event.senderInstanceId === `remote-${queuedIndex}`)
+                .map(entry => [entry.event.timestamp, entry.replayed]),
+            recreate ? [[200, false]] : []
+        );
+        assert.equal(fixture.received.length, recreate ? 8 : 7);
+        assert.ok(fixture.state.peakOpenHandles <= 4);
+        assert.equal(fixture.state.openHandles, 0);
+        assert.equal(fixture.internals.activeReadCount, 0);
+        assert.equal(fixture.internals.readWaiters.length, 0);
+    });
+}

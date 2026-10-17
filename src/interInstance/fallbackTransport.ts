@@ -43,6 +43,7 @@ interface FileReadState {
 const EVENT_FILE_PREFIX = 'events-';
 const EVENT_FILE_SUFFIX = '.jsonl';
 const EVENT_FILE_RETENTION_MS = 24 * 60 * 60 * 1000; // 1 天
+const MAX_CONCURRENT_EVENT_READS = 4;
 /** 单个事件文件的最大体积，超过后压缩，避免活跃实例的事件文件无限增长 */
 const MAX_EVENT_FILE_SIZE_BYTES = 1024 * 1024; // 1MB
 const CONTINUITY_TAIL_BYTES = 64;
@@ -87,6 +88,8 @@ export class FallbackTransport {
     private watcherRecoveryTimer: NodeJS.Timeout | undefined;
     private directoryWatcher: fs.FSWatcher | undefined;
     private readonly readTasks = new Set<Promise<void>>();
+    private activeReadCount = 0;
+    private readonly readWaiters: Array<() => void> = [];
     private readonly DARWIN_POLL_INTERVAL_MS = 2000;
     /** 本实例事件文件写队列，保证截断与追加是不可交错的单一操作序列 */
     private publishChain: Promise<void> = Promise.resolve();
@@ -111,6 +114,7 @@ export class FallbackTransport {
         );
 
         fs.mkdirSync(this.eventsDir, { recursive: true });
+        this.cleanupStaleFiles();
 
         // 初始化已有文件读取位置
         this.initializeExistingFiles();
@@ -120,7 +124,6 @@ export class FallbackTransport {
 
         // 启动过期文件清理（每小时一次）
         this.cleanupTimer = setInterval(() => this.cleanupStaleFiles(), 60 * 60 * 1000);
-        this.cleanupStaleFiles();
 
         // macOS 上 fs.watch 对目录变更不可靠，额外启动一个轮询兜底
         if (process.platform === 'darwin') {
@@ -348,6 +351,23 @@ export class FallbackTransport {
         return task;
     }
 
+    private acquireReadSlot(): Promise<void> {
+        if (this.activeReadCount < MAX_CONCURRENT_EVENT_READS) {
+            this.activeReadCount++;
+            return Promise.resolve();
+        }
+        return new Promise<void>(resolve => this.readWaiters.push(resolve));
+    }
+
+    private releaseReadSlot(): void {
+        const next = this.readWaiters.shift();
+        if (next) {
+            next();
+        } else {
+            this.activeReadCount--;
+        }
+    }
+
     private async readFileEvents(filePath: string, replayed: boolean): Promise<void> {
         if (this.disposed) {
             return;
@@ -363,6 +383,7 @@ export class FallbackTransport {
         state.reading = true;
 
         let handle: fs.promises.FileHandle | undefined;
+        let hasReadSlot = false;
         try {
             let stats = await fs.promises.stat(filePath).catch(() => null);
             if (this.disposed || this.fileStates.get(filePath) !== state) {
@@ -375,6 +396,11 @@ export class FallbackTransport {
                 return;
             }
 
+            await this.acquireReadSlot();
+            hasReadSlot = true;
+            if (this.disposed || this.fileStates.get(filePath) !== state) {
+                return;
+            }
             handle = await fs.promises.open(filePath, 'r');
             let rewritten = stats.size < state.position;
             if (!rewritten && state.position > 0 && state.continuityTail?.length) {
@@ -533,6 +559,9 @@ export class FallbackTransport {
             try {
                 await handle?.close();
             } finally {
+                if (hasReadSlot) {
+                    this.releaseReadSlot();
+                }
                 state.reading = false;
                 if (state.readAgain && this.fileStates.get(filePath) === state) {
                     state.readAgain = false;

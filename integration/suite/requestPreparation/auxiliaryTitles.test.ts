@@ -48,6 +48,56 @@ const TASK_PROMPTS: Partial<Record<RequestKind, string>> = {
     'chat-title': 'You are an expert in crafting pithy titles',
     'inline-progress-message': 'You are an expert in writing short, catchy, and encouraging progress messages'
 };
+const WORKSPACE_SPECIFICATION_PROMPT =
+    'You are a VS Code assistant. Your job is to generate the project specification when given the user description and file tree structure of the project that a user wants to create.';
+const WORKSPACE_MUTATION_FILE_PROMPT =
+    `${WORKSPACE_SPECIFICATION_PROMPT}\nAdditional Rules\n` +
+    "The user will describe the task they're trying to accomplish, and ask you to generate or edit a file in persuit of that task.";
+const WORKSPACE_STAGE_PROMPTS = [
+    [
+        'intent',
+        'You are a Visual Studio Code assistant focused on aiding users in crafting clear and specific specifications about project or file creation within Visual Studio Code. Your role involves:',
+        'workspace-gen'
+    ],
+    [
+        'tree',
+        'You are a VS Code assistant. Your job is to suggest a filetree directory structure for a project that a user wants to create.',
+        'workspace-gen'
+    ],
+    [
+        'url',
+        'You are a Visual Studio Code assistant. The user has identified a project URL for a new project they want to create.',
+        'workspace-gen'
+    ],
+    [
+        'file contents',
+        'You are a VS Code assistant. Your job is to generate the contents of a file in a project when given the user description, specification and tree structure of the project that a user wants to create.',
+        'workspace-gen'
+    ],
+    [
+        'specification',
+        `${WORKSPACE_SPECIFICATION_PROMPT}\nAdditional Rules\nThink step by step and respond with a text description that lists and summarizes each file inside this project.`,
+        'workspace-gen'
+    ],
+    [
+        'test setup plan',
+        `${WORKSPACE_SPECIFICATION_PROMPT}\nAdditional Rules\n` +
+            'You will be given a user query and a tree of files they wish to edit or create in order to accomplish a task. ' +
+            "Think step by step and respond with a text description that lists and summarizes what needs to be done in each file to accomplish the user's task.",
+        'test-gen'
+    ],
+    [
+        'test setup new file',
+        `${WORKSPACE_MUTATION_FILE_PROMPT}\nPrint the entire contents of the file you propose.`,
+        'test-gen'
+    ],
+    ['test setup edit file', `${WORKSPACE_MUTATION_FILE_PROMPT}\nDo not include comments in json files.`, 'test-gen'],
+    [
+        'vscode query rewrite',
+        'You are a Visual Studio Code assistant who helps the user create well-formed and unambiguous queries about their Visual Studio Code development environment.',
+        'vscode-qa'
+    ]
+] as const;
 
 function requestOptions(_requestKind?: RequestKind): vscode.ProvideLanguageModelChatResponseOptions {
     return {
@@ -350,6 +400,75 @@ suite('auxiliary request title preparation', () => {
     }
 
     for (const sdkMode of SDK_MODES) {
+        for (const [stage, prompt, kind] of WORKSPACE_STAGE_PROMPTS) {
+            test(`${sdkMode}: legacy workspace stages preserve ${stage} classification and usage`, async () => {
+                const messages = [
+                    new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.System, prompt),
+                    vscode.LanguageModelChatMessage.User(`<userRequest>${USER_REQUEST}</userRequest>`)
+                ];
+                const options = {
+                    ...requestOptions(),
+                    modelOptions: { requestKind: 'main-agent', temperature: 0 }
+                };
+                const before = JSON.stringify({ messages, options });
+                const tracked = await provider.prepare(messages, options, sdkMode);
+                assert.equal(tracked.requestKind, kind);
+                assert.equal(tracked.classification.requestOrigin, 'copilot-chat');
+                assert.equal(tracked.classification.agentRole, 'not-applicable');
+                assert.equal(tracked.requestClassification.evidence.purpose.level, 'signature');
+                assert.equal(tracked.options.modelOptions?.requestKind, kind);
+                assert.equal(tracked.subSessionId, undefined);
+
+                let recorded: Parameters<typeof manager.recordEstimatedTokens>[0] | undefined;
+                manager.recordEstimatedTokens = async params => {
+                    recorded = params;
+                    return 'workspace-stage-request';
+                };
+                const modelConfig: ModelConfig = {
+                    id: 'preparation-model',
+                    name: 'Preparation Model',
+                    tooltip: 'Preparation Model',
+                    maxInputTokens: 8192,
+                    maxOutputTokens: 1024,
+                    capabilities: { imageInput: true, toolCalling: true }
+                };
+                assert.equal(
+                    await provider.record({
+                        providerKey: PROVIDER_KEY,
+                        displayName: 'Preparation Test',
+                        model: { id: modelConfig.id, name: modelConfig.name } as vscode.LanguageModelChatInformation,
+                        modelConfig,
+                        estimatedInputTokens: tracked.totalInputTokens,
+                        requestKind: tracked.requestKind,
+                        requestClassification: tracked.requestClassification,
+                        requestContinuity: tracked.requestContinuity,
+                        sessionId: tracked.sessionId,
+                        subSessionId: tracked.subSessionId,
+                        sessionRecoverySource: tracked.sessionRecoverySource,
+                        options: tracked.options
+                    }),
+                    'workspace-stage-request'
+                );
+                assert.ok(recorded);
+                assert.equal(recorded.requestKind, kind);
+                assert.deepEqual(recorded.requestClassification, tracked.requestClassification);
+                assert.equal(JSON.stringify({ messages, options }), before);
+            });
+        }
+
+        test(`${sdkMode}: legacy workspace stages do not trust ordinary user messages`, async () => {
+            for (const [, prompt] of WORKSPACE_STAGE_PROMPTS) {
+                const tracked = await provider.prepare(
+                    [vscode.LanguageModelChatMessage.User(prompt)],
+                    requestOptions(),
+                    sdkMode
+                );
+                assert.equal(tracked.requestKind, 'unclassified');
+                assert.equal(tracked.classification.agentRole, 'undetermined');
+                assert.equal(tracked.requestClassification.evidence.purpose.level, 'unknown');
+            }
+        });
+
         for (const prompt of [
             'You are an expert in file editing. The user has provided a patch that failed to apply',
             'You are an expert at analyzing files and patterns'

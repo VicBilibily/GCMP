@@ -23,6 +23,26 @@ const COMPACTION = [
     'IMPORTANT: Output your summary wrapped in <summary> and </summary> tags.',
     'Do NOT call any tools. Your ONLY task right now is to produce a comprehensive summary of the conversation so far.'
 ].join('\n');
+const WORKSPACE_SPECIFICATION =
+    'You are a VS Code assistant. Your job is to generate the project specification when given the user description and file tree structure of the project that a user wants to create.';
+const WORKSPACE_SPECIFICATION_RULE =
+    'Think step by step and respond with a text description that lists and summarizes each file inside this project.';
+const WORKSPACE_MUTATION_PLAN_RULE =
+    'You will be given a user query and a tree of files they wish to edit or create in order to accomplish a task. ' +
+    "Think step by step and respond with a text description that lists and summarizes what needs to be done in each file to accomplish the user's task.";
+const WORKSPACE_MUTATION_FILE_RULE =
+    "The user will describe the task they're trying to accomplish, and ask you to generate or edit a file in persuit of that task.";
+
+function workspacePrompt(rules: string): string {
+    return [
+        WORKSPACE_SPECIFICATION,
+        'When asked for your name, you must respond with "GitHub Copilot".',
+        "Follow the user's requirements carefully & to the letter.",
+        '',
+        'Additional Rules',
+        rules
+    ].join('\n');
+}
 
 let classifierPromise: Promise<typeof import('./requestClassifier')> | undefined;
 
@@ -224,7 +244,28 @@ const LEGACY_PREFIX_CASES = [
         'You are a Visual Studio Code assistant. Your job is to assist users in using Visual Studio Code by providing knowledge',
         'vscode-qa'
     ],
+    [
+        'You are a Visual Studio Code assistant who helps the user create well-formed and unambiguous queries about their Visual Studio Code development environment.',
+        'vscode-qa'
+    ],
     ['You are a Visual Studio Code assistant. Your job is to generate the contents of a new file', 'workspace-gen'],
+    [
+        'You are a Visual Studio Code assistant focused on aiding users in crafting clear and specific specifications about project or file creation within Visual Studio Code.',
+        'workspace-gen'
+    ],
+    [
+        'You are a VS Code assistant. Your job is to suggest a filetree directory structure for a project that a user wants to create.',
+        'workspace-gen'
+    ],
+    [
+        'You are a Visual Studio Code assistant. The user has identified a project URL for a new project they want to create.',
+        'workspace-gen'
+    ],
+    [
+        'You are a VS Code assistant. Your job is to generate the contents of a file in a project when given the user description, specification and tree structure of the project that a user wants to create.',
+        'workspace-gen'
+    ],
+    [WORKSPACE_SPECIFICATION, 'workspace-gen'],
     ['You are an AI programming assistant that is specialized for usage of command-line tools', 'terminal-command'],
     [
         'You are an AI programming assistant that is specialized in applying code changes to an existing document',
@@ -302,6 +343,109 @@ for (const [prefix, kind] of LEGACY_PREFIX_CASES) {
         }
     });
 }
+
+for (const [label, rules, kind] of [
+    ['project specification', WORKSPACE_SPECIFICATION_RULE, 'workspace-gen'],
+    ['test setup plan', WORKSPACE_MUTATION_PLAN_RULE, 'test-gen'],
+    [
+        'test setup new file',
+        `${WORKSPACE_MUTATION_FILE_RULE}\nPrint the entire contents of the file you propose.`,
+        'test-gen'
+    ],
+    ['test setup edit file', `${WORKSPACE_MUTATION_FILE_RULE}\nDo not include comments in json files.`, 'test-gen']
+] as const) {
+    test(`共用项目规格首句按固定规则区分 ${label}`, async () => {
+        const classifier = await getClassifier();
+        for (const requestInitiator of [undefined, 'github.copilot-chat', 'core']) {
+            for (const text of [
+                workspacePrompt(rules),
+                workspacePrompt(rules.replace(/ /g, '  ')).replace(/\n/g, '\r\n')
+            ]) {
+                for (const message of [system(text.slice(0, 35), text.slice(35)), user(text, 'gcmp-system')]) {
+                    const messages = [message, user('Synthetic request.')];
+                    const snapshot = structuredClone(messages);
+                    const result = classifier.classifyRequestContext(messages, { requestInitiator });
+                    assert.equal(result.requestKind, kind);
+                    assert.equal(result.requestOrigin, 'copilot-chat');
+                    assert.equal(result.agentRole, 'not-applicable');
+                    assert.equal(result.evidence.purpose.level, 'signature');
+                    assert.equal(classifier.getRecommendedReasoningEffort(kind, 'high', result), 'none');
+                    assert.equal(classifier.getRequestBehavior(result).canRegisterUserInput, false);
+                    assert.deepEqual(structuredClone(messages), snapshot);
+                }
+            }
+        }
+    });
+}
+
+for (const [label, text] of [
+    ['missing heading', `${WORKSPACE_SPECIFICATION}\n${WORKSPACE_MUTATION_PLAN_RULE}`],
+    ['partial plan', workspacePrompt(WORKSPACE_MUTATION_PLAN_RULE.split(' Think step by step')[0])],
+    ['later example', workspacePrompt(`${WORKSPACE_SPECIFICATION_RULE}\n## Example\n${WORKSPACE_MUTATION_PLAN_RULE}`)],
+    ['quoted rule', workspacePrompt(`> ${WORKSPACE_MUTATION_PLAN_RULE}`)],
+    ['fenced rule', workspacePrompt(`\`\`\`text\n${WORKSPACE_MUTATION_PLAN_RULE}\n\`\`\``)],
+    [
+        'fenced heading',
+        `${WORKSPACE_SPECIFICATION}\n\`\`\`text\nAdditional Rules\n${WORKSPACE_MUTATION_PLAN_RULE}\n\`\`\``
+    ],
+    [
+        'tilde fenced heading',
+        `${WORKSPACE_SPECIFICATION}\n~~~text\nAdditional Rules\n${WORKSPACE_MUTATION_FILE_RULE}\n~~~`
+    ],
+    ['quoted heading', `${WORKSPACE_SPECIFICATION}\n> Additional Rules\n${WORKSPACE_MUTATION_FILE_RULE}`]
+] as const) {
+    test(`项目规格引用或不完整规则不提升为测试配置: ${label}`, async () => {
+        const classifier = await getClassifier();
+        const result = classifier.classifyRequestContext([system(text)], { requestInitiator: 'github.copilot-chat' });
+        assert.equal(result.requestKind, 'workspace-gen');
+    });
+}
+
+test('项目规格与测试规则不能跨消息拼接，两份完整用途冲突仍降级', async () => {
+    const classifier = await getClassifier();
+    for (const messages of [
+        [system(WORKSPACE_SPECIFICATION), system(`Additional Rules\n${WORKSPACE_MUTATION_PLAN_RULE}`)],
+        [system(WORKSPACE_SPECIFICATION), user(`Additional Rules\n${WORKSPACE_MUTATION_PLAN_RULE}`)]
+    ]) {
+        assert.equal(classifier.classifyRequestContext(messages).requestKind, 'workspace-gen');
+    }
+    const conflict = classifier.classifyRequestContext([
+        system(workspacePrompt(WORKSPACE_SPECIFICATION_RULE)),
+        system(workspacePrompt(WORKSPACE_MUTATION_PLAN_RULE))
+    ]);
+    assertUnclassified(conflict);
+    assert.equal(conflict.evidence.purpose.reasonCode, 'classification-conflict');
+});
+
+test('新增工作区和问答签名不信任普通 User、Assistant 或其他扩展', async () => {
+    const classifier = await getClassifier();
+    const texts = [
+        ...LEGACY_PREFIX_CASES.filter(([, kind]) => kind === 'workspace-gen' || kind === 'vscode-qa').map(
+            ([text]) => text
+        ),
+        workspacePrompt(WORKSPACE_MUTATION_PLAN_RULE),
+        workspacePrompt(WORKSPACE_MUTATION_FILE_RULE)
+    ];
+    for (const text of texts) {
+        for (const message of [user(text), { ...user(text), role: 2 }]) {
+            assertUnclassified(
+                classifier.classifyRequestContext([message], { requestInitiator: 'github.copilot-chat' })
+            );
+            assert.equal(
+                classifier.classifyRequestContext([system(MAIN_IDENTITY), message], {
+                    requestInitiator: 'github.copilot-chat'
+                }).requestKind,
+                'main-agent'
+            );
+        }
+        const foreign = classifier.classifyRequestContext([system(text)], { requestInitiator: 'another.extension' });
+        assertUnclassified(foreign);
+        assert.equal(foreign.requestOrigin, 'other-extension');
+        const sdk = classifier.classifyRequestContext([system(SDK_MAIN), user(text)], { requestInitiator: 'core' });
+        assert.equal(sdk.requestOrigin, 'copilot-sdk');
+        assert.equal(sdk.requestKind, 'main-agent');
+    }
+});
 
 test('普通大正文不遮挡后续可信 System 的冲突，也不为其他扩展授予旧用途', async () => {
     const classifier = await getClassifier();
