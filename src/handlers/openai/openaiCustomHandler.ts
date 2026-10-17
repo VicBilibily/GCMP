@@ -9,6 +9,7 @@ import { Logger } from '../../utils/runtime/logger';
 import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
 import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
 import { isCancellationError } from '../../utils/text/cancellationError';
+import { RequestDiagnostics } from '../../utils/net/requestDiagnostics';
 import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
@@ -142,10 +143,30 @@ export class OpenAICustomHandler {
         token: vscode.CancellationToken,
         requestStartTime?: number,
         onRequestDispatched?: (requestMetricStartTime: number) => void,
-        wasThrottled = false
+        wasThrottled = false,
+        diagnostics?: RequestDiagnostics
     ): Promise<void> {
+        const trace =
+            diagnostics ??
+            new RequestDiagnostics(
+                {
+                    requestId,
+                    sessionId,
+                    subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
+                    provider: modelConfig.provider || this.provider,
+                    modelId: model.id,
+                    sdkMode: 'openai-sse'
+                },
+                entry => Logger.debug('[Request lifecycle]', entry),
+                () => ({ tokenCancelled: token.isCancellationRequested })
+            );
+        let outcome: 'completed' | 'failed' | 'cancelled' = 'failed';
         const abortController = new AbortController();
-        const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+        trace.bindSignal(abortController.signal);
+        const cancellationListener = token.onCancellationRequested(() => {
+            trace.abort('host_token');
+            abortController.abort();
+        });
         let reporter: StreamReporter | undefined;
         let requestMetricStartTime = requestStartTime;
         let partialStreamStartTime: number | undefined;
@@ -224,7 +245,12 @@ export class OpenAICustomHandler {
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'openai',
-                progress,
+                progress: {
+                    report: part => {
+                        trace.progress();
+                        progress.report(part);
+                    }
+                },
                 sessionId,
                 subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
                 requestId,
@@ -232,6 +258,8 @@ export class OpenAICustomHandler {
                 onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
 
+            const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
+            trace.dispatched(url, proxyUrl);
             const response = await ConfigManager.fetchWithProxy(
                 url,
                 {
@@ -240,9 +268,10 @@ export class OpenAICustomHandler {
                     body: JSON.stringify(requestBody),
                     signal: abortController.signal
                 },
-                { modelConfig, providerKey: this.provider }
+                { modelConfig, providerKey: this.provider, proxyUrl }
             );
 
+            trace.headers(response);
             const contentType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
             if (!response.ok || contentType === 'application/json' || contentType?.endsWith('+json')) {
                 const errorText = await response.text();
@@ -266,14 +295,18 @@ export class OpenAICustomHandler {
                 requestMetricStartTime,
                 (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier,
                 wasThrottled,
-                contentType === 'text/event-stream' ? undefined : response
+                contentType === 'text/event-stream' ? undefined : response,
+                trace
             );
             partialStreamStartTime = reporter.getMetricStreamStartTime();
 
-            Logger.debug(`[${model.name}] API request completed`);
+            outcome = token.isCancellationRequested ? 'cancelled' : 'completed';
+            Logger.debug(`[${model.name}] API request ${outcome}`);
         } catch (error) {
+            trace.error(error);
             if (token.isCancellationRequested || isCancellationError(error)) {
-                Logger.warn(`[${model.name}] Request was cancelled by the user`);
+                outcome = 'cancelled';
+                Logger.warn(`[${model.name}] Request was cancelled`);
                 // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
                 TokenUsagesManager.instance.updateActualTokens({
                     requestId: requestId || '',
@@ -304,9 +337,13 @@ export class OpenAICustomHandler {
             }
             throw error;
         } finally {
+            trace.abort('finally_cleanup');
             abortController.abort();
             reporter?.finishMetrics();
             cancellationListener.dispose();
+            if (!diagnostics) {
+                trace.finish(outcome);
+            }
         }
     }
 
@@ -356,7 +393,8 @@ export class OpenAICustomHandler {
         requestStartTime?: number,
         requestServiceTier?: string,
         wasThrottled = false,
-        responseToProbe?: Response
+        responseToProbe?: Response,
+        diagnostics?: RequestDiagnostics
     ): Promise<void> {
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -388,6 +426,8 @@ export class OpenAICustomHandler {
                 if (done) {
                     break;
                 }
+
+                diagnostics?.data();
 
                 // 心跳：触发实时指标更新（不固定首流延迟）
                 // markStreamStarted 移到有效 JSON 解析后，避免 heartbeat/空行/非 JSON 噪声提前固定 TTFT
@@ -429,6 +469,7 @@ export class OpenAICustomHandler {
                     }
 
                     if (line === '' && eventData.length > 0) {
+                        diagnostics?.streamEvent();
                         const data = eventData.join('\n');
                         eventData = [];
 
@@ -549,6 +590,7 @@ export class OpenAICustomHandler {
                 }
             }
         } catch (error) {
+            diagnostics?.error(error);
             reporter.discardToolCalls();
             throw error;
         } finally {

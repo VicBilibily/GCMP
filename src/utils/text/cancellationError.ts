@@ -54,6 +54,10 @@ function pushIfRecord(stack: Record<string, unknown>[], value: unknown): void {
 }
 
 function isCancellationLike(obj: Record<string, unknown>): boolean {
+    if (obj.code === 'UND_ERR_ABORTED' || obj.code === 'ABORT_ERR') {
+        return true;
+    }
+
     // vscode.CancellationError — 运行时 name 为 'Canceled'（不是 'CancellationError'），
     // constructor.name 在 esbuild 打包后可能被 mangle，因此 name 检测最可靠。
     // 同时保留 constructor.name 检测作为兜底。

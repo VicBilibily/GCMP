@@ -399,6 +399,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     },
                     balanceKey
                 );
+                Logger.info(`Compatible Provider: ${model.name} request completed`);
             } catch (error) {
                 if (isCancellationError(error)) {
                     this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
@@ -411,7 +412,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 }
                 throw error;
             } finally {
-                Logger.info(`✅ Compatible Provider: ${model.name} request completed`);
+                Logger.debug(`Compatible Provider: ${model.name} request cleanup finished`);
                 try {
                     // 延时更新状态栏以反映最新余额
                     StatusBarManager.compatible?.delayedUpdate(modelConfig.provider!, 2000);

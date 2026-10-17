@@ -1,5 +1,6 @@
 ﻿import assert from 'node:assert/strict';
-import { setTimeout as delay } from 'node:timers/promises';
+import { getEventListeners } from 'node:events';
+import { setImmediate as nextTurn, setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 
 import {
@@ -7,6 +8,7 @@ import {
     calculateHarCompression,
     formatLocalDate,
     nowMicros,
+    observeResponseBodyData,
     parseHarPidFromFileName,
     pickLatestHarFile,
     planHarCleanup,
@@ -101,6 +103,238 @@ test('readResponseBodyData returns received prefix when aborted', async () => {
 
     assert.equal(result.text, responseText);
     assert.equal(result.byteLength, Buffer.byteLength(responseText, 'utf8'));
+});
+
+test('observeResponseBodyData never reads ahead of the business consumer', async () => {
+    const text = 'data: {"type":"response.completed"}\n\n';
+    let pulls = 0;
+    let cancels = 0;
+    const reason = new Error('terminal consumed');
+    const original = new Response(
+        new ReadableStream<Uint8Array>(
+            {
+                pull(controller) {
+                    pulls++;
+                    if (pulls === 1) {
+                        controller.enqueue(new TextEncoder().encode(text));
+                    } else {
+                        controller.error(new TypeError('terminated'));
+                    }
+                },
+                cancel(value) {
+                    assert.equal(value, reason);
+                    cancels++;
+                }
+            },
+            { highWaterMark: 0 }
+        )
+    );
+    const capture = observeResponseBodyData(original);
+    await nextTurn();
+    assert.equal(pulls, 0);
+    assert.equal(original.body!.locked, false);
+    const reader = capture.response.body!.getReader();
+    try {
+        assert.equal(new TextDecoder().decode((await reader.read()).value), text);
+        await nextTurn();
+        assert.equal(pulls, 1);
+        await reader.cancel(reason);
+        assert.deepEqual(await capture.body, { text, byteLength: Buffer.byteLength(text), aborted: true });
+        assert.equal(cancels, 1);
+        assert.equal(original.body!.locked, false);
+    } finally {
+        reader.releaseLock();
+    }
+});
+
+test('observeResponseBodyData preserves the original read error and captured prefix', async () => {
+    const failure = new TypeError('terminated');
+    let pulls = 0;
+    const original = new Response(
+        new ReadableStream<Uint8Array>(
+            {
+                pull(controller) {
+                    if (++pulls === 1) {
+                        controller.enqueue(new TextEncoder().encode('prefix'));
+                    } else {
+                        controller.error(failure);
+                    }
+                }
+            },
+            { highWaterMark: 0 }
+        )
+    );
+    const capture = observeResponseBodyData(original);
+    const reader = capture.response.body!.getReader();
+    try {
+        await reader.read();
+        await assert.rejects(reader.read(), error => error === failure);
+        assert.deepEqual(await capture.body, { text: 'prefix', byteLength: 6 });
+        assert.equal(original.body!.locked, false);
+    } finally {
+        reader.releaseLock();
+    }
+});
+
+test('observeResponseBodyData stops capture without interrupting a pending business read', async () => {
+    const stop = new AbortController();
+    const request = new AbortController();
+    let upstream!: ReadableStreamDefaultController<Uint8Array>;
+    let cancels = 0;
+    const original = new Response(
+        new ReadableStream<Uint8Array>(
+            {
+                start(controller) {
+                    upstream = controller;
+                    controller.enqueue(new TextEncoder().encode('prefix'));
+                },
+                cancel() {
+                    cancels++;
+                }
+            },
+            { highWaterMark: 0 }
+        )
+    );
+    const capture = observeResponseBodyData(original, stop.signal, request.signal);
+    const reader = capture.response.body!.getReader();
+    try {
+        await reader.read();
+        let settled = false;
+        const pending = reader.read().then(value => {
+            settled = true;
+            return value;
+        });
+        stop.abort();
+        assert.deepEqual(await capture.body, { text: 'prefix', byteLength: 6, aborted: true });
+        await nextTurn();
+        assert.equal(settled, false);
+        assert.equal(cancels, 0);
+        assert.equal(getEventListeners(stop.signal, 'abort').length, 0);
+        assert.equal(getEventListeners(request.signal, 'abort').length, 0);
+        upstream.enqueue(new TextEncoder().encode('suffix'));
+        upstream.close();
+        assert.equal(new TextDecoder().decode((await pending).value), 'suffix');
+        assert.equal((await reader.read()).done, true);
+        assert.equal(original.body!.locked, false);
+    } finally {
+        reader.releaseLock();
+    }
+});
+
+for (const alreadyAborted of [false, true]) {
+    test(`observeResponseBodyData settles unread capture on request abort: already=${alreadyAborted}`, async () => {
+        const stop = new AbortController();
+        const request = new AbortController();
+        if (alreadyAborted) {
+            request.abort();
+        }
+        const capture = observeResponseBodyData(new Response('still readable'), stop.signal, request.signal);
+        if (!alreadyAborted) {
+            request.abort();
+        }
+        assert.deepEqual(await capture.body, { text: '', byteLength: 0, aborted: true });
+        assert.equal(await capture.response.text(), 'still readable');
+        assert.equal(getEventListeners(stop.signal, 'abort').length, 0);
+        assert.equal(getEventListeners(request.signal, 'abort').length, 0);
+    });
+}
+
+for (const pendingRead of [false, true]) {
+    for (const rejectCleanup of [false, true]) {
+        test(`observeResponseBodyData propagates cancellation: pending=${pendingRead}, reject=${rejectCleanup}`, async () => {
+            const reason = new Error('consumer cancelled');
+            let cancels = 0;
+            const original = new Response(
+                new ReadableStream<Uint8Array>(
+                    {
+                        cancel(actualReason) {
+                            assert.equal(actualReason, reason);
+                            cancels++;
+                            if (rejectCleanup) {
+                                return Promise.reject(new Error('cleanup failure'));
+                            }
+                        }
+                    },
+                    { highWaterMark: 0 }
+                )
+            );
+            const capture = observeResponseBodyData(original);
+            const reader = capture.response.body!.getReader();
+            try {
+                const pending = pendingRead ? reader.read() : undefined;
+                await nextTurn();
+                await reader.cancel(reason);
+                if (pending) {
+                    assert.equal((await pending).done, true);
+                }
+                await nextTurn();
+                assert.deepEqual(await capture.body, { text: '', byteLength: 0, aborted: true });
+                assert.equal(cancels, 1);
+                assert.equal(original.body!.locked, false);
+            } finally {
+                reader.releaseLock();
+            }
+        });
+    }
+}
+
+test('observeResponseBodyData preserves metadata and body methods without cloning the source', async () => {
+    const original = new Response('{"ok":true}', {
+        status: 201,
+        statusText: 'Created',
+        headers: { 'content-type': 'application/json', 'x-request-id': 'review' }
+    });
+    let sourceClones = 0;
+    Object.defineProperties(original, {
+        url: { value: 'https://example.test/v1/responses' },
+        redirected: { value: true },
+        type: { value: 'basic' },
+        clone: {
+            value: () => {
+                sourceClones++;
+                throw new Error('source clone unavailable');
+            }
+        }
+    });
+    const stop = new AbortController();
+    const capture = observeResponseBodyData(original, stop.signal);
+    assert.equal(capture.response.bodyUsed, false);
+    const cloned = capture.response.clone();
+    for (const response of [capture.response, cloned]) {
+        assert.equal(response.url, original.url);
+        assert.equal(response.redirected, true);
+        assert.equal(response.type, 'basic');
+        assert.equal(response.status, 201);
+        assert.equal(response.statusText, 'Created');
+        assert.equal(response.headers.get('x-request-id'), 'review');
+    }
+    const [parsed, text] = await Promise.all([capture.response.json(), cloned.text()]);
+    assert.deepEqual(parsed, { ok: true });
+    assert.equal(text, '{"ok":true}');
+    assert.deepEqual(await capture.body, { text, byteLength: Buffer.byteLength(text) });
+    assert.equal(capture.response.bodyUsed, true);
+    assert.equal(sourceClones, 0);
+    assert.equal(original.body!.locked, false);
+    assert.equal(getEventListeners(stop.signal, 'abort').length, 0);
+});
+
+test('observeResponseBodyData copies captured bytes before handing them to the consumer', async () => {
+    const capture = observeResponseBodyData(new Response('original'));
+    const reader = capture.response.body!.getReader();
+    try {
+        (await reader.read()).value!.fill(0);
+        assert.equal((await reader.read()).done, true);
+        assert.deepEqual(await capture.body, { text: 'original', byteLength: 8 });
+    } finally {
+        reader.releaseLock();
+    }
+});
+
+test('observeResponseBodyData preserves responses without a body', async () => {
+    const original = new Response(null, { status: 204 });
+    const capture = observeResponseBodyData(original);
+    assert.equal(capture.response, original);
+    assert.deepEqual(await capture.body, { byteLength: 0 });
 });
 
 test('parseHarPidFromFileName supports legacy and new file name formats', () => {

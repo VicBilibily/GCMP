@@ -3,6 +3,21 @@ import test from 'node:test';
 
 import { isCancellationError } from './cancellationError';
 
+for (const code of ['UND_ERR_ABORTED', 'ABORT_ERR']) {
+    test(`detects structured ${code} cancellation before failover classification`, () => {
+        const error = { code, message: 'terminated' };
+        assert.equal(isCancellationError(error), true);
+        assert.equal(isCancellationError(new Error('fetch failed', { cause: error })), true);
+    });
+}
+
+test('does not equate socket failures, timeouts or HTTP 499 with cancellation', () => {
+    for (const code of ['UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']) {
+        assert.equal(isCancellationError({ code, message: 'terminated' }), false);
+    }
+    assert.equal(isCancellationError({ status: 499, message: 'the agent canceled the request' }), false);
+});
+
 test('detects cancellation error through deeply nested cause chain without recursion', () => {
     const root: Record<string, unknown> = { name: 'RootError' };
     let current = root;

@@ -6,11 +6,12 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { Logger } from '../../utils/runtime/logger';
-import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
+import { markFinalStatusRecorded } from '../../utils/runtime/finalStatusMarker';
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { createOpenCodeHeaders, removeNullExtraBodyParams, replaceSessionIdInBody } from '../../utils/text/formatUtils';
 import { redactHeaders } from '../../utils/net/proxyAgent';
+import { RequestDiagnostics } from '../../utils/net/requestDiagnostics';
 import {
     canonicalizeUserAgentHeader,
     getCustomHeaderDeletionMarkers,
@@ -209,7 +210,11 @@ export class OpenAIHandler {
     /**
      * 创建新的 OpenAI 客户端
      */
-    async createOpenAIClient(modelConfig?: ModelConfig, sessionId?: string): Promise<OpenAI> {
+    async createOpenAIClient(
+        modelConfig?: ModelConfig,
+        sessionId?: string,
+        diagnostics?: RequestDiagnostics
+    ): Promise<OpenAI> {
         // 优先级：model.provider -> this.provider
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKeyForRequest(providerKey, modelConfig);
@@ -247,7 +252,7 @@ export class OpenAIHandler {
 
         const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
         let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现
-        customFetch = this.createCustomFetch(modelConfig, baseURL, proxyUrl); // 使用自定义 fetch 解决 SSE 格式问题
+        customFetch = this.createCustomFetch(modelConfig, baseURL, proxyUrl, diagnostics);
         const client = new OpenAI({
             apiKey: currentApiKey,
             baseURL: baseURL,
@@ -264,7 +269,12 @@ export class OpenAIHandler {
      * 修复部分模型输出 "data:" 后不带空格的问题
      * 若 modelConfig.endpoint 已设置，则将 SDK 内部构造的请求 URL 替换为自定义端点
      */
-    private createCustomFetch(modelConfig?: ModelConfig, resolvedBaseURL?: string, proxyUrl?: string): typeof fetch {
+    private createCustomFetch(
+        modelConfig?: ModelConfig,
+        resolvedBaseURL?: string,
+        proxyUrl?: string,
+        diagnostics?: RequestDiagnostics
+    ): typeof fetch {
         const proxiedFetch = ConfigManager.createProxyAwareFetch({ proxyUrl });
         return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
             let requestUrl: string | URL | Request = url;
@@ -281,11 +291,15 @@ export class OpenAIHandler {
                 }
                 Logger.debug(`Custom endpoint: ${String(url)} -> ${String(requestUrl)}`);
             }
-            // 调用代理 fetch
-            const response = (await proxiedFetch(requestUrl, init)) as Response;
-            // 当前插件的所有调用都是流请求，直接预处理所有响应
-            // preprocessSSEResponse 现在是异步的，可能会抛出错误以便上层捕获
-            return await this.preprocessSSEResponse(response);
+            diagnostics?.dispatched(requestUrl, proxyUrl);
+            try {
+                const response = (await proxiedFetch(requestUrl, init)) as Response;
+                diagnostics?.headers(response);
+                return await this.preprocessSSEResponse(response, diagnostics);
+            } catch (error) {
+                diagnostics?.error(error);
+                throw error;
+            }
         };
     }
 
@@ -407,8 +421,9 @@ export class OpenAIHandler {
      * 预处理 SSE 响应，修复非标准格式
      * 修复部分模型输出 "data:" 后不带空格的问题
      */
-    private async preprocessSSEResponse(response: Response): Promise<Response> {
+    private async preprocessSSEResponse(response: Response, diagnostics?: RequestDiagnostics): Promise<Response> {
         let contentType = response.headers.get('Content-Type');
+        let streamCancelled = false;
 
         // HTTP 错误交由 SDK 解析，避免被 fetch 异常路径误判为连接超时。
         if (!response.ok && response.status >= 400) {
@@ -443,6 +458,7 @@ export class OpenAIHandler {
                     if (!value || value.length === 0) {
                         continue;
                     }
+                    diagnostics?.data();
                     bufferedChunks.push(value);
                     bufferedLength += value.length;
                     sniffedText += decoder.decode(value, { stream: true });
@@ -470,6 +486,7 @@ export class OpenAIHandler {
                             if (!value || value.length === 0) {
                                 continue;
                             }
+                            diagnostics?.data();
                             bufferedChunks.push(value);
                             sniffedText += decoder.decode(value, { stream: true });
                         }
@@ -489,33 +506,44 @@ export class OpenAIHandler {
             }
 
             const remainingReader = response.body.getReader();
-            const prependBufferedStream = new ReadableStream<Uint8Array>({
-                start(controller) {
-                    for (const chunk of bufferedChunks) {
-                        controller.enqueue(chunk);
-                    }
-                },
-                async pull(controller) {
-                    try {
-                        while (true) {
-                            const { done, value } = await remainingReader.read();
-                            if (done) {
-                                controller.close();
-                                break;
-                            }
-                            if (value) {
-                                controller.enqueue(value);
-                                break;
-                            }
+            const prependBufferedStream = new ReadableStream<Uint8Array>(
+                {
+                    start(controller) {
+                        for (const chunk of bufferedChunks) {
+                            controller.enqueue(chunk);
                         }
-                    } catch (error) {
-                        controller.error(error);
+                    },
+                    async pull(controller) {
+                        try {
+                            while (true) {
+                                const { done, value } = await remainingReader.read();
+                                if (done) {
+                                    remainingReader.releaseLock();
+                                    controller.close();
+                                    break;
+                                }
+                                if (value) {
+                                    diagnostics?.data();
+                                    controller.enqueue(value);
+                                    break;
+                                }
+                            }
+                        } catch (error) {
+                            if (!streamCancelled) {
+                                diagnostics?.error(error, true);
+                                controller.error(error);
+                            }
+                            remainingReader.releaseLock();
+                        }
+                    },
+                    cancel(reason) {
+                        streamCancelled = true;
+                        void remainingReader.cancel(reason).catch(() => undefined);
+                        remainingReader.releaseLock();
                     }
                 },
-                cancel() {
-                    remainingReader.releaseLock();
-                }
-            });
+                { highWaterMark: 0 }
+            );
 
             response = new Response(prependBufferedStream, {
                 status: response.status,
@@ -565,7 +593,7 @@ export class OpenAIHandler {
                 return normalizedLine;
             }
 
-            const dataMatch = normalizedLine.match(/^data:\s?(.*)$/);
+            const dataMatch = normalizedLine.match(/^data:\s?(.*)$/s);
             if (!dataMatch) {
                 return normalizedLine;
             }
@@ -723,7 +751,9 @@ export class OpenAIHandler {
                 // #endregion
 
                 const resultLine =
-                    objModified || candidateJson !== jsonStr ? `data: ${JSON.stringify(obj)}` : normalizedLine;
+                    objModified || candidateJson !== jsonStr || jsonStr.includes('\n') ?
+                        `data: ${JSON.stringify(obj)}`
+                    :   normalizedLine;
 
                 return injectedContentPart ? `${injectedContentPart}\n\n${resultLine}` : resultLine;
             } catch (parseError) {
@@ -735,86 +765,158 @@ export class OpenAIHandler {
             }
         };
 
+        const processSSEEvent = (lines: readonly string[]): string => {
+            const data = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).replace(/^ /, ''));
+            if (data.length === 0) {
+                return lines.join('\n');
+            }
+            const combinedLine = `data: ${data.join('\n')}`;
+            const processed = processSSELine(combinedLine);
+            if (!processed) {
+                return '';
+            }
+            if (processed === combinedLine) {
+                return lines.map(line => line.replace(/^data:([^\s])/g, 'data: $1')).join('\n');
+            }
+            let replacedData = false;
+            return lines
+                .flatMap(line => {
+                    if (!line.startsWith('data:')) {
+                        return [line];
+                    }
+                    if (replacedData) {
+                        return [];
+                    }
+                    replacedData = true;
+                    return [processed];
+                })
+                .join('\n');
+        };
+
         // 行缓冲区：用于累积不完整的 SSE 行
         let lineBuffer = '';
+        let eventLines: string[] = [];
+        let skipLineFeed = false;
+        let pendingLines: string[] = [];
+        let pendingLineIndex = 0;
         let malformedJsonStreamBuffer = '';
         let isMalformedJsonStream = false;
 
-        const transformedStream = new ReadableStream({
-            start: async controller => {
-                try {
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) {
+        const transformedStream = new ReadableStream<Uint8Array>(
+            {
+                async pull(controller) {
+                    try {
+                        while (true) {
+                            if (pendingLineIndex < pendingLines.length) {
+                                while (pendingLineIndex < pendingLines.length) {
+                                    const line = pendingLines[pendingLineIndex++];
+                                    if (line.length === 0) {
+                                        const processed = processSSEEvent(eventLines);
+                                        eventLines = [];
+                                        if (processed) {
+                                            controller.enqueue(encoder.encode(`${processed}\n\n`));
+                                            return;
+                                        }
+                                    } else {
+                                        const normalized = line.startsWith('data:') ? line : processSSELine(line);
+                                        if (normalized) {
+                                            eventLines.push(normalized);
+                                        }
+                                    }
+                                }
+                            }
+
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                if (isMalformedJsonStream) {
+                                    throw new Error(malformedJsonStreamBuffer.trim() || lineBuffer.trim());
+                                }
+                                // 流结束时，处理缓冲区剩余的内容
+                                if (lineBuffer.trim().length > 0) {
+                                    Logger.trace(
+                                        `Stream ended, processing remaining buffered content: ${lineBuffer.length} chars`
+                                    );
+                                    const normalized =
+                                        lineBuffer.startsWith('data:') ? lineBuffer : processSSELine(lineBuffer);
+                                    if (normalized) {
+                                        eventLines.push(normalized);
+                                    }
+                                }
+                                const remaining = processSSEEvent(eventLines);
+                                eventLines = [];
+                                if (remaining) {
+                                    controller.enqueue(encoder.encode(remaining));
+                                }
+                                reader.releaseLock();
+                                controller.close();
+                                return;
+                            }
+
+                            if (!value?.length) {
+                                continue;
+                            }
+                            diagnostics?.data();
+                            const chunk = decoder.decode(value, { stream: true });
+
                             if (isMalformedJsonStream) {
-                                throw new Error(malformedJsonStreamBuffer.trim() || lineBuffer.trim());
+                                malformedJsonStreamBuffer += chunk;
+                                continue;
                             }
-                            // 流结束时，处理缓冲区剩余的内容
-                            if (lineBuffer.trim().length > 0) {
-                                Logger.trace(
-                                    `Stream ended, processing remaining buffered content: ${lineBuffer.length} chars`
-                                );
-                                const remaining = processSSELine(lineBuffer);
-                                controller.enqueue(encoder.encode(remaining));
+
+                            // 将新内容追加到缓冲区
+                            lineBuffer += chunk;
+                            if (!lineBuffer) {
+                                continue;
                             }
-                            controller.close();
-                            break;
+                            if (skipLineFeed && lineBuffer.startsWith('\n')) {
+                                lineBuffer = lineBuffer.slice(1);
+                            }
+                            skipLineFeed = lineBuffer.endsWith('\r');
+
+                            const trimmedBuffer = lineBuffer.trimStart();
+                            if (
+                                trimmedBuffer.length > 0 &&
+                                !trimmedBuffer.startsWith('data:') &&
+                                !trimmedBuffer.startsWith('event:') &&
+                                !trimmedBuffer.startsWith('id:') &&
+                                !trimmedBuffer.startsWith('retry:') &&
+                                !trimmedBuffer.startsWith(':') &&
+                                (trimmedBuffer.startsWith('{') || trimmedBuffer.startsWith('['))
+                            ) {
+                                isMalformedJsonStream = true;
+                                malformedJsonStreamBuffer = lineBuffer;
+                                lineBuffer = '';
+                                continue;
+                            }
+
+                            // 按行分割，保留最后一行（可能不完整）
+                            pendingLines = lineBuffer.split(/\r\n|\r|\n/);
+                            // 保留最后一个元素（可能是不完整的行）
+                            const lastLine = pendingLines.pop() || '';
+                            lineBuffer = lastLine;
+                            pendingLineIndex = 0;
                         }
-
-                        // 解码 chunk
-                        const chunk = decoder.decode(value, { stream: true });
-
-                        if (isMalformedJsonStream) {
-                            malformedJsonStreamBuffer += chunk;
-                            continue;
+                    } catch (error) {
+                        if (!streamCancelled) {
+                            diagnostics?.error(error, true);
+                            // 确保错误能够被正确传播
+                            controller.error(error);
                         }
-
-                        // 将新内容追加到缓冲区
-                        lineBuffer += chunk;
-
-                        const trimmedBuffer = lineBuffer.trimStart();
-                        if (
-                            trimmedBuffer.length > 0 &&
-                            !trimmedBuffer.startsWith('data:') &&
-                            !trimmedBuffer.startsWith('event:') &&
-                            !trimmedBuffer.startsWith('id:') &&
-                            !trimmedBuffer.startsWith('retry:') &&
-                            !trimmedBuffer.startsWith(':') &&
-                            (trimmedBuffer.startsWith('{') || trimmedBuffer.startsWith('['))
-                        ) {
-                            isMalformedJsonStream = true;
-                            malformedJsonStreamBuffer = lineBuffer;
-                            lineBuffer = '';
-                            continue;
-                        }
-
-                        // 按行分割，保留最后一行（可能不完整）
-                        const lines = lineBuffer.split(/\n/);
-                        // 保留最后一个元素（可能是不完整的行）
-                        const lastLine = lines.pop() || '';
-                        lineBuffer = lastLine;
-
-                        // 处理完整的行
-                        if (lines.length > 0) {
-                            const processedChunk = `${lines.map(processSSELine).join('\n')}\n`;
-
-                            // Logger.trace(`预处理后的 SSE chunk: ${processedChunk.length} 字符`);
-                            // 重新编码并传递有效内容
-                            controller.enqueue(encoder.encode(processedChunk));
-                        }
+                        reader.releaseLock();
                     }
-                } catch (error) {
-                    // 确保错误能够被正确传播
-                    controller.error(error);
-                } finally {
+                },
+                cancel(reason) {
+                    streamCancelled = true;
+                    eventLines = [];
+                    pendingLines = [];
+                    lineBuffer = '';
+                    // 当流被取消时，确保释放 reader
+                    void reader.cancel(reason).catch(() => undefined);
                     reader.releaseLock();
                 }
             },
-            cancel() {
-                // 当流被取消时，确保释放 reader
-                reader.releaseLock();
-            }
-        });
+            { highWaterMark: 0 }
+        );
 
         return new Response(transformedStream, {
             status: response.status,
@@ -1034,8 +1136,24 @@ export class OpenAIHandler {
         token: vscode.CancellationToken,
         requestStartTime?: number,
         onRequestDispatched?: (requestMetricStartTime: number) => void,
-        wasThrottled = false
+        wasThrottled = false,
+        diagnostics?: RequestDiagnostics
     ): Promise<void> {
+        const trace =
+            diagnostics ??
+            new RequestDiagnostics(
+                {
+                    requestId,
+                    sessionId,
+                    subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
+                    provider: modelConfig.provider || this.provider,
+                    modelId: model.id,
+                    sdkMode: 'openai'
+                },
+                entry => Logger.debug('[Request lifecycle]', entry),
+                () => ({ tokenCancelled: token.isCancellationRequested })
+            );
+        let outcome: 'completed' | 'failed' | 'cancelled' = 'failed';
         Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
@@ -1044,7 +1162,7 @@ export class OpenAIHandler {
         let requestMetricStartTime = requestStartTime;
 
         try {
-            const client = await this.createOpenAIClient(modelConfig, sessionId);
+            const client = await this.createOpenAIClient(modelConfig, sessionId, trace);
             Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
 
             const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options, sessionId);
@@ -1054,7 +1172,11 @@ export class OpenAIHandler {
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
-            const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+            trace.bindSignal(abortController.signal);
+            const cancellationListener = token.onCancellationRequested(() => {
+                trace.abort('host_token');
+                abortController.abort();
+            });
             let streamError: Error | null = null; // 用于捕获流错误
             // 保存最后一个 chunk 的 usage 信息（若有），部分提供商会在每个 chunk 返回 usage
             let finalUsage: OpenAI.Completions.CompletionUsage | undefined = undefined;
@@ -1081,7 +1203,12 @@ export class OpenAIHandler {
                     modelId: model.id,
                     provider: modelConfig.provider || this.provider,
                     sdkMode: 'openai',
-                    progress,
+                    progress: {
+                        report: part => {
+                            trace.progress();
+                            progress.report(part);
+                        }
+                    },
                     sessionId,
                     subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
                     requestId,
@@ -1094,6 +1221,7 @@ export class OpenAIHandler {
                 // 利用 SDK 内置的事件系统处理工具调用和内容
                 stream
                     .on('chunk', (chunk, _snapshot: unknown) => {
+                        trace.streamEvent();
                         // 记录首个 chunk 的时间作为流开始时间，同时固定首流延迟（共用时间戳）
                         if (streamStartTime === undefined) {
                             const now = Date.now();
@@ -1165,6 +1293,8 @@ export class OpenAIHandler {
                         }
                     })
                     .on('error', (error: Error) => {
+                        trace.error(error);
+                        trace.abort('stream_error');
                         // 保存错误，并中止请求
                         streamError = error;
                         abortController.abort();
@@ -1239,8 +1369,9 @@ export class OpenAIHandler {
 
                 Logger.debug(`${model.name} ${this.displayName} SDK stream completed`);
             } catch (streamError) {
+                trace.error(streamError);
                 if (token.isCancellationRequested || isCancellationError(streamError)) {
-                    Logger.info(`${model.name} request was cancelled by the user`);
+                    Logger.info(`${model.name} request was cancelled`);
                     // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
                     TokenUsagesManager.instance.updateActualTokens({
                         requestId,
@@ -1298,10 +1429,13 @@ export class OpenAIHandler {
                 cancellationListener.dispose();
             }
 
-            Logger.debug(`✅ ${model.name} ${this.displayName} request completed`);
+            outcome = token.isCancellationRequested ? 'cancelled' : 'completed';
+            Logger.debug(`${model.name} ${this.displayName} request ${outcome}`);
         } catch (error) {
+            trace.error(error);
             // 内层流 catch 已通过 updateActualTokens 记录为 cancelled，这里规范化为 CancellationError 后抛出
             if (token.isCancellationRequested || isCancellationError(error)) {
+                outcome = 'cancelled';
                 throw new vscode.CancellationError();
             }
 
@@ -1314,7 +1448,7 @@ export class OpenAIHandler {
                 if (error.cause instanceof Error) {
                     const errorMessage = error.cause.message || t('Unknown error', '未知错误');
                     Logger.error(`${model.name} ${this.displayName} request failed: ${errorMessage}`);
-                    throw error.cause;
+                    throw error;
                 } else {
                     let errorMessage = error.message || t('Unknown error', '未知错误');
 
@@ -1331,38 +1465,7 @@ export class OpenAIHandler {
                         }
                     }
 
-                    // 尝试从 error.cause 中提取详细的错误信息
-                    // APIConnectionError 可能会在 cause 中包含原始错误
-                    if (error.cause instanceof Error) {
-                        const causeMessage = error.cause.message || '';
-                        if (causeMessage && causeMessage !== errorMessage) {
-                            errorMessage = causeMessage;
-                            Logger.debug(
-                                `${model.name} Extracted detailed error message from error.cause: ${errorMessage}`
-                            );
-                            copyFinalStatusRecorded(error, error.cause);
-                            throw error.cause;
-                        }
-                    }
-
                     Logger.error(`${model.name} ${this.displayName} request failed: ${errorMessage}`);
-
-                    // 检查是否为statusCode错误，如果是则确保同步抛出
-                    if (
-                        errorMessage.includes('502') ||
-                        errorMessage.includes('Bad Gateway') ||
-                        errorMessage.includes('500') ||
-                        errorMessage.includes('Internal Server Error') ||
-                        errorMessage.includes('503') ||
-                        errorMessage.includes('Service Unavailable') ||
-                        errorMessage.includes('504') ||
-                        errorMessage.includes('Gateway Timeout')
-                    ) {
-                        // 对于服务器错误，直接抛出原始错误以终止对话
-                        const wrappedError = new vscode.LanguageModelError(errorMessage);
-                        copyFinalStatusRecorded(error, wrappedError);
-                        throw wrappedError;
-                    }
 
                     // 对于普通错误，也需要重新抛出
                     throw error;
@@ -1394,6 +1497,9 @@ export class OpenAIHandler {
             }
         } finally {
             reporter?.finishMetrics();
+            if (!diagnostics) {
+                trace.finish(outcome);
+            }
         }
     }
 

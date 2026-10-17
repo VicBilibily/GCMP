@@ -3,6 +3,7 @@ import OpenAI, { APIUserAbortError } from 'openai';
 
 import type { GenericUsageData } from '../../usages/fileLogger/types';
 import { Logger } from '../../utils/runtime/logger';
+import type { RequestDiagnostics } from '../../utils/net/requestDiagnostics';
 import { t } from '../../utils/runtime/l10n';
 import { StreamReporter } from '../streamReporter';
 import { canonicalizeJsonString } from './openaiChatRequestPreprocessor';
@@ -379,7 +380,7 @@ export class OpenAIResponsesStreamProcessor {
         this.sessionId = options.sessionId;
     }
 
-    attach(): void {
+    attach(diagnostics?: RequestDiagnostics): void {
         this.events
             .on('event', () => {
                 // 心跳：每个 SSE 事件触发一次实时指标更新，确保首流前 latency 平滑增长
@@ -738,19 +739,26 @@ export class OpenAIResponsesStreamProcessor {
                         undefined
                     );
                 }
+                diagnostics?.error(this.streamError);
+                diagnostics?.abort('stream_error');
                 this.abortController.abort();
             });
     }
 
-    async consume(stream: Stream<ResponseStreamEvent>): Promise<void> {
+    async consume(stream: Stream<ResponseStreamEvent>, diagnostics?: RequestDiagnostics): Promise<void> {
         try {
             for await (const event of stream) {
+                diagnostics?.streamEvent();
                 if (this.token.isCancellationRequested && event.type !== 'response.failed' && event.type !== 'error') {
                     throw new APIUserAbortError();
                 }
                 this.events.dispatch(event);
                 // 终态或错误后提前结束消费，避免对端继续保持连接造成的无效等待
                 if (this.streamError || this.hasFinalizedResponse) {
+                    if (this.streamError) {
+                        diagnostics?.error(this.streamError);
+                    }
+                    diagnostics?.abort(this.streamError ? 'stream_error' : 'terminal_cleanup');
                     break;
                 }
             }
@@ -760,6 +768,7 @@ export class OpenAIResponsesStreamProcessor {
                 this.streamError = new APIUserAbortError();
             }
         } catch (error) {
+            diagnostics?.error(error);
             if (!this.streamError) {
                 this.streamError = error instanceof Error ? error : new Error(String(error));
             }

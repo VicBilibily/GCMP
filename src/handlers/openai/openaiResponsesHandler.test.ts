@@ -63,6 +63,9 @@ class MockOpenAIResponsesStreamProcessor {
         consumedStreams.push(stream);
         this.finalUsage = (stream as { noUsage?: boolean }).noUsage ? undefined : { total_tokens: 12 };
         this.finalized = (stream as { responseFinalized?: boolean }).responseFinalized === true;
+        if ((stream as { failure?: Error }).failure) {
+            throw (stream as { failure: Error }).failure;
+        }
         if ((stream as { shouldFail?: boolean }).shouldFail) {
             throw new Error('stream failed');
         }
@@ -465,3 +468,48 @@ test('handleResponsesRequest：processor 已收口时不重复 flush reporter', 
 
     assert.deepEqual(flushAllCalls, []);
 });
+
+for (const message of ['terminated', 'Bad Gateway']) {
+    test(`Responses preserves the original ${message} error and its final-status marker`, async () => {
+        updateActualTokensCalls.length = 0;
+        const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+        const cause = Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' });
+        const failure = new TypeError(message, { cause });
+        let disposals = 0;
+        const handler = new OpenAIResponsesHandler(
+            { provider: 'openai', providerConfig: { displayName: 'Test Provider' } } as never,
+            {
+                async createOpenAIClient() {
+                    return {
+                        _options: { defaultHeaders: {} },
+                        responses: { create: async () => ({ failure }) }
+                    };
+                }
+            } as never
+        );
+        await assert.rejects(
+            handler.handleResponsesRequest(
+                { id: 'model-id', name: 'test-model' } as never,
+                {} as never,
+                [],
+                { modelConfiguration: {} } as never,
+                { report() {} },
+                'error-chain-request',
+                'error-chain-session',
+                {
+                    isCancellationRequested: false,
+                    onCancellationRequested: () => ({ dispose: () => disposals++ })
+                } as never
+            ),
+            error => {
+                assert.equal(error, failure);
+                assert.equal(failure.cause, cause);
+                assert.equal((error as { gcmpFinalStatusRecorded?: boolean }).gcmpFinalStatusRecorded, true);
+                return true;
+            }
+        );
+        assert.equal(disposals, 1);
+        assert.equal(updateActualTokensCalls.length, 1);
+        assert.equal(updateActualTokensCalls[0].status, 'failed');
+    });
+}

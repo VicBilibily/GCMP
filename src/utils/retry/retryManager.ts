@@ -7,7 +7,35 @@ import { APIConnectionTimeoutError } from 'openai';
 
 import { Logger } from '../runtime/logger';
 import { t } from '../runtime/l10n';
+import { isCancellationError } from '../text/cancellationError';
 import { hasPermanentErrorSignal, isRateLimitLikeError, type RateLimitClassifyOptions } from './retryClassifier';
+
+const NETWORK_ERROR_CODES = new Set([
+    'UND_ERR_SOCKET',
+    'UND_ERR_CONNECT_TIMEOUT',
+    'UND_ERR_HEADERS_TIMEOUT',
+    'UND_ERR_BODY_TIMEOUT',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'EHOSTUNREACH',
+    'ENOTFOUND'
+]);
+const NETWORK_ERROR_PATTERNS = [
+    /^terminated$/,
+    /^other side closed$/,
+    /\betimedout\b/,
+    /\beconnrefused\b/,
+    /\beconnreset\b/,
+    /\behostunreach\b/,
+    /\benotfound\b/,
+    /\bfetch failed\b/,
+    /\bsocket hang up\b/,
+    /\bsocket hangup\b/,
+    /\bproxy\s+error\b/,
+    /\beof\b/,
+    /\bend of file\b/
+];
 
 /**
  * 重试配置接口
@@ -190,7 +218,7 @@ export class RetryManager {
             return;
         }
 
-        Logger.info(`[${providerName}] Retry flow cancelled by the user`);
+        Logger.info(`[${providerName}] Retry flow cancelled`);
         const error = new Error(t('[{0}] Request cancelled', '[{0}] 请求已取消', providerName));
         error.name = 'Canceled';
         throw error;
@@ -213,47 +241,42 @@ export class RetryManager {
      * @returns 是否是网络连接错误
      */
     static isNetworkError(error: RetryableError): boolean {
-        // 与 isServerError 同理：永久错误不进入任何可重试分支
-        if (hasPermanentErrorSignal(error as unknown as Record<string, unknown>)) {
-            return false;
-        }
-        if (error instanceof APIConnectionTimeoutError) {
-            return true;
-        }
-        if (!error.message || typeof error.message !== 'string') {
-            return false;
-        }
-
-        const msg = error.message.toLowerCase();
-
-        // OpenAI SDK 在网络断开时抛出 "terminated"
-        if (msg === 'terminated') {
-            return true;
-        }
-
-        // 常见网络错误关键字 —— 使用完整词或前缀匹配，避免将含 `socket` 字样的业务错误误判为网络错误
-        const networkErrorPatterns = [
-            /^terminated$/,
-            /\betimedout\b/,
-            /\beconnrefused\b/,
-            /\beconnreset\b/,
-            /\behostunreach\b/,
-            /\benotfound\b/,
-            /\bfetch failed\b/,
-            /\bsocket hang up\b/,
-            /\bsocket hangup\b/,
-            /\bproxy\s+error\b/,
-            /\beof\b/,
-            /\bend of file\b/
-        ];
-
-        for (const pattern of networkErrorPatterns) {
-            if (pattern.test(msg)) {
-                return true;
+        const pending: Array<{ value: unknown; depth: number }> = [{ value: error, depth: 0 }];
+        const visited = new Set<object>();
+        const chain: Record<string, unknown>[] = [];
+        while (pending.length > 0) {
+            const entry = pending.pop()!;
+            if (!entry.value || typeof entry.value !== 'object' || visited.has(entry.value)) {
+                continue;
             }
+            if (entry.depth > 8 || visited.size >= 32) {
+                return false;
+            }
+            visited.add(entry.value);
+            const current = entry.value as Record<string, unknown>;
+            chain.push(current);
+            pending.push({ value: current.cause, depth: entry.depth + 1 });
+            pending.push({ value: current.error, depth: entry.depth + 1 });
         }
 
-        return false;
+        if (
+            chain.some(
+                current =>
+                    isCancellationError(current) ||
+                    hasPermanentErrorSignal(current) ||
+                    [current.status, current.statusCode].some(status => typeof status === 'number' && status >= 400)
+            )
+        ) {
+            return false;
+        }
+
+        return chain.some(
+            current =>
+                current instanceof APIConnectionTimeoutError ||
+                (typeof current.code === 'string' && NETWORK_ERROR_CODES.has(current.code)) ||
+                (typeof current.message === 'string' &&
+                    NETWORK_ERROR_PATTERNS.some(pattern => pattern.test((current.message as string).toLowerCase())))
+        );
     }
 
     /**

@@ -1,4 +1,11 @@
 ﻿import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer, type ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Agent, fetch as undiciFetch } from 'undici';
+import { OpenAIError } from 'openai';
 import * as vscode from 'vscode';
 
 import { OpenAICustomHandler } from '../../src/handlers/openai/openaiCustomHandler';
@@ -10,6 +17,9 @@ import type { GenericModelProvider } from '../../src/providers/genericModelProvi
 import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import { ConfigSetStore } from '../../src/utils/config/configSetStore';
+import { HarRecorder } from '../../src/utils/net/harRecorder';
+import type { RequestDiagnosticEntry } from '../../src/utils/net/requestDiagnostics';
+import { Logger } from '../../src/utils/runtime/logger';
 import type { ModelConfig } from '../../src/types/sharedTypes';
 import {
     RetryProvider,
@@ -669,4 +679,302 @@ suite('OpenAI custom SSE lifecycle', () => {
             ApiKeyManager.getApiKey = originalGetApiKey;
         }
     });
+});
+
+suite('OpenAI transport recovery diagnostics', () => {
+    const originalFetch = ConfigManager.createProxyAwareFetch;
+    const originalDebug = Logger.debug;
+    const originalUpdate = TokenUsagesManager.instance.updateActualTokens;
+    let context: vscode.ExtensionContext;
+
+    setup(async () => {
+        context = createContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        await ConfigSetStore.setSwitchMode(slot, 'off');
+        await ApiKeyManager.setApiKey(slot, 'transport-test-key');
+        TokenUsagesManager.instance.updateActualTokens = () => {};
+    });
+
+    teardown(() => {
+        ConfigManager.createProxyAwareFetch = originalFetch;
+        Logger.debug = originalDebug;
+        TokenUsagesManager.instance.updateActualTokens = originalUpdate;
+        for (const disposable of context.subscriptions) {
+            disposable.dispose();
+        }
+    });
+
+    for (const sdkMode of ['openai', 'openai-responses', 'openai-sse'] as const) {
+        for (const ending of [
+            'before-output',
+            'after-text',
+            'after-thinking',
+            'after-tool',
+            'host-cancel',
+            'completed',
+            'har-clone-failure',
+            'invalid-json',
+            'invalid-json-with-har',
+            'invalid-json-without-content-type'
+        ]) {
+            const invalidJson = ending.startsWith('invalid-json');
+            const missingContentType = ending === 'invalid-json-without-content-type';
+            if ((invalidJson && sdkMode === 'openai-sse') || (missingContentType && sdkMode !== 'openai-responses')) {
+                continue;
+            }
+            test(`real socket lifecycle: ${sdkMode}, ${ending}`, async () => {
+                const cancellation = trackedCancellation();
+                const dispatcher = new Agent({ connections: 1 });
+                const recorder = new HarRecorder();
+                const capturePath =
+                    ending === 'har-clone-failure' || ending === 'invalid-json-with-har' ?
+                        await mkdtemp(join(tmpdir(), 'gcmp-har-recovery-'))
+                    :   undefined;
+                if (capturePath) {
+                    recorder.initialize({
+                        enabled: true,
+                        extensionVersion: 'test',
+                        defaultStoragePath: capturePath,
+                        retentionCount: 2
+                    });
+                }
+                const entries: RequestDiagnosticEntry[] = [];
+                const parts: vscode.LanguageModelResponsePart[] = [];
+                const observed = { grants: 0 };
+                const partial = ending.startsWith('after-');
+                const success = await successResponse(
+                    sdkMode === 'openai-responses' ? 'openai-responses' : 'openai'
+                ).text();
+                const delta =
+                    ending === 'after-tool' ?
+                        {
+                            tool_calls: [
+                                {
+                                    index: 0,
+                                    id: 'call-test',
+                                    type: 'function',
+                                    function: { name: 'read_file', arguments: '{"path":"test.ts"}' }
+                                }
+                            ]
+                        }
+                    : ending === 'after-thinking' ? { reasoning_content: 'partial reasoning' }
+                    : { content: 'partial text' };
+                const responseItem = {
+                    id: 'call-item',
+                    type: 'function_call',
+                    call_id: 'call-test',
+                    name: 'read_file',
+                    arguments: '{"path":"test.ts"}'
+                };
+                const events =
+                    sdkMode === 'openai-responses' ?
+                        [
+                            {
+                                type: 'response.created',
+                                response: { id: 'partial-response', status: 'in_progress', output: [] }
+                            },
+                            ...(ending === 'after-tool' ?
+                                [
+                                    {
+                                        type: 'response.output_item.added',
+                                        output_index: 0,
+                                        item: { ...responseItem, arguments: '' }
+                                    },
+                                    {
+                                        type: 'response.function_call_arguments.done',
+                                        item_id: 'call-item',
+                                        output_index: 0,
+                                        arguments: responseItem.arguments
+                                    },
+                                    { type: 'response.output_item.done', output_index: 0, item: responseItem }
+                                ]
+                            :   [
+                                    {
+                                        type:
+                                            ending === 'after-thinking' ?
+                                                'response.reasoning_summary_text.delta'
+                                            :   'response.output_text.delta',
+                                        item_id: 'message-test',
+                                        output_index: 0,
+                                        content_index: 0,
+                                        summary_index: 0,
+                                        delta: 'partial text'
+                                    }
+                                ])
+                        ]
+                    :   [
+                            {
+                                id: 'chat-partial',
+                                object: 'chat.completion.chunk',
+                                created: 0,
+                                model: 'retry-model',
+                                choices: [
+                                    {
+                                        index: 0,
+                                        delta: { role: 'assistant', ...delta },
+                                        finish_reason: ending === 'after-tool' ? 'tool_calls' : null
+                                    }
+                                ]
+                            }
+                        ];
+                const prefix =
+                    invalidJson ? 'data: {not-json}\n\n'
+                    : partial ? events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
+                    : ': heartbeat\n\n';
+                let requests = 0;
+                let pendingResponse: ServerResponse | undefined;
+                const server = createServer((request, response) => {
+                    request.resume();
+                    requests++;
+                    response.writeHead(200, {
+                        ...(missingContentType ? {} : { 'content-type': 'text/event-stream' }),
+                        'x-request-id': `local-${requests}`
+                    });
+                    if (requests > 1 || ending === 'completed' || ending === 'har-clone-failure') {
+                        response.end(success);
+                    } else {
+                        pendingResponse = response;
+                        response.write(prefix);
+                    }
+                });
+                Logger.debug = (...args: Parameters<typeof originalDebug>) => {
+                    if (args[0] !== '[Request lifecycle]') {
+                        return;
+                    }
+                    const entry = args[1] as RequestDiagnosticEntry;
+                    entries.push(entry);
+                    const trigger = partial ? 'first_progress' : 'first_data';
+                    if (
+                        entry.attempt === 1 &&
+                        entry.phase === trigger &&
+                        ending !== 'completed' &&
+                        ending !== 'har-clone-failure' &&
+                        !invalidJson
+                    ) {
+                        if (ending === 'host-cancel') {
+                            cancellation.cancel();
+                        } else {
+                            pendingResponse?.destroy();
+                        }
+                    }
+                };
+                server.listen(0, '127.0.0.1');
+                await once(server, 'listening');
+                const address = server.address();
+                assert.ok(address && typeof address === 'object');
+                const fetchImpl: typeof fetch = async (input, init) => {
+                    const request = new Request(input, init);
+                    const headers: Record<string, string> = {};
+                    request.headers.forEach((value, key) => {
+                        headers[key] = value;
+                    });
+                    const response = await undiciFetch(
+                        `http://127.0.0.1:${address.port}${new URL(request.url).pathname}`,
+                        {
+                            method: request.method,
+                            headers,
+                            body: await request.text(),
+                            signal: request.signal,
+                            dispatcher
+                        }
+                    );
+                    if (ending === 'har-clone-failure') {
+                        Object.defineProperty(response, 'clone', {
+                            value: () => {
+                                throw new TypeError('injected_capture_clone_failure');
+                            }
+                        });
+                    }
+                    return response as unknown as Response;
+                };
+                ConfigManager.createProxyAwareFetch = () => recorder.wrapFetch(fetchImpl);
+                try {
+                    const result = RetryProvider.run(
+                        sdkMode,
+                        { ...defaultRetry, maxAttempts: 1 },
+                        observed,
+                        cancellation.token,
+                        parts,
+                        'socket-request'
+                    );
+                    if (partial) {
+                        await assert.rejects(result, error => {
+                            assert.ok(error instanceof Error);
+                            assert.equal(error.message, 'terminated');
+                            assert.ok(error.cause && typeof error.cause === 'object');
+                            const transportError = sdkMode === 'openai' ? error.cause : error;
+                            if (sdkMode === 'openai') {
+                                assert.ok(error instanceof OpenAIError);
+                            }
+                            assert.ok(transportError instanceof TypeError);
+                            assert.equal((transportError.cause as { code?: string }).code, 'UND_ERR_SOCKET');
+                            return true;
+                        });
+                    } else if (ending === 'host-cancel') {
+                        await assert.rejects(result, vscode.CancellationError);
+                    } else if (invalidJson) {
+                        await assert.rejects(result, error => {
+                            assert.ok(error instanceof Error);
+                            assert.ok(error instanceof SyntaxError || error.cause instanceof SyntaxError);
+                            return true;
+                        });
+                    } else {
+                        await result;
+                    }
+                    const expected = ending === 'before-output' ? 2 : 1;
+                    assert.equal(requests, expected);
+                    assert.equal(observed.grants, expected);
+                    assert.equal(cancellation.disposals, cancellation.subscriptions);
+                    assert.equal(entries.filter(entry => entry.phase === 'started').length, expected);
+                    const firstFailure = entries.find(entry => entry.phase === 'error');
+                    const decision = entries.find(entry => entry.phase === 'retry_decision');
+                    if (ending === 'completed' || ending === 'har-clone-failure') {
+                        assert.equal(firstFailure, undefined);
+                        assert.equal(decision, undefined);
+                        assert.equal(entries.at(-1)?.outcome, 'completed');
+                    } else if (ending === 'host-cancel') {
+                        assert.equal(decision?.reason, 'cancelled');
+                        assert.equal(entries.at(-1)?.outcome, 'cancelled');
+                        assert.ok(entries.some(entry => entry.source === 'host_token'));
+                    } else if (invalidJson) {
+                        assert.ok(firstFailure?.errors?.some(error => error.name === 'SyntaxError'));
+                        assert.equal(
+                            firstFailure?.errors?.some(error => error.code === 'ERR_INVALID_STATE'),
+                            false
+                        );
+                        assert.equal(decision?.retry, false);
+                        assert.equal(decision?.reason, 'unclassified_error');
+                        assert.equal(entries.at(-1)?.outcome, 'failed');
+                        assert.equal(cancellation.token.isCancellationRequested, false);
+                    } else {
+                        assert.ok(firstFailure?.errors?.some(error => error.code === 'UND_ERR_SOCKET'));
+                        assert.equal(firstFailure?.signalAborted, false);
+                        assert.equal(decision?.retry, !partial);
+                        assert.equal(decision?.reason, partial ? 'progress_reported' : 'retryable_error');
+                        assert.equal(entries.at(-1)?.outcome, partial ? 'failed' : 'completed');
+                        if (sdkMode === 'openai-sse') {
+                            const cleanup = entries.find(entry => entry.source === 'finally_cleanup');
+                            assert.ok(cleanup);
+                            assert.equal(cleanup.firstErrorAt, firstFailure.firstErrorAt);
+                            assert.deepEqual(cleanup.errors, firstFailure.errors);
+                        }
+                    }
+                    if (partial) {
+                        assert.ok(parts.length > 0);
+                    }
+                } finally {
+                    cancellation.cancel();
+                    cancellation.dispose();
+                    await dispatcher.destroy();
+                    server.closeAllConnections();
+                    await new Promise<void>(resolve => server.close(() => resolve()));
+                    await recorder.dispose();
+                    if (capturePath) {
+                        await rm(capturePath, { recursive: true, force: true });
+                    }
+                }
+            });
+        }
+    }
 });

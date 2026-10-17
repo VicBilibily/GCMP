@@ -8,9 +8,118 @@
 export interface HarBodyData {
     text?: string;
     byteLength: number;
+    aborted?: boolean;
 }
 
 const HAR_FILE_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+export function observeResponseBodyData(
+    response: Response,
+    signal?: AbortSignal,
+    requestSignal?: AbortSignal
+): { response: Response; body: Promise<HarBodyData> } {
+    const source = response.body;
+    if (!source) {
+        return { response, body: Promise.resolve({ byteLength: 0 }) };
+    }
+
+    const chunks: Uint8Array[] = [];
+    let totalLength = 0;
+    let capturing = true;
+    let cancelled = false;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let resolveBody!: (body: HarBodyData) => void;
+    const body = new Promise<HarBodyData>(resolve => {
+        resolveBody = resolve;
+    });
+    const signals = [signal, requestSignal].filter((value): value is AbortSignal => value !== undefined);
+    const finishCapture = (aborted = false): void => {
+        if (!capturing) {
+            return;
+        }
+        capturing = false;
+        for (const currentSignal of signals) {
+            currentSignal.removeEventListener('abort', stopCapture);
+        }
+        try {
+            const buffer = Buffer.concat(chunks, totalLength);
+            resolveBody({
+                text: buffer.toString('utf8'),
+                byteLength: buffer.length,
+                ...(aborted ? { aborted: true } : {})
+            });
+        } catch {
+            resolveBody({ byteLength: 0, aborted: true });
+        }
+        chunks.length = 0;
+    };
+    const stopCapture = (): void => finishCapture(true);
+    const stream = new ReadableStream<Uint8Array>(
+        {
+            async pull(controller) {
+                try {
+                    reader ??= source.getReader();
+                    const { done, value } = await reader.read();
+                    if (cancelled) {
+                        return;
+                    }
+                    if (done) {
+                        finishCapture();
+                        reader.releaseLock();
+                        controller.close();
+                        return;
+                    }
+                    if (capturing) {
+                        try {
+                            chunks.push(Buffer.from(value));
+                            totalLength += value.byteLength;
+                        } catch {
+                            finishCapture(true);
+                        }
+                    }
+                    controller.enqueue(value);
+                } catch (error) {
+                    finishCapture();
+                    reader?.releaseLock();
+                    if (!cancelled) {
+                        controller.error(error);
+                    }
+                }
+            },
+            cancel(reason) {
+                cancelled = true;
+                finishCapture(true);
+                void (reader ? reader.cancel(reason) : source.cancel(reason)).catch(() => undefined);
+                reader?.releaseLock();
+            }
+        },
+        { highWaterMark: 0 }
+    );
+    const preserveMetadata = (wrapped: Response): Response => {
+        const clone = wrapped.clone.bind(wrapped);
+        Object.defineProperties(wrapped, {
+            url: { value: response.url, configurable: true },
+            redirected: { value: response.redirected, configurable: true },
+            type: { value: response.type, configurable: true },
+            clone: { value: () => preserveMetadata(clone()), configurable: true }
+        });
+        return wrapped;
+    };
+    const wrapped = preserveMetadata(
+        new Response(stream, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers
+        })
+    );
+    for (const currentSignal of signals) {
+        currentSignal.addEventListener('abort', stopCapture, { once: true });
+    }
+    if (signals.some(currentSignal => currentSignal.aborted)) {
+        stopCapture();
+    }
+    return { response: wrapped, body };
+}
 
 async function readStreamBodyData(stream: ReadableStream<Uint8Array>, signal?: AbortSignal): Promise<HarBodyData> {
     const reader = stream.getReader();

@@ -8,11 +8,11 @@ import {
     calculateHarCompression,
     formatLocalDate,
     nowMicros,
+    observeResponseBodyData,
     parseHarPidFromFileName,
     pickLatestHarFile,
     planHarCleanup,
     readBodyData,
-    readResponseBodyData,
     shouldRotateHarFileForAge,
     shouldRotateHarFileForDayChange,
     type HarBodyData,
@@ -123,7 +123,10 @@ interface HarRecorderState {
     fileCreatedAt: number;
     entries: HarEntry[];
     flushTimer: NodeJS.Timeout | undefined;
-    lastFlushTime: number;
+    flushedEntryCount: number;
+    nextFlushAttemptAt: number;
+    flushError: Error | undefined;
+    pendingRotation: string | undefined;
     requestCount: number;
     accepting: boolean;
     activeCaptureTasks: Set<Promise<void>>;
@@ -140,9 +143,7 @@ const maxBodySize = 1024 * 1024;
  * HAR 请求记录器
  * 在统一的 fetch 出口处拦截请求与响应，生成符合 HAR 1.2 规范的记录文件。
  */
-const FLUSH_INTERVAL_MS = 5_000;
-const FLUSH_ENTRY_THRESHOLD = 10;
-const MAX_BUFFERED_ENTRIES = 100;
+const FLUSH_INTERVAL_MS = 15_000;
 /** 单个 HAR 文件的最长写入时长，超过则轮换到新文件，保证文件在此时长内完成轮换 */
 const FILE_ROTATION_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -166,6 +167,9 @@ export class HarRecorder {
      * 若配置发生变化（如开关、路径），会先关闭当前文件再按新配置重建。
      */
     initialize(options: HarRecorderOptions): void {
+        for (const state of this.closingStates) {
+            this.finalizeStateIfIdle(state);
+        }
         const previousState = this.currentState;
         const needRestart =
             !previousState ||
@@ -202,7 +206,10 @@ export class HarRecorder {
             fileCreatedAt: Date.now(),
             entries: [],
             flushTimer: undefined,
-            lastFlushTime: Date.now(),
+            flushedEntryCount: 0,
+            nextFlushAttemptAt: 0,
+            flushError: undefined,
+            pendingRotation: undefined,
             requestCount: 0,
             accepting: true,
             activeCaptureTasks: new Set<Promise<void>>(),
@@ -288,7 +295,7 @@ export class HarRecorder {
 
     /**
      * 包装 fetch 实现，在请求完成后追加 HAR entry。
-     * 响应体通过独立的后台读取路径采集，不影响原始 response 返回给调用方。
+     * 响应体随业务读取采集，停止录制只保存已读前缀，不取消业务响应。
      */
     wrapFetch(fetchImpl: typeof fetch): typeof fetch {
         return async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -307,6 +314,10 @@ export class HarRecorder {
 
             const fetchInput = input;
             let fetchInit = init;
+            const requestSignal =
+                init?.signal === null ?
+                    undefined
+                :   (init?.signal ?? (input instanceof Request ? input.signal : undefined));
             const captureInput = input instanceof Request ? input.url : input;
             let captureInit: RequestInit | undefined;
             let requestBodyPromise: Promise<HarBodyData> | undefined;
@@ -434,33 +445,41 @@ export class HarRecorder {
                             byteLength: 0
                         },
                         undefined,
-                        init?.signal ?? undefined
+                        requestSignal
                     )
                 );
                 return response;
             }
 
             const captureController = new AbortController();
+            let capture: ReturnType<typeof observeResponseBodyData>;
+            try {
+                capture = observeResponseBodyData(response, captureController.signal, requestSignal);
+            } catch (error) {
+                StatusLogger.warn('[HAR] Failed to observe Response body for capture', error);
+                return response;
+            }
+
             this.startCaptureTask(
                 state,
                 this.captureEntry(
                     state,
                     captureInput,
                     captureInit,
-                    response.clone(),
+                    response,
                     startedDateTime,
                     startTimestampMs,
                     startTimestampMicros,
                     startTime,
                     fetchReturnedMicros,
                     requestBodyPromise,
-                    undefined,
+                    capture.body,
                     captureController.signal,
-                    init?.signal ?? undefined
+                    requestSignal
                 ),
                 captureController
             );
-            return response;
+            return capture.response;
         };
     }
 
@@ -564,22 +583,21 @@ export class HarRecorder {
         startTime: number,
         fetchReturnedMicros: number | undefined,
         requestBodyPromise: Promise<HarBodyData> | undefined,
-        responseBody?: HarBodyData,
+        responseBody: HarBodyData | Promise<HarBodyData>,
         signal?: AbortSignal,
         requestSignal?: AbortSignal
     ): Promise<void> {
         try {
-            const responseBodyPromise =
-                responseBody ? Promise.resolve(responseBody) : this.readResponseBody(response, signal);
             const [requestBody, resolvedResponseBody] = await Promise.all([
                 requestBodyPromise ?? Promise.resolve<HarBodyData>({ byteLength: 0 }),
-                responseBodyPromise
+                responseBody
             ]);
             const endTime = performance.now();
             const endTimestampMicros = nowMicros();
             // 同时检查内部 captureSignal（dispose 时打断）和用户原始 requestSignal（Ctrl+C 取消），
             // 任一处于 aborted 都标记为 aborted，避免响应体被截断却仍标记为 completed
-            const isAborted = signal?.aborted === true || requestSignal?.aborted === true;
+            const isAborted =
+                signal?.aborted === true || requestSignal?.aborted === true || resolvedResponseBody.aborted === true;
             const entry = await this.buildEntry(
                 input,
                 init,
@@ -642,8 +660,6 @@ export class HarRecorder {
         if (state.requestCount >= this.MAX_REQUESTS_PER_FILE) {
             this.rotateFile(state, new Date(), 'request limit reached');
         }
-
-        this.maybeFlush(state);
     }
 
     private rotateFileIfDayChanged(state: HarRecorderState): void {
@@ -665,7 +681,10 @@ export class HarRecorder {
         }
 
         // 先刷盘当前文件，确保数据不丢
-        this.flush(state);
+        if (!this.flush(state)) {
+            state.pendingRotation ??= reason;
+            return;
+        }
 
         // 清理旧文件（包含刚刷盘的文件），按 retentionCount 保留最近的
         this.cleanupOldHarFiles(state.storageDir, state.options.retentionCount, 1);
@@ -677,26 +696,24 @@ export class HarRecorder {
         state.fileCreatedAt = Date.now();
         state.entries = [];
         state.requestCount = 0;
-        state.lastFlushTime = Date.now();
+        state.flushedEntryCount = 0;
+        state.pendingRotation = undefined;
         StatusLogger.info(`[HAR] Rotated to new file (${reason}): ${newFilePath}`);
-    }
-
-    private maybeFlush(state: HarRecorderState): void {
-        const now = Date.now();
-        const dueToCount = state.entries.length >= FLUSH_ENTRY_THRESHOLD;
-        const dueToTime = now - state.lastFlushTime >= FLUSH_INTERVAL_MS;
-        const dueToBuffer = state.entries.length >= MAX_BUFFERED_ENTRIES;
-        if (dueToCount || dueToTime || dueToBuffer) {
-            this.flush(state);
-        }
     }
 
     private startFlushTimer(state: HarRecorderState): void {
         this.stopFlushTimer(state);
         state.flushTimer = setInterval(() => {
+            if (!state.accepting) {
+                this.finalizeStateIfIdle(state);
+                return;
+            }
+            if (state.pendingRotation) {
+                this.rotateFile(state, new Date(), state.pendingRotation);
+            }
             // 即使无新请求，也按轮换周期检查文件是否过期，保证严格在周期内完成轮换
             this.rotateFileIfExpired(state);
-            this.maybeFlush(state);
+            this.flush(state);
         }, FLUSH_INTERVAL_MS);
         // 避免计时器阻塞 Node.js 进程退出
         if (typeof state.flushTimer.unref === 'function') {
@@ -711,18 +728,27 @@ export class HarRecorder {
         }
     }
 
-    private flush(state: HarRecorderState): void {
-        if (!state.filePath || state.entries.length === 0) {
-            return;
+    private flush(state: HarRecorderState, force = false): boolean {
+        if (!state.filePath || state.entries.length === state.flushedEntryCount) {
+            return true;
+        }
+        if (!force && Date.now() < state.nextFlushAttemptAt) {
+            return false;
         }
 
         try {
             const har = this.buildHar(state);
             const data = JSON.stringify(har, null, 2);
             fs.writeFileSync(state.filePath, data, { encoding: 'utf8', flush: true });
-            state.lastFlushTime = Date.now();
+            state.flushedEntryCount = state.entries.length;
+            state.nextFlushAttemptAt = 0;
+            state.flushError = undefined;
+            return true;
         } catch (error) {
+            state.nextFlushAttemptAt = Date.now() + FLUSH_INTERVAL_MS;
+            state.flushError = error instanceof Error ? error : new Error(String(error));
             StatusLogger.warn('[HAR] Failed to flush HAR file', error);
+            return false;
         }
     }
 
@@ -748,14 +774,29 @@ export class HarRecorder {
     }
 
     private async disposeInternal(): Promise<void> {
-        const closingPromises = Array.from(this.closingStates, state => state.closedPromise);
+        const states = Array.from(this.closingStates);
+        for (const state of states) {
+            this.stopFlushTimer(state);
+        }
         if (this.currentState) {
             const state = this.currentState;
             this.currentState = undefined;
+            states.push(state);
             this.closeState(state);
-            closingPromises.push(state.closedPromise);
         }
-        await Promise.all(closingPromises);
+        await Promise.all(states.map(state => state.closedPromise));
+        const failures: Error[] = [];
+        for (const state of states) {
+            this.stopFlushTimer(state);
+            if (!this.flush(state, true)) {
+                failures.push(state.flushError ?? new Error(`Failed to save HAR file: ${state.filePath}`));
+                continue;
+            }
+            this.finalizeStateIfIdle(state);
+        }
+        if (failures.length > 0) {
+            throw new AggregateError(failures, 'Failed to save pending HAR records');
+        }
     }
 
     private closeState(state: HarRecorderState): void {
@@ -783,7 +824,19 @@ export class HarRecorder {
             return;
         }
 
-        this.flush(state);
+        if (!this.flush(state)) {
+            if (!state.flushTimer) {
+                this.startFlushTimer(state);
+            }
+            if (state.resolveClosed) {
+                StatusLogger.warn(
+                    `[HAR] Recording stopped with ${state.entries.length - state.flushedEntryCount} pending entries: ${state.filePath}`
+                );
+            }
+            state.resolveClosed?.();
+            state.resolveClosed = undefined;
+            return;
+        }
         this.stopFlushTimer(state);
         this.closingStates.delete(state);
         state.resolveClosed?.();
@@ -819,7 +872,11 @@ export class HarRecorder {
                 }
             }
 
+            const protectedPaths = new Set(Array.from(this.closingStates, state => state.filePath));
             const deleteFile = (file: HarFileRecord, reason: string): void => {
+                if (protectedPaths.has(file.path)) {
+                    return;
+                }
                 try {
                     fs.unlinkSync(file.path);
                     StatusLogger.debug(`[HAR] ${reason}: ${file.name}`);
@@ -995,13 +1052,6 @@ export class HarRecorder {
         signal?: AbortSignal
     ): Promise<{ text?: string; byteLength: number }> {
         return readBodyData(body, signal);
-    }
-
-    private async readResponseBody(
-        response: Response,
-        signal?: AbortSignal
-    ): Promise<{ text?: string; byteLength: number }> {
-        return readResponseBodyData(response, signal);
     }
 
     private inferRequestContentType(body: BodyInit | undefined | null): string | undefined {
