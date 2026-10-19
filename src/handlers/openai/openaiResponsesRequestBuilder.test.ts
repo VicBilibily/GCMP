@@ -53,6 +53,47 @@ test('初始化 Responses request 时默认注入 prompt_cache_key', async () =>
     assert.equal(requestBody.input, input);
 });
 
+for (const useWebSocket of [true, false, undefined]) {
+    for (const parallelToolCalls of [undefined, true, false, null]) {
+        test(`WS-LOOP-01: parallel_tool_calls=${parallelToolCalls} with useWebSocket=${useWebSocket}`, async () => {
+            const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+            const tool = {
+                type: 'function',
+                name: 'lookup',
+                parameters: { type: 'object', properties: {} }
+            };
+            const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+                convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+                convertToolsToResponses: () => [tool]
+            } as never);
+            const extraBody = Object.freeze(
+                parallelToolCalls === undefined ? {} : { parallel_tool_calls: parallelToolCalls }
+            );
+            for (const hasTools of [false, true]) {
+                const { requestBody } = builder.build({
+                    model: { id: 'model-id', name: 'Model' } as never,
+                    modelConfig: {
+                        id: 'model-id',
+                        sdkMode: 'openai-responses',
+                        useWebSocket,
+                        extraBody
+                    } as never,
+                    messages: [],
+                    options: { tools: hasTools ? [{ name: 'lookup' }] : [] } as never,
+                    sessionId: 'session-123'
+                });
+                assert.equal(requestBody.parallel_tool_calls, parallelToolCalls ?? undefined);
+                assert.equal(Object.hasOwn(requestBody, 'parallel_tool_calls'), typeof parallelToolCalls === 'boolean');
+                assert.equal(Object.hasOwn(requestBody, 'tools'), hasTools);
+            }
+            assert.deepEqual(
+                extraBody,
+                parallelToolCalls === undefined ? {} : { parallel_tool_calls: parallelToolCalls }
+            );
+        });
+    }
+}
+
 test('GPT + extraBody.reasoning 时注入 encrypted reasoning include', async () => {
     const { initializeResponsesRequestBody } = await getBuilderModule();
     const requestBody = initializeResponsesRequestBody({

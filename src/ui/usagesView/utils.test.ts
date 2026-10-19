@@ -101,6 +101,7 @@ test('meanWithoutOutliers still downweights outliers when MAD is non-zero', () =
 test('summarizeSessionRecoveryDebugInfo counts only bridge and new uuid fallbacks', () => {
     const summary = summarizeSessionRecoveryDebugInfo([
         { sessionRecoverySource: 'stateful-marker' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        { sessionRecoverySource: 'history-bridge' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
         { sessionRecoverySource: 'trace-bridge' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
         { sessionRecoverySource: 'turn-bridge' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
         { sessionRecoverySource: 'summary-bridge-exact' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
@@ -110,7 +111,7 @@ test('summarizeSessionRecoveryDebugInfo counts only bridge and new uuid fallback
     ]);
 
     assert.deepEqual(summary, {
-        bridgeCount: 4,
+        bridgeCount: 5,
         newUuidCount: 1
     });
 });

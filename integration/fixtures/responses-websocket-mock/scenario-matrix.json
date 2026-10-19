@@ -1,0 +1,990 @@
+{
+    "version": 1,
+    "scope": "Local pinned SDK and loopback verification; not SDK IPC or supplier approval",
+    "exclusions": [
+        {
+            "family": "WS-LOOP-06",
+            "variant": "Windows WinINET source selection",
+            "decision": "verification-not-required",
+            "reason": "User explicitly waived this verification; existing proxy behavior is unchanged and is not claimed as tested.",
+            "decidedOn": "2026-10-18"
+        },
+        {
+            "family": "WS-LOOP-06",
+            "variant": "PAC support",
+            "decision": "unsupported-by-design",
+            "reason": "User explicitly does not require PAC support; no PAC implementation is planned for this transport.",
+            "decidedOn": "2026-10-18"
+        },
+        {
+            "family": "WS-LOOP-04",
+            "variant": "Native custom tools, proprietary tool passthrough and grammar",
+            "decision": "unsupported-by-design",
+            "reason": "User explicitly does not require custom compatibility or proprietary tool passthrough. Ordinary function tools remain in scope; existing wrapper tests are retained as regression evidence, not a native custom support requirement.",
+            "decidedOn": "2026-10-19"
+        },
+        {
+            "family": "WS-LOOP-18",
+            "variant": "Restoration of history trimmed by Copilot",
+            "decision": "unsupported-by-design",
+            "reason": "User treats trimmed history as compressed context. The current supplied input is authoritative; the extension must not reconstruct removed history or require a full-history snapshot.",
+            "decidedOn": "2026-10-19"
+        },
+        {
+            "family": "WS-LOOP-19",
+            "variant": "Restoration of lost reasoning state",
+            "decision": "unsupported-by-design",
+            "reason": "User requires missing reasoning state to be omitted, not restored or synthesized. State still present in the current request remains subject to existing replay and identity rules.",
+            "decidedOn": "2026-10-19"
+        },
+        {
+            "family": "WS-LOOP-19",
+            "variant": "Native compaction support",
+            "decision": "unsupported-by-design",
+            "reason": "User does not require native compaction support. Copilot owns its internal compression state; the extension does not implement or control that state.",
+            "decidedOn": "2026-10-19"
+        }
+    ],
+    "families": [
+        {
+            "id": "WS-LOOP-01",
+            "title": "HTTP defaults",
+            "checks": [
+                {
+                    "variant": "independent summary preserves Agent WS",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-01: public independent summary uses HTTP without retiring Agent WS"
+                },
+                {
+                    "variant": "SDK compaction uses HTTP history checks",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-01: public independent SDK compaction uses HTTP without retiring Agent WS"
+                },
+                {
+                    "variant": "title helper preserves HTTP parameters and HAR",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-01: public independent title uses HTTP without retiring Agent WS"
+                },
+                {
+                    "variant": "unclassified requests remain HTTP",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-01: public independent unclassified uses HTTP without retiring Agent WS"
+                },
+                {
+                    "variant": "missing flag",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-01: public HTTP default useWebSocket=undefined"
+                },
+                {
+                    "variant": "false flag",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-01: public HTTP default useWebSocket=false"
+                },
+                {
+                    "variant": "wire flag exclusion",
+                    "layer": "Network",
+                    "test": "WS-LOOP-01: real mock rejects invalid HTTP local-flag"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-02",
+            "title": "Independent full requests",
+            "checks": [
+                {
+                    "variant": "same socket and cross turn full history",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public Provider six real WS requests and HAR exclusion, delta=false"
+                },
+                {
+                    "variant": "no implicit accumulation or previous ID",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-02: flat full frames preserve parameters and reuse without previous ID"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-03",
+            "title": "Verified delta continuation",
+            "checks": [
+                {
+                    "variant": "full delta delta and cross turn context",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public Provider six real WS requests and HAR exclusion, delta=true"
+                },
+                {
+                    "variant": "empty terminal retains completed text and parallel calls",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: terminal empty retains completed text and parallel calls in output order"
+                },
+                {
+                    "variant": "reasoning-only terminal retains completed text and parallel calls",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: terminal reasoning-only retains completed text and parallel calls in output order"
+                },
+                {
+                    "variant": "complete terminal deduplicates completed output items",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: terminal complete retains completed text and parallel calls in output order"
+                },
+                {
+                    "variant": "incomplete output cannot commit a shortened checkpoint",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: incomplete streamed output cannot commit an input-only checkpoint"
+                },
+                {
+                    "variant": "retained output remains bounded after event consumption",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: completed output retention remains bounded after events are consumed"
+                },
+                {
+                    "variant": "independent upstream context",
+                    "layer": "Network",
+                    "test": "WS-LOOP-03: six real network requests preserve full context, delta=true"
+                },
+                {
+                    "variant": "instructions prompt lifecycle and private diagnostics",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt lifecycle useInstructions=true"
+                },
+                {
+                    "variant": "input prompt lifecycle with useInstructions false",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt lifecycle useInstructions=false"
+                },
+                {
+                    "variant": "input prompt lifecycle with useInstructions unset",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt lifecycle useInstructions=undefined"
+                },
+                {
+                    "variant": "prompt mode switches resume delta only after full",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt mode switches rebuild before resuming delta"
+                },
+                {
+                    "variant": "instructions preserved on rejected ID full retry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt survives rejected-id useInstructions=true"
+                },
+                {
+                    "variant": "instructions preserved after idle expiry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt survives idle-expiry useInstructions=true"
+                },
+                {
+                    "variant": "input prompt preserved on rejected ID full retry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt survives rejected-id useInstructions=false"
+                },
+                {
+                    "variant": "input prompt preserved after idle expiry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt survives idle-expiry useInstructions=false"
+                },
+                {
+                    "variant": "default input prompt preserved on rejected ID full retry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt survives rejected-id useInstructions=undefined"
+                },
+                {
+                    "variant": "default input prompt preserved after idle expiry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public system prompt survives idle-expiry useInstructions=undefined"
+                },
+                {
+                    "variant": "prompt expectation contract rejects invalid inputs",
+                    "layer": "Network",
+                    "test": "WS-LOOP-03: mock prompt context contract rejects invalid inputs"
+                },
+                {
+                    "variant": "full reason distinguishes generation changes",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: continuation diagnostics distinguish generation-changed"
+                },
+                {
+                    "variant": "checkpoint diagnostics omit response contents",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: checkpoint diagnostics report rejection and success without response content"
+                },
+                {
+                    "variant": "real argument preprocessing keeps equivalent key order eligible for delta",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-03: real argument preprocessing file-range preserves semantic matching"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-04",
+            "title": "Tool closure",
+            "checks": [
+                {
+                    "variant": "SDK custom string wrapper public full replay; not native custom wire format",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-04: public SDK custom wrapper preserves raw inputs, delta=false"
+                },
+                {
+                    "variant": "SDK custom string wrapper public delta replay; not native custom wire format",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-04: public SDK custom wrapper preserves raw inputs, delta=true"
+                },
+                {
+                    "variant": "function roundtrip public API",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public Provider six real WS requests and HAR exclusion, delta=true"
+                },
+                {
+                    "variant": "parallel public full conversion and replay",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-04: public parallel tools preserve complete context, delta=false"
+                },
+                {
+                    "variant": "parallel public delta conversion and replay",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-04: public parallel tools preserve complete context, delta=true"
+                },
+                {
+                    "variant": "parallel closure planner",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-04: parallel tool results close every call before delta"
+                },
+                {
+                    "variant": "missing result",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-04: parallel tool closure missing-result never invents delta state"
+                },
+                {
+                    "variant": "duplicate result",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-04: parallel tool closure duplicate-result never invents delta state"
+                },
+                {
+                    "variant": "wrong call ID",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-04: parallel tool closure wrong-call-id never invents delta state"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-05",
+            "title": "Context and semantic changes",
+            "checks": [
+                {
+                    "variant": "edited history",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-05: edit never reuses an invalid predecessor"
+                },
+                {
+                    "variant": "tools change",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-05: semantic change tools rebuilds full context"
+                },
+                {
+                    "variant": "instructions change",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-05: semantic change instructions rebuilds full context"
+                },
+                {
+                    "variant": "missing full context",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-19: missing full input undefined is rejected rather than reconstructed"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-06",
+            "title": "Route and credential isolation",
+            "checks": [
+                {
+                    "variant": "explicit revocation A B A at pool boundary",
+                    "layer": "Network",
+                    "test": "WS-LOOP-06: real explicit revocation rebuilds A B A without an old socket"
+                },
+                {
+                    "variant": "public credential binding A B A",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-06: public credential A B A automatically revokes old connections"
+                },
+                {
+                    "variant": "configuration notification epoch without intermediate requests",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-06: public configuration A B A without an intermediate request revokes state"
+                },
+                {
+                    "variant": "credential consumer notification epoch without intermediate requests",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-06: public credential-notification A B A without an intermediate request revokes state"
+                },
+                {
+                    "variant": "overlapping endpoint update",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-06: public overlapping endpoint change retires the old generation"
+                },
+                {
+                    "variant": "overlapping upstream model update",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-06: public overlapping model change retires the old generation"
+                },
+                {
+                    "variant": "overlapping proxy update",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-06: public overlapping proxy change retires the old generation"
+                },
+                {
+                    "variant": "production proxy authentication",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip network policy WS-LOOP-06: public network production authenticated CONNECT"
+                },
+                {
+                    "variant": "proxy failure never directly bypasses",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip network policy WS-LOOP-06: public network production rejected proxy never bypasses"
+                },
+                {
+                    "variant": "target and proxy TLS independent trust",
+                    "layer": "Network",
+                    "test": "WS-LOOP-06: real network policy HTTPS proxy independently trusted"
+                },
+                {
+                    "variant": "hostname validation",
+                    "layer": "Network",
+                    "test": "WS-LOOP-06: real network policy CONNECT target hostname mismatch"
+                },
+                {
+                    "variant": "certificate expiry",
+                    "layer": "Network",
+                    "test": "WS-LOOP-06: real network policy CONNECT target expired"
+                },
+                {
+                    "variant": "controlled NO_PROXY",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip network policy WS-LOOP-06: public network controlled NO_PROXY"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-07",
+            "title": "Concurrency and weak identity",
+            "checks": [
+                {
+                    "variant": "busy isolated WS does not overwrite the reusable WS checkpoint",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-07: public Provider busy isolated WS does not overwrite WS checkpoint"
+                },
+                {
+                    "variant": "connecting exclusivity",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-07: connecting request remains exclusive before open"
+                },
+                {
+                    "variant": "missing session",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-07: public weak identity missing-session uses isolated WS full"
+                },
+                {
+                    "variant": "subagent without trusted branch",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-07: public weak identity subagent-without-branch uses isolated WS full"
+                },
+                {
+                    "variant": "separate branch sockets",
+                    "layer": "Network",
+                    "test": "WS-LOOP-17: real socket isolates branchId while preserving the original scope"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-08",
+            "title": "Consumer acknowledgement",
+            "checks": [
+                {
+                    "variant": "progress failure",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-08: public Provider consumer failure cannot publish a checkpoint"
+                },
+                {
+                    "variant": "terminal flushAll failure",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-08: public terminal flush-failure cannot publish checkpoint"
+                },
+                {
+                    "variant": "successful terminal consumption followed by cancellation before commit",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-08: public terminal cancel-before-commit cannot publish checkpoint"
+                },
+                {
+                    "variant": "stale lease cannot commit",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-08: consumer failure or stale lease cannot publish checkpoint"
+                },
+                {
+                    "variant": "cancel before terminal",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-11: public progress cancellation before terminal cannot commit"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-09",
+            "title": "Unknown acceptance",
+            "checks": [
+                {
+                    "variant": "accepted silence timeout with unknown usage",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider accepted silence never replays or invents usage"
+                },
+                {
+                    "variant": "public server accepted then closed before first frame",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-09: public accepted request closes before first frame without replay"
+                },
+                {
+                    "variant": "no first event disconnect at transport boundary",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-09: sent request without first event is never safe to replay"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-10",
+            "title": "Safe WS retry budget",
+            "checks": [
+                {
+                    "variant": "WS handshake retry enabled",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-10: public Provider handshake retry stays WS within budget, retry=true"
+                },
+                {
+                    "variant": "old ID rejected followed by exactly one WS full retry",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-10: public old response rejection WS full retry allowed"
+                },
+                {
+                    "variant": "old ID rejection with retry disabled",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-10: public old response rejection WS full retry disabled"
+                },
+                {
+                    "variant": "old ID rejection with zero retry budget",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-10: public old response rejection WS full retry zero-budget"
+                },
+                {
+                    "variant": "same error after accepted event is never replayed",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-10: public old response rejection WS full retry already-accepted"
+                },
+                {
+                    "variant": "enabled retry but shared budget consumed by preceding handshake",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-10: enabled retry cannot exceed an already exhausted shared budget"
+                },
+                {
+                    "variant": "full request with old ID error cannot gain retry eligibility",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-10: previous response recovery eligibility full-rejected"
+                },
+                {
+                    "variant": "WS handshake retry disabled",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-10: public Provider handshake retry stays WS within budget, retry=false"
+                },
+                {
+                    "variant": "structured upstream rejection",
+                    "layer": "Network",
+                    "test": "WS-LOOP-10: real mock nested-error preserves status and error code"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-11",
+            "title": "Cancellation windows",
+            "checks": [
+                {
+                    "variant": "before preparation",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-11: public Provider cancellation before dispatch opens no connection"
+                },
+                {
+                    "variant": "credential lookup",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-11: public cancellation during real credential lookup sends nothing"
+                },
+                {
+                    "variant": "pending CONNECT",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-11: public cancellation during CONNECT destroys only the pending connection"
+                },
+                {
+                    "variant": "after send",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-11: public Provider cancellation settles once without replay"
+                },
+                {
+                    "variant": "before terminal",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-11: public progress cancellation before terminal cannot commit"
+                },
+                {
+                    "variant": "after commit",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-11: public late cancellation after commit cannot close the next turn"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-12",
+            "title": "Terminal and close ordering",
+            "checks": [
+                {
+                    "variant": "completed then close",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-12: public Provider terminal close delivers output and rebuilds full"
+                },
+                {
+                    "variant": "close without terminal",
+                    "layer": "Network",
+                    "test": "WS-LOOP-12: real mock partial-close respects explicit terminal boundary"
+                },
+                {
+                    "variant": "duplicate terminal",
+                    "layer": "Network",
+                    "test": "WS-LOOP-12: real mock duplicate-terminal respects explicit terminal boundary"
+                },
+                {
+                    "variant": "late idle event",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: unsolicited real idle events invalidate rather than feed the next request"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-13",
+            "title": "Protocol and queue bounds",
+            "checks": [
+                {
+                    "variant": "oversized frame length rejected before body allocation",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: bounded receiver rejects oversized-header before application delivery"
+                },
+                {
+                    "variant": "tiny fragments without FIN are bounded",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: bounded receiver rejects tiny-fragments before application delivery"
+                },
+                {
+                    "variant": "empty fragments without FIN are bounded",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: bounded receiver rejects empty-fragments before application delivery"
+                },
+                {
+                    "variant": "compression is not negotiated",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: bounded receiver rejects compressed-frame before application delivery"
+                },
+                {
+                    "variant": "invalid UTF8 is rejected",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: bounded receiver rejects invalid-utf8 before application delivery"
+                },
+                {
+                    "variant": "masked server frame is rejected",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: bounded receiver rejects masked-frame before application delivery"
+                },
+                {
+                    "variant": "handshake accept is validated",
+                    "layer": "Network",
+                    "test": "WS-LOOP-10: real Upgrade rejects invalid-accept before opening"
+                },
+                {
+                    "variant": "unsolicited extension is rejected",
+                    "layer": "Network",
+                    "test": "WS-LOOP-10: real Upgrade rejects unsolicited-extension before opening"
+                },
+                {
+                    "variant": "unsolicited protocol is rejected",
+                    "layer": "Network",
+                    "test": "WS-LOOP-10: real Upgrade rejects unsolicited-protocol before opening"
+                },
+                {
+                    "variant": "malformed",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: real mock rejects malformed without replay"
+                },
+                {
+                    "variant": "unknown terminal",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: real mock rejects unknown-terminal without replay"
+                },
+                {
+                    "variant": "message size",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: real mock rejects oversize without replay"
+                },
+                {
+                    "variant": "slow consumer bounded queue",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: real mock rejects queue-overflow without replay"
+                },
+                {
+                    "variant": "default 128 MiB process-wide budget across six real connections",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: real connections enforce the default 128 MiB process queue budget"
+                },
+                {
+                    "variant": "known auxiliary notifications preserve output usage and connection reuse",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-13: public auxiliary notifications preserve output usage and WS reuse"
+                },
+                {
+                    "variant": "fragmented message rejected by receiver at default 16 MiB limit",
+                    "layer": "Network",
+                    "test": "WS-LOOP-13: real fragmented message exceeds default 16 MiB receiver limit"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-14",
+            "title": "HAR exclusion",
+            "checks": [
+                {
+                    "variant": "success",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-14: HAR success records no WS capture or entry"
+                },
+                {
+                    "variant": "rejection",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-14: HAR reject records no WS capture or entry"
+                },
+                {
+                    "variant": "cancellation",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-14: HAR cancel records no WS capture or entry"
+                },
+                {
+                    "variant": "close",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-14: HAR close records no WS capture or entry"
+                },
+                {
+                    "variant": "WS handshake retry never records HAR",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-14: HAR retry records no WS capture or entry"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-15",
+            "title": "Lifecycle and resource limits",
+            "checks": [
+                {
+                    "variant": "real default capacities",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: real default pool limits stop at 32 sockets and eight per provider"
+                },
+                {
+                    "variant": "half-open single user probe",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-15: circuit half-open admits one user probe and reopens on failure"
+                },
+                {
+                    "variant": "idle timer race",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-15: obsolete idle deadline cannot close a newly borrowed lease"
+                },
+                {
+                    "variant": "soft lifetime",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-15: soft lifetime expiry lets active request finish but denies reuse"
+                },
+                {
+                    "variant": "closing retains capacity",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-15: closing connections retain capacity until physical close"
+                },
+                {
+                    "variant": "partial cleanup failure",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-15: partial close failure still closes peers and retains failed registration"
+                },
+                {
+                    "variant": "blackhole close",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: real Undici blackhole close destroys only owned Upgrade socket"
+                },
+                {
+                    "variant": "shared HTTP agent survives",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: shared Agent keeps another real WS and HTTP request working"
+                },
+                {
+                    "variant": "controlled real Upgrade delivery after cancellation",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: delayed real Upgrade after cancellation cannot revive the socket"
+                },
+                {
+                    "variant": "mixed-state disposal with idle dispatcher failure",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: mixed real shutdown retains idle cleanup failure and closes peers"
+                },
+                {
+                    "variant": "mixed-state disposal with handshake dispatcher failure",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: mixed real shutdown retains handshake cleanup failure and closes peers"
+                },
+                {
+                    "variant": "mixed-state disposal with generation dispatcher failure",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: mixed real shutdown retains generation cleanup failure and closes peers"
+                },
+                {
+                    "variant": "mixed-state disposal with consumption dispatcher failure",
+                    "layer": "Network",
+                    "test": "WS-LOOP-15: mixed real shutdown retains consumption cleanup failure and closes peers"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-16",
+            "title": "Attempt and usage accounting",
+            "checks": [
+                {
+                    "variant": "handshake is not generation",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-16: WS handshake retries finalize one failed logical request"
+                },
+                {
+                    "variant": "unknown usage is not zero",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider accepted silence never replays or invents usage"
+                },
+                {
+                    "variant": "internal proxy abort is not cancellation",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-16: known network failure does not inherit an internal proxy abort"
+                },
+                {
+                    "variant": "distinct known request usage survives consumer failure then unknown usage",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-16: distinct known usage survives terminal failure and later unknown usage"
+                },
+                {
+                    "variant": "upstream cancellation preserves received usage and cost without replay",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-16: upstream cancellation preserves usage and cost without replay"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-17",
+            "title": "Identity and stale callback isolation",
+            "checks": [
+                {
+                    "variant": "provider",
+                    "layer": "Network",
+                    "test": "WS-LOOP-17: real socket isolates provider while preserving the original scope"
+                },
+                {
+                    "variant": "model",
+                    "layer": "Network",
+                    "test": "WS-LOOP-17: real socket isolates modelId while preserving the original scope"
+                },
+                {
+                    "variant": "session",
+                    "layer": "Network",
+                    "test": "WS-LOOP-17: real socket isolates sessionId while preserving the original scope"
+                },
+                {
+                    "variant": "missing turn",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: public turn=undefined is not a connection identity"
+                },
+                {
+                    "variant": "invalid turn",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: public turn=invalid-turn is not a connection identity"
+                },
+                {
+                    "variant": "SDK context first connection reuse without conversation metadata",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: SDK session context reuses first connection without conversation metadata"
+                },
+                {
+                    "variant": "explicit SDK sessions survive metadata loss independently",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: distinct explicit SDK sessions survive metadata loss independently"
+                },
+                {
+                    "variant": "conflicting explicit SDK sessions remain ambiguous",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: conflicting explicit SDK sessions remain ambiguous after metadata loss"
+                },
+                {
+                    "variant": "distinct SDK contexts retain separate first connections and checkpoints",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: distinct SDK contexts keep independent first connections and checkpoints"
+                },
+                {
+                    "variant": "Copilot Chat new UUID and validated marker reuse the first connection",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: Copilot Chat new session and marker share the first connection"
+                },
+                {
+                    "variant": "distinct Copilot Chat markers retain separate first connections and checkpoints",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-17: distinct Copilot Chat markers keep independent first connections and checkpoints"
+                },
+                {
+                    "variant": "stale cancellation",
+                    "layer": "Network",
+                    "test": "WS-LOOP-17: real reused connection ignores cancellation from the previous request"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-18",
+            "title": "Summary epoch barriers",
+            "checks": [
+                {
+                    "variant": "unadopted summary",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-18: summary unadopted respects the context epoch"
+                },
+                {
+                    "variant": "adoption and stale CAS",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-18: adopted summary invalidates old candidate and establishes new epoch"
+                },
+                {
+                    "variant": "rollback",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-18: summary rollback respects the context epoch"
+                },
+                {
+                    "variant": "failed rebuild",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-18: summary failed-rebuild respects the context epoch"
+                },
+                {
+                    "variant": "new generation",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-18: summary new-generation respects the context epoch"
+                },
+                {
+                    "variant": "real public adopted summary and following delta",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-03: public Provider six real WS requests and HAR exclusion, delta=true"
+                },
+                {
+                    "variant": "same Provider WS HTTP WS switch and failed summary rollback",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-18: same provider mode switch and failed summary rollback rebuild full"
+                }
+            ],
+            "unverified": []
+        },
+        {
+            "id": "WS-LOOP-19",
+            "title": "Native state conservative boundary",
+            "checks": [
+                {
+                    "variant": "orphan results rejected before token estimation rate limiting and dispatch",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public orphan tool results fail before dispatch"
+                },
+                {
+                    "variant": "duplicate calls rejected before dispatch",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public invalid tool history duplicate-call fails before dispatch"
+                },
+                {
+                    "variant": "duplicate results rejected before dispatch",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public invalid tool history duplicate-result fails before dispatch"
+                },
+                {
+                    "variant": "tool history structural invalid input rejection",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-19: tool history rejects unmatched duplicate and wrong-role parts"
+                },
+                {
+                    "variant": "parallel results closed IDs and retained cancellation history remain valid",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-19: tool history permits complete parallel replay and retained cancelled calls"
+                },
+                {
+                    "variant": "SDK context first lease and mixed reasoning text multi-field JSON tool continuation",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public encrypted reasoning continuation thinking-parts"
+                },
+                {
+                    "variant": "Copilot Chat marker first lease and mixed reasoning text multi-field JSON tool continuation",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public encrypted reasoning continuation copilot-chat"
+                },
+                {
+                    "variant": "empty terminal yields only five new results then new user input",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: Copilot Chat empty terminal omits replayed text and five parallel calls"
+                },
+                {
+                    "variant": "reasoning-only terminal yields only five new results then new user input",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: Copilot Chat reasoning terminal omits replayed text and five parallel calls"
+                },
+                {
+                    "variant": "strict peer may reject omitted reasoning; no reconstruction or automatic replay",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public encrypted reasoning continuation thinking-stripped"
+                },
+                {
+                    "variant": "lost reasoning is omitted and the supplied context is sent full without restoration",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public encrypted reasoning continuation thinking-omitted"
+                },
+                {
+                    "variant": "explicit include override disables reasoning replay",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-19: public encrypted reasoning continuation include-disabled"
+                },
+                {
+                    "variant": "compaction full preservation only",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-19: unsupported native compaction is preserved in full without delta eligibility"
+                },
+                {
+                    "variant": "malformed reasoning cannot establish a checkpoint",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-19: unsupported native reasoning is preserved in full without delta eligibility"
+                },
+                {
+                    "variant": "missing context rejection",
+                    "layer": "Unit",
+                    "test": "WS-LOOP-19: missing full input null is rejected rather than reconstructed"
+                }
+            ],
+            "unverified": [
+                "Actual SDK IPC verification of supported messages, function tools and retained reasoning; history restoration and native compaction are explicitly outside scope"
+            ]
+        }
+    ]
+}

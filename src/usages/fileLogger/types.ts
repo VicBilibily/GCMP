@@ -146,6 +146,7 @@ export type RequestKind = string;
 /** 会话恢复来源 */
 export type SessionRecoverySource =
     | 'stateful-marker'
+    | 'history-bridge'
     | 'trace-bridge'
     | 'turn-bridge'
     | 'summary-bridge-exact'

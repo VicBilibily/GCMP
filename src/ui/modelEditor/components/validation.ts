@@ -298,6 +298,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         :   [];
     const serviceTier = normalizeCompatibleServiceTiers(serviceTierValues) || [];
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
+    const useWebSocketEl = document.getElementById('useWebSocket') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
     const nativeToolsEl = document.getElementById('nativeTools') as HTMLTextAreaElement | null;
@@ -352,6 +353,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         imageInput,
         serviceTier,
         useInstructions,
+        useWebSocket: sdkMode === 'openai-responses' ? (useWebSocketEl?.checked ?? false) : undefined,
         cacheTtl: state.model.cacheTtl,
         webSearchTool,
         webSearchToolConfig,

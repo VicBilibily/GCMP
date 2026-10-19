@@ -26,7 +26,7 @@ import { isCancellationError } from '../utils/text/cancellationError';
 import { Logger } from '../utils/runtime/logger';
 import { RequestDiagnostics } from '../utils/net/requestDiagnostics';
 import { t } from '../utils/runtime/l10n';
-import { hasFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
+import { copyFinalStatusRecorded, hasFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { ModelInfoCache } from '../utils/model/modelInfoCache';
 import { PromptAnalyzer } from '../utils/model/promptAnalyzer';
 import { SdkUsageCache } from '../utils/model/sdkUsageCache';
@@ -45,6 +45,8 @@ import { GeminiHandler, hasGeminiPartialUsage } from '../handlers/gemini/geminiH
 import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../handlers/anthropic/anthropicRetry';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openai/openaiResponsesHandler';
+import type { ResponsesWebSocketServices } from '../handlers/openai/openaiResponsesHandler';
+import { ResponsesTransportFailure } from '../handlers/openai/transport/responsesWebSocketTransport';
 import {
     decodeStatefulMarker,
     getAllStatefulMarkersAndIndicies,
@@ -52,11 +54,17 @@ import {
     type StatefulMarkerContainer
 } from '../handlers/stateful/statefulMarker';
 import { canRestoreMarkerSession, getMarkerBalanceCredential } from '../handlers/stateful/statefulMarkerRecovery';
-import { filterStatefulReplay, SdkReplayCache } from '../handlers/stateful/statefulReplay';
-import { classifyRequestContext, isSubRequest, type RequestKind } from '../handlers/classification/requestClassifier';
+import { assertResponsesToolHistory, filterStatefulReplay, SdkReplayCache } from '../handlers/stateful/statefulReplay';
+import {
+    classifyRequestContext,
+    getSdkSessionContextKey,
+    isSubRequest,
+    type RequestKind
+} from '../handlers/classification/requestClassifier';
 import {
     getRequestClassificationMetadata,
     getRequestContinuity,
+    isVerifiedAgentConversation,
     isVerifiedCopilotChat,
     type RequestClassification,
     type RequestClassificationMetadata,
@@ -73,7 +81,7 @@ import {
 } from './request/requestSession';
 import { createResponseProcessor } from './request/responseProcessor';
 import { SessionTitleService } from '../usages/sessionTitleService';
-import { SessionRecoveryService } from '../usages/sessionRecoveryService';
+import { MAX_RECOVERY_RESPONSE_LENGTH, SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
 import { StatusBarManager } from '../status/statusBarManager';
@@ -159,6 +167,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected visionCache?: VisionCache; // 图片缓存服务
     private sdkUsageCache = new SdkUsageCache();
     private sdkReplayCache = new SdkReplayCache();
+    private disposal?: Promise<void>;
 
     // 模型信息变更事件
     protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
@@ -169,7 +178,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         return ConfigManager.applyProviderOverrides(this.providerKey, config);
     }
 
-    constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
+    constructor(
+        context: vscode.ExtensionContext,
+        providerKey: string,
+        providerConfig: ProviderConfig,
+        responsesTransport?: ResponsesWebSocketServices
+    ) {
         this.providerKey = providerKey;
         // 保存原始配置（不应用覆盖）
         this.baseProviderConfig = providerConfig;
@@ -188,6 +202,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             if (e.affectsConfiguration('gcmp.providerOverrides') && providerKey !== 'compatible') {
                 // 重新计算配置
                 this.cachedProviderConfig = this.applyProviderConfigOverrides(this.baseProviderConfig);
+                this.openaiResponsesHandler?.retireConnections?.();
                 // 清除缓存
                 this.modelInfoCache
                     ?.invalidateCache(this.providerKey)
@@ -209,7 +224,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 创建 OpenAI 自定义 SSE 处理器
         this.openaiCustomHandler = new OpenAICustomHandler(this, openaiRequestBuilder);
         // 创建 OpenAI Responses API 处理器
-        this.openaiResponsesHandler = new OpenAIResponsesHandler(this, openaiClientFactory);
+        this.openaiResponsesHandler = new OpenAIResponsesHandler(this, openaiClientFactory, responsesTransport);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
         this.geminiHandler = new GeminiHandler(this);
@@ -218,16 +233,32 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     /**
      * 释放资源
      */
-    dispose(): void {
-        this.sdkUsageCache?.dispose();
-        this.sdkReplayCache?.dispose();
-        // 释放配置监听器
-        this.configListener?.dispose();
-        // 释放事件发射器
-        this._onDidChangeLanguageModelChatInformation.dispose();
-        // 清理视觉缓存文件
-        this.visionCache?.clearAll();
-        Logger.info(`🧹 ${this.providerConfig.displayName}: extension disposed`);
+    dispose(): Promise<void> {
+        if (this.disposal) {
+            return this.disposal;
+        }
+        const tasks = [
+            () => this.openaiResponsesHandler?.dispose?.(),
+            () => this.sdkUsageCache?.dispose(),
+            () => this.sdkReplayCache?.dispose(),
+            () => this.configListener?.dispose(),
+            () => this._onDidChangeLanguageModelChatInformation.dispose(),
+            () => this.visionCache?.clearAll(),
+            () => Logger.info(`🧹 ${this.providerConfig.displayName}: extension disposed`)
+        ].map(dispose => {
+            try {
+                return Promise.resolve(dispose());
+            } catch (error) {
+                return Promise.reject(error);
+            }
+        });
+        this.disposal = Promise.allSettled(tasks).then(results => {
+            const errors = results.flatMap(result => (result.status === 'rejected' ? [result.reason as unknown] : []));
+            if (errors.length) {
+                throw new AggregateError(errors, 'Provider resource cleanup failed');
+            }
+        });
+        return this.disposal;
     }
 
     /**
@@ -237,6 +268,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      */
     invalidateAndNotify(slot?: string): void {
         const targetSlot = slot ?? this.providerKey;
+        this.openaiResponsesHandler?.retireConnections?.();
         this.modelInfoCache
             ?.invalidateCache(targetSlot)
             .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache for ${targetSlot}:`, err));
@@ -257,6 +289,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
         this.baseProviderConfig = { ...this.baseProviderConfig, models };
         this.cachedProviderConfig = this.applyProviderConfigOverrides(this.baseProviderConfig);
+        this.openaiResponsesHandler?.retireConnections?.();
         Logger.debug(`[${this.providerKey}] Remote models updated (${models.length} models)`);
         void (this.modelInfoCache?.invalidateCache(this.providerKey) ?? Promise.resolve()).then(
             () => this._onDidChangeLanguageModelChatInformation.fire(),
@@ -440,6 +473,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const requestKind = this.ensureRequestKind(messages, options);
         const behavior = requestScopes.get(options)?.behavior ?? resolveRequestBehavior(classification);
         const sdkMode = modelConfig.sdkMode || 'openai';
+        if (
+            behavior.kind === 'sdk' &&
+            sdkMode === 'openai-responses' &&
+            modelConfig.useWebSocket === true &&
+            isVerifiedAgentConversation(classification)
+        ) {
+            assertResponsesToolHistory(messages);
+        }
         const resolution = this.getSessionIdFromMessages(
             messages,
             sdkMode,
@@ -460,6 +501,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const scope = requestScopes.get(options);
         if (scope) {
             scope.continuity = requestContinuity;
+            scope.fullSummaryMatch =
+                sessionRecoverySource === 'summary-bridge-exact' || sessionRecoverySource === 'summary-bridge-embedded';
         }
         if (behavior.cacheUsage && !subSessionId) {
             this.sdkUsageCache ??= new SdkUsageCache();
@@ -832,6 +875,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
         const baseModelConfig = modelConfig;
         const sdkMode = modelConfig.sdkMode || 'openai';
+        if (
+            modelConfig.useWebSocket !== undefined &&
+            (typeof modelConfig.useWebSocket !== 'boolean' || sdkMode !== 'openai-responses')
+        ) {
+            throw new Error('useWebSocket must be a boolean for openai-responses models');
+        }
+        let responsesFullContextRetried = false;
         if (sdkMode === 'gemini-sse' && !modelConfig.baseUrl?.trim()) {
             throw new Error(
                 t('Gemini mode requires baseUrl in modelInfo', 'Gemini 模式需要在 modelInfo 中配置 baseUrl')
@@ -978,10 +1028,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // chat-title 请求：额外累积响应文本，请求成功后回填会话标题
         const isTitleRequest = behavior.auxiliaryResponse === 'title';
         const isSummarizationRequest = behavior.auxiliaryResponse === 'summary';
+        const trackAssistantHistory =
+            behavior.kind === 'copilot-chat' &&
+            classification.requestKind === 'main-agent' &&
+            classification.agentRole === 'main';
         const titleRequestRawText =
             isTitleRequest ? SessionTitleService.extractTitleGenerationRequestText(messages) : undefined;
         let titleResponseBuffer = '';
         let summaryResponseBuffer = '';
+        let assistantResponseBuffer = '';
         let hasReportedProgress = false;
         let attemptDispatched = false;
         let attemptDiagnostics: RequestDiagnostics | undefined;
@@ -1021,6 +1076,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     if (isSummarizationRequest && value instanceof vscode.LanguageModelTextPart) {
                         summaryResponseBuffer += value.value;
                     }
+                    if (trackAssistantHistory && value instanceof vscode.LanguageModelTextPart) {
+                        assistantResponseBuffer = (assistantResponseBuffer + value.value).slice(
+                            0,
+                            MAX_RECOVERY_RESPONSE_LENGTH + 1
+                        );
+                    }
                     const output = processResponse(value, { balanceAffinity, statefulCredentialId });
                     if (output !== undefined) {
                         progress.report(output);
@@ -1047,6 +1108,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     // 标题响应按 attempt 独立累积，避免重试时拼接上一轮的半截文本
                     titleResponseBuffer = '';
                     summaryResponseBuffer = '';
+                    assistantResponseBuffer = '';
                     attemptDispatched = false;
 
                     // 限流闸门：任一维度触顶即自主延迟；重试也会重新取令牌（文档铁律）
@@ -1340,6 +1402,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 attemptDiagnostics
                             );
                         } else if (sdkMode === 'openai-responses') {
+                            const verified = (level: string) => level === 'signature' || level === 'contract';
+                            const trustedScope =
+                                (requestContinuity.source === 'sdk-session' ||
+                                    requestContinuity.source === 'marker' ||
+                                    (isVerifiedCopilotChat(classification) &&
+                                        classification.agentRole === 'main' &&
+                                        requestScopes.get(options)?.fullSummaryMatch === true) ||
+                                    (requestContinuity.source === 'new' &&
+                                        ((isVerifiedCopilotChat(classification) &&
+                                            classification.agentRole === 'main') ||
+                                            getSdkSessionContextKey(
+                                                messages,
+                                                classification,
+                                                options.requestInitiator
+                                            ) !== undefined))) &&
+                                classification.requestKind === 'main-agent' &&
+                                (classification.agentRole === 'main' ||
+                                    (classification.agentRole === 'subagent' && !!subSessionId)) &&
+                                verified(classification.evidence.origin.level) &&
+                                verified(classification.evidence.purpose.level) &&
+                                verified(classification.evidence.role.level);
                             await this.openaiResponsesHandler.handleResponsesRequest(
                                 model,
                                 attemptModelConfig,
@@ -1352,7 +1435,21 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 requestStartTime,
                                 handleRequestDispatched,
                                 wasThrottled,
-                                attemptDiagnostics
+                                attemptDiagnostics,
+                                trustedScope ?
+                                    Object.freeze({
+                                        origin: classification.requestOrigin,
+                                        purpose: classification.requestKind,
+                                        branchId: subSessionId || 'main',
+                                        turn:
+                                            (
+                                                typeof telemetryTurn === 'string' ||
+                                                (typeof telemetryTurn === 'number' && Number.isFinite(telemetryTurn))
+                                            ) ?
+                                                telemetryTurn
+                                            :   undefined
+                                    })
+                                :   undefined
                             );
                         } else {
                             await this.openaiHandler.handleRequest(
@@ -1394,11 +1491,33 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         if (limitHandle) {
                             RateLimiter.release(
                                 limitHandle,
-                                attemptDispatched ? { tokens: limitHandle.costs.tokens } : limitHandle.costs
+                                (
+                                    error instanceof ResponsesTransportFailure ?
+                                        error.modelDispatch === 'possibly-sent'
+                                    :   attemptDispatched
+                                ) ?
+                                    { tokens: limitHandle.costs.tokens }
+                                :   limitHandle.costs
                             );
                         }
                         if (token.isCancellationRequested) {
-                            throw new vscode.CancellationError();
+                            const cancellationError = new vscode.CancellationError();
+                            if (error instanceof vscode.CancellationError) {
+                                copyFinalStatusRecorded(error, cancellationError);
+                            }
+                            throw cancellationError;
+                        }
+                        if (error instanceof ResponsesTransportFailure) {
+                            if (!error.safeToRetry) {
+                                throw error;
+                            }
+                            if (
+                                error.retryWithFullContext ||
+                                (error.phase === 'handshake' &&
+                                    (error.status === undefined || error.status === 404 || error.status === 426))
+                            ) {
+                                throw error;
+                            }
                         }
                         if (!attemptDispatched || !isApiKeyFailoverError(error)) {
                             throw error;
@@ -1466,6 +1585,32 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     if (!attemptDispatched) {
                         return decide(false, 'not_dispatched');
                     }
+                    if (error instanceof ResponsesTransportFailure) {
+                        if (!error.safeToRetry || hasReportedProgress || token.isCancellationRequested) {
+                            return decide(false, 'websocket_replay_unsafe');
+                        }
+                        if (error.retryWithFullContext && responsesFullContextRetried) {
+                            return decide(false, 'websocket_full_retry_exhausted');
+                        }
+                        if (
+                            error.retryWithFullContext ||
+                            (error.phase === 'handshake' &&
+                                (error.status === undefined || error.status === 404 || error.status === 426))
+                        ) {
+                            const remaining =
+                                configuredRetryConfig.maxAttempts === -1 ||
+                                retryAttempt < configuredRetryConfig.maxAttempts;
+                            if (remaining && error.retryWithFullContext) {
+                                responsesFullContextRetried = true;
+                            }
+                            return decide(
+                                remaining,
+                                !remaining ? 'budget_exhausted'
+                                : error.retryWithFullContext ? 'websocket_full_retry'
+                                : 'websocket_handshake_retry'
+                            );
+                        }
+                    }
                     if (token.isCancellationRequested || !isApiKeyFailoverError(error)) {
                         return decide(false, 'cancelled');
                     }
@@ -1518,6 +1663,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             );
 
             requestOutcome = 'completed';
+            if (trackAssistantHistory && !token.isCancellationRequested) {
+                SessionRecoveryService.instance.rememberAssistantResponse(sessionId, assistantResponseBuffer, {
+                    requestClassification,
+                    providerKey: effectiveProviderKey
+                });
+            }
             if (isSummarizationRequest && summaryResponseBuffer.trim()) {
                 SessionRecoveryService.instance.rememberSummarization(sessionId, summaryResponseBuffer, {
                     requestClassification,
@@ -1557,7 +1708,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             if (token.isCancellationRequested) {
                 requestOutcome = 'cancelled';
                 attemptDiagnostics?.abort('host_token');
-                throw new vscode.CancellationError();
+                const cancellationError = new vscode.CancellationError();
+                if (error instanceof vscode.CancellationError) {
+                    copyFinalStatusRecorded(error, cancellationError);
+                }
+                throw cancellationError;
             }
             throw error;
         } finally {
@@ -1704,7 +1859,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         } catch (error) {
             // 取消请求不应记为失败：handler 已记录 cancelled，或在此兜底记录
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
+                if (!this.hasRecordedFinalStatus(error)) {
+                    this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
+                }
                 throw new vscode.CancellationError();
             }
 

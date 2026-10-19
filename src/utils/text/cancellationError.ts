@@ -14,6 +14,12 @@
  * - 嵌套模式：error.cause 或 error.error 为以上任一类型
  * - 深层嵌套 / 循环引用：通过迭代遍历 + WeakSet 去重避免死循环与递归爆栈
  */
+const nonCancellationErrors = new WeakSet<object>();
+
+export function markAsNonCancellationError(error: Error): void {
+    nonCancellationErrors.add(error);
+}
+
 export function isCancellationError(error: unknown): boolean {
     if (!isRecord(error)) {
         return false;
@@ -24,7 +30,7 @@ export function isCancellationError(error: unknown): boolean {
 
     while (stack.length > 0) {
         const current = stack.pop();
-        if (!current || visited.has(current)) {
+        if (!current || visited.has(current) || nonCancellationErrors.has(current)) {
             continue;
         }
 

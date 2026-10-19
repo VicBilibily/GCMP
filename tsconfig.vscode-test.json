@@ -6,5 +6,5 @@
         "noEmit": true
     },
     "include": ["src/**/*", "integration/**/*.ts"],
-    "exclude": ["node_modules", "dist", "out"]
+    "exclude": ["node_modules", "dist", "out", "integration/fixtures/responses-websocket-mock"]
 }

@@ -3,6 +3,24 @@ import * as vscode from 'vscode';
 import { decodeStatefulMarker, encodeStatefulMarker, type StatefulMarkerContainer } from './statefulMarker';
 import { CustomDataPartMimeTypes, isStatefulMarkerMimeType } from '../types';
 
+export function assertResponsesToolHistory(messages: readonly vscode.LanguageModelChatMessage[]): void {
+    const pending = new Set<string>();
+    for (const message of messages) {
+        for (const part of message.content) {
+            if (part instanceof vscode.LanguageModelToolCallPart) {
+                if (message.role !== vscode.LanguageModelChatMessageRole.Assistant || pending.has(part.callId)) {
+                    throw new Error('Responses replay context contains an ambiguous tool call');
+                }
+                pending.add(part.callId);
+            } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                if (message.role !== vscode.LanguageModelChatMessageRole.User || !pending.delete(part.callId)) {
+                    throw new Error('Responses replay history is missing the matching tool call');
+                }
+            }
+        }
+    }
+}
+
 interface ReplayIdentity {
     provider: string;
     modelId: string;

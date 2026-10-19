@@ -168,6 +168,7 @@ export interface ModelConfig {
      *  - 当设置为 true 时，使用 instructions 参数传递系统指令
      */
     useInstructions?: boolean;
+    useWebSocket?: boolean;
     /**
      * Anthropic 提示缓存 TTL（可选，仅 sdkMode=anthropic 生效）
      * - 省略：不写 ttl 字段，走 Anthropic 默认 5 分钟（与历史行为字节级一致）
@@ -484,6 +485,7 @@ export interface ModelOverride {
     extraBody?: Record<string, unknown>;
     /** 是否在 Responses API 中使用 instructions 参数（仅 sdkMode=openai-responses 生效） */
     useInstructions?: boolean;
+    useWebSocket?: ModelConfig['useWebSocket'];
     /** Anthropic 提示缓存 TTL（仅 sdkMode=anthropic 生效）；省略保持默认 5m */
     cacheTtl?: ModelConfig['cacheTtl'];
     /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象（两模式均支持对象配置） */

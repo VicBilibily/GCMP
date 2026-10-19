@@ -229,6 +229,9 @@ function buildIntegrationTestConfigs() {
     const configs = [];
 
     function scan(dir) {
+        if (dir === path.join(integrationDir, 'fixtures', 'responses-websocket-mock')) {
+            return;
+        }
         const entries = fs.readdirSync(dir, { withFileTypes: true });
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);

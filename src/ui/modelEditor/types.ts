@@ -51,6 +51,7 @@ export interface ModelFormData {
     imageInput: boolean;
     serviceTier: ServiceTier[];
     useInstructions: boolean | undefined;
+    useWebSocket?: boolean;
     cacheTtl: CacheTtl;
     webSearchTool: boolean | undefined;
     /** webSearchTool 对象配置（JSON 字符串），anthropic / openai-responses 模式支持 */

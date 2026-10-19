@@ -13,6 +13,7 @@ interface RequestScopeContext {
     classification: RequestClassification;
     behavior: RequestBehavior;
     continuity?: RequestContinuity;
+    fullSummaryMatch?: boolean;
 }
 
 export class ProviderRequestScopes {

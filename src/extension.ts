@@ -5,6 +5,7 @@ import { ApiKeyManager } from './utils/config/apiKeyManager';
 import { ConfigManager } from './utils/config/configManager';
 import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
 import { closeProxyAgents } from './utils/net/proxyAgent';
+import { responsesConnectionPool } from './handlers/openai/transport/responsesConnectionPool';
 import { registerHarRecorderCommand } from './utils/net/harRecorder';
 import { RemoteMetadataService } from './utils/metadata/remoteMetadataService';
 import { RemoteModelsService } from './utils/metadata/remoteModelsService';
@@ -310,6 +311,7 @@ async function disposeResources(subscriptions: vscode.Disposable[] = []): Promis
     await cleanup('status bars', () => StatusBarManager.disposeAll());
     await cleanup('leader election service', () => LeaderElectionService.stop());
     await cleanup('inter-instance bus', () => InterInstanceBus.dispose());
+    await cleanup('Responses WebSocket pool', () => responsesConnectionPool.dispose());
 
     for (const [providerKey, provider] of Object.entries(registeredProviders)) {
         await cleanup(`provider ${providerKey}`, () => {

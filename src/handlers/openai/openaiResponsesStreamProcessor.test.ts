@@ -42,7 +42,7 @@ function createProcessor(
     reporterOverrides: Partial<
         Pick<StreamReporter, 'reportToolCall' | 'reportToolResult' | 'reportToolArgDelta' | 'flushAll'>
     > = {},
-    options: { token?: unknown; abortController?: AbortController } = {}
+    options: { token?: unknown; abortController?: AbortController; requireExplicitTerminal?: boolean } = {}
 ) {
     const reported: string[] = [];
     let hasToolOutput = false;
@@ -80,6 +80,7 @@ function createProcessor(
         displayName: 'Test',
         token: (options.token ?? { isCancellationRequested: false }) as never,
         abortController: options.abortController ?? new AbortController(),
+        ...{ requireExplicitTerminal: options.requireExplicitTerminal },
         streamReporter: streamReporter as never,
         sessionId: 'session-1'
     });
@@ -92,6 +93,85 @@ async function* eventsFrom(events: unknown[]) {
         yield event;
     }
 }
+
+for (const strict of [false, true]) {
+    test(`WS-LOOP-12: partial output without terminal, strict=${strict}`, async () => {
+        const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+        const { processor, reported, flushed } = createProcessor(
+            OpenAIResponsesStreamProcessor,
+            {},
+            { requireExplicitTerminal: strict }
+        );
+        const stream = eventsFrom([
+            { type: 'response.output_text.delta', item_id: 'i', content_index: 0, delta: 'partial' }
+        ]);
+        if (strict) {
+            await assert.rejects(processor.consume(stream as never), /terminal/i);
+            assert.equal(processor.isResponseFinalized(), false);
+            assert.deepEqual(flushed, []);
+        } else {
+            await processor.consume(stream as never);
+            assert.equal(processor.isResponseFinalized(), true);
+        }
+        assert.deepEqual(reported, ['partial']);
+    });
+}
+
+test('WS-LOOP-12: remote cancelled is not a successful completion', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor, flushed } = createProcessor(
+        OpenAIResponsesStreamProcessor,
+        {},
+        { requireExplicitTerminal: true }
+    );
+    await assert.rejects(
+        processor.consume(eventsFrom([{ type: 'response.cancelled', response: { id: 'r' } }]) as never),
+        /cancelled/i
+    );
+    assert.equal(processor.isResponseFinalized(), false);
+    assert.deepEqual(flushed, []);
+});
+
+for (const terminal of ['response.completed', 'response.incomplete', 'response.failed', 'response.cancelled']) {
+    test(`WS-LOOP-12: local cancellation retains received ${terminal} usage`, async () => {
+        const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+        const { processor } = createProcessor(
+            OpenAIResponsesStreamProcessor,
+            {},
+            { requireExplicitTerminal: true, token: { isCancellationRequested: true } }
+        );
+        const usage = {
+            input_tokens: 110,
+            output_tokens: 30,
+            total_tokens: 140,
+            input_tokens_details: { cached_tokens: 40 },
+            output_tokens_details: { reasoning_tokens: 20 }
+        };
+        await assert.rejects(
+            processor.consume(
+                eventsFrom([{ type: terminal, response: { id: 'r', usage, error: { message: 'cancelled' } } }]) as never
+            )
+        );
+        assert.deepEqual(processor.getFinalUsage(), usage);
+    });
+}
+
+test('WS-LOOP-12: upstream cancellation retains received usage without completing', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor, flushed } = createProcessor(
+        OpenAIResponsesStreamProcessor,
+        {},
+        { requireExplicitTerminal: true }
+    );
+    const usage = { input_tokens: 110, output_tokens: 30, total_tokens: 140 };
+    await assert.rejects(
+        processor.consume(eventsFrom([{ type: 'response.cancelled', response: { id: 'r', usage } }]) as never),
+        /cancelled/i
+    );
+    assert.deepEqual(processor.getFinalUsage(), usage);
+    assert.equal(processor.isResponseFinalized(), false);
+    assert.deepEqual(flushed, []);
+});
 
 for (const ending of ['empty', 'created', 'invalid-tool', 'completed-empty', 'length-empty', 'cancelled']) {
     test(`consume：空结果与终态判定 ${ending}`, async () => {

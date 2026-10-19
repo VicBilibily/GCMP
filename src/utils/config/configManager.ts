@@ -1055,6 +1055,9 @@ export class ConfigManager {
                     `  Model ${modelOverride.id}: override useInstructions = ${modelOverride.useInstructions}`
                 );
             }
+            if (modelOverride.useWebSocket !== undefined) {
+                target.useWebSocket = modelOverride.useWebSocket;
+            }
             if (modelOverride.cacheTtl !== undefined) {
                 target.cacheTtl = modelOverride.cacheTtl;
                 Logger.debug(`  Model ${modelOverride.id}: override cacheTtl = ${modelOverride.cacheTtl}`);

@@ -46,6 +46,19 @@ export function getScopedRequestClassification(options: object): RequestClassifi
     return scopedRequestClassifications.get(options);
 }
 
+export function isVerifiedAgentConversation(classification?: RequestClassification): boolean {
+    const verified = (level: EvidenceLevel) => level === 'signature' || level === 'contract';
+    return (
+        classification !== undefined &&
+        verified(classification.evidence.purpose.level) &&
+        verified(classification.evidence.role.level) &&
+        ((classification.requestKind === 'main-agent' &&
+            (classification.agentRole === 'main' || classification.agentRole === 'subagent')) ||
+            (classification.agentRole === 'subagent' &&
+                ['subagent', 'search-subagent', 'execution-subagent'].includes(classification.requestKind)))
+    );
+}
+
 export function isVerifiedCopilotChat(metadata?: RequestClassificationMetadata): boolean {
     return (
         metadata === undefined ||

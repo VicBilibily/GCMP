@@ -101,6 +101,7 @@ export interface CompatibleModelConfig {
      *  - 当设置为 false 时，使用用户消息传递系统消息指令
      */
     useInstructions?: boolean;
+    useWebSocket?: boolean;
     /**
      * Anthropic 提示缓存 TTL（可选，仅 sdkMode=anthropic 生效）
      * - 省略：不写 ttl，走 Anthropic 默认 5 分钟

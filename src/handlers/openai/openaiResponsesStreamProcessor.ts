@@ -9,8 +9,14 @@ import { Logger } from '../../utils/runtime/logger';
 import type { RequestDiagnostics } from '../../utils/net/requestDiagnostics';
 import { t } from '../../utils/runtime/l10n';
 import { StreamReporter } from '../streamReporter';
-import type { Stream } from 'openai/streaming';
 import type { ResponseStreamEvent } from 'openai/resources/responses/responses';
+
+export interface ResponsesCancelledEvent {
+    type: 'response.cancelled';
+    response: { id: string; usage?: GenericUsageData };
+}
+
+export type ResponsesProcessorEvent = ResponseStreamEvent | ResponsesCancelledEvent;
 
 type SDKResponsesStream = ReturnType<OpenAI['responses']['stream']>;
 type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem;
@@ -79,6 +85,7 @@ interface OpenAIResponsesStreamProcessorOptions {
     abortController: AbortController;
     streamReporter: StreamReporter;
     sessionId: string;
+    requireExplicitTerminal?: boolean;
 }
 
 export class OpenAIResponsesStreamProcessor {
@@ -88,6 +95,7 @@ export class OpenAIResponsesStreamProcessor {
     private readonly abortController: AbortController;
     private readonly streamReporter: StreamReporter;
     private readonly sessionId: string;
+    private readonly requireExplicitTerminal: boolean;
 
     private streamError: Error | null = null;
     private hasFinalizedResponse = false;
@@ -105,6 +113,7 @@ export class OpenAIResponsesStreamProcessor {
         this.abortController = options.abortController;
         this.streamReporter = options.streamReporter;
         this.sessionId = options.sessionId;
+        this.requireExplicitTerminal = options.requireExplicitTerminal ?? false;
     }
 
     attach(diagnostics?: RequestDiagnostics): void {
@@ -472,12 +481,25 @@ export class OpenAIResponsesStreamProcessor {
             });
     }
 
-    async consume(stream: Stream<ResponseStreamEvent>, diagnostics?: RequestDiagnostics): Promise<void> {
+    async consume(stream: AsyncIterable<ResponsesProcessorEvent>, diagnostics?: RequestDiagnostics): Promise<void> {
         try {
             for await (const event of stream) {
                 diagnostics?.streamEvent();
+                if (
+                    event.type === 'response.completed' ||
+                    event.type === 'response.incomplete' ||
+                    event.type === 'response.failed' ||
+                    event.type === 'response.cancelled'
+                ) {
+                    if (event.response.usage) {
+                        this.finalUsage ??= event.response.usage as GenericUsageData;
+                    }
+                }
                 if (this.token.isCancellationRequested && event.type !== 'response.failed' && event.type !== 'error') {
                     throw new APIUserAbortError();
+                }
+                if (event.type === 'response.cancelled') {
+                    throw new Error('Responses request cancelled by upstream');
                 }
                 this.events.dispatch(event);
                 // 终态或错误后提前结束消费，避免对端继续保持连接造成的无效等待
@@ -507,6 +529,9 @@ export class OpenAIResponsesStreamProcessor {
             throw this.streamError;
         }
         if (!this.hasFinalizedResponse) {
+            if (this.requireExplicitTerminal) {
+                throw new Error('Responses WebSocket stream ended without an explicit terminal event');
+            }
             this.flushPendingToolCalls();
             if (!this.streamReporter.hasContent) {
                 throw new Error(

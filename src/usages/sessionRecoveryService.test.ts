@@ -2,7 +2,12 @@
 import test from 'node:test';
 import type { RequestClassificationMetadata } from '../handlers/classification/requestClassification';
 
-import { SessionRecoveryService, type RecoveryMessageLike } from './sessionRecoveryService';
+import {
+    MAX_RECOVERY_RESPONSE_LENGTH,
+    SessionRecoveryService,
+    type RecoveryMessageLike,
+    type SessionRecoveryMetadata
+} from './sessionRecoveryService';
 
 const ROLE_USER = 1;
 const ROLE_ASSISTANT = 2;
@@ -17,6 +22,191 @@ function message(role: number, text: string): RecoveryMessageLike {
 function buildSummary(topic: string): string {
     return `Summary for ${topic}: ` + `${topic} `.repeat(24);
 }
+
+function historyMetadata(agentRole: RequestClassificationMetadata['agentRole']): SessionRecoveryMetadata {
+    return {
+        providerKey: 'history-provider',
+        requestClassification: {
+            version: 1,
+            requestOrigin: 'copilot-chat',
+            agentRole,
+            evidence: {
+                origin: { level: 'signature' },
+                purpose: { level: 'signature' },
+                role: { level: 'signature' }
+            }
+        }
+    };
+}
+
+test('WS-LOOP-18: completed assistant history restores only matching provider and assistant content', () => {
+    const service = new SessionRecoveryService();
+    const text = buildSummary('completed assistant response');
+    const metadata = historyMetadata('not-applicable');
+    service.rememberAssistantResponse('original-session', text, historyMetadata('main'));
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text.replaceAll(' ', '\n '))], metadata),
+        'original-session'
+    );
+    assert.equal(service.resolveSessionIdFromHistory([message(ROLE_USER, text)], metadata), undefined);
+    assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text + 'changed')], metadata), undefined);
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], { ...metadata, providerKey: 'other' }),
+        undefined
+    );
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], { ...metadata, providerKey: undefined }),
+        undefined
+    );
+});
+
+test('WS-LOOP-18: completed assistant history rejects unobserved, short and oversized output', () => {
+    const service = new SessionRecoveryService();
+    const metadata = historyMetadata('not-applicable');
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, buildSummary('unobserved'))], metadata),
+        undefined
+    );
+    for (const text of ['', 'short output', ' '.repeat(100), 'x'.repeat(MAX_RECOVERY_RESPONSE_LENGTH + 1)]) {
+        service.rememberAssistantResponse('session', text, historyMetadata('main'));
+        assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], metadata), undefined);
+    }
+    const boundary = 'x'.repeat(MAX_RECOVERY_RESPONSE_LENGTH);
+    service.rememberAssistantResponse('boundary', boundary, historyMetadata('main'));
+    assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, boundary)], metadata), 'boundary');
+});
+
+for (const requestOrigin of ['copilot-sdk', 'core', 'other-extension', 'unknown'] as const) {
+    test(`WS-LOOP-18: ${requestOrigin} cannot publish or recover assistant history`, () => {
+        const service = new SessionRecoveryService();
+        const text = buildSummary('trusted output');
+        const foreign = buildSummary('foreign output');
+        const main = historyMetadata('main');
+        const summary = historyMetadata('not-applicable');
+        service.rememberAssistantResponse('trusted', text, main);
+        service.rememberAssistantResponse('foreign', foreign, {
+            ...main,
+            requestClassification: { ...main.requestClassification!, requestOrigin }
+        });
+        assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, foreign)], summary), undefined);
+        assert.equal(
+            service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], {
+                ...summary,
+                requestClassification: { ...summary.requestClassification!, requestOrigin }
+            }),
+            undefined
+        );
+        assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], summary), 'trusted');
+    });
+}
+
+test('WS-LOOP-18: assistant history requires verified purpose and eligible roles', () => {
+    const service = new SessionRecoveryService();
+    const text = buildSummary('verified main response');
+    const main = historyMetadata('main');
+    const summary = historyMetadata('not-applicable');
+    const weak = {
+        ...main,
+        requestClassification: {
+            ...main.requestClassification!,
+            evidence: { ...main.requestClassification!.evidence, purpose: { level: 'heuristic' as const } }
+        }
+    };
+    service.rememberAssistantResponse('weak', text, weak);
+    assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], summary), undefined);
+    for (const role of ['subagent', 'undetermined', 'not-applicable'] as const) {
+        service.rememberAssistantResponse('wrong-role', text, historyMetadata(role));
+    }
+    assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], summary), undefined);
+    service.rememberAssistantResponse('main', text, main);
+    for (const role of ['main', 'subagent', 'undetermined'] as const) {
+        assert.equal(
+            service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], historyMetadata(role)),
+            undefined
+        );
+    }
+    assert.equal(service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], {}), undefined);
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], {
+            ...weak,
+            requestClassification: { ...weak.requestClassification, agentRole: 'not-applicable' }
+        }),
+        undefined
+    );
+});
+
+test('WS-LOOP-18: identical outputs remain ambiguous rather than selecting the most recent session', () => {
+    const service = new SessionRecoveryService();
+    const text = buildSummary('identical assistant response');
+    service.rememberAssistantResponse('first', text, historyMetadata('main'));
+    service.rememberAssistantResponse('second', text, historyMetadata('main'));
+    service.rememberAssistantResponse('first', text, historyMetadata('main'));
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], historyMetadata('not-applicable')),
+        undefined
+    );
+});
+
+test('WS-LOOP-18: mixed-session assistant history cannot select a single session', () => {
+    const service = new SessionRecoveryService();
+    const first = buildSummary('first session');
+    const second = buildSummary('second session');
+    service.rememberAssistantResponse('first', first, historyMetadata('main'));
+    service.rememberAssistantResponse('second', second, historyMetadata('main'));
+    assert.equal(
+        service.resolveSessionIdFromHistory(
+            [message(ROLE_ASSISTANT, first), message(ROLE_ASSISTANT, second)],
+            historyMetadata('not-applicable')
+        ),
+        undefined
+    );
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, second)], historyMetadata('not-applicable')),
+        'second'
+    );
+});
+
+test('WS-LOOP-18: completed assistant history expires after seven days', () => {
+    let now = 0;
+    const service = new SessionRecoveryService(() => now);
+    const text = buildSummary('expired response');
+    service.rememberAssistantResponse('old', text, historyMetadata('main'));
+    now = 7 * 24 * 60 * 60 * 1000 + 1;
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], historyMetadata('not-applicable')),
+        undefined
+    );
+    service.rememberAssistantResponse('new', text, historyMetadata('main'));
+    assert.equal(
+        service.resolveSessionIdFromHistory([message(ROLE_ASSISTANT, text)], historyMetadata('not-applicable')),
+        'new'
+    );
+});
+
+test('WS-LOOP-18: completed assistant history keeps at most one thousand fingerprints', () => {
+    const service = new SessionRecoveryService();
+    for (let index = 0; index <= 1000; index++) {
+        service.rememberAssistantResponse(
+            `session-${index}`,
+            buildSummary(`response-${index}`),
+            historyMetadata('main')
+        );
+    }
+    assert.equal(
+        service.resolveSessionIdFromHistory(
+            [message(ROLE_ASSISTANT, buildSummary('response-0'))],
+            historyMetadata('not-applicable')
+        ),
+        undefined
+    );
+    assert.equal(
+        service.resolveSessionIdFromHistory(
+            [message(ROLE_ASSISTANT, buildSummary('response-1000'))],
+            historyMetadata('not-applicable')
+        ),
+        'session-1000'
+    );
+});
 
 for (const requestOrigin of ['copilot-sdk', 'core', 'other-extension', 'unknown'] as const) {
     test(`classified ${requestOrigin} cannot observe or recover legacy summaries or trace hints`, () => {
@@ -85,6 +275,49 @@ test('resolveSessionId matches when summary text is wrapped inside a larger prom
     });
 });
 
+for (const length of [6000, 6001, 12000]) {
+    for (const prefixLength of [0, 40, 6400]) {
+        test(`WS-LOOP-18: Chat summary length=${length} prefix=${prefixLength} preserves session`, () => {
+            const service = new SessionRecoveryService();
+            const summary = buildSummary('long Chat compaction recovery').repeat(40).slice(0, length);
+            const requestClassification: RequestClassificationMetadata = {
+                version: 1,
+                requestOrigin: 'copilot-chat',
+                agentRole: 'main',
+                evidence: {
+                    origin: { level: 'contract' },
+                    purpose: { level: 'signature' },
+                    role: { level: 'signature' }
+                }
+            };
+            service.rememberSummarization('chat-session', summary, {
+                providerKey: 'chat-provider',
+                telemetryTurn: 8,
+                traceId: 'summary-trace',
+                requestClassification: { ...requestClassification, agentRole: 'not-applicable' }
+            });
+            const wrapped =
+                prefixLength === 0 ? summary : (
+                    `<context>${'p'.repeat(prefixLength)}</context>\n<conversation-summary>\n${summary}\n</conversation-summary>`
+                );
+            assert.deepEqual(
+                service.resolveSessionId([message(ROLE_USER, wrapped)], {
+                    providerKey: 'chat-provider',
+                    requestClassification
+                }),
+                { sessionId: 'chat-session', matchType: prefixLength === 0 ? 'exact' : 'embedded' }
+            );
+            assert.equal(
+                service.resolveSessionId([message(ROLE_USER, wrapped)], {
+                    providerKey: 'another-provider',
+                    requestClassification
+                }),
+                undefined
+            );
+        });
+    }
+}
+
 test('resolveSessionId prefers entry whose traceId and telemetryTurn align when summaries collide', () => {
     const service = new SessionRecoveryService();
     const summary = buildSummary('same summary body');
@@ -112,6 +345,26 @@ test('resolveSessionId prefers entry whose traceId and telemetryTurn align when 
         }
     );
 });
+
+for (const analysisLength of [0, 120, 12434]) {
+    test(`WS-LOOP-18: manual compaction matches summary body after analysis length=${analysisLength}`, () => {
+        const service = new SessionRecoveryService();
+        const summary = buildSummary('manual compaction summary').repeat(20);
+        const analysis = analysisLength ? `<analysis>${'a'.repeat(analysisLength)}</analysis>\n` : '';
+        service.rememberSummarization('manual-session', `${analysis}<summary>\n${summary}\n</summary>`, {
+            providerKey: 'manual-provider'
+        });
+        assert.deepEqual(
+            service.resolveSessionId(
+                [message(ROLE_USER, `<conversation-summary>\n${summary}\n</conversation-summary>`)],
+                {
+                    providerKey: 'manual-provider'
+                }
+            ),
+            { sessionId: 'manual-session', matchType: 'embedded' }
+        );
+    });
+}
 
 test('resolveSessionId keeps summary bridge isolated by provider', () => {
     const service = new SessionRecoveryService();

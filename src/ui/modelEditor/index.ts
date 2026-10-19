@@ -212,6 +212,7 @@ export class ModelEditor {
         }
 
         model.cacheTtl = data.sdkMode === 'anthropic' && data.cacheTtl ? data.cacheTtl : undefined;
+        model.useWebSocket = data.sdkMode === 'openai-responses' ? (data.useWebSocket ?? false) : undefined;
 
         // 仅当 sdkMode 为 anthropic 或 openai-responses 时才更新 webSearchTool
         // 复选框状态优先：未勾选时明确禁用，忽略 JSON 配置；
@@ -396,6 +397,7 @@ export class ModelEditor {
             imageInput: model?.capabilities?.imageInput || false,
             serviceTier: normalizeCompatibleServiceTiers(model?.serviceTier) || [],
             useInstructions: model?.useInstructions,
+            useWebSocket: model?.useWebSocket,
             cacheTtl: model?.cacheTtl || '',
             webSearchTool: model?.webSearchTool ? true : undefined,
             webSearchToolConfig:

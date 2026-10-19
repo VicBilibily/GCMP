@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import { execFileSync } from 'node:child_process';
 import * as tls from 'node:tls';
-import { EnvHttpProxyAgent, fetch as undiciFetch, ProxyAgent } from 'undici';
+import { Agent, EnvHttpProxyAgent, fetch as undiciFetch, getGlobalDispatcher, Pool, ProxyAgent } from 'undici';
+import type { Dispatcher } from 'undici';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { Logger } from '../runtime/logger';
 import type { CustomHeaders } from '../../types/sharedTypes';
@@ -50,6 +51,87 @@ let lastTlsConfigSignature: string | null = null;
 const proxyAgents = new Map<string, ManagedProxyDispatcher>();
 /** 按代理地址缓存 fetch 包装函数，避免重复创建相同闭包 */
 const proxiedFetchCache = new Map<string, ProxiedFetch>();
+const dispatcherLeases = new Map<Dispatcher, number>();
+
+export interface ProxyDispatcherLease {
+    dispatcher: Dispatcher;
+    fingerprint: string;
+    abortPending?: () => Promise<void>;
+    release(): void | Promise<void>;
+}
+
+export function leaseProxyDispatcher(proxyUrl?: string, dedicated = false): ProxyDispatcherLease {
+    configureTlsCertificates();
+    const { signature } = getTlsConfig();
+    const proxyClients = new Set<Dispatcher>();
+    const clientFactory: NonNullable<ProxyAgent.Options['clientFactory']> = (origin, options) => {
+        const client = new Pool(origin, options);
+        proxyClients.add(client);
+        return client;
+    };
+    let dispatcher: Dispatcher;
+    let fingerprint: string;
+    if (isNoProxyValue(proxyUrl)) {
+        dispatcher = dedicated ? new Agent() : getGlobalDispatcher();
+        fingerprint = `${signature}:direct`;
+    } else if (normalizeProxyEndpoint(proxyUrl)) {
+        dispatcher = getProxyAgent(proxyUrl!, dedicated, dedicated ? clientFactory : undefined);
+        fingerprint = buildProxyCacheKey(normalizeProxyEndpoint(proxyUrl)!, signature);
+    } else {
+        if (proxyUrl?.trim()) {
+            throw new TypeError('Invalid proxy URL');
+        }
+        const system = getSystemProxyConfig();
+        if (system) {
+            fingerprint = buildSystemProxyCacheKey(system, signature);
+            let agent = dedicated ? undefined : proxyAgents.get(fingerprint);
+            if (!agent) {
+                agent = new EnvHttpProxyAgent({ ...system, ...(dedicated ? { clientFactory } : {}) });
+                if (!dedicated) {
+                    proxyAgents.set(fingerprint, agent);
+                }
+            }
+            dispatcher = agent;
+        } else {
+            dispatcher = dedicated ? new Agent() : getGlobalDispatcher();
+            fingerprint = `${signature}:direct`;
+        }
+    }
+    dispatcherLeases.set(dispatcher, (dispatcherLeases.get(dispatcher) ?? 0) + 1);
+    let released = false;
+    let cleanup: Promise<void> | undefined;
+    let aborted: Promise<void> | undefined;
+    const abortPending =
+        dedicated ?
+            () => {
+                aborted ??= Promise.all(
+                    [dispatcher, ...proxyClients].map(client => Promise.resolve().then(() => client.destroy()))
+                ).then(() => undefined);
+                return aborted;
+            }
+        :   undefined;
+    return {
+        dispatcher,
+        fingerprint,
+        abortPending,
+        release() {
+            if (released) {
+                return cleanup;
+            }
+            released = true;
+            const remaining = (dispatcherLeases.get(dispatcher) ?? 1) - 1;
+            if (remaining === 0) {
+                dispatcherLeases.delete(dispatcher);
+            } else {
+                dispatcherLeases.set(dispatcher, remaining);
+            }
+            if (dedicated) {
+                cleanup = aborted ?? Promise.resolve().then(() => dispatcher.close());
+                return cleanup;
+            }
+        }
+    };
+}
 
 const proxySchemePattern = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
 
@@ -472,7 +554,11 @@ export function sanitizeConfigForLogging<T>(value: T): T {
 /**
  * 获取或创建指定代理 URL 的 ProxyAgent
  */
-export function getProxyAgent(proxyUrl: string): ProxyAgent {
+export function getProxyAgent(
+    proxyUrl: string,
+    dedicated = false,
+    clientFactory?: ProxyAgent.Options['clientFactory']
+): ProxyAgent {
     const normalizedProxyUrl = normalizeProxyEndpoint(proxyUrl);
     if (!normalizedProxyUrl) {
         throw new TypeError('Invalid proxy URL');
@@ -490,10 +576,16 @@ export function getProxyAgent(proxyUrl: string): ProxyAgent {
     const cacheKey = buildProxyCacheKey(normalizedProxyUrl, signature);
     clearStaleProxyCacheEntries(normalizedProxyUrl, cacheKey);
 
-    let agent = proxyAgents.get(cacheKey);
+    let agent = dedicated ? undefined : proxyAgents.get(cacheKey);
     if (!agent) {
-        agent = token ? new ProxyAgent({ uri: normalizedProxyUrl, token }) : new ProxyAgent(normalizedProxyUrl);
-        proxyAgents.set(cacheKey, agent);
+        agent = new ProxyAgent({
+            uri: normalizedProxyUrl,
+            ...(token ? { token } : {}),
+            ...(clientFactory ? { clientFactory } : {})
+        });
+        if (!dedicated) {
+            proxyAgents.set(cacheKey, agent);
+        }
         Logger.info(
             `[ProxyAgent] Created ProxyAgent for ${redactProxyUrl(normalizedProxyUrl)} (system CA: ${useSystemCertificates ? 'on' : 'off'})`
         );

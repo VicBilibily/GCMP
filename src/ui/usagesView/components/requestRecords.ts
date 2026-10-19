@@ -793,6 +793,11 @@ function getSessionRecoveryDebugHint(
     }
 
     switch (source) {
+        case 'history-bridge':
+            return {
+                label: 'bridge',
+                title: t('history bridge (completed assistant response match)', '历史桥接（已完成助手输出匹配）')
+            };
         case 'trace-bridge':
             return {
                 label: 'bridge',

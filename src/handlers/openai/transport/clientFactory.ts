@@ -15,6 +15,28 @@ import { Logger } from '../../../utils/runtime/logger';
 import { VersionManager } from '../../../utils/runtime/versionManager';
 import type { OpenAIProviderContext } from '../shared/providerContext';
 import { OpenAIResponsePreprocessor } from './responsePreprocessor';
+import { isCancellationError, markAsNonCancellationError } from '../../../utils/text/cancellationError';
+
+export interface ResolvedOpenAIConnectionParameters {
+    readonly apiKey: string;
+    readonly baseURL: string | undefined;
+    readonly defaultHeaders: Readonly<CustomHeaders>;
+    readonly proxyUrl: string | undefined;
+}
+
+export function resolveResponsesEndpoint(parameters: ResolvedOpenAIConnectionParameters, endpoint?: string): URL {
+    const base = new URL(parameters.baseURL || 'https://api.openai.com/v1');
+    if (endpoint && /^https?:\/\//i.test(endpoint)) {
+        return new URL(endpoint);
+    }
+    const path = endpoint || '/responses';
+    const queryIndex = path.indexOf('?');
+    base.pathname = `${base.pathname.replace(/\/$/, '')}${(queryIndex >= 0 ? path.slice(0, queryIndex) : path).replace(/^([^/])/, '/$1')}`;
+    if (queryIndex >= 0) {
+        base.search = path.slice(queryIndex);
+    }
+    return base;
+}
 
 export class OpenAIClientFactory {
     constructor(private readonly providerInstance: OpenAIProviderContext) {}
@@ -46,8 +68,25 @@ export class OpenAIClientFactory {
     async createOpenAIClient(
         modelConfig?: ModelConfig,
         sessionId?: string,
-        diagnostics?: RequestDiagnostics
+        diagnostics?: RequestDiagnostics,
+        resolved?: ResolvedOpenAIConnectionParameters
     ): Promise<OpenAI> {
+        const parameters = resolved ?? (await this.resolveConnectionParameters(modelConfig, sessionId));
+        const client = new OpenAI({
+            apiKey: parameters.apiKey,
+            baseURL: parameters.baseURL,
+            defaultHeaders: { ...parameters.defaultHeaders },
+            fetch: this.createCustomFetch(modelConfig, parameters.baseURL, parameters.proxyUrl, diagnostics),
+            maxRetries: 0
+        });
+        Logger.trace(`${this.displayName} OpenAI SDK client created with baseURL: ${parameters.baseURL}`);
+        return client;
+    }
+
+    async resolveConnectionParameters(
+        modelConfig?: ModelConfig,
+        sessionId?: string
+    ): Promise<ResolvedOpenAIConnectionParameters> {
         // 优先级：model.provider -> this.provider
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKeyForRequest(providerKey, modelConfig);
@@ -84,17 +123,12 @@ export class OpenAIClientFactory {
         canonicalizeUserAgentHeader(defaultHeaders);
 
         const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
-        let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现
-        customFetch = this.createCustomFetch(modelConfig, baseURL, proxyUrl, diagnostics);
-        const client = new OpenAI({
+        return Object.freeze({
             apiKey: currentApiKey,
-            baseURL: baseURL,
-            defaultHeaders: defaultHeaders,
-            fetch: customFetch,
-            maxRetries: 0
+            baseURL,
+            defaultHeaders: Object.freeze(defaultHeaders),
+            proxyUrl
         });
-        Logger.trace(`${this.displayName} OpenAI SDK client created with baseURL: ${baseURL}`);
-        return client;
     }
 
     /**
@@ -130,6 +164,9 @@ export class OpenAIClientFactory {
                 diagnostics?.headers(response);
                 return await this.preprocessSSEResponse(response, diagnostics);
             } catch (error) {
+                if (error instanceof Error && !init?.signal?.aborted && isCancellationError(error)) {
+                    markAsNonCancellationError(error);
+                }
                 diagnostics?.error(error);
                 throw error;
             }

@@ -23,14 +23,14 @@ function resolveVSCodeExecutablePath() {
                 join(process.env.ProgramFiles ?? '', 'Microsoft VS Code', 'Code.exe'),
                 join(process.env.ProgramFiles ?? '', 'Microsoft VS Code Insiders', 'Code - Insiders.exe')
             ]
-            : process.platform === 'darwin' ?
-                [
-                    join(homedir(), 'Applications', 'Visual Studio Code.app', 'Contents', 'MacOS', 'Electron'),
-                    '/Applications/Visual Studio Code.app/Contents/MacOS/Electron',
-                    join(homedir(), 'Applications', 'Visual Studio Code - Insiders.app', 'Contents', 'MacOS', 'Electron'),
-                    '/Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron'
-                ]
-                : ['/usr/bin/code', '/usr/local/bin/code', '/snap/bin/code', '/usr/share/code/code'];
+        : process.platform === 'darwin' ?
+            [
+                join(homedir(), 'Applications', 'Visual Studio Code.app', 'Contents', 'MacOS', 'Electron'),
+                '/Applications/Visual Studio Code.app/Contents/MacOS/Electron',
+                join(homedir(), 'Applications', 'Visual Studio Code - Insiders.app', 'Contents', 'MacOS', 'Electron'),
+                '/Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron'
+            ]
+        :   ['/usr/bin/code', '/usr/local/bin/code', '/snap/bin/code', '/usr/share/code/code'];
     const executableNames = process.platform === 'win32' ? ['Code.exe', 'code.cmd'] : ['code', 'code-insiders'];
     for (const directory of (process.env.PATH ?? '').split(delimiter)) {
         if (directory) {
@@ -75,6 +75,13 @@ export default defineConfig({
     ],
     mocha: {
         ui: 'tdd',
-        timeout: 20000
+        timeout: 20000,
+        ...(process.env.GCMP_WS_HOST_REPORT ?
+            {
+                grep: process.env.GCMP_WS_HOST_GREP || 'Responses WebSocket roundtrip',
+                reporter: 'json',
+                reporterOptions: { output: process.env.GCMP_WS_HOST_REPORT }
+            }
+        :   {})
     }
 });

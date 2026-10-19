@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
 import { APIError, ClientOptions } from 'openai';
 import type { ResponseCreateParamsStreaming } from 'openai/resources/responses/responses';
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
@@ -24,11 +25,31 @@ import { isCancellationError } from '../../utils/text/cancellationError';
 import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
 import { getCustomHeaderDeletionMarkers } from '../../utils/net/httpHeaders';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../../types/sharedTypes';
-import type { OpenAIClientFactory } from './transport/clientFactory';
+import type { OpenAIClientFactory, ResolvedOpenAIConnectionParameters } from './transport/clientFactory';
+import { leaseProxyDispatcher } from '../../utils/net/proxyAgent';
+import { ResponsesConnectionPool, responsesConnectionPool } from './transport/responsesConnectionPool';
+import type {
+    ResponsesConnection,
+    ResponsesConnectionIdentity,
+    ResponsesConnectionLease
+} from './transport/responsesConnectionPool';
+import {
+    ResponsesWebSocketTransport,
+    ResponsesTransportFailure,
+    UndiciResponsesSocket
+} from './transport/responsesWebSocketTransport';
+import type {
+    ResponsesRequestHandle,
+    ResponsesSocket,
+    ResponsesWebSocketOptions
+} from './transport/responsesWebSocketTransport';
+import { ResponsesContinuationPlanner } from './responses/responsesContinuationPlanner';
+import type { ResponsesRequestPlan } from './responses/responsesContinuationPlanner';
 import { openAIImages } from './shared/images';
 import { runStreamCleanup } from './shared/streamCleanup';
 import { StreamReporter } from '../streamReporter';
 import * as liveMetrics from '../liveMetrics';
+import { getScopedRequestClassification, isVerifiedAgentConversation } from '../classification/requestClassification';
 import type { GenericModelProvider } from '../../providers/genericModelProvider';
 import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
 import { OpenAIResponsesRequestBuilder } from './openaiResponsesRequestBuilder';
@@ -43,6 +64,20 @@ interface APIErrorDetail {
 
 interface APIErrorWithError extends Error {
     error?: APIErrorDetail | string;
+}
+
+export interface ResponsesRequestScope {
+    readonly origin: string;
+    readonly purpose: string;
+    readonly branchId: string;
+    readonly turn?: string | number;
+}
+
+export interface ResponsesWebSocketServices {
+    pool?: ResponsesConnectionPool;
+    allowDelta?: boolean;
+    socket?: (options: ResponsesWebSocketOptions) => ResponsesSocket;
+    dispatcher?: typeof leaseProxyDispatcher;
 }
 
 // 日志用紧凑 usage：保留标量与常见 token 明细，丢弃 attribution 等按条目展开的大对象
@@ -66,15 +101,23 @@ function compactUsageForLog(usage: GenericUsageData | undefined): Record<string,
  * 专门处理 Responses API 的消息转换和请求
  */
 export class OpenAIResponsesHandler {
-    private clientFactory: Pick<OpenAIClientFactory, 'createOpenAIClient'>;
+    private clientFactory: Pick<OpenAIClientFactory, 'createOpenAIClient'> &
+        Partial<Pick<OpenAIClientFactory, 'resolveConnectionParameters'>>;
     private messageConverter: OpenAIResponsesMessageConverter;
     private requestBuilder: OpenAIResponsesRequestBuilder;
+    private readonly ownerId = randomUUID();
+    private readonly planners = new WeakMap<ResponsesConnection, ResponsesContinuationPlanner>();
+    private readonly pool: ResponsesConnectionPool;
+    private disposed = false;
 
     constructor(
         private providerInstance: GenericModelProvider,
-        clientFactory: Pick<OpenAIClientFactory, 'createOpenAIClient'>
+        clientFactory: Pick<OpenAIClientFactory, 'createOpenAIClient'> &
+            Partial<Pick<OpenAIClientFactory, 'resolveConnectionParameters'>>,
+        private readonly webSocketServices: ResponsesWebSocketServices = {}
     ) {
         this.clientFactory = clientFactory;
+        this.pool = webSocketServices.pool ?? responsesConnectionPool;
         this.messageConverter = new OpenAIResponsesMessageConverter(openAIImages, this.displayName);
         this.requestBuilder = new OpenAIResponsesRequestBuilder(
             this.displayName,
@@ -89,6 +132,15 @@ export class OpenAIResponsesHandler {
 
     private get displayName(): string {
         return this.providerInstance.providerConfig.displayName;
+    }
+
+    retireConnections(): void {
+        this.pool.retireOwner(this.ownerId);
+    }
+
+    dispose(): Promise<void> {
+        this.disposed = true;
+        return this.pool.disposeOwner(this.ownerId);
     }
 
     /**
@@ -107,7 +159,8 @@ export class OpenAIResponsesHandler {
         requestStartTime?: number,
         onRequestDispatched?: (requestMetricStartTime: number) => void,
         wasThrottled = false,
-        diagnostics?: RequestDiagnostics
+        diagnostics?: RequestDiagnostics,
+        webSocketScope?: ResponsesRequestScope
     ): Promise<void> {
         const trace =
             diagnostics ??
@@ -143,26 +196,87 @@ export class OpenAIResponsesHandler {
             let streamEndTime: number | undefined = undefined;
             let streamProcessor: OpenAIResponsesStreamProcessor | undefined;
             let streamFailed = false;
+            let webSocketLease: ResponsesConnectionLease | undefined;
+            let webSocketHandle: ResponsesRequestHandle | undefined;
+            let planner: ResponsesContinuationPlanner | undefined;
+            let plan: ResponsesRequestPlan | undefined;
+            let webSocketSucceeded = false;
+            let canReuseConnection = false;
 
             try {
                 if (token.isCancellationRequested) {
                     throw new vscode.CancellationError();
                 }
-                const client = await this.clientFactory.createOpenAIClient(modelConfig, sessionId, trace);
-                if (token.isCancellationRequested) {
+                if (this.disposed) {
                     throw new vscode.CancellationError();
+                }
+                if (
+                    modelConfig.useWebSocket !== undefined &&
+                    (typeof modelConfig.useWebSocket !== 'boolean' || modelConfig.sdkMode !== 'openai-responses')
+                ) {
+                    throw new Error('useWebSocket must be a boolean for openai-responses models');
                 }
                 Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
 
+                const useWebSocket =
+                    modelConfig.useWebSocket === true &&
+                    isVerifiedAgentConversation(getScopedRequestClassification(options));
                 const { requestBody } = this.requestBuilder.build({
                     model,
-                    modelConfig,
+                    modelConfig:
+                        modelConfig.useWebSocket && !useWebSocket ?
+                            { ...modelConfig, useWebSocket: false }
+                        :   modelConfig,
                     messages,
                     options,
                     sessionId
                 });
 
-                await this.configureClientHeaders(client, requestId, sessionId);
+                let resolved: ResolvedOpenAIConnectionParameters | undefined;
+                if (useWebSocket) {
+                    for (const field of ['previous_response_id', 'conversation', 'type', 'useWebSocket']) {
+                        if (modelConfig.extraBody && field in modelConfig.extraBody) {
+                            throw new Error(`Conflicting Responses WebSocket field: ${field}`);
+                        }
+                    }
+                    if (!this.clientFactory.resolveConnectionParameters) {
+                        throw new Error('Responses WebSocket connection parameters are unavailable');
+                    }
+                    resolved = await this.clientFactory.resolveConnectionParameters(modelConfig, sessionId);
+                    const { resolveResponsesEndpoint } = await import('./transport/clientFactory');
+                    const endpoint = resolveResponsesEndpoint(resolved, modelConfig.endpoint);
+                    canReuseConnection = !!webSocketScope && this.providerKey !== 'opencode';
+                    webSocketLease = await this.acquireWebSocket(
+                        model,
+                        modelConfig,
+                        sessionId,
+                        resolved,
+                        endpoint,
+                        webSocketScope ?? {
+                            origin: 'request',
+                            purpose: 'isolated',
+                            branchId: randomUUID()
+                        },
+                        abortController.signal,
+                        requestId
+                    );
+                    if (!webSocketLease) {
+                        throw new Error('Responses WebSocket connection unavailable: pool capacity or circuit limit');
+                    }
+                } else if (!modelConfig.useWebSocket) {
+                    this.pool.retireModel(this.ownerId, modelConfig.provider || this.providerKey, model.id);
+                }
+                const transport = webSocketLease?.connection;
+                if (transport && !(transport instanceof ResponsesWebSocketTransport)) {
+                    throw new Error('Invalid Responses connection transport');
+                }
+                const client =
+                    useWebSocket ? undefined : (
+                        await this.clientFactory.createOpenAIClient(modelConfig, sessionId, trace, resolved)
+                    );
+                if (client) {
+                    await this.configureClientHeaders(client, requestId, sessionId);
+                }
                 if (token.isCancellationRequested) {
                     throw new vscode.CancellationError();
                 }
@@ -170,26 +284,27 @@ export class OpenAIResponsesHandler {
                 Logger.info(`🎯 ${model.name} Using session_id: ${sessionId}`);
 
                 requestMetricStartTime = Date.now();
-                onRequestDispatched?.(requestMetricStartTime);
-
-                reporter = new StreamReporter({
-                    modelName: model.name,
-                    modelId: model.id,
-                    provider: modelConfig.provider || this.providerKey,
-                    sdkMode: 'openai-responses',
-                    progress: {
-                        report: part => {
-                            trace.progress();
-                            progress.report(part);
-                        }
-                    },
-                    sessionId,
-                    subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
-                    requestId,
-                    requestStartTime: requestMetricStartTime,
-                    onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
-                });
-                const streamReporter = reporter;
+                const dispatched = () => {
+                    requestMetricStartTime = Date.now();
+                    reporter = new StreamReporter({
+                        modelName: model.name,
+                        modelId: model.id,
+                        provider: modelConfig.provider || this.providerKey,
+                        sdkMode: 'openai-responses',
+                        progress: {
+                            report: part => {
+                                trace.progress();
+                                progress.report(part);
+                            }
+                        },
+                        sessionId,
+                        subSessionId: (options.modelOptions as { subSessionId?: string })?.subSessionId,
+                        requestId,
+                        requestStartTime: requestMetricStartTime,
+                        onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+                    });
+                    onRequestDispatched?.(requestMetricStartTime);
+                };
 
                 // 使用原始事件流而非 SDK ResponseStream：后者的快照累积器在 response.failed
                 // 先于 response.created 到达时会先于事件分发抛内部状态错误，吞掉服务端真实错误消息
@@ -197,24 +312,58 @@ export class OpenAIResponsesHandler {
                     this.providerInstance.providerConfig?.customHeader,
                     modelConfig?.customHeader
                 );
-                const stream = await client.responses.create(
-                    { ...requestBody, stream: true } as unknown as ResponseCreateParamsStreaming,
-                    {
-                        signal: abortController.signal,
-                        ...(Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : {})
+                if (transport && webSocketLease) {
+                    planner = this.planners.get(transport);
+                    if (!planner) {
+                        planner = new ResponsesContinuationPlanner();
+                        this.planners.set(transport, planner);
                     }
-                );
+                    plan = planner.plan(
+                        requestBody,
+                        webSocketLease.generation,
+                        this.webSocketServices.allowDelta !== false,
+                        webSocketScope?.turn
+                    );
+                    webSocketHandle = transport.begin(plan.body, dispatched, plan.previousResponseId);
+                    Logger.info('Responses transport selected', {
+                        transport: 'websocket',
+                        requestId,
+                        mode: plan.mode,
+                        generation: webSocketLease.generation,
+                        contextEpoch: plan.contextEpoch,
+                        reason: plan.reason,
+                        fullInputItems: Array.isArray(plan.fullBody.input) ? plan.fullBody.input.length : undefined,
+                        sentInputItems: Array.isArray(plan.body.input) ? plan.body.input.length : undefined
+                    });
+                }
+                if (!webSocketHandle) {
+                    dispatched();
+                }
+                const streamReporter = reporter!;
+                const stream =
+                    webSocketHandle?.events ??
+                    (await client!.responses.create(
+                        { ...requestBody, stream: true } as unknown as ResponseCreateParamsStreaming,
+                        {
+                            signal: abortController.signal,
+                            ...(Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : {})
+                        }
+                    ));
                 streamProcessor = new OpenAIResponsesStreamProcessor({
                     modelName: model.name,
                     displayName: this.displayName,
                     token,
                     abortController,
                     streamReporter,
-                    sessionId
+                    sessionId,
+                    requireExplicitTerminal: !!webSocketHandle
                 });
                 streamProcessor.attach(trace);
                 await streamProcessor.consume(stream, trace);
 
+                if (webSocketHandle && abortController.signal.aborted) {
+                    throw new vscode.CancellationError();
+                }
                 finalUsage = streamProcessor.getFinalUsage();
                 finishReason = streamProcessor.getFinishReason();
                 streamStartTime = streamProcessor.getStreamStartTime();
@@ -236,33 +385,78 @@ export class OpenAIResponsesHandler {
                     wasThrottled
                 });
                 streamStartTime = completionResult.streamStartTime;
-            } catch (error) {
+                if (webSocketHandle && planner && plan) {
+                    if (abortController.signal.aborted) {
+                        throw new vscode.CancellationError();
+                    }
+                    const receipt = webSocketHandle.receipt;
+                    const committed = planner.commit(plan, receipt, webSocketLease?.isCurrent() === true);
+                    Logger.info('Responses checkpoint commit', {
+                        requestId,
+                        committed,
+                        generation: plan.generation,
+                        ...(receipt?.outputIncompleteReason ?
+                            { outputIncompleteReason: receipt.outputIncompleteReason }
+                        :   {}),
+                        ...planner.diagnostics()
+                    });
+                    webSocketSucceeded = true;
+                }
+            } catch (caught) {
+                const error =
+                    (
+                        webSocketHandle &&
+                        !(caught instanceof ResponsesTransportFailure) &&
+                        !token.isCancellationRequested
+                    ) ?
+                        new ResponsesTransportFailure(
+                            'Responses WebSocket consumer failed',
+                            'consume',
+                            'possibly-sent',
+                            webSocketHandle.acceptance,
+                            undefined,
+                            undefined,
+                            caught
+                        )
+                    :   caught;
                 streamFailed = true;
                 trace.error(error);
                 if (token.isCancellationRequested || isCancellationError(error)) {
                     outcome = 'cancelled';
                     streamStartTime ??= streamProcessor?.getStreamStartTime() ?? reporter?.getMetricStreamStartTime();
                     streamEndTime ??= streamProcessor?.getStreamEndTime() ?? Date.now();
+                    const cancellationError = new vscode.CancellationError();
                     runStreamCleanup(
                         [
-                            () =>
+                            () => {
                                 this.reportCancellation({
                                     modelName: model.name,
                                     requestId,
                                     sessionId,
+                                    finalUsage: streamProcessor?.getFinalUsage(),
+                                    tokenPricing: modelConfig.tokenPricing,
+                                    requestServiceTier: (options.modelConfiguration as ModelChatResponseOptions)
+                                        ?.serviceTier,
                                     requestMetricStartTime,
                                     streamStartTime,
                                     streamEndTime,
                                     wasThrottled
-                                })
+                                });
+                                markFinalStatusRecorded(cancellationError);
+                            }
                         ],
                         true
                     );
-                    throw new vscode.CancellationError();
+                    throw cancellationError;
                 } else {
                     streamStartTime ??= streamProcessor?.getStreamStartTime() ?? reporter?.getMetricStreamStartTime();
                     streamEndTime ??= streamProcessor?.getStreamEndTime() ?? Date.now();
-                    if (requestId && reporter?.hasContent && reporter) {
+                    if (
+                        requestId &&
+                        reporter &&
+                        (reporter.hasContent || webSocketHandle) &&
+                        !(error instanceof ResponsesTransportFailure && error.retryWithFullContext)
+                    ) {
                         const finalUsage = streamProcessor?.getFinalUsage();
                         let costNanoAiu: number | undefined;
                         let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
@@ -314,6 +508,11 @@ export class OpenAIResponsesHandler {
                     throw error;
                 }
             } finally {
+                webSocketHandle?.finish(webSocketSucceeded);
+                if (!webSocketSucceeded) {
+                    planner?.invalidate();
+                }
+                webSocketLease?.release(webSocketSucceeded && webSocketLease.connection.reusable && canReuseConnection);
                 runStreamCleanup([() => cancellationListener.dispose()], streamFailed);
             }
 
@@ -337,24 +536,112 @@ export class OpenAIResponsesHandler {
         }
     }
 
+    private async acquireWebSocket(
+        model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        sessionId: string,
+        parameters: ResolvedOpenAIConnectionParameters,
+        endpoint: URL,
+        scope: ResponsesRequestScope,
+        signal: AbortSignal,
+        requestId: string
+    ): Promise<ResponsesConnectionLease | undefined> {
+        const loopback =
+            endpoint.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname);
+        if (endpoint.protocol !== 'https:' && !loopback) {
+            throw new Error('Responses WebSocket requires HTTPS or loopback HTTP');
+        }
+        const headers = new Headers({
+            Authorization: `Bearer ${parameters.apiKey}`
+        });
+        for (const [name, value] of Object.entries(parameters.defaultHeaders)) {
+            if (value === null) {
+                headers.delete(name);
+            } else {
+                headers.set(name, value);
+            }
+        }
+        for (const [name, value] of Object.entries(await this.resolveProviderHeaders(requestId, sessionId))) {
+            headers.set(name, value);
+        }
+        const connectionHeaders: Record<string, string> = {};
+        headers.forEach((value, name) => {
+            connectionHeaders[name] = value;
+        });
+        const url = new URL(endpoint);
+        url.protocol = loopback ? 'ws:' : 'wss:';
+        const network = (this.webSocketServices.dispatcher ?? leaseProxyDispatcher)(parameters.proxyUrl, true);
+        const identity: ResponsesConnectionIdentity = {
+            ownerId: this.ownerId,
+            provider: modelConfig.provider || this.providerKey,
+            modelId: model.id,
+            sessionId,
+            origin: scope.origin,
+            purpose: scope.purpose,
+            branchId: scope.branchId,
+            binding: this.pool.fingerprint([
+                modelConfig.model || modelConfig.id,
+                endpoint.href,
+                'responses-flat-v1',
+                connectionHeaders,
+                network.fingerprint,
+                modelConfig
+            ])
+        };
+        let created = false;
+        try {
+            this.pool.retireSuperseded(identity);
+            const lease = await this.pool.acquire(
+                identity,
+                () => {
+                    const socket = (this.webSocketServices.socket ?? (options => new UndiciResponsesSocket(options)))({
+                        url: url.href,
+                        headers: connectionHeaders,
+                        dispatcher: network.dispatcher,
+                        abortPending: network.abortPending
+                    });
+                    created = true;
+                    return new ResponsesWebSocketTransport(socket, undefined, undefined, network);
+                },
+                signal,
+                true
+            );
+            if (!created) {
+                await network.release();
+            }
+            return lease;
+        } catch (error) {
+            if (!created) {
+                await network.release();
+            }
+            this.pool.recordResult(identity, error instanceof ResponsesTransportFailure && error.status === undefined);
+            throw error;
+        }
+    }
+
     private async configureClientHeaders(client: unknown, requestId: string, sessionId: string): Promise<void> {
         const { _options: clientOptions } = client as { _options: ClientOptions };
         const { defaultHeaders: optHeaders } = clientOptions as { defaultHeaders: Record<string, string> };
-        optHeaders['conversation_id'] = optHeaders['session_id'] = sessionId;
+        Object.assign(optHeaders, await this.resolveProviderHeaders(requestId, sessionId));
+    }
+
+    private async resolveProviderHeaders(requestId: string, sessionId: string): Promise<Record<string, string>> {
+        const headers: Record<string, string> = { conversation_id: sessionId, session_id: sessionId };
 
         if (this.providerKey === 'opencode') {
-            Object.assign(optHeaders, createOpenCodeHeaders(requestId, sessionId));
+            Object.assign(headers, createOpenCodeHeaders(requestId, sessionId));
         }
 
         if (this.providerKey !== 'codex') {
-            return;
+            return headers;
         }
 
         const codexAuth = CliAuthFactory.getInstance('codex') as CodexCliAuth;
         const accountId = await codexAuth?.getAccountId();
         if (accountId && accountId.trim()) {
-            optHeaders['chatgpt-account-id'] = accountId.trim();
+            headers['chatgpt-account-id'] = accountId.trim();
         }
+        return headers;
     }
 
     private reportCompletion(params: {
@@ -441,6 +728,9 @@ export class OpenAIResponsesHandler {
         modelName: string;
         requestId: string;
         sessionId: string;
+        finalUsage?: GenericUsageData;
+        tokenPricing?: ModelTokenPricing;
+        requestServiceTier?: string;
         requestMetricStartTime?: number;
         streamStartTime?: number;
         streamEndTime?: number;
@@ -450,21 +740,36 @@ export class OpenAIResponsesHandler {
             modelName,
             requestId,
             sessionId,
+            finalUsage,
+            tokenPricing,
+            requestServiceTier,
             requestMetricStartTime,
             streamStartTime,
             streamEndTime,
             wasThrottled
         } = params;
+        const breakdown =
+            tokenPricing ?
+                calculateCostWithBreakdown(
+                    finalUsage,
+                    tokenPricing,
+                    requestMetricStartTime !== undefined ? new Date(requestMetricStartTime) : new Date(),
+                    requestServiceTier
+                )
+            :   undefined;
         Logger.info(`${modelName} Responses API request was cancelled`);
         // 记录取消状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路）
         TokenUsagesManager.instance.updateActualTokens({
             requestId,
             sessionId,
+            rawUsage: finalUsage,
             status: 'cancelled',
             ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
             wasThrottled,
             streamStartTime,
-            streamEndTime: streamEndTime ?? Date.now()
+            streamEndTime: streamEndTime ?? Date.now(),
+            estimatedCost: breakdown?.total,
+            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
         });
     }
 

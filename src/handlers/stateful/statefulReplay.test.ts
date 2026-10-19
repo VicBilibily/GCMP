@@ -162,6 +162,39 @@ function message(content: MockInputPart[], role: number = roles.Assistant): vsco
     return history as unknown as vscode.LanguageModelChatMessage;
 }
 
+test('WS-LOOP-19: tool history rejects unmatched duplicate and wrong-role parts', async () => {
+    const { assertResponsesToolHistory } = await getReplayModule();
+    const call = new MockToolCallPart('call', 'lookup', { value: 'A' });
+    const result = new MockToolResultPart('call', [new MockTextPart('result')]);
+    for (const history of [
+        [message([result], roles.User)],
+        [message([call, call])],
+        [message([call]), message([result, result], roles.User)],
+        [message([call], roles.User)],
+        [message([call]), message([result])]
+    ]) {
+        assert.throws(() => assertResponsesToolHistory(history), /Responses replay/);
+    }
+});
+
+test('WS-LOOP-19: tool history permits complete parallel replay and retained cancelled calls', async () => {
+    const { assertResponsesToolHistory } = await getReplayModule();
+    const call = (callId: string) => new MockToolCallPart(callId, 'lookup', { value: 'A' });
+    const result = (callId: string) => new MockToolResultPart(callId, [new MockTextPart('result')]);
+    const history = [
+        message([new MockTextPart('task')], roles.User),
+        message([call('A'), call('B')]),
+        message([result('B'), result('A')], roles.User),
+        message([call('A')]),
+        message([result('A')], roles.User),
+        message([call('cancelled')]),
+        message([new MockTextPart('new task')], roles.User)
+    ];
+    const before = [...history];
+    assert.doesNotThrow(() => assertResponsesToolHistory(history));
+    assert.deepEqual(history, before);
+});
+
 function thinkingParts(metadata?: MockThinkingMetadata): (MockThinkingPart | MockDataPart)[] {
     return [
         new MockThinkingPart('可见思考', undefined, metadata),

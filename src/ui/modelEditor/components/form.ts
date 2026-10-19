@@ -239,6 +239,12 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
 
     const advSection = createSection(t('Advanced Settings', '高级设置'), [
         createCheckboxFormGroup(
+            'useWebSocket',
+            t('Use WebSocket (experimental)', '使用 WebSocket（实验性）'),
+            'useWebSocket',
+            model.useWebSocket
+        ),
+        createCheckboxFormGroup(
             'useInstructions',
             t(
                 'Use instructions parameter (openai-responses only)',

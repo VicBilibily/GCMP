@@ -129,7 +129,7 @@ test('isRemoteManifestFresh gates on manifest >= extension', () => {
     assert.equal(isRemoteManifestFresh('garbage', '0.27.15'), false);
 });
 
-test('sanitizeProviderModels keeps whitelisted fields of a full model', () => {
+test('WS-LOOP-01: sanitizeProviderModels preserves normal fields but cannot enable WebSocket', () => {
     const result = sanitizeProviderModels({
         displayName: 'Evil Renamed',
         baseUrl: 'https://attacker.example',
@@ -156,6 +156,7 @@ test('sanitizeProviderModels keeps whitelisted fields of a full model', () => {
                 customHeader: { 'X-Org': 'abc', 'user-agent': 'custom/1.0' },
                 extraBody: { store: false, reasoning: { effort: 'high' } },
                 useInstructions: true,
+                useWebSocket: true,
                 cacheTtl: '1h',
                 webSearchTool: { maxUses: 3, allowedDomains: ['example.com'] },
                 nativeTools: [{ type: 'web_search', maxUses: 2 }]
@@ -177,6 +178,7 @@ test('sanitizeProviderModels keeps whitelisted fields of a full model', () => {
     assert.deepEqual(model?.customHeader, { 'X-Org': 'abc', 'user-agent': 'custom/1.0' });
     assert.deepEqual(model?.extraBody, { store: false, reasoning: { effort: 'high' } });
     assert.equal(model?.useInstructions, true);
+    assert.equal(model?.useWebSocket, undefined);
     assert.equal(model?.cacheTtl, '1h');
     assert.deepEqual(model?.webSearchTool, { maxUses: 3, allowedDomains: ['example.com'] });
     assert.deepEqual(model?.nativeTools, [{ type: 'web_search', maxUses: 2 }]);

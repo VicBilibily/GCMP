@@ -1077,6 +1077,11 @@ export class JsonSchemaProvider {
                                 description: this.getUseInstructionsDescription(),
                                 default: false
                             },
+                            useWebSocket: {
+                                type: 'boolean',
+                                description: t('Use WebSocket (experimental)', '使用 WebSocket（实验性）'),
+                                default: false
+                            },
                             cacheTtl: this.getCacheTtlSchema(),
                             webSearchTool: {
                                 oneOf: [
@@ -1335,6 +1340,7 @@ export class JsonSchemaProvider {
                                 },
                                 then: {
                                     properties: {
+                                        useWebSocket: { type: 'boolean', default: false },
                                         useInstructions: {
                                             type: 'boolean',
                                             description: this.getUseInstructionsDescription(),
@@ -1344,6 +1350,7 @@ export class JsonSchemaProvider {
                                 },
                                 else: {
                                     properties: {
+                                        useWebSocket: false,
                                         useInstructions: {
                                             deprecationMessage: t(
                                                 'useInstructions is only effective for openai-responses mode',
@@ -1622,6 +1629,8 @@ export class JsonSchemaProvider {
      */
     private static createProviderSchema(providerKey: string, config: ProviderConfig): JSONSchema7 {
         const modelIds = config.models?.map(model => model.id) || [];
+        const responsesModelIds =
+            config.models?.filter(model => model.sdkMode === 'openai-responses').map(model => model.id) || [];
         const anthropicModelIds =
             config.models?.filter(model => model.sdkMode === 'anthropic').map(model => model.id) || [];
         const anthropicCacheTtlCondition: JSONSchema7 =
@@ -1645,6 +1654,30 @@ export class JsonSchemaProvider {
                 }
             :   {
                     properties: { sdkMode: { const: 'anthropic' } },
+                    required: ['sdkMode']
+                };
+
+        const responsesModeCondition: JSONSchema7 =
+            responsesModelIds.length > 0 ?
+                {
+                    anyOf: [
+                        {
+                            properties: { sdkMode: { const: 'openai-responses' } },
+                            required: ['sdkMode']
+                        },
+                        {
+                            allOf: [
+                                { not: { required: ['sdkMode'] } },
+                                {
+                                    properties: { id: { enum: responsesModelIds } },
+                                    required: ['id']
+                                }
+                            ]
+                        }
+                    ]
+                }
+            :   {
+                    properties: { sdkMode: { const: 'openai-responses' } },
                     required: ['sdkMode']
                 };
 
@@ -1808,6 +1841,11 @@ export class JsonSchemaProvider {
                             useInstructions: {
                                 type: 'boolean',
                                 description: this.getUseInstructionsDescription(),
+                                default: false
+                            },
+                            useWebSocket: {
+                                type: 'boolean',
+                                description: t('Use WebSocket (experimental)', '使用 WebSocket（实验性）'),
                                 default: false
                             },
                             cacheTtl: this.getCacheTtlSchema(),
@@ -2003,12 +2041,7 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'openai-responses' }
-                                    },
-                                    required: ['sdkMode']
-                                },
+                                if: responsesModeCondition,
                                 then: {
                                     properties: {
                                         useInstructions: {
@@ -2020,6 +2053,7 @@ export class JsonSchemaProvider {
                                 },
                                 else: {
                                     properties: {
+                                        useWebSocket: false,
                                         useInstructions: {
                                             deprecationMessage: t(
                                                 'useInstructions is only effective for openai-responses mode',

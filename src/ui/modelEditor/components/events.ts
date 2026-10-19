@@ -211,6 +211,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
 
     // SDK 模式切换 - 控制特定选项显示
     const sdkModeSelect = document.getElementById('sdkMode') as HTMLSelectElement | null;
+    const useWebSocketContainer = document.getElementById('useWebSocket')?.closest('.form-group') as HTMLElement | null;
     const useInstructionsContainer = document
         .getElementById('useInstructions')
         ?.closest('.form-group') as HTMLElement | null;
@@ -230,6 +231,9 @@ export function bindEvents(state: EditorState, actions: Actions): void {
             const nativeToolsEffective = sdkMode === 'anthropic' || sdkMode === 'openai-responses';
 
             useInstructionsContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
+            if (useWebSocketContainer) {
+                useWebSocketContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
+            }
             webSearchToolContainer.style.display = nativeToolsEffective ? '' : 'none';
             if (webSearchToolConfigContainer) {
                 webSearchToolConfigContainer.style.display = nativeToolsEffective && webSearchToolEnabled ? '' : 'none';

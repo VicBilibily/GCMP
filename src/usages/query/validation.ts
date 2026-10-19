@@ -16,6 +16,7 @@ const MAX_PENDING_BYTES = 256 * 1024;
 const MAX_API_KEY_NAME_LENGTH = 8192;
 const SESSION_RECOVERY_SOURCES = new Set<SessionRecoverySource>([
     'stateful-marker',
+    'history-bridge',
     'trace-bridge',
     'turn-bridge',
     'summary-bridge-exact',

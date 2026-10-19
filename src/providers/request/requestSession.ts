@@ -114,19 +114,25 @@ function resolveCopilotSession(
 ): SessionIdResolution | undefined {
     const requestKind = context.classification.requestKind;
     if (requestKind === 'main-agent' && context.options) {
-        const recovered = SessionRecoveryService.instance.resolveSessionId(context.messages, metadata);
+        const summary = SessionRecoveryService.instance.resolveSummaryContext(context.messages, metadata);
+        const recovered = summary.recovered;
         if (recovered) {
             Logger.info(`Recovered sessionId via summary bridge (${recovered.matchType}): ${recovered.sessionId}`);
             return { sessionId: recovered.sessionId, sessionRecoverySource: `summary-bridge-${recovered.matchType}` };
         }
-        const turnSessionId = SessionRecoveryService.instance.resolveSessionIdFromTurn(metadata);
-        if (turnSessionId) {
-            Logger.info(`Recovered sessionId via turn bridge: ${turnSessionId}`);
-            return { sessionId: turnSessionId, sessionRecoverySource: 'turn-bridge' };
+        if (summary.ambiguous) {
+            return { sessionId: crypto.randomUUID(), sessionRecoverySource: 'new-uuid' };
         }
         if (metadata.traceId) {
             const sessionId = SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(metadata);
             if (sessionId) {
+                if (summary.hasCompactionContext) {
+                    const turnSessionId = SessionRecoveryService.instance.resolveSessionIdFromTurn(metadata, sessionId);
+                    if (turnSessionId) {
+                        Logger.info(`Recovered sessionId via turn bridge: ${turnSessionId}`);
+                        return { sessionId: turnSessionId, sessionRecoverySource: 'turn-bridge' };
+                    }
+                }
                 Logger.info(`Recovered sessionId via cross-provider trace bridge: ${sessionId}`);
                 return { sessionId, sessionRecoverySource: 'trace-bridge' };
             }
@@ -139,6 +145,13 @@ function resolveCopilotSession(
         if (sessionId) {
             Logger.info(`Recovered sessionId via trace bridge: ${sessionId}`);
             return { sessionId, sessionRecoverySource: 'trace-bridge' };
+        }
+    }
+    if (requestKind === 'summarization') {
+        const sessionId = SessionRecoveryService.instance.resolveSessionIdFromHistory(context.messages, metadata);
+        if (sessionId) {
+            Logger.info(`Recovered sessionId via completed assistant history: ${sessionId}`);
+            return { sessionId, sessionRecoverySource: 'history-bridge' };
         }
     }
     if (isSubagentRequestKind(requestKind) && metadata.traceId) {
@@ -154,8 +167,12 @@ function resolveCopilotSession(
 export function resolveRequestSession(context: RequestSessionContext): SessionIdResolution {
     const { messages, options, providerKey, classification, behavior } = context;
     const requestKind = classification.requestKind;
+    const sdkSessionKey = getSdkSessionContextKey(messages, classification, options?.requestInitiator);
     const conversationId = options?.modelOptions?._conversationId;
     if (behavior.kind === 'sdk' && typeof conversationId === 'string' && conversationId.trim().length > 0) {
+        if (sdkSessionKey) {
+            SessionRecoveryService.instance.rememberSdkSession(sdkSessionKey, conversationId);
+        }
         return { sessionId: conversationId, sessionRecoverySource: 'sdk-session' };
     }
     const metadata = context.readMetadata();
@@ -165,8 +182,10 @@ export function resolveRequestSession(context: RequestSessionContext): SessionId
         telemetryTurn: metadata.telemetryTurn,
         traceId: metadata.traceId
     };
-    const sdkSessionKey = getSdkSessionContextKey(messages, classification, options?.requestInitiator);
     const rememberResolved = (resolution: SessionIdResolution): SessionIdResolution => {
+        if (requestKind === 'main-agent') {
+            SessionRecoveryService.instance.consumeTurnHint(resolution.sessionId);
+        }
         SessionRecoveryService.instance.rememberSessionHint(resolution.sessionId, recoveryMetadata, undefined, {
             publishProviderAgnosticTraceHint:
                 requestKind === 'main-agent' || requestKind === 'summarization' || isSubagentRequestKind(requestKind)

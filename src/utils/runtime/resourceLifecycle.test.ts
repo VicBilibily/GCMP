@@ -148,6 +148,13 @@ function entryFixture() {
                 invoke('proxy.close');
             }
         },
+        './handlers/openai/transport/responsesConnectionPool': {
+            responsesConnectionPool: {
+                async dispose() {
+                    invoke('websocket.dispose');
+                }
+            }
+        },
         './utils/net/harRecorder': { registerHarRecorderCommand: noop },
         './utils/metadata/remoteMetadataService': {
             RemoteMetadataService: {
@@ -258,6 +265,7 @@ const cleanupOrder = [
     'statusBars.dispose',
     'leader.stop',
     'bus.dispose',
+    'websocket.dispose',
     'provider.dispose',
     'compatible.dispose',
     'config.dispose',

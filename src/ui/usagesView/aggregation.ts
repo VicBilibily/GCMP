@@ -180,6 +180,7 @@ export function summarizeSessionRecoveryDebugInfo(
         if (
             record.requestContinuity?.source === 'sdk-session' ||
             record.sessionRecoverySource === 'trace-bridge' ||
+            record.sessionRecoverySource === 'history-bridge' ||
             record.sessionRecoverySource === 'turn-bridge' ||
             record.sessionRecoverySource?.startsWith('summary-bridge-')
         ) {

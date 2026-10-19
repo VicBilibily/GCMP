@@ -1,6 +1,16 @@
 ﻿import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import test from 'node:test';
+import { ResponsesConnectionPool } from './transport/responsesConnectionPool';
+import type { ResponsesConnectionLease } from './transport/responsesConnectionPool';
+import type { ResponsesWebSocketOptions } from './transport/responsesWebSocketTransport';
+import type { ResolvedOpenAIConnectionParameters } from './transport/clientFactory';
+import type { ResponsesRequestScope } from './openaiResponsesHandler';
+import type { ModelConfig } from '../../types/sharedTypes';
+import { createOpenCodeHeaders } from '../../utils/text/formatUtils';
+import { setScopedRequestClassification } from '../classification/requestClassification';
+import type { RequestClassification } from '../classification/requestClassification';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -14,11 +24,15 @@ const updateActualTokensCalls: Array<Record<string, unknown>> = [];
 const consumedStreams: unknown[] = [];
 const reportUsageCalls: Array<{ usage?: unknown; costNanoAiu?: unknown }> = [];
 const flushAllCalls: Array<{ finishReason?: unknown; customStatefulData?: unknown; finalUsage?: unknown }> = [];
+const reporterOptions: Array<{ requestStartTime?: number }> = [];
+const builtModelConfigs: ModelConfig[] = [];
 
 class MockStreamReporter {
     hasContent = true;
 
-    constructor(_options: unknown) {}
+    constructor(options: { requestStartTime?: number }) {
+        reporterOptions.push(options);
+    }
 
     reportUsage(usage?: unknown, costNanoAiu?: unknown): void {
         if (usage === undefined && costNanoAiu === undefined) {
@@ -46,7 +60,8 @@ class MockOpenAIResponsesMessageConverter {
 class MockOpenAIResponsesRequestBuilder {
     constructor(_displayName: string, _messageConverter: unknown, _providerKey: string) {}
 
-    build(): { requestBody: Record<string, unknown> } {
+    build(params: { modelConfig: ModelConfig }): { requestBody: Record<string, unknown> } {
+        builtModelConfigs.push(params.modelConfig);
         return { requestBody: { model: 'test-model', input: [] } };
     }
 }
@@ -151,10 +166,10 @@ async function getOpenAIResponsesHandlerModule() {
             return { isCancellationError: () => false };
         }
         if (id === '../../utils/text/formatUtils') {
-            return { createOpenCodeHeaders: () => ({}) };
+            return { createOpenCodeHeaders };
         }
         if (id === '../../cli/auth/cliAuthFactory') {
-            return { CliAuthFactory: { getInstance: () => undefined } };
+            return { CliAuthFactory: { getInstance: () => ({ getAccountId: async () => ' synthetic-account ' }) } };
         }
         if (id === '../../cli/auth/codexCliAuth') {
             return { CodexCliAuth: class CodexCliAuth {} };
@@ -174,6 +189,451 @@ async function getOpenAIResponsesHandlerModule() {
 
     return openAIResponsesHandlerModulePromise;
 }
+
+async function createHandshakeFixture(providerKey: string, release: () => void | Promise<void> = () => {}) {
+    const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+    const pool = new ResponsesConnectionPool();
+    const handshakes: ResponsesWebSocketOptions[] = [];
+    const handler = new OpenAIResponsesHandler(
+        { provider: providerKey, providerConfig: { displayName: 'Header test' } } as never,
+        {
+            createOpenAIClient: async () => {
+                throw new Error('Unexpected HTTP client');
+            }
+        },
+        {
+            pool,
+            dispatcher: () => ({
+                dispatcher: {} as ResponsesWebSocketOptions['dispatcher'],
+                fingerprint: 'test',
+                release
+            }),
+            socket: options => {
+                handshakes.push(options);
+                let reusable = true;
+                let resolveClosed!: () => void;
+                const closed = new Promise<void>(resolve => {
+                    resolveClosed = resolve;
+                });
+                const listeners = new Set<() => void>();
+                return {
+                    opened: Promise.resolve(),
+                    closed,
+                    get reusable() {
+                        return reusable;
+                    },
+                    send() {},
+                    onMessage: () => () => {},
+                    onDisconnect: listener => {
+                        listeners.add(listener);
+                        return () => {
+                            listeners.delete(listener);
+                        };
+                    },
+                    close() {
+                        if (reusable) {
+                            reusable = false;
+                            for (const listener of listeners) {
+                                listener();
+                            }
+                            resolveClosed();
+                        }
+                        return closed;
+                    }
+                };
+            }
+        }
+    );
+    const internal = handler as unknown as {
+        acquireWebSocket(
+            model: { id: string },
+            modelConfig: ModelConfig,
+            sessionId: string,
+            parameters: ResolvedOpenAIConnectionParameters,
+            endpoint: URL,
+            scope: ResponsesRequestScope,
+            signal: AbortSignal,
+            requestId: string
+        ): Promise<ResponsesConnectionLease | undefined>;
+        configureClientHeaders(client: unknown, requestId: string, sessionId: string): Promise<void>;
+    };
+    return {
+        handler,
+        pool,
+        handshakes,
+        internal,
+        acquire: (requestId: string) =>
+            internal.acquireWebSocket(
+                { id: 'test-model' },
+                {
+                    id: 'test-model',
+                    name: 'Test',
+                    provider: providerKey,
+                    tooltip: 'Test',
+                    maxInputTokens: 1024,
+                    maxOutputTokens: 128,
+                    capabilities: { toolCalling: true, imageInput: false }
+                },
+                'test-session',
+                {
+                    apiKey: 'synthetic-key',
+                    baseURL: undefined,
+                    defaultHeaders: { 'X-Custom': 'retained' },
+                    proxyUrl: 'noproxy'
+                },
+                new URL('http://127.0.0.1/responses'),
+                { origin: 'sdk', purpose: 'chat', branchId: 'main' },
+                new AbortController().signal,
+                requestId
+            )
+    };
+}
+
+test('WS-LOOP-15: provider disposal waits for its dispatcher and retains capacity', async () => {
+    let finishRelease!: () => void;
+    let releaseStarted = false;
+    let disposed = false;
+    const pending = new Promise<void>(resolve => {
+        finishRelease = resolve;
+    });
+    const fixture = await createHandshakeFixture('codex', async () => {
+        releaseStarted = true;
+        await pending;
+    });
+    let cleanup: Promise<void> | undefined;
+    try {
+        (await fixture.acquire('request'))?.release(true);
+        cleanup = fixture.handler.dispose().then(() => {
+            disposed = true;
+        });
+        await nextTurn();
+        assert.equal(releaseStarted, true);
+        assert.equal(disposed, false);
+        assert.equal(fixture.pool.diagnostics().connections, 1);
+        finishRelease();
+        await cleanup;
+        assert.deepEqual(fixture.pool.diagnostics(), { connections: 0, leases: 0, closing: 0 });
+    } finally {
+        finishRelease();
+        await cleanup;
+        await fixture.handler.dispose();
+        await fixture.pool.dispose();
+    }
+});
+
+test('WS-LOOP-15: provider disposal reports dispatcher failure without losing registration', async () => {
+    const failure = new Error('dispatcher cleanup failed');
+    let releases = 0;
+    const fixture = await createHandshakeFixture('codex', () => {
+        releases++;
+        return Promise.reject(failure);
+    });
+    try {
+        (await fixture.acquire('request'))?.release(true);
+        const cleanup = fixture.handler.dispose();
+        assert.equal(fixture.handler.dispose(), cleanup);
+        await assert.rejects(
+            cleanup,
+            (error: unknown) => error instanceof AggregateError && error.errors.includes(failure)
+        );
+        assert.equal(releases, 1);
+        assert.equal(fixture.pool.diagnostics().connections, 1);
+    } finally {
+        await fixture.handler.dispose().catch(() => undefined);
+        await fixture.pool.dispose().catch(() => undefined);
+    }
+});
+
+for (const providerKey of ['codex', 'opencode']) {
+    test(`WS-LOOP-06: ${providerKey} handshake preserves HTTP provider headers and binding`, async () => {
+        const fixture = await createHandshakeFixture(providerKey);
+        try {
+            const client = { _options: { defaultHeaders: {} as Record<string, string> } };
+            await fixture.internal.configureClientHeaders(client, 'request-one', 'test-session');
+            const first = await fixture.acquire('request-one');
+            assert.ok(first);
+            for (const [name, value] of Object.entries(client._options.defaultHeaders)) {
+                assert.equal(fixture.handshakes[0].headers[name], value, name);
+            }
+            assert.equal(fixture.handshakes[0].headers['x-custom'], 'retained');
+            first.release(true);
+            const second = await fixture.acquire('request-two');
+            assert.ok(second);
+            if (providerKey === 'codex') {
+                assert.equal(second.connection, first.connection);
+                assert.equal(fixture.handshakes.length, 1);
+            } else {
+                assert.notEqual(second.connection, first.connection);
+                assert.equal(
+                    fixture.handshakes[1].headers['x-opencode-request'],
+                    createOpenCodeHeaders('request-two', 'test-session')['x-opencode-request']
+                );
+            }
+            second.release(true);
+        } finally {
+            await fixture.handler.dispose();
+            await fixture.pool.dispose();
+        }
+    });
+}
+
+for (const variant of ['missing-resolver', 'resolver-failure'] as const) {
+    test(`WS-LOOP-01: explicit WS ${variant} never creates an HTTP client`, async () => {
+        const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+        const options = { modelConfiguration: {} };
+        setScopedRequestClassification(options, {
+            version: 1,
+            requestOrigin: 'copilot-sdk',
+            requestKind: 'main-agent',
+            agentRole: 'main',
+            evidence: {
+                origin: { level: 'signature' },
+                purpose: { level: 'signature' },
+                role: { level: 'signature' }
+            }
+        });
+        let httpClients = 0;
+        let cancellations = 0;
+        const pool = new ResponsesConnectionPool();
+        const handler = new OpenAIResponsesHandler(
+            { provider: 'openai', providerConfig: { displayName: 'Strict WS test' } } as never,
+            {
+                async createOpenAIClient() {
+                    httpClients++;
+                    throw new Error('Unexpected HTTP client');
+                },
+                ...(variant === 'resolver-failure' ?
+                    {
+                        async resolveConnectionParameters(): Promise<ResolvedOpenAIConnectionParameters> {
+                            throw new Error('Connection parameter lookup failed');
+                        }
+                    }
+                :   {})
+            },
+            { pool }
+        );
+        try {
+            await assert.rejects(
+                handler.handleResponsesRequest(
+                    { id: 'model-id', name: 'test-model' } as never,
+                    { sdkMode: 'openai-responses', useWebSocket: true } as never,
+                    [],
+                    options as never,
+                    { report() {} },
+                    'request-1',
+                    'session-1',
+                    {
+                        isCancellationRequested: false,
+                        onCancellationRequested() {
+                            cancellations++;
+                            return { dispose: () => cancellations-- };
+                        }
+                    }
+                ),
+                variant === 'missing-resolver' ?
+                    /Responses WebSocket connection parameters are unavailable/
+                :   /Connection parameter lookup failed/
+            );
+            assert.equal(httpClients, 0);
+            assert.equal(cancellations, 0);
+            assert.deepEqual(pool.diagnostics(), { connections: 0, leases: 0, closing: 0 });
+        } finally {
+            await handler.dispose();
+            await pool.dispose();
+        }
+    });
+}
+
+const transportRoutingCases: Array<{
+    name: string;
+    kind?: RequestClassification['requestKind'];
+    role?: RequestClassification['agentRole'];
+    level?: 'signature' | 'contract' | 'heuristic' | 'unknown';
+    useWebSocket?: boolean;
+    expectedWebSocket: boolean;
+}> = [
+    { name: 'main agent', kind: 'main-agent', role: 'main', useWebSocket: true, expectedWebSocket: true },
+    { name: 'generic subagent', kind: 'subagent', role: 'subagent', useWebSocket: true, expectedWebSocket: true },
+    { name: 'search subagent', kind: 'search-subagent', role: 'subagent', useWebSocket: true, expectedWebSocket: true },
+    {
+        name: 'execution subagent',
+        kind: 'execution-subagent',
+        role: 'subagent',
+        useWebSocket: true,
+        expectedWebSocket: true
+    },
+    {
+        name: 'contract agent',
+        kind: 'main-agent',
+        role: 'main',
+        level: 'contract',
+        useWebSocket: true,
+        expectedWebSocket: true
+    },
+    { name: 'summary', kind: 'summarization', role: 'not-applicable', useWebSocket: true, expectedWebSocket: false },
+    {
+        name: 'SDK compaction',
+        kind: 'summarization',
+        role: 'undetermined',
+        level: 'heuristic',
+        useWebSocket: true,
+        expectedWebSocket: false
+    },
+    { name: 'title', kind: 'chat-title', role: 'not-applicable', useWebSocket: true, expectedWebSocket: false },
+    {
+        name: 'patch helper',
+        kind: 'patch-healer',
+        role: 'not-applicable',
+        useWebSocket: true,
+        expectedWebSocket: false
+    },
+    { name: 'terminal helper', kind: 'terminal-steering', role: 'main', useWebSocket: true, expectedWebSocket: false },
+    { name: 'unclassified', kind: 'unclassified', role: 'undetermined', useWebSocket: true, expectedWebSocket: false },
+    {
+        name: 'unverified agent',
+        kind: 'main-agent',
+        role: 'main',
+        level: 'heuristic',
+        useWebSocket: true,
+        expectedWebSocket: false
+    },
+    {
+        name: 'unknown agent role',
+        kind: 'main-agent',
+        role: 'undetermined',
+        useWebSocket: true,
+        expectedWebSocket: false
+    },
+    { name: 'unscoped options', useWebSocket: true, expectedWebSocket: false },
+    { name: 'disabled WS', kind: 'main-agent', role: 'main', useWebSocket: false, expectedWebSocket: false },
+    { name: 'default HTTP', kind: 'main-agent', role: 'main', expectedWebSocket: false }
+];
+
+for (const scenario of transportRoutingCases) {
+    test(`WS-LOOP-01: request routing for ${scenario.name}`, async testContext => {
+        const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+        const options = { modelConfiguration: {}, modelOptions: { requestKind: 'main-agent' } };
+        if (scenario.kind && scenario.role) {
+            setScopedRequestClassification(options, {
+                version: 1,
+                requestOrigin: 'copilot-sdk',
+                requestKind: scenario.kind,
+                agentRole: scenario.role,
+                evidence: {
+                    origin: { level: 'signature' },
+                    purpose: { level: scenario.level ?? 'signature' },
+                    role: { level: scenario.level ?? 'signature' }
+                }
+            });
+        }
+        const modelConfig = Object.freeze({
+            sdkMode: 'openai-responses',
+            useWebSocket: scenario.useWebSocket,
+            extraBody: Object.freeze({ parallel_tool_calls: true })
+        });
+        const pool = new ResponsesConnectionPool();
+        let httpRequests = 0;
+        let websocketResolutions = 0;
+        let retirements = 0;
+        testContext.mock.method(pool, 'retireModel', () => {
+            retirements++;
+        });
+        const handler = new OpenAIResponsesHandler(
+            { provider: 'openai', providerConfig: { displayName: 'Routing test' } } as never,
+            {
+                async createOpenAIClient() {
+                    return {
+                        _options: { defaultHeaders: {} },
+                        responses: {
+                            async create() {
+                                httpRequests++;
+                                return {};
+                            }
+                        }
+                    } as never;
+                },
+                async resolveConnectionParameters(): Promise<ResolvedOpenAIConnectionParameters> {
+                    websocketResolutions++;
+                    throw new Error('Expected Agent WebSocket route');
+                }
+            },
+            { pool }
+        );
+        try {
+            const request = handler.handleResponsesRequest(
+                { id: 'model-id', name: 'test-model' } as never,
+                modelConfig as never,
+                [],
+                options as never,
+                { report() {} },
+                'request-routing',
+                'session-routing',
+                { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) }
+            );
+            if (scenario.expectedWebSocket) {
+                await assert.rejects(request, /Expected Agent WebSocket route/);
+            } else {
+                await request;
+            }
+            assert.equal(httpRequests, scenario.expectedWebSocket ? 0 : 1);
+            assert.equal(websocketResolutions, scenario.expectedWebSocket ? 1 : 0);
+            assert.equal(builtModelConfigs.at(-1)?.useWebSocket === true, scenario.expectedWebSocket);
+            assert.equal(retirements, scenario.useWebSocket === true ? 0 : 1);
+            assert.equal(modelConfig.useWebSocket, scenario.useWebSocket);
+            assert.equal(modelConfig.extraBody.parallel_tool_calls, true);
+        } finally {
+            await handler.dispose();
+            await pool.dispose();
+        }
+    });
+}
+
+test('WS-LOOP-01: Responses live metrics use the dispatched attempt timestamp', async testContext => {
+    const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+    let now = 1000;
+    testContext.mock.method(Date, 'now', () => now++);
+    const reporterIndex = reporterOptions.length;
+    let dispatchedTime: number | undefined;
+    const handler = new OpenAIResponsesHandler(
+        { provider: 'openai', providerConfig: { displayName: 'Live metrics test' } } as never,
+        {
+            async createOpenAIClient() {
+                return {
+                    _options: { defaultHeaders: {} },
+                    responses: {
+                        async create() {
+                            return {};
+                        }
+                    }
+                };
+            }
+        } as never
+    );
+    try {
+        await handler.handleResponsesRequest(
+            { id: 'model-id', name: 'test-model' } as never,
+            { sdkMode: 'openai-responses' } as never,
+            [],
+            { modelConfiguration: {} } as never,
+            { report() {} },
+            'request-live-metrics',
+            'session-live-metrics',
+            {
+                isCancellationRequested: false,
+                onCancellationRequested: () => ({ dispose() {} })
+            },
+            123,
+            timestamp => {
+                dispatchedTime = timestamp;
+            }
+        );
+        assert.equal(typeof dispatchedTime, 'number');
+        assert.equal(reporterOptions[reporterIndex]?.requestStartTime, dispatchedTime);
+        assert.equal(updateActualTokensCalls.at(-1)?.requestMetricStartTime, dispatchedTime);
+    } finally {
+        await handler.dispose();
+    }
+});
 
 test('handleResponsesRequest：透传 length finishReason 到完成链路', async () => {
     loggerInfoCalls.length = 0;

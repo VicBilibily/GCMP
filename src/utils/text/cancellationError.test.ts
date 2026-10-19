@@ -1,7 +1,17 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isCancellationError } from './cancellationError';
+import { isCancellationError, markAsNonCancellationError } from './cancellationError';
+
+test('WS-LOOP-16: known network failure does not inherit an internal proxy abort', () => {
+    const error = new Error('proxy refused', { cause: { code: 'UND_ERR_ABORTED' } });
+    assert.equal(isCancellationError(error), true);
+    markAsNonCancellationError(error);
+    assert.equal(isCancellationError(error), false);
+    assert.equal(isCancellationError(new Error('wrapped', { cause: error })), false);
+    assert.equal(isCancellationError({ name: 'Canceled', cause: error }), true);
+    assert.equal(isCancellationError({ name: 'AbortError' }), true);
+});
 
 for (const code of ['UND_ERR_ABORTED', 'ABORT_ERR']) {
     test(`detects structured ${code} cancellation before failover classification`, () => {

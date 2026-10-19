@@ -58,9 +58,16 @@ export class CompatibleProvider extends GenericModelProvider {
         });
     }
 
-    override dispose(): void {
-        this.modelsChangeListener?.dispose();
-        super.dispose();
+    override dispose(): Promise<void> {
+        const cleanup = super.dispose();
+        try {
+            this.modelsChangeListener?.dispose();
+        } catch (error) {
+            return cleanup.then(() => {
+                throw error;
+            });
+        }
+        return cleanup;
     }
 
     /**
@@ -129,6 +136,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.extraBody && { extraBody: model.extraBody }),
                     ...(model.proxy !== undefined && { proxy: model.proxy }),
                     ...(model.useInstructions !== undefined && { useInstructions: model.useInstructions }),
+                    ...(model.useWebSocket !== undefined && { useWebSocket: model.useWebSocket }),
                     ...(model.cacheTtl && { cacheTtl: model.cacheTtl }),
                     ...(model.webSearchTool !== undefined && { webSearchTool: model.webSearchTool }),
                     ...(model.family && { family: model.family }),

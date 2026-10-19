@@ -4,6 +4,7 @@
  *  尝试恢复原有 sessionId。
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'node:crypto';
 import {
     isVerifiedCopilotChat,
     type RequestClassificationMetadata
@@ -24,6 +25,8 @@ export interface SessionRecoveryMetadata {
 export interface SessionRecoveryEntry extends SessionRecoveryMetadata {
     sessionId: string;
     summaryKey: string;
+    summaryHash: string;
+    summaryLength: number;
     updatedAt: number;
 }
 
@@ -42,9 +45,21 @@ export interface SessionRecoveryResult {
     matchType: 'exact' | 'embedded' | 'truncated';
 }
 
+export interface SessionRecoveryDecision {
+    recovered?: SessionRecoveryResult;
+    hasCompactionContext: boolean;
+    ambiguous: boolean;
+}
+
 interface SessionRecoveryMatchScore {
     matchType: SessionRecoveryResult['matchType'];
     score: number;
+}
+
+interface SessionRecoveryCandidate {
+    text: string;
+    hash: string;
+    embedded: boolean;
 }
 
 interface RememberSessionHintOptions {
@@ -53,6 +68,7 @@ interface RememberSessionHintOptions {
 }
 
 const MAX_SUMMARY_KEY_LENGTH = 6_000;
+export const MAX_RECOVERY_RESPONSE_LENGTH = 64 * 1024;
 const MIN_SUMMARY_KEY_LENGTH = 80;
 const MAX_ENTRIES = 1_000;
 const MAX_PROVIDER_AGNOSTIC_TRACE_HINTS_PER_TRACE = 16;
@@ -81,7 +97,39 @@ function extractTextFromContent(content: ReadonlyArray<unknown>): string {
 }
 
 function normalizeSummaryText(text: string): string {
-    return text.replace(/\s+/g, ' ').trim().slice(0, MAX_SUMMARY_KEY_LENGTH);
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function extractSummaryBody(text: string): string {
+    const match = /^(?:<analysis>[\s\S]*?<\/analysis>\s*)?<summary>([\s\S]*?)<\/summary>\s*$/.exec(text.trim());
+    return match?.[1] ?? text;
+}
+
+function extractCompactionSummary(text: string): string | undefined {
+    const trimmed = text.trim();
+    const tagged =
+        /^(?:<context>[\s\S]*?<\/context>\s*)?<conversation-summary>([\s\S]*?)<\/conversation-summary>(?:\s*<reminderInstructions>(?:(?!<\/?reminderInstructions>)[\s\S])*<\/reminderInstructions>)?$/.exec(
+            trimmed
+        );
+    if (tagged) {
+        return tagged[1];
+    }
+    return /^Use the following condensed context before answering:\s*([\s\S]*?)\s*Continue the conversation\.$/.exec(
+        trimmed
+    )?.[1];
+}
+
+function getAssistantResponseKey(text: string, providerKey?: string): string | undefined {
+    if (!providerKey || text.length > MAX_RECOVERY_RESPONSE_LENGTH) {
+        return undefined;
+    }
+    const normalized = normalizeSummaryText(text);
+    if (normalized.length < MIN_SUMMARY_KEY_LENGTH) {
+        return undefined;
+    }
+    return createHash('sha256')
+        .update(JSON.stringify([providerKey, normalized]))
+        .digest('hex');
 }
 
 function getTraceHintKey(metadata?: SessionRecoveryMetadata): string | undefined {
@@ -94,10 +142,6 @@ function getTraceHintKey(metadata?: SessionRecoveryMetadata): string | undefined
 
 function getProviderAgnosticTraceHintKey(metadata?: SessionRecoveryMetadata): string | undefined {
     return metadata?.traceId;
-}
-
-function isTelemetryTurnClose(left?: number, right?: number): boolean {
-    return left !== undefined && right !== undefined && Math.abs(left - right) <= 1;
 }
 
 function getTraceHintScore(hint: SessionTraceHint, metadata?: SessionRecoveryMetadata): number | undefined {
@@ -115,60 +159,32 @@ function getTraceHintScore(hint: SessionTraceHint, metadata?: SessionRecoveryMet
     return 10;
 }
 
-function getTurnBonus(entry: SessionRecoveryEntry, metadata?: SessionRecoveryMetadata): number {
-    if (metadata?.telemetryTurn === undefined || entry.telemetryTurn === undefined) {
-        return 0;
-    }
-    const diff = Math.abs(entry.telemetryTurn - metadata.telemetryTurn);
-    if (diff === 0) {
-        return 60;
-    }
-    if (diff === 1) {
-        return 30;
-    }
-    return 0;
-}
-
 function isProviderCompatible(entry: SessionRecoveryEntry, metadata?: SessionRecoveryMetadata): boolean {
     return !metadata?.providerKey || !entry.providerKey || metadata.providerKey === entry.providerKey;
 }
 
 function scoreMatch(
     entry: SessionRecoveryEntry,
-    candidate: string,
+    candidate: SessionRecoveryCandidate,
     metadata?: SessionRecoveryMetadata
 ): SessionRecoveryMatchScore | undefined {
     const key = entry.summaryKey;
-    if (candidate === key) {
+    if (candidate.hash === entry.summaryHash) {
         return {
-            matchType: 'exact',
-            score:
-                2_000 +
-                key.length +
-                (metadata?.traceId && metadata.traceId === entry.traceId ? 120 : 0) +
-                getTurnBonus(entry, metadata)
+            matchType: candidate.embedded ? 'embedded' : 'exact',
+            score: 2_000 + key.length + (metadata?.traceId && metadata.traceId === entry.traceId ? 120 : 0)
         };
     }
 
-    if (candidate.length >= key.length && candidate.includes(key)) {
-        return {
-            matchType: 'embedded',
-            score:
-                1_500 +
-                key.length +
-                (metadata?.traceId && metadata.traceId === entry.traceId ? 120 : 0) +
-                getTurnBonus(entry, metadata)
-        };
-    }
-
-    if (key.length >= candidate.length && key.includes(candidate) && candidate.length >= MIN_SUMMARY_KEY_LENGTH) {
+    if (
+        candidate.embedded &&
+        candidate.text.length < entry.summaryLength &&
+        key.includes(candidate.text) &&
+        candidate.text.length >= MIN_SUMMARY_KEY_LENGTH
+    ) {
         return {
             matchType: 'truncated',
-            score:
-                1_000 +
-                candidate.length +
-                (metadata?.traceId && metadata.traceId === entry.traceId ? 120 : 0) +
-                getTurnBonus(entry, metadata)
+            score: 1_000 + candidate.text.length + (metadata?.traceId && metadata.traceId === entry.traceId ? 120 : 0)
         };
     }
 
@@ -185,8 +201,73 @@ export class SessionRecoveryService {
     private readonly latestSessionHints = new Map<string, SessionTraceHint>();
     private readonly turnHints = new Map<string, SessionTurnHint[]>();
     private readonly sdkSessionHints = new Map<string, { sessionId?: string; updatedAt: number }>();
+    private readonly assistantResponseHints = new Map<string, { sessionId?: string; updatedAt: number }>();
 
     constructor(private readonly now: () => number = () => Date.now()) {}
+
+    rememberAssistantResponse(sessionId: string, text: string, metadata: SessionRecoveryMetadata): void {
+        if (
+            !sessionId ||
+            !isVerifiedCopilotChat(metadata.requestClassification) ||
+            metadata.requestClassification?.agentRole !== 'main'
+        ) {
+            return;
+        }
+        const key = getAssistantResponseKey(text, metadata.providerKey);
+        if (!key) {
+            return;
+        }
+        this.pruneAssistantResponseHints();
+        const previous = this.assistantResponseHints.get(key);
+        this.assistantResponseHints.delete(key);
+        this.assistantResponseHints.set(key, {
+            sessionId: previous && previous.sessionId !== sessionId ? undefined : sessionId,
+            updatedAt: this.now()
+        });
+        if (this.assistantResponseHints.size > MAX_ENTRIES) {
+            this.assistantResponseHints.delete(this.assistantResponseHints.keys().next().value!);
+        }
+    }
+
+    resolveSessionIdFromHistory(
+        messages: readonly RecoveryMessageLike[],
+        metadata: SessionRecoveryMetadata
+    ): string | undefined {
+        if (
+            !isVerifiedCopilotChat(metadata.requestClassification) ||
+            metadata.requestClassification?.agentRole !== 'not-applicable'
+        ) {
+            return undefined;
+        }
+        this.pruneAssistantResponseHints();
+        const candidates = new Set<string>();
+        for (const message of messages) {
+            if (message.role !== 2) {
+                continue;
+            }
+            const key = getAssistantResponseKey(extractTextFromContent(message.content), metadata.providerKey);
+            const hint = key ? this.assistantResponseHints.get(key) : undefined;
+            if (hint) {
+                if (!hint.sessionId) {
+                    return undefined;
+                }
+                candidates.add(hint.sessionId);
+                if (candidates.size > 1) {
+                    return undefined;
+                }
+            }
+        }
+        return candidates.values().next().value;
+    }
+
+    private pruneAssistantResponseHints(): void {
+        const cutoff = this.now() - ENTRY_TTL_MS;
+        for (const [key, hint] of this.assistantResponseHints) {
+            if (hint.updatedAt < cutoff) {
+                this.assistantResponseHints.delete(key);
+            }
+        }
+    }
 
     rememberSdkSession(contextKey: string, sessionId: string): void {
         this.pruneSdkSessionHints();
@@ -230,7 +311,8 @@ export class SessionRecoveryService {
         const providerKey = metadata?.providerKey ?? latestHint?.providerKey;
         const telemetryTurn = metadata?.telemetryTurn ?? latestHint?.telemetryTurn;
         const traceId = metadata?.traceId ?? latestHint?.traceId;
-        const summaryKey = normalizeSummaryText(summaryText);
+        const normalizedSummary = normalizeSummaryText(extractSummaryBody(summaryText));
+        const summaryKey = normalizedSummary.slice(0, MAX_SUMMARY_KEY_LENGTH);
         if (summaryKey.length < MIN_SUMMARY_KEY_LENGTH) {
             return;
         }
@@ -239,6 +321,8 @@ export class SessionRecoveryService {
         this.entries.set(sessionId, {
             sessionId,
             summaryKey,
+            summaryHash: createHash('sha256').update(normalizedSummary).digest('hex'),
+            summaryLength: normalizedSummary.length,
             providerKey,
             telemetryTurn,
             traceId,
@@ -396,30 +480,30 @@ export class SessionRecoveryService {
         return hints[0]?.sessionId;
     }
 
-    resolveSessionIdFromTurn(metadata?: SessionRecoveryMetadata): string | undefined {
+    resolveSessionIdFromTurn(metadata?: SessionRecoveryMetadata, expectedSessionId?: string): string | undefined {
         if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
             return undefined;
         }
-        this.pruneTurnHints(metadata?.telemetryTurn);
         const providerKey = metadata?.providerKey;
-        if (!providerKey) {
+        const telemetryTurn = metadata?.telemetryTurn;
+        if (!providerKey || telemetryTurn === undefined || !Number.isFinite(telemetryTurn)) {
             return undefined;
         }
+        this.pruneTurnHints(metadata, expectedSessionId);
 
         const hints = this.turnHints.get(providerKey);
         if (!hints || hints.length === 0) {
             return undefined;
         }
 
-        if (metadata?.telemetryTurn === undefined) {
-            return undefined;
-        }
-
         const candidates = hints.filter(hint => {
+            if (expectedSessionId && hint.sessionId !== expectedSessionId) {
+                return false;
+            }
             if (hint.telemetryTurn === undefined) {
                 return false;
             }
-            const diff = metadata.telemetryTurn! - hint.telemetryTurn;
+            const diff = telemetryTurn - hint.telemetryTurn;
             return diff === 0 || diff === 1;
         });
 
@@ -428,40 +512,49 @@ export class SessionRecoveryService {
         }
 
         const matchedHint = candidates[0];
-        const remainingHints = hints.filter(hint => hint.sessionId !== matchedHint.sessionId);
-        if (remainingHints.length > 0) {
-            this.turnHints.set(providerKey, remainingHints);
-        } else {
-            this.turnHints.delete(providerKey);
-        }
+        this.consumeTurnHint(matchedHint.sessionId);
         return matchedHint.sessionId;
+    }
+
+    consumeTurnHint(sessionId: string): void {
+        for (const [providerKey, hints] of this.turnHints) {
+            const remaining = hints.filter(hint => hint.sessionId !== sessionId);
+            if (remaining.length > 0) {
+                this.turnHints.set(providerKey, remaining);
+            } else {
+                this.turnHints.delete(providerKey);
+            }
+        }
     }
 
     resolveSessionId(
         messages: readonly RecoveryMessageLike[],
         metadata?: SessionRecoveryMetadata
     ): SessionRecoveryResult | undefined {
+        return this.resolveSummaryContext(messages, metadata).recovered;
+    }
+
+    resolveSummaryContext(
+        messages: readonly RecoveryMessageLike[],
+        metadata?: SessionRecoveryMetadata
+    ): SessionRecoveryDecision {
         if (!isVerifiedCopilotChat(metadata?.requestClassification)) {
-            return undefined;
+            return { hasCompactionContext: false, ambiguous: false };
         }
         this.pruneEntries();
-        if (this.entries.size === 0) {
-            return undefined;
-        }
-
         const candidateTexts = this.extractCandidateTexts(messages);
-        if (candidateTexts.length === 0) {
-            return undefined;
+        const decision: SessionRecoveryDecision = {
+            hasCompactionContext: candidateTexts.some(candidate => candidate.embedded),
+            ambiguous: false
+        };
+        if (this.entries.size === 0 || candidateTexts.length === 0) {
+            return decision;
         }
 
-        let bestMatch:
-            | {
-                  entry: SessionRecoveryEntry;
-                  result: SessionRecoveryMatchScore;
-              }
-            | undefined;
-
+        let recovered: SessionRecoveryResult | undefined;
         for (const candidate of candidateTexts) {
+            let bestMatch: { entry: SessionRecoveryEntry; result: SessionRecoveryMatchScore } | undefined;
+            let ambiguous = false;
             for (const entry of this.getCandidateEntries(metadata)) {
                 if (!isProviderCompatible(entry, metadata)) {
                     continue;
@@ -470,41 +563,44 @@ export class SessionRecoveryService {
                 if (!result) {
                     continue;
                 }
-                if (
-                    !bestMatch ||
-                    result.score > bestMatch.result.score ||
-                    (result.score === bestMatch.result.score && entry.updatedAt > bestMatch.entry.updatedAt) ||
-                    (result.score === bestMatch.result.score &&
-                        entry.updatedAt === bestMatch.entry.updatedAt &&
-                        isTelemetryTurnClose(entry.telemetryTurn, metadata?.telemetryTurn) &&
-                        !isTelemetryTurnClose(bestMatch.entry.telemetryTurn, metadata?.telemetryTurn))
-                ) {
+                if (!bestMatch || result.score > bestMatch.result.score) {
                     bestMatch = { entry, result };
+                    ambiguous = false;
+                } else if (result.score === bestMatch.result.score && entry.sessionId !== bestMatch.entry.sessionId) {
+                    ambiguous = true;
                 }
             }
-        }
-
-        if (!bestMatch) {
-            return undefined;
-        }
-
-        return {
-            sessionId: bestMatch.entry.sessionId,
-            matchType: bestMatch.result.matchType
-        };
-    }
-
-    private extractCandidateTexts(messages: readonly RecoveryMessageLike[]): string[] {
-        const candidates = new Set<string>();
-
-        for (const message of messages) {
-            const normalized = normalizeSummaryText(extractTextFromContent(message.content));
-            if (normalized.length >= MIN_SUMMARY_KEY_LENGTH) {
-                candidates.add(normalized);
+            if (ambiguous || (bestMatch && recovered && bestMatch.entry.sessionId !== recovered.sessionId)) {
+                return { ...decision, ambiguous: true };
+            }
+            if (bestMatch && (!recovered || recovered.matchType === 'truncated')) {
+                recovered = { sessionId: bestMatch.entry.sessionId, matchType: bestMatch.result.matchType };
             }
         }
 
-        return Array.from(candidates);
+        if (recovered) {
+            this.consumeTurnHint(recovered.sessionId);
+        }
+        return { ...decision, recovered };
+    }
+
+    private extractCandidateTexts(messages: readonly RecoveryMessageLike[]): SessionRecoveryCandidate[] {
+        const candidates = new Map<string, SessionRecoveryCandidate>();
+
+        for (const message of messages) {
+            if (message.role !== 1 && message.role !== 2) {
+                continue;
+            }
+            const text = extractTextFromContent(message.content);
+            const summary = extractCompactionSummary(text);
+            const normalized = normalizeSummaryText(summary ?? text);
+            if (normalized.length >= MIN_SUMMARY_KEY_LENGTH) {
+                const hash = createHash('sha256').update(normalized).digest('hex');
+                candidates.set(hash, { text: normalized, hash, embedded: summary !== undefined });
+            }
+        }
+
+        return Array.from(candidates.values());
     }
 
     private getCandidateEntries(metadata?: SessionRecoveryMetadata): Iterable<SessionRecoveryEntry> {
@@ -612,7 +708,7 @@ export class SessionRecoveryService {
         }
     }
 
-    private pruneTurnHints(currentTelemetryTurn?: number): void {
+    private pruneTurnHints(metadata?: SessionRecoveryMetadata, expectedSessionId?: string): void {
         const cutoff = this.now() - TURN_HINT_TTL_MS;
         for (const [providerKey, hints] of this.turnHints) {
             const aliveHints = hints.filter(hint => {
@@ -620,9 +716,11 @@ export class SessionRecoveryService {
                     return false;
                 }
                 if (
-                    currentTelemetryTurn !== undefined &&
+                    metadata?.providerKey === providerKey &&
+                    (!expectedSessionId || hint.sessionId === expectedSessionId) &&
+                    metadata.telemetryTurn !== undefined &&
                     hint.telemetryTurn !== undefined &&
-                    hint.telemetryTurn < currentTelemetryTurn - 1
+                    hint.telemetryTurn < metadata.telemetryTurn - 1
                 ) {
                     return false;
                 }

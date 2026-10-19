@@ -1,0 +1,12 @@
+{
+    "name": "gcmp-responses-websocket-mock",
+    "private": true,
+    "type": "module",
+    "version": "1.0.0",
+    "dependencies": {
+        "ws": "8.21.3"
+    },
+    "devDependencies": {
+        "@types/ws": "8.18.1"
+    }
+}

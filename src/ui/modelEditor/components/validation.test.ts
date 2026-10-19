@@ -93,52 +93,56 @@ function createEditorState(limit: string, extras?: Partial<EditorState['model']>
     };
 }
 
-test('collectFormData preserves limit when editing other fields', () => {
-    installMockDocument({
-        modelId: { value: 'compatible:test-model' },
-        modelName: { value: 'Test Model Updated' },
-        provider: { value: 'custom-provider' },
-        modelTooltip: { value: 'tooltip' },
-        requestModel: { value: 'upstream-model' },
-        baseUrl: { value: 'https://api.example.com/v1' },
-        endpoint: { value: '' },
-        modelsEndpoint: { value: '' },
-        proxy: { value: '' },
-        apiKey: { value: '' },
-        sdkMode: { value: 'openai' },
-        maxInputTokens: { value: '128000' },
-        maxOutputTokens: { value: '4096' },
-        toolCalling: { checked: true },
-        imageInput: { checked: false },
-        serviceTierOptions: { querySelectorAll: () => [] },
-        useInstructions: { checked: false },
-        webSearchTool: { checked: false },
-        webSearchToolConfig: createField(''),
-        nativeTools: createField(''),
-        reasoningEffortOptions: { querySelectorAll: () => [createCheckbox('medium', true)] },
-        reasoningDefault: { value: '' },
-        customHeader: { value: '{"X-Remove":null}' },
-        extraBody: { value: '' },
-        limitRpm: { value: '60' },
-        limitParallel: { value: '2' }
+for (const sdkMode of ['openai', 'openai-responses']) {
+    test(`WS-LOOP-01: collectFormData preserves local WebSocket option only for Responses (${sdkMode})`, () => {
+        installMockDocument({
+            modelId: { value: 'compatible:test-model' },
+            modelName: { value: 'Test Model Updated' },
+            provider: { value: 'custom-provider' },
+            modelTooltip: { value: 'tooltip' },
+            requestModel: { value: 'upstream-model' },
+            baseUrl: { value: 'https://api.example.com/v1' },
+            endpoint: { value: '' },
+            modelsEndpoint: { value: '' },
+            proxy: { value: '' },
+            apiKey: { value: '' },
+            sdkMode: { value: sdkMode },
+            maxInputTokens: { value: '128000' },
+            maxOutputTokens: { value: '4096' },
+            toolCalling: { checked: true },
+            imageInput: { checked: false },
+            serviceTierOptions: { querySelectorAll: () => [] },
+            useInstructions: { checked: false },
+            useWebSocket: { checked: true },
+            webSearchTool: { checked: false },
+            webSearchToolConfig: createField(''),
+            nativeTools: createField(''),
+            reasoningEffortOptions: { querySelectorAll: () => [createCheckbox('medium', true)] },
+            reasoningDefault: { value: '' },
+            customHeader: { value: '{"X-Remove":null}' },
+            extraBody: { value: '' },
+            limitRpm: { value: '60' },
+            limitParallel: { value: '2' }
+        });
+
+        const formData = collectFormData(
+            createEditorState('{"rpm":60,"parallel":2}', {
+                limitRpm: '60',
+                limitParallel: '2',
+                tokenPricing: '{"pricing":[0.1,0.2]}'
+            })
+        );
+
+        assert.ok(formData);
+        assert.equal(formData?.name, 'Test Model Updated');
+        assert.equal(formData?.limit, '{"rpm":60,"parallel":2}');
+        assert.equal(formData?.tokenPricing, '{"pricing":[0.1,0.2]}');
+        assert.equal(formData?.customHeader, '{"X-Remove":null}');
+        assert.equal(formData?.useWebSocket, sdkMode === 'openai-responses' ? true : undefined);
+        assert.deepEqual(formData?.reasoningEffort, ['medium']);
+        assert.equal(validateForm(), true);
     });
-
-    const formData = collectFormData(
-        createEditorState('{"rpm":60,"parallel":2}', {
-            limitRpm: '60',
-            limitParallel: '2',
-            tokenPricing: '{"pricing":[0.1,0.2]}'
-        })
-    );
-
-    assert.ok(formData);
-    assert.equal(formData?.name, 'Test Model Updated');
-    assert.equal(formData?.limit, '{"rpm":60,"parallel":2}');
-    assert.equal(formData?.tokenPricing, '{"pricing":[0.1,0.2]}');
-    assert.equal(formData?.customHeader, '{"X-Remove":null}');
-    assert.deepEqual(formData?.reasoningEffort, ['medium']);
-    assert.equal(validateForm(), true);
-});
+}
 
 test('validateCustomHeaders accepts string and null values only', () => {
     assert.equal(validateCustomHeaders('{"X-Keep":"value","X-Remove":null}'), null);
