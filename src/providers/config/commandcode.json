@@ -460,6 +460,18 @@
             "tokenPricing": [0.435, 0.87, 0.0036]
         },
         {
+            "id": "minimax-m3.1-flash",
+            "name": "MiniMax-M3.1-Flash (CmdC)",
+            "model": "minimax/minimax-m3.1-flash",
+            "tooltip": "CommandCode GOAT Plan — MiniMax-M3.1-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.15, 0.6, 0.015]
+        },
+        {
             "id": "minimax-m3",
             "name": "MiniMax M3 (CmdC)",
             "model": "MiniMaxAI/MiniMax-M3",

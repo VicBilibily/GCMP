@@ -12,10 +12,10 @@
         },
         "models": {
             "deepseek-v4.1-flash": {
-                "ref": "deepseek/deepseek-v4.1-flash",
-                "overrides": {
-                    "reasoningEffort": ["high", "xhigh", "low"]
-                }
+                "ref": "deepseek/deepseek-v4.1-flash"
+            },
+            "deepseek-v4.1-flash-1017": {
+                "ref": "deepseek/deepseek-v4.1-flash-1017"
             },
             "glm-5.3": {
                 // 远端误报 vision:true（智谱官方及其余来源均为 false），钉住待上游修正后移除
@@ -147,6 +147,11 @@
             "z-ai/glm-5.3-flashx": { "ref": "zhipu/glm-5.3-flashx", "localId": "glm-5.3-flashx" },
             "stepfun/Step-5-Preview": { "ref": "stepfun/step-5-preview", "localId": "step-5-preview" },
             "deepseek/deepseek-v4.1-flash-fast": { "localId": "deepseek-v4.1-flash-fast" },
+            "minimax/minimax-m3.1-flash": {
+                "localId": "minimax-m3.1-flash",
+                // 远端清单无定价，按 MiniMax 官方参考价展示
+                "overrides": { "tokenPricing": [0.15, 0.6, 0.015] }
+            },
             "mistral/mistral-large-4": { "localId": "mistral-large-4" }
         }
     },

@@ -65,6 +65,10 @@
         "deepseek-v4.1-flash": {
             "name": "DeepSeek-V4.1-Flash",
             "template": ["1m", "vision", "high-max-low"]
+        },
+        "deepseek-v4.1-flash-1017": {
+            "variantOf": "deepseek-v4.1-flash",
+            "name": "DeepSeek-V4.1-Flash-1017"
         }
     },
     "google": {
@@ -268,6 +272,10 @@
         },
         "minimax-m3": {
             "name": "MiniMax-M3",
+            "template": ["1m", "vision"]
+        },
+        "minimax-m3.1-flash": {
+            "name": "MiniMax-M3.1-Flash",
             "template": ["1m", "vision"]
         }
     },

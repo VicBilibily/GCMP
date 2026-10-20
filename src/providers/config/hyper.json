@@ -4,6 +4,18 @@
     "apiKeyTemplate": "sk-hyper-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "models": [
         {
+            "id": "deepseek-v4.1-flash-1017",
+            "name": "DeepSeek-V4.1-Flash-1017 (Hyper)",
+            "tooltip": "Charm Hyper — DeepSeek-V4.1-Flash-1017。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.33, 1.31, 0.03]
+        },
+        {
             "id": "deepseek-v4.1-flash",
             "name": "DeepSeek-V4.1-Flash (Hyper)",
             "tooltip": "Charm Hyper — DeepSeek-V4.1-Flash。",
@@ -11,7 +23,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "xhigh", "low"],
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.33, 1.31, 0.03]
         },
