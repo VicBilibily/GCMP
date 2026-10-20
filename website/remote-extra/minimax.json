@@ -1,0 +1,52 @@
+{
+    "models": [
+        {
+            "id": "MiniMax-M2.7-Token-Plan",
+            "name": "MiniMax-M2.7 (TokenPlan)",
+            "model": "MiniMax-M2.7",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "停止向新用户开放调用：【2026年10月19日】正式下线：【2026年11月18日】MiniMax-M2.7 - 开启模型的自我迭代 (输出速度约60tps)",
+            "provider": "minimax-token",
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.3, 1.2, 0.06, 0.375], "RMB": [2.1, 8.4, 0.42, 2.625] }
+        },
+        {
+            "id": "MiniMax-M2.7-HighSpeed-Token-Plan",
+            "name": "MiniMax-M2.7-HighSpeed (TokenPlan)",
+            "model": "MiniMax-M2.7-HighSpeed",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "停止向新用户开放调用：【2026年10月19日】正式下线：【2026年11月18日】M2.7 极速版：效果不变，更快，更敏捷 (输出速度约100tps)",
+            "provider": "minimax-token",
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.6, 2.4, 0.06, 0.375], "RMB": [4.2, 16.8, 0.42, 2.625] }
+        },
+        {
+            "id": "MiniMax-M2.7",
+            "name": "MiniMax-M2.7 (PayGo)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "停止向新用户开放调用：【2026年10月19日】正式下线：【2026年11月18日】开启模型的自我迭代（输出速度约 60 TPS）",
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.3, 1.2, 0.06, 0.375], "RMB": [2.1, 8.4, 0.42, 2.625] }
+        },
+        {
+            "id": "MiniMax-M2.7-HighSpeed",
+            "name": "MiniMax-M2.7-HighSpeed (PayGo)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "停止向新用户开放调用：【2026年10月19日】正式下线：【2026年11月18日】M2.7 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.6, 2.4, 0.06, 0.375], "RMB": [4.2, 16.8, 0.42, 2.625] }
+        }
+    ]
+}
