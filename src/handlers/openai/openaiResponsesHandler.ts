@@ -601,7 +601,9 @@ export class OpenAIResponsesHandler {
                         abortPending: network.abortPending
                     });
                     created = true;
-                    return new ResponsesWebSocketTransport(socket, undefined, undefined, network);
+                    return new ResponsesWebSocketTransport(socket, undefined, undefined, network, eventType => {
+                        Logger.warn(`Responses WebSocket ignored unknown event: ${eventType}`);
+                    });
                 },
                 signal,
                 true

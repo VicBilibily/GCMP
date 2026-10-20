@@ -381,6 +381,11 @@ const deltaTypes = new Set([
     'response.function_call_arguments.delta'
 ]);
 const terminalTypes = new Set(['response.completed', 'response.incomplete', 'response.failed', 'response.cancelled']);
+const webSearchTypes = new Set([
+    'response.web_search_call.in_progress',
+    'response.web_search_call.searching',
+    'response.web_search_call.completed'
+]);
 const auxiliaryTypes = new Set([
     'codex.rate_limits',
     'codex.response.metadata',
@@ -394,6 +399,22 @@ const passiveTypes = new Set([
     'response.content_part.done',
     'response.reasoning_summary_part.added',
     'response.reasoning_summary_part.done'
+]);
+const knownTypes = new Set([
+    ...deltaTypes,
+    ...terminalTypes,
+    ...webSearchTypes,
+    ...passiveTypes,
+    'error',
+    'response.created',
+    'response.output_text.done',
+    'response.reasoning_text.done',
+    'response.reasoning_summary_text.done',
+    'response.refusal.done',
+    'response.function_call_arguments.done',
+    'response.output_item.added',
+    'response.output_item.done',
+    'response.output_text.annotation.added'
 ]);
 
 function validItem(value: unknown): boolean {
@@ -436,6 +457,9 @@ function validEvent(value: unknown): value is ResponsesProcessorEvent {
     }
     if (deltaTypes.has(value.type)) {
         return typeof value.delta === 'string';
+    }
+    if (webSearchTypes.has(value.type)) {
+        return typeof value.item_id === 'string' && typeof value.output_index === 'number';
     }
     if (
         value.type === 'response.output_text.done' ||
@@ -638,7 +662,8 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
             firstMs: 120_000,
             idleMs: 180_000
         },
-        private readonly network?: Pick<ProxyDispatcherLease, 'release' | 'abortPending'>
+        private readonly network?: Pick<ProxyDispatcherLease, 'release' | 'abortPending'>,
+        private readonly onUnknownEvent?: (eventType: string) => void
     ) {
         this.opened = socket.opened;
         this.closed = network ? socket.closed.then(() => this.releaseDispatcher()) : socket.closed;
@@ -816,6 +841,16 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
                 throw new Error('Invalid Responses JSON');
             }
             if (object(value) && typeof value.type === 'string' && auxiliaryTypes.has(value.type)) {
+                return;
+            }
+            if (
+                object(value) &&
+                typeof value.type === 'string' &&
+                value.type.length > 0 &&
+                !knownTypes.has(value.type)
+            ) {
+                const eventType = /^[a-zA-Z][a-zA-Z0-9_.:-]{0,79}$/.test(value.type) ? value.type : 'unknown';
+                this.onUnknownEvent?.(eventType);
                 return;
             }
             const active = this.active;

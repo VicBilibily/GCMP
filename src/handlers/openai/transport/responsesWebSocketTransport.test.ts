@@ -199,6 +199,98 @@ test('WS-LOOP-02: flat full frames preserve parameters and reuse without previou
     assert.equal(socket.messages.size + socket.disconnects.size, 0);
 });
 
+for (const stage of ['in_progress', 'searching', 'completed'] as const) {
+    test(`WS-LOOP-03: web search ${stage} preserves the response stream and completed output`, async () => {
+        const socket = new Socket();
+        const transport = new ResponsesWebSocketTransport(socket);
+        const handle = transport.begin({ model: 'test', input: [] }, () => {});
+        const progress = {
+            type: `response.web_search_call.${stage}`,
+            item_id: 'ws_search',
+            output_index: 0,
+            sequence_number: 1
+        };
+        const item = {
+            type: 'web_search_call',
+            id: 'ws_search',
+            status: 'completed',
+            action: { type: 'search', query: 'synthetic query' }
+        };
+        try {
+            socket.emit(progress);
+            assert.equal(handle.acceptance, 'accepted');
+            assert.equal(Boolean(handle.receipt), false);
+            socket.emit({ type: 'response.output_item.done', output_index: 0, item });
+            socket.emit({ type: 'response.completed', response: { id: 'response_search', output: [] } });
+            const types: string[] = [];
+            for await (const event of handle.events) {
+                types.push(event.type);
+            }
+            assert.deepEqual(types, [progress.type, 'response.output_item.done', 'response.completed']);
+            assert.deepEqual(handle.receipt?.output, [item]);
+            assert.equal(handle.receipt?.outputComplete, true);
+            handle.finish(true);
+            assert.deepEqual(transport.diagnostics(), { queueBytes: 0, handles: 0, processQueueBytes: 0 });
+        } finally {
+            handle.finish(false);
+            await transport.close();
+        }
+    });
+
+    for (const variant of [
+        'missing-item-id',
+        'invalid-item-id',
+        'missing-output-index',
+        'invalid-output-index',
+        'negative-output-index',
+        'fractional-output-index',
+        'invalid-sequence',
+        'negative-sequence'
+    ] as const) {
+        test(`WS-LOOP-12: web search ${stage} rejects ${variant}`, async () => {
+            const socket = new Socket();
+            const transport = new ResponsesWebSocketTransport(socket);
+            const handle = transport.begin({ model: 'test', input: [] }, () => {});
+            try {
+                socket.emit({
+                    type: `response.web_search_call.${stage}`,
+                    item_id:
+                        variant === 'missing-item-id' ? undefined
+                        : variant === 'invalid-item-id' ? 42
+                        : 'ws_search',
+                    output_index:
+                        variant === 'missing-output-index' ? undefined
+                        : variant === 'invalid-output-index' ? '0'
+                        : variant === 'negative-output-index' ? -1
+                        : variant === 'fractional-output-index' ? 0.5
+                        : 0,
+                    sequence_number:
+                        variant === 'invalid-sequence' ? '1'
+                        : variant === 'negative-sequence' ? -1
+                        : 1
+                });
+                await assert.rejects(
+                    async () => {
+                        for await (const event of handle.events) {
+                            assert.ok(event.type);
+                        }
+                    },
+                    (error: unknown) => {
+                        assert.ok(error instanceof ResponsesTransportFailure);
+                        assert.match(error.message, /Unsupported or malformed Responses event/);
+                        assert.equal(error.safeToRetry, false);
+                        return true;
+                    }
+                );
+            } finally {
+                handle.finish(false);
+                await transport.close();
+            }
+            assert.deepEqual(transport.diagnostics(), { queueBytes: 0, handles: 0, processQueueBytes: 0 });
+        });
+    }
+}
+
 for (const terminalOutput of ['empty', 'reasoning-only', 'complete'] as const) {
     test(`WS-LOOP-03: terminal ${terminalOutput} retains completed text and parallel calls in output order`, async () => {
         const socket = new Socket();
@@ -413,11 +505,105 @@ for (const ending of ['success', 'cancel', 'disconnect', 'abandon'] as const) {
 }
 
 for (const type of [
+    'response.web_search_call.unknown',
+    'response.future_terminal',
+    'vendor.search.running',
+    'response.private\nsynthetic-secret-payload'
+]) {
+    test(`WS-LOOP-13: unknown event ${JSON.stringify(type)} is logged without affecting delivery or reuse`, async () => {
+        const socket = new Socket();
+        const logged: string[] = [];
+        const transport = new ResponsesWebSocketTransport(socket, undefined, undefined, undefined, eventType => {
+            logged.push(eventType);
+        });
+        const notification = {
+            type,
+            response_id: 'foreign-response',
+            response: { id: 'foreign-response' },
+            output_index: 999,
+            sequence_number: -1,
+            delta: 'synthetic-secret-payload'
+        };
+        try {
+            socket.emit(notification);
+            assert.equal(transport.reusable, true);
+            for (const responseId of ['first', 'next']) {
+                const handle = transport.begin({ model: 'test', input: [] }, () => {});
+                try {
+                    socket.emit(notification);
+                    assert.equal(handle.acceptance, 'unknown');
+                    assert.equal(Boolean(handle.receipt), false);
+                    assert.equal(transport.diagnostics().queueBytes, 0);
+                    socket.emit({ type: 'response.created', response: { id: responseId } });
+                    const before = transport.diagnostics();
+                    socket.emit(notification);
+                    assert.deepEqual(transport.diagnostics(), before);
+                    socket.emit({ type: 'response.output_text.delta', output_index: 0, delta: 'kept text' });
+                    const item = {
+                        type: 'message',
+                        id: `msg_${responseId}`,
+                        role: 'assistant',
+                        status: 'completed',
+                        content: [{ type: 'output_text', text: 'kept text' }]
+                    };
+                    socket.emit({ type: 'response.output_item.done', output_index: 0, item });
+                    socket.emit({
+                        type: 'response.completed',
+                        response: {
+                            id: responseId,
+                            output: [],
+                            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 }
+                        }
+                    });
+                    socket.emit(notification);
+                    const events = [];
+                    for await (const event of handle.events) {
+                        events.push(event);
+                    }
+                    assert.deepEqual(
+                        events.map(event => event.type),
+                        [
+                            'response.created',
+                            'response.output_text.delta',
+                            'response.output_item.done',
+                            'response.completed'
+                        ]
+                    );
+                    assert.deepEqual(events.at(-1), {
+                        type: 'response.completed',
+                        response: {
+                            id: responseId,
+                            output: [],
+                            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 }
+                        }
+                    });
+                    assert.equal(handle.receipt?.responseId, responseId);
+                    assert.deepEqual(handle.receipt?.output, [item]);
+                    assert.equal(handle.receipt?.outputComplete, true);
+                    handle.finish(true);
+                    socket.emit(notification);
+                    assert.equal(transport.reusable, true);
+                    assert.deepEqual(transport.diagnostics(), { queueBytes: 0, handles: 0, processQueueBytes: 0 });
+                } finally {
+                    handle.finish(false);
+                }
+            }
+            const label = type.includes('\n') ? 'unknown' : type;
+            assert.deepEqual(logged, Array<string>(9).fill(label));
+            assert.equal(logged.join('').includes('synthetic-secret-payload'), false);
+        } finally {
+            await transport.close();
+        }
+    });
+}
+
+for (const type of [
     'codex.rate_limits',
     'codex.response.metadata',
     'response.metadata',
     'responsesapi.websocket_timing',
-    'keepalive'
+    'keepalive',
+    'response.future_terminal'
 ]) {
     test(`WS-LOOP-13: auxiliary ${type} preserves response delivery and connection reuse`, async () => {
         const socket = new Socket();
@@ -553,7 +739,16 @@ for (const completed of [false, true]) {
     });
 }
 
-for (const variant of ['malformed', 'binary', 'oversize', 'overflow', 'identity', 'unknown-terminal']) {
+for (const variant of [
+    'malformed',
+    'binary',
+    'oversize',
+    'overflow',
+    'identity',
+    'invalid-known',
+    'missing-type',
+    'invalid-type'
+]) {
     test(`WS-LOOP-13: rejects ${variant} without retry eligibility`, async () => {
         const socket = new Socket();
         const transport = new ResponsesWebSocketTransport(socket, undefined, {
@@ -584,8 +779,14 @@ for (const variant of ['malformed', 'binary', 'oversize', 'overflow', 'identity'
             socket.emit({ type: 'response.created', response: { id: 'a' } });
             socket.emit({ type: 'response.completed', response: { id: 'b', output: [] } });
         }
-        if (variant === 'unknown-terminal') {
-            socket.emit({ type: 'response.future_terminal' });
+        if (variant === 'invalid-known') {
+            socket.emit({ type: 'response.output_text.delta', delta: 42 });
+        }
+        if (variant === 'missing-type') {
+            socket.emit({ delta: 'synthetic-secret-payload' });
+        }
+        if (variant === 'invalid-type') {
+            socket.emit({ type: 42, delta: 'synthetic-secret-payload' });
         }
         await assert.rejects(
             async () => {
@@ -603,7 +804,9 @@ for (const variant of ['malformed', 'binary', 'oversize', 'overflow', 'identity'
                     oversize: 'Responses message budget exceeded',
                     overflow: 'Responses event queue budget exceeded',
                     identity: 'Responses identity mismatch',
-                    'unknown-terminal': 'Unsupported or malformed Responses event'
+                    'invalid-known': 'Unsupported or malformed Responses event',
+                    'missing-type': 'Unsupported or malformed Responses event',
+                    'invalid-type': 'Unsupported or malformed Responses event'
                 };
                 assert.ok(error.message.includes(expectedReasons[variant]), error.message);
                 assert.ok(error.cause instanceof Error);
