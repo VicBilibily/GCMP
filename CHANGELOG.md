@@ -2,6 +2,40 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.1] - 2026-10-20
+
+### 新增
+
+- **实验性 Responses WebSocket 通道**：OpenAI Responses 模式新增可选 WebSocket 传输，通过 `useWebSocket` 启用，默认关闭，支持连接复用、多轮上下文续传与工具调用；模型编辑器和 JSON 设置同步提供配置与校验。
+- **DeepSeek 网页搜索**：新增独立 `#deepseekWebSearch` 工具，使用 DeepSeek API Key 搜索网页，支持结果数量、地域及正文获取设置。
+
+### 修复
+
+- **思考内容与上下文回放**：保留带签名的空思考块，完善 Anthropic / Gemini 历史消息及加密推理的跨轮回放；归一 SDK 回放中的加密推理 ID，避免上下文续传不匹配。
+- **SDK 请求与会话统计**：完善 SDK 请求分类、用量缓存与回放缓存，增强会话恢复的隔离，减少不同会话之间的关联干扰。
+- **流式请求中断与资源释放**：完善取消、异常终态、重试判定和传输清理，避免清理失败覆盖原始请求错误，并限制会话事件文件的并发读取。
+
+### 变更
+
+- **HAR 请求诊断**：增强请求生命周期与传输恢复诊断，完善 HAR 录制的关闭、脱敏和错误处理，便于排查流式请求异常。
+
+---
+
+### Added
+
+- **Experimental Responses WebSocket channel**: OpenAI Responses mode now supports optional WebSocket transport via `useWebSocket`, disabled by default, with connection reuse, multi-turn context continuation, and tool calls. Configuration and validation are available in the model editor and JSON settings.
+- **DeepSeek web search**: Added the standalone `#deepseekWebSearch` tool, using a DeepSeek API key to search the web with configurable result counts, localization, and full-content retrieval.
+
+### Fixed
+
+- **Thinking and context replay**: Preserved signed empty thinking blocks and improved Anthropic / Gemini history replay and encrypted reasoning across turns. Encrypted reasoning IDs are normalized in SDK replay to prevent context continuation mismatches.
+- **SDK requests and session statistics**: Improved SDK request classification, usage and replay caching, and session recovery isolation to reduce cross-session association interference.
+- **Stream interruption and resource cleanup**: Improved cancellation, error finalization, retry decisions, and transport cleanup. Cleanup failures no longer obscure the original request error, and concurrent reads of session event files are bounded.
+
+### Changed
+
+- **HAR request diagnostics**: Improved request lifecycle and transport recovery diagnostics, along with HAR recording shutdown, redaction, and error handling for troubleshooting streaming failures.
+
 ## [0.29.0] - 2026-10-15
 
 ### 新增

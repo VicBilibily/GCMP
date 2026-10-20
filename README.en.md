@@ -7,7 +7,7 @@ English | **[中文](README.md)**
 
 Integrates leading Chinese AI model providers into GitHub Copilot Chat, giving developers richer, more locally-tuned AI coding assistant options.
 Currently supports **ZhipuAI**, **MiniMax**, **MoonshotAI**, **DeepSeek**, **Alibaba Cloud DashScope**, **Volcengine**, **Tencent Cloud**, **Xiaomi MiMo**, **Baidu Qianfan**, **StepFun**, **Ant Ling**, **XunFei Astron**, and **LongCat** as native providers.
-Additionally, the extension supports any OpenAI or Anthropic API-compatible models via the **Compatible Provider**.
+The **Compatible Provider** also supports third-party services implementing OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, or Gemini GenerateContent APIs. OpenAI Responses models can optionally use experimental WebSocket transport; HTTP streaming remains the default.
 
 ## 🚀 Quick Start
 
@@ -88,7 +88,7 @@ Copilot Harness is not yet fully supported. Startup guidance recommends switchin
 
 ## 🤖 Built-in AI Model Providers
 
-> This extension only includes first-tier providers with self-developed models (e.g., major cloud vendors with model R&D capabilities). For third-party model access, use the "OpenAI / Anthropic Compatible" mode.
+> This extension only includes first-tier providers with self-developed models (e.g., major cloud vendors with model R&D capabilities). For third-party model access, use the Compatible Provider and select the corresponding API protocol.
 
 ### [**ZhipuAI**](https://bigmodel.cn/)
 
@@ -120,7 +120,7 @@ Copilot Harness is not yet fully supported. Startup guidance recommends switchin
 ### [**DeepSeek**](https://platform.deepseek.com/)
 
 - **Model list**: See [config/deepseek.json](src/providers/config/deepseek.json).
-- **Search**: Includes a standalone DeepSeek Search tool, available as `#deepseekWebSearch`.
+- **Search**: Provides the `#deepseekWebSearch` web search tool for AI use.
 - **Balance query**: Status bar displays current account balance.
 
 ### [**Alibaba Cloud DashScope**](https://bailian.console.aliyun.com/) - AliDashScope
@@ -369,13 +369,14 @@ Balance-based status bars show a yellow background when the available balance is
 
 ```jsonc
 {
-    "gcmp.debug.captureHar": false, // Capture all HTTP requests as HAR files (default false)
+    "gcmp.debug.captureHar": false, // Capture supported HTTP requests as HAR files (default false)
     "gcmp.debug.harRetentionCount": 7 // Number of recent HAR files to keep per VS Code instance (0 = disable count-based cleanup only; 2-hour hard deletion still applies)
 }
 ```
 
 - When `gcmp.debug.captureHar` is enabled, GCMP writes HAR 1.2 files under `globalStorage/har/`, grouped by VS Code instance and date, to help diagnose compatibility and gateway issues.
 - FIM / NES completions, Gist sync, and CLI OAuth refresh requests skip capture by default to avoid recording sensitive credentials and high-frequency duplicate traffic.
+- Responses WebSocket requests are not captured in HAR. Separate usage statistics and request records still apply; usage is not fabricated when the server does not provide it.
 - Credentials in sensitive headers, URL query parameters, and redirect URLs are redacted before writing, but request and response bodies are stored as-is. Keep HAR files secure.
 - HAR files rotate at least every 30 minutes; files older than 2 hours are force-deleted when a new recording starts or a file rotates.
 - `harRetentionCount` controls how many recent files each process keeps by count; setting it to `0` disables only count-based cleanup, while the 2-hour hard deletion still runs.
@@ -474,7 +475,7 @@ model-level non-proxy settings > providerOverrides.{provider} > providerOverride
 
 ## 🔌 Compatible Custom Model Support
 
-GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatible service. Through the `gcmp.compatibleModels` setting, you can fully customize model parameters, including extended request parameters.
+GCMP provides a **Compatible Provider** for OpenAI Chat Completions / Responses, Anthropic Messages, and Gemini GenerateContent APIs. Use `gcmp.compatibleModels` to select the API protocol and customize model parameters, including extended request parameters. Available capabilities depend on the model and server implementation.
 
 1. Launch the configuration wizard via the `GCMP: Compatible Provider Settings` command.
 2. Edit the `gcmp.compatibleModels` setting in `settings.json`.
@@ -535,7 +536,7 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 }
 ```
 
-> Tip: if you use OpenAI Responses / compatible proxies and do not want encrypted reasoning (`reasoning.encrypted_content`) replayed, explicitly set `extraBody.include` to `null` or `[]`; in that case the historical chain is replayed via plain `reasoning_text`, and stripped ThinkingPart entries are restored from StatefulMarker. Include `reasoning.encrypted_content` when you want ciphertext replayed.
+> Tip: For OpenAI Responses / compatible proxies, explicitly setting `extraBody.include` to `null` or `[]` disables both encrypted and plain historical reasoning replay; plain text does not replace ciphertext. Include `reasoning.encrypted_content` in that array to request and replay encrypted reasoning. GPT models never replay plain reasoning; other models allow plain replay only when `include` is not explicitly configured. Replay uses only the current messages or StatefulMarker data retained in them, without restoring trimmed or lost reasoning state.
 
 - `gcmp.compatibleModels[*].proxy` applies only to the current custom model. When you click "Fetch Models" after entering `baseUrl`, the same proxy setting is also used for the discovery request.
 
@@ -544,6 +545,50 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 `gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`, and `gemini-sse` (Gemini GenerateContent SSE).
 
 `gemini-sse` uses `x-goog-api-key` for official Google endpoints and `Authorization: Bearer` for third-party gateways, then calls `/v1beta/models/{model}:streamGenerateContent?alt=sse`; `customHeader` can override or remove the default authentication header. `extraBody.generationConfig` is merged into `generationConfig`, while other fields are forwarded at the Gemini GenerateContent request top level (except protected core fields such as `contents`, `tools`, and `systemInstruction`). Supported `serviceTier` values are `unspecified`, `standard`, `flex`, and `priority`.
+
+### Responses WebSocket (Experimental): `useWebSocket`
+
+`useWebSocket` is available only for models whose effective `sdkMode` is `openai-responses`, and is disabled by default. Select OpenAI Responses in the Compatible model editor, then enable "Use WebSocket (experimental)", or set it in the model configuration in `settings.json`:
+
+```jsonc
+{
+    "gcmp.providerOverrides": {
+        "codex": {
+            "models": [
+                {
+                    "id": "gpt-5.6-sol",
+                    "useWebSocket": true // Opt in to experimental WebSocket support
+                }
+            ]
+        }
+    },
+    "gcmp.compatibleModels": [
+        {
+            "id": "responses-example",
+            "name": "Responses Example",
+            "provider": "your-provider",
+            "model": "your-responses-model",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://api.example.com/v1",
+            "useWebSocket": true,
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
+```
+
+Replace the provider, model, URL, and capability limits with actual values and configure the corresponding API key. Keep `baseUrl` as the HTTPS API base URL; do not change it to `wss://`. For a built-in Responses model, set `useWebSocket: true` on its existing `id` under `gcmp.providerOverrides.<provider>.models[]`; its inherited effective mode must be `openai-responses`. Do not put this setting in `extraBody`.
+
+- **Request scope**: Only requests identified as main-agent or subagent conversations use WebSocket. Summaries, SDK compaction, titles, other auxiliary tasks, and independent requests without reliable classification still use HTTP. This is routing by purpose, not failure fallback.
+- **Compatibility and fallback**: The server must implement the Responses WebSocket protocol; an HTTP Responses endpoint is not necessarily compatible. Failed Agent WebSocket requests do not automatically fall back to HTTP. To use HTTP, set the model's `useWebSocket` to `false` or remove the field.
+- **Context continuation**: When session identity, request parameters, and the history prefix allow it, connections are reused and only new input is sent with `previous_response_id`; otherwise, the current full input is sent. Each request still includes the original full request's `instructions` and `tools`, rather than relying on the server to inherit them.
+- **Tool and state limits**: WebSocket requests always send `parallel_tool_calls: false`. Native `custom` tools and native `compaction` are unsupported. Trimmed history is treated as the current input; lost reasoning state is not restored.
+- **Diagnostics**: Existing proxy and certificate settings still apply. WebSocket is not captured in HAR, so a missing HAR entry does not mean no request was sent. This feature is experimental, not a claim of verified compatibility with every provider or gateway.
 
 ### Anthropic prompt cache TTL: `cacheTtl`
 
@@ -559,8 +604,8 @@ Note: a top-level `cache_control` in `extraBody` is stripped with a warning (it 
 
 For a `Compatible` custom provider, you can configure the following under `gcmp.providerOverrides.{providerId}`:
 
-- `usage`: optional; for a single balance query, configuring only this is enough, and it can also serve as the shared defaults for `usages`
-- `usages`: optional; use this only when you need multiple named balance/amount query modes, and each item can incrementally override fields from `usage`
+- `usage`: optional; configures a single query endpoint. One response can contain multiple quotas through a `fields` array. It can also provide shared defaults for `usages`.
+- `usages`: optional; configures multiple named query modes, such as different URLs, authentication, or query parameters. Each mode inherits defaults from `usage`; a `fields` array replaces the entire inherited array rather than merging items.
 
 `fields.balance` computed fields now support `sum` / `subtract` / `multiply` / `divide`, and `paths` can contain JSON field paths, constant numbers (for example, `500000`), or nested computed field objects, which is useful for conversions like `Ticket / 500000` or `(total - used) / 500000`.
 
@@ -606,20 +651,20 @@ Use `[*]` in a path to match every item in an array and sum the target field. Fo
 
 In other words:
 
-- configure only `usage`: a single balance query
-- use `usages` only when you need multiple query modes for different balances/amounts
+- configure only `usage`: a single query mode, which can return multiple quota entries through a `fields` array
+- use `usages` when multiple query modes are needed; each mode sends its own query, even if the URLs are identical
 - configure neither `usage` nor `usages`: no balance/usage query will be registered for this custom provider
 
-For built-in known provider `usage` / `usages` reference configurations, see the source file [src/utils/knownProviders.ts](src/utils/knownProviders.ts).
+For built-in known provider `usage` / `usages` reference configurations, see the source file [src/utils/config/knownProviders.ts](src/utils/config/knownProviders.ts).
 
 > Note: the provider key in `gcmp.providerOverrides` must match `gcmp.compatibleModels[*].provider` **exactly**, including letter case.
 
 For example, the following [NekoCode](https://nekocode.ai?aff=U9XPRBID)-related snippet is closer to a real-world `settings.json` setup:
 
-- multiple models in `gcmp.compatibleModels` share the same `provider: "NekoCode"`
+- the model in `gcmp.compatibleModels` uses `provider: "NekoCode"`; additional models can share this provider
 - `gcmp.providerOverrides.NekoCode.usage` defines the default query URL `https://api2.nekoapi.ai/v1/usage` and the shared field path `balance`
 - `gcmp.providerOverrides.NekoCode.usages.pay` resolves to the same final query config as `usage`, and only adds the display name `Balance`
-- `gcmp.providerOverrides.NekoCode.usages.sub` reuses `usage.fields.balance` but overrides the query URL to `https://api2.nekoapi.ai/v1/user/balance`
+- `gcmp.providerOverrides.NekoCode.usages.sub` overrides the query URL to `https://api2.nekoapi.ai/v1/user/balance` and the balance field to `remaining`
 
 ```json
 {
@@ -683,9 +728,9 @@ For example, the following [NekoCode](https://nekocode.ai?aff=U9XPRBID)-related 
 
 The effective behavior of this configuration is:
 
-- `providerOverrides.NekoCode` applies to all compatible models whose `provider` is `"NekoCode"`, such as `GPT-5.4 (NekoCode)` and `GPT-5.5 (NekoCode)` above
+- `providerOverrides.NekoCode` applies to all compatible models whose `provider` is `"NekoCode"`, including `GPT-5.5 (NekoCode)` above
 - `pay` inherits `usage.fields.balance = "balance"`
-- `sub` also inherits `usage.fields.balance = "balance"`
+- `sub` uses the overridden `fields.balance = "remaining"`
 - because `pay` resolves to the same final query config as `usage`, no extra duplicate `default` mode will be emitted
 
 The status bar will therefore query and display two named modes:

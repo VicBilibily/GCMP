@@ -7,7 +7,7 @@
 
 通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。
 目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵、讯飞星辰、LongCat 等**原生大模型**提供商。
-此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
+此外，扩展支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 和 Gemini GenerateContent 接口，可通过 **Compatible Provider** 自定义接入提供对应兼容接口的第三方云服务模型。OpenAI Responses 模型还可按需启用实验性 WebSocket 传输，默认仍使用 HTTP 流式请求。
 
 ## 🚀 快速开始
 
@@ -88,7 +88,7 @@ Copilot Harness 暂未完整支持，建议使用默认的 Local Agent。仅在�
 
 ## 🤖 内置的AI大模型提供商
 
-> 本扩展仅预置存在自有模型的一线大模型提供商（如具备模型自研能力的主流云厂商），第三方模型接入请使用「OpenAI / Anthropic Compatible」兼容模式。
+> 本扩展仅预置存在自有模型的一线大模型提供商（如具备模型自研能力的主流云厂商），第三方模型接入请使用 Compatible Provider，并选择对应的接口协议。
 
 ### [**智谱AI**](https://bigmodel.cn/) - ZhipuAI
 
@@ -120,7 +120,7 @@ Copilot Harness 暂未完整支持，建议使用默认的 Local Agent。仅在�
 ### [**DeepSeek**](https://platform.deepseek.com/)
 
 - **模型列表**：详见 [config/deepseek.json](src/providers/config/deepseek.json)。
-- **搜索功能**：提供独立 DeepSeek Search 工具，支持通过 `#deepseekWebSearch` 搜索网页。
+- **搜索功能**：提供 `#deepseekWebSearch` 网页搜索工具，供 AI 调用。
 - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - AliDashScope
@@ -368,13 +368,14 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置�
 
 ```jsonc
 {
-    "gcmp.debug.captureHar": false, // 是否将所有 HTTP 请求记录为 HAR 文件（默认关闭）
+    "gcmp.debug.captureHar": false, // 是否将支持录制的 HTTP 请求记录为 HAR 文件（默认关闭）
     "gcmp.debug.harRetentionCount": 7 // 每个 VS Code 进程保留的最近 HAR 文件数量（0 表示仅禁用按数量清理，2 小时硬删除仍生效）
 }
 ```
 
 - 开启 `gcmp.debug.captureHar` 后，GCMP 会在 `globalStorage/har/` 目录下按 VS Code 实例和日期生成 HAR 1.2 文件，方便排查兼容性与网关问题。
 - FIM / NES 补全、Gist 同步、CLI OAuth 刷新等敏感或高频请求默认不录制，避免敏感凭据和大量重复请求落盘。
+- Responses WebSocket 请求不录制为 HAR；独立的用量统计和请求记录仍正常处理，服务端未返回用量时不会补造数据。
 - 写入前会对敏感请求头、URL 查询参数及重定向 URL 中的凭据进行脱敏，但请求体和响应体仍会按原样保存，请妥善保管 HAR 文件。
 - HAR 文件最长每 30 分钟轮换一次；超过 2 小时的旧文件会在新录制或文件轮换时强制删除。
 - `harRetentionCount` 控制每个进程按数量保留的最近文件数；设为 `0` 时仅禁用按数量清理，2 小时硬删除仍会继续执行。
@@ -479,7 +480,7 @@ GCMP 支持通过会参与设置同步的 `gcmp.providerOverrides` 覆盖提供�
 
 ## 🔌 Compatible 自定义模型支持
 
-GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
+GCMP 提供 **Compatible Provider**，支持 OpenAI Chat Completions / Responses、Anthropic Messages 和 Gemini GenerateContent 接口。通过 `gcmp.compatibleModels` 配置，您可以选择接口协议并自定义模型参数，包括扩展请求参数；实际可用能力取决于模型和服务端实现。
 
 1. 通过 `GCMP: Compatible Provider 设置` 命令启动配置向导。
 2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项。
@@ -540,7 +541,7 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 }
 ```
 
-> 提示：如果你使用 OpenAI Responses / 兼容转发，并且不想回传加密思考（`reasoning.encrypted_content`），可显式设置 `extraBody.include` 为 `null` 或 `[]`；此时历史思维链会以明文 `reasoning_text` 通道回传，且 ThinkingPart 被剥离时会从 StatefulMarker 恢复。需要回传密文时请包含 `reasoning.encrypted_content`。
+> 提示：使用 OpenAI Responses / 兼容转发时，将 `extraBody.include` 显式设为 `null` 或 `[]` 会同时关闭历史推理的密文和明文回放，不会改用明文替代密文。需要请求并回传密文时，请在该数组中包含 `reasoning.encrypted_content`。GPT 模型不回传明文推理；其他模型仅在未显式配置 `include` 时允许明文回放。回放仅使用当前消息或其中保留的 StatefulMarker，不恢复已裁剪或丢失的推理状态。
 
 - `gcmp.compatibleModels[*].proxy` 仅作用于当前自定义模型；在填写 `baseUrl` 后点击“获取模型”时，也会使用同一代理设置进行探测。
 
@@ -549,6 +550,50 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 `gcmp.compatibleModels[*].sdkMode` 指定请求/流式解析方式，可选值：`openai`（默认）、`openai-sse`、`openai-responses`、`anthropic`、`gemini-sse`（Gemini GenerateContent SSE）。
 
 `gemini-sse` 对 Google 官方端点使用 `x-goog-api-key`，对第三方网关默认使用 `Authorization: Bearer`，并请求 `/v1beta/models/{model}:streamGenerateContent?alt=sse`；可通过 `customHeader` 覆盖或删除默认鉴权头。`extraBody.generationConfig` 会合并到 `generationConfig`，其余字段按 Gemini GenerateContent 顶层字段透传（`contents`、`tools`、`systemInstruction` 等核心字段除外）。`serviceTier` 支持 `unspecified`、`standard`、`flex`、`priority`。
+
+### Responses WebSocket（实验性）：`useWebSocket`
+
+仅有效 `sdkMode` 为 `openai-responses` 的模型可设置 `useWebSocket`，默认关闭。在 Compatible 模型编辑器中选择 OpenAI Responses 模式后，可勾选「使用 WebSocket（实验性）」；也可在 `settings.json` 的模型配置中设置：
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "codex": {
+            "models": [
+                {
+                    "id": "gpt-5.6-sol",
+                    "useWebSocket": true // 按需实验性开启
+                }
+            ]
+        }
+    },
+    "gcmp.compatibleModels": [
+        {
+            "id": "responses-example",
+            "name": "Responses Example",
+            "provider": "your-provider",
+            "model": "your-responses-model",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://api.example.com/v1",
+            "useWebSocket": true,
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
+```
+
+示例中的提供商、模型、地址和能力参数需替换为实际值，并配置对应 API Key；`baseUrl` 仍填写 HTTPS API 基址，无需改成 `wss://`。内置 Responses 模型可在 `gcmp.providerOverrides.<provider>.models[]` 中按现有模型 `id` 设置 `useWebSocket: true`，继承的有效模式必须为 `openai-responses`。不要将开关放入 `extraBody`。
+
+- **请求范围**：仅识别为主 Agent 或子 Agent 对话的请求使用 WebSocket；摘要、SDK 压缩、标题等辅助任务及无法可靠分类的独立请求仍使用 HTTP。这是按用途选择通道，不是失败降级。
+- **兼容与回退**：服务端必须实现 Responses WebSocket 协议，仅支持 HTTP Responses 的端点不一定可用。Agent 的 WebSocket 请求失败不会自动回退 HTTP；需要使用 HTTP 时，将该模型的 `useWebSocket` 设为 `false` 或移除该字段。
+- **上下文续传**：在会话身份、请求参数和历史前缀满足条件时复用连接，通过 `previous_response_id` 仅发送新增输入；不满足条件时发送当前完整输入。每次仍发送完整请求原有的 `instructions` 和 `tools`，不依赖服务端继承这两个字段。
+- **工具与状态边界**：WebSocket 请求固定发送 `parallel_tool_calls: false`，不支持原生 `custom` 工具或原生 `compaction`。历史已裁剪时只使用当前输入，不恢复已丢失的推理状态。
+- **诊断**：继续使用已有代理和证书设置；WebSocket 不录制为 HAR，不能以没有 HAR 条目判断请求未发送。该功能为实验性，不代表所有提供商或网关均已验证兼容。
 
 ### Anthropic 提示缓存 TTL：`cacheTtl`
 
@@ -1233,13 +1278,13 @@ GCMP 提供统一的 API Key 管理面板，可按提供商/槽位维护多套�
 
 ### 存储原理
 
-| 层级         | 说明                                                                                    |
-| ------------ | --------------------------------------------------------------------------------------- |
+| 层级         | 说明                                                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | **远端存储** | GitHub **Secret Gist**（私有 Gist），文件名为 `gcmp-configsets.json`（描述以 `GCMP ConfigSets` 开头），元数据明文、仅 apiKey 字段单独加密 |
-| **加密算法** | **AES-256-GCM**（认证加密，保证机密性 + 完整性）                                        |
-| **密钥派生** | **scrypt**（N=16384, r=8, p=1），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令` |
-| **认证方式** | VS Code 内置 **GitHub OAuth**，通过 `vscode.authentication` API 获取 token              |
-| **认证复用** | 首次授权 `gist` scope；后续操作静默复用已授权 session                                   |
+| **加密算法** | **AES-256-GCM**（认证加密，保证机密性 + 完整性）                                                                                          |
+| **密钥派生** | **scrypt**（N=16384, r=8, p=1），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令`                                                   |
+| **认证方式** | VS Code 内置 **GitHub OAuth**，通过 `vscode.authentication` API 获取 token                                                                |
+| **认证复用** | 首次授权 `gist` scope；后续操作静默复用已授权 session                                                                                     |
 
 ### 加密流程
 
