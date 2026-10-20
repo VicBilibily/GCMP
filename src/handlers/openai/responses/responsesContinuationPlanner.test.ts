@@ -332,6 +332,83 @@ test('WS-LOOP-03: retained encrypted reasoning continues with only new tool resu
     assert.deepEqual(third.body.input, [user('next')]);
 });
 
+for (const sdkBridgeReplay of [true, false]) {
+    for (const replay of [
+        { name: 'missing-id', id: undefined, cipher: 'synthetic-cipher', delta: true },
+        { name: 'bridge-generated-id', id: 'rs_bridge_generated', cipher: 'synthetic-cipher', delta: true },
+        { name: 'changed-cipher', id: undefined, cipher: 'different-cipher', delta: false },
+        { name: 'empty-cipher', id: undefined, cipher: '', delta: false }
+    ]) {
+        test(`WS-LOOP-03: SDK=${sdkBridgeReplay} encrypted reasoning ${replay.name} preserves only equivalent context`, () => {
+            const planner = new ResponsesContinuationPlanner(sdkBridgeReplay);
+            const expectDelta = sdkBridgeReplay && replay.delta;
+            const reasoning = {
+                type: 'reasoning',
+                id: 'rs_upstream',
+                summary: [],
+                encrypted_content: 'synthetic-cipher'
+            };
+            const firstBody = { ...stableParameters, input: [user('first')] };
+            const first = planner.plan(firstBody, 1, true);
+            assert.equal(
+                planner.commit(
+                    first,
+                    {
+                        type: 'response.completed',
+                        responseId: 'first-response',
+                        output: [reasoning, assistant('before tool'), call]
+                    },
+                    true
+                ),
+                true
+            );
+            const replayedReasoning = {
+                type: 'reasoning',
+                summary: [],
+                encrypted_content: replay.cipher,
+                ...(replay.id === undefined ? {} : { id: replay.id })
+            };
+            const secondBody = {
+                ...stableParameters,
+                input: [user('first'), replayedReasoning, assistant('before tool'), call, result]
+            };
+            const before = JSON.stringify(secondBody);
+            const second = planner.plan(secondBody, 1, true);
+            assert.equal(second.mode, expectDelta ? 'delta' : 'full');
+            assert.equal(second.previousResponseId, expectDelta ? 'first-response' : undefined);
+            assert.deepEqual(second.body.input, expectDelta ? [result] : secondBody.input);
+            assert.strictEqual(second.fullBody, secondBody);
+            assert.equal(JSON.stringify(secondBody), before);
+            assert.equal(second.body.instructions, stableParameters.instructions);
+            assert.strictEqual(second.body.tools, stableParameters.tools);
+            if (expectDelta) {
+                assert.equal(
+                    planner.commit(
+                        second,
+                        {
+                            type: 'response.completed',
+                            responseId: 'second-response',
+                            output: [assistant('done')]
+                        },
+                        true
+                    ),
+                    true
+                );
+                const third = planner.plan(
+                    {
+                        ...stableParameters,
+                        input: [...secondBody.input, assistant('done'), user('next turn')]
+                    },
+                    1,
+                    true
+                );
+                assert.equal(third.previousResponseId, 'second-response');
+                assert.deepEqual(third.body.input, [user('next turn')]);
+            }
+        });
+    }
+}
+
 test('WS-LOOP-03: JSON argument roundtrip formatting does not force a full request', () => {
     const planner = new ResponsesContinuationPlanner();
     const first = planner.plan({ model: 'm', input: [user('first')] }, 1, true);

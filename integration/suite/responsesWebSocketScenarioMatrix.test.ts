@@ -275,6 +275,7 @@ suite('Responses WebSocket roundtrip scenario matrix', function () {
 
     for (const replay of [
         'thinking-parts',
+        'sdk-bridge',
         'copilot-chat',
         'thinking-stripped',
         'thinking-omitted',
@@ -293,7 +294,8 @@ suite('Responses WebSocket roundtrip scenario matrix', function () {
                     }
                 });
                 const history = fixture.history('first');
-                const completeReplay = replay === 'thinking-parts' || replay === 'copilot-chat';
+                const completeReplay =
+                    replay === 'thinking-parts' || replay === 'sdk-bridge' || replay === 'copilot-chat';
                 const session = completeReplay ? false : 'live-e2e-session';
                 if (replay === 'copilot-chat') {
                     history[0] = new vscode.LanguageModelChatMessage(
@@ -316,7 +318,15 @@ suite('Responses WebSocket roundtrip scenario matrix', function () {
                     ...fixture.replay(parts),
                     ...(replay === 'thinking-stripped' || replay === 'thinking-omitted' || replay === 'copilot-chat' ?
                         []
-                    :   parts.filter(part => part instanceof vscode.LanguageModelThinkingPart))
+                    :   parts
+                            .filter(part => part instanceof vscode.LanguageModelThinkingPart)
+                            .map(part =>
+                                replay === 'sdk-bridge' ?
+                                    new vscode.LanguageModelThinkingPart(part.value, 'rs_bridge_generated', {
+                                        redactedData: part.metadata?.redactedData
+                                    })
+                                :   part
+                            ))
                 ] as Parameters<typeof vscode.LanguageModelChatMessage.Assistant>[0];
                 const secondHistory = [
                     ...history,

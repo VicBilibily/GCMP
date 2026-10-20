@@ -315,7 +315,7 @@ export class OpenAIResponsesHandler {
                 if (transport && webSocketLease) {
                     planner = this.planners.get(transport);
                     if (!planner) {
-                        planner = new ResponsesContinuationPlanner();
+                        planner = new ResponsesContinuationPlanner(webSocketScope?.origin === 'copilot-sdk');
                         this.planners.set(transport, planner);
                     }
                     plan = planner.plan(

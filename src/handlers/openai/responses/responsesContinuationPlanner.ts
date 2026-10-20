@@ -25,6 +25,11 @@ interface EncryptedReasoning {
     id?: string;
 }
 
+interface ReplayableReasoningInput extends Record<string, unknown> {
+    encrypted_content: string;
+    summary: Array<{ type: 'summary_text'; text: string }>;
+}
+
 interface Checkpoint {
     responseId: string;
     generation: number;
@@ -119,14 +124,25 @@ function pendingCalls(input: readonly unknown[]): string[] {
     return [...calls].filter(callId => !results.has(callId));
 }
 
-function replayReasoning(item: Record<string, unknown>): EncryptedReasoning | undefined {
+function isSummaryTextPart(value: unknown): value is { type: 'summary_text'; text: string } {
+    return isObject(value) && value.type === 'summary_text' && typeof value.text === 'string';
+}
+
+function isReplayableReasoning(item: Record<string, unknown>): item is ReplayableReasoningInput {
     if (
         typeof item.encrypted_content !== 'string' ||
         !item.encrypted_content ||
         !Array.isArray(item.summary) ||
-        !item.summary.every(part => isObject(part) && part.type === 'summary_text' && typeof part.text === 'string') ||
+        !item.summary.every(isSummaryTextPart) ||
         (item.id !== undefined && typeof item.id !== 'string')
     ) {
+        return false;
+    }
+    return true;
+}
+
+function replayReasoning(item: Record<string, unknown>): EncryptedReasoning | undefined {
+    if (!isReplayableReasoning(item)) {
         return undefined;
     }
     return {
@@ -228,6 +244,8 @@ export class ResponsesContinuationPlanner {
     private version = 0;
     private lastCommitReason?: CheckpointCommitReason;
 
+    constructor(private readonly sdkBridgeReplay = false) {}
+
     plan(
         body: Readonly<Record<string, unknown>>,
         generation: number,
@@ -262,7 +280,7 @@ export class ResponsesContinuationPlanner {
             mismatch = 'semantics-changed';
         } else if (input.length < checkpoint.count) {
             mismatch = 'input-truncated';
-        } else if (this.hash(input.slice(0, checkpoint.count)) !== checkpoint.prefix) {
+        } else if (this.hashPrefix(input.slice(0, checkpoint.count)) !== checkpoint.prefix) {
             mismatch = 'prefix-changed';
         } else if (
             !checkpoint.pendingCalls.every(callId => results.some(item => isObject(item) && item.call_id === callId))
@@ -351,7 +369,7 @@ export class ResponsesContinuationPlanner {
             responseId: receipt.responseId,
             generation: plan.generation,
             semantics: plan.semantics,
-            prefix: this.hash(prefix),
+            prefix: this.hashPrefix(prefix),
             count: prefix.length,
             pendingCalls: calls
         };
@@ -378,6 +396,27 @@ export class ResponsesContinuationPlanner {
             hasCheckpoint: !!this.checkpoint,
             lastCommitReason: this.lastCommitReason
         };
+    }
+
+    private hashPrefix(input: readonly unknown[]): string {
+        if (!this.sdkBridgeReplay) {
+            return this.hash(input);
+        }
+        return this.hash(
+            input.map(item => {
+                if (
+                    isObject(item) &&
+                    item.type === 'reasoning' &&
+                    isReplayableReasoning(item) &&
+                    (item.id === undefined || (typeof item.id === 'string' && isResponsesReasoningId(item.id)))
+                ) {
+                    const normalized = { ...item };
+                    delete normalized.id;
+                    return normalized;
+                }
+                return item;
+            })
+        );
     }
 
     private hash(value: unknown): string {
