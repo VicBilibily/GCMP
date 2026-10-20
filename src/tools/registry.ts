@@ -9,6 +9,7 @@ import { ZhipuSearchTool } from './zhipuSearch';
 import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';
 import { StepFunSearchTool } from './stepfunSearch';
+import { DeepSeekSearchTool } from './deepseekSearch';
 import {
     UiToArtifactTool,
     TextExtractionTool,
@@ -26,6 +27,7 @@ let zhipuSearchTool: ZhipuSearchTool | undefined;
 let minimaxSearchTool: MiniMaxSearchTool | undefined;
 let kimiSearchTool: KimiSearchTool | undefined;
 let stepfunSearchTool: StepFunSearchTool | undefined;
+let deepseekSearchTool: DeepSeekSearchTool | undefined;
 let visionTools: BaseVisionTool[] | undefined;
 
 /**
@@ -68,6 +70,15 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         });
         context.subscriptions.push(stepfunToolDisposable);
 
+        // 注册 DeepSeek 网页搜索工具
+        deepseekSearchTool = new DeepSeekSearchTool();
+        context.subscriptions.push(
+            vscode.lm.registerTool('gcmp_deepseekWebSearch', {
+                invoke: deepseekSearchTool.invoke.bind(deepseekSearchTool),
+                prepareInvocation: deepseekSearchTool.prepareInvocation.bind(deepseekSearchTool)
+            })
+        );
+
         // 注册视觉工具集
         const visionToolDefs: Array<[string, new () => BaseVisionTool]> = [
             ['gcmp_visionTool_uiToArtifact', UiToArtifactTool],
@@ -100,6 +111,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         Logger.debug('MiniMax web search tool registered: gcmp_minimaxWebSearch');
         Logger.debug('Kimi web search tool registered: gcmp_kimiWebSearch');
         Logger.debug('StepFun web search tool registered: gcmp_stepfunWebSearch');
+        Logger.debug('DeepSeek web search tool registered: gcmp_deepseekWebSearch');
         Logger.debug('Vision toolset registered');
     } catch (error) {
         Logger.error('Tool registration failed', error instanceof Error ? error : undefined);
@@ -134,6 +146,12 @@ export async function cleanupAllTools(): Promise<void> {
             await stepfunSearchTool.cleanup();
             stepfunSearchTool = undefined;
             Logger.info('✅ StepFun web search tool resources cleaned up');
+        }
+
+        if (deepseekSearchTool) {
+            await deepseekSearchTool.cleanup();
+            deepseekSearchTool = undefined;
+            Logger.info('DeepSeek web search tool resources cleaned up');
         }
 
         if (visionTools) {

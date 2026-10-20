@@ -6,6 +6,9 @@ interface ToolContribution {
     name: string;
     when?: string;
     toolReferenceName?: string;
+    inputSchema: {
+        properties: Record<string, unknown>;
+    };
 }
 
 interface ToolManifest {
@@ -15,7 +18,13 @@ interface ToolManifest {
 
 const root = new URL('../../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as ToolManifest;
-const searchTools = ['gcmp_zhipuWebSearch', 'gcmp_minimaxWebSearch', 'gcmp_kimiWebSearch', 'gcmp_stepfunWebSearch'];
+const searchTools = [
+    'gcmp_zhipuWebSearch',
+    'gcmp_minimaxWebSearch',
+    'gcmp_kimiWebSearch',
+    'gcmp_stepfunWebSearch',
+    'gcmp_deepseekWebSearch'
+];
 const visionTools = [
     'gcmp_visionTool_uiToArtifact',
     'gcmp_visionTool_extractTextFromScreenshot',
@@ -60,6 +69,31 @@ test('tool availability declarations only track the remaining search providers',
     assert.deepEqual(declaredKeys.sort(), expectedKeys.sort());
     assert.doesNotMatch(context, /\bdashscope\b/);
     assert.match(context, /'minimax-token': 'minimax'/);
+    assert.match(context, /deepseek: 'deepseek'/);
+});
+
+test('DeepSeek search tool uses the documented endpoint and request schema', () => {
+    const source = readSource('src/tools/deepseekSearch.ts');
+    const deepseekTool = manifest.contributes.languageModelTools.find(tool => tool.name === 'gcmp_deepseekWebSearch');
+    assert.ok(deepseekTool);
+    assert.deepEqual(Object.keys(deepseekTool.inputSchema.properties).sort(), [
+        'count',
+        'localization',
+        'need_content',
+        'ori_question',
+        'query'
+    ]);
+    assert.deepEqual(deepseekTool.inputSchema.properties.count, {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        default: 10,
+        description: '%tool.deepseekWebSearch.input.count.description%'
+    });
+    assert.match(source, /https:\/\/api\.deepseek\.com\/v1\/tools\/search/);
+    assert.match(source, /providerKey: 'deepseek'/);
+    assert.match(source, /params\.need_content \?\? false/);
+    assert.match(source, /params\.ori_question/);
 });
 
 test('tool translations remove DashScope entries and resolve every remaining manifest label', () => {

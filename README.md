@@ -120,6 +120,7 @@ Copilot Harness 暂未完整支持，建议使用默认的 Local Agent。仅在�
 ### [**DeepSeek**](https://platform.deepseek.com/)
 
 - **模型列表**：详见 [config/deepseek.json](src/providers/config/deepseek.json)。
+- **搜索功能**：提供独立 DeepSeek Search 工具，支持通过 `#deepseekWebSearch` 搜索网页。
 - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - AliDashScope

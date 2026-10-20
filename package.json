@@ -980,6 +980,55 @@
                 }
             },
             {
+                "name": "gcmp_deepseekWebSearch",
+                "displayName": "%tool.deepseekWebSearch.displayName%",
+                "when": "gcmp.tool.deepseekWebSearch.enabled",
+                "toolReferenceName": "deepseekWebSearch",
+                "modelDescription": "%tool.deepseekWebSearch.modelDescription%",
+                "userDescription": "%tool.deepseekWebSearch.userDescription%",
+                "canBeReferencedInPrompt": true,
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "description": "%tool.deepseekWebSearch.input.query.description%"
+                        },
+                        "count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50,
+                            "default": 10,
+                            "description": "%tool.deepseekWebSearch.input.count.description%"
+                        },
+                        "ori_question": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "description": "%tool.deepseekWebSearch.input.oriQuestion.description%"
+                        },
+                        "localization": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%tool.deepseekWebSearch.input.localization.description%"
+                        },
+                        "need_content": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "%tool.deepseekWebSearch.input.needContent.description%"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            },
+            {
                 "name": "gcmp_visionTool_uiToArtifact",
                 "displayName": "%tool.uiToArtifact.displayName%",
                 "toolReferenceName": "gcmpUiToArtifact",

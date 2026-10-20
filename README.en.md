@@ -120,6 +120,7 @@ Copilot Harness is not yet fully supported. Startup guidance recommends switchin
 ### [**DeepSeek**](https://platform.deepseek.com/)
 
 - **Model list**: See [config/deepseek.json](src/providers/config/deepseek.json).
+- **Search**: Includes a standalone DeepSeek Search tool, available as `#deepseekWebSearch`.
 - **Balance query**: Status bar displays current account balance.
 
 ### [**Alibaba Cloud DashScope**](https://bailian.console.aliyun.com/) - AliDashScope

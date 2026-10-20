@@ -15,7 +15,8 @@ const TOOL_CONTEXT_KEYS = {
     zhipu: 'gcmp.tool.zhipuWebSearch.enabled',
     minimax: 'gcmp.tool.minimaxWebSearch.enabled',
     kimi: 'gcmp.tool.kimiWebSearch.enabled',
-    stepfun: 'gcmp.tool.stepfunWebSearch.enabled'
+    stepfun: 'gcmp.tool.stepfunWebSearch.enabled',
+    deepseek: 'gcmp.tool.deepseekWebSearch.enabled'
 } as const;
 
 type ToolProvider = keyof typeof TOOL_CONTEXT_KEYS;
@@ -27,7 +28,8 @@ const PROVIDER_TO_TOOL: Record<string, ToolProvider> = {
     zhipu: 'zhipu',
     'minimax-token': 'minimax',
     kimi: 'kimi',
-    stepfun: 'stepfun'
+    stepfun: 'stepfun',
+    deepseek: 'deepseek'
 };
 
 /**
