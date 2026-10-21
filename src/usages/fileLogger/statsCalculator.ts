@@ -216,6 +216,9 @@ export abstract class StatsCalculator {
                 existing.rawUsage = log.rawUsage;
                 existing.apiKeyHash = log.apiKeyHash;
                 existing.apiKeyName = log.apiKeyName;
+                if (log.balance !== undefined) {
+                    existing.balance = log.balance;
+                }
                 Object.assign(existing, mergeRequestClassificationFields(existing, log));
                 existing.requestContinuity =
                     normalizeRequestContinuity(existing.requestContinuity) ??

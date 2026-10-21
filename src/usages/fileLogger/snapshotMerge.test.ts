@@ -1,5 +1,7 @@
 ﻿import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import type { PathLike } from 'node:fs';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import type * as FileSystem from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +9,11 @@ import test from 'node:test';
 
 import { DateUtils } from './dateUtils';
 import { UsageParser } from './usageParser';
+import type { TokenFileLogger } from './index';
+import type { LogIndexManager } from './logIndexManager';
+import type { LogReadManager } from './logReadManager';
+import type { LogStatsManager } from './logStatsManager';
+import type { SnapshotManager } from './snapshotManager';
 import {
     mergeSnapshotFiles,
     mergeSnapshotRecord,
@@ -33,6 +40,29 @@ const classification: RequestClassificationMetadata = {
     }
 };
 const continuity: RequestContinuity = { version: 1, scope: 'subagent', source: 'new' };
+
+test('explicit missing start balance survives history serialization and cannot inherit an earlier key balance', () => {
+    const earlier = {
+        ...createRecord(),
+        balance: { queriedAt: 1000, entries: [{ id: 'test', balance: 20, currency: 'USD' }] },
+        apiKeyHash: 'first-key'
+    };
+    const terminal = {
+        ...createRecord({ status: 'completed', timestamp: 2000 }),
+        balance: null,
+        apiKeyHash: 'second-key'
+    };
+    for (const [base, overlay] of [
+        [earlier, terminal],
+        [terminal, earlier]
+    ]) {
+        const merged = mergeSnapshotRecord(base, overlay);
+        assert.equal(merged.balance, null);
+        const restored = parseSnapshotFileContent(stringifySnapshotFile({ [merged.requestId]: merged }));
+        assert.equal(restored[merged.requestId].balance, null);
+        assert.equal(restored[merged.requestId].apiKeyHash, 'second-key');
+    }
+});
 
 for (const status of ['completed', 'failed', 'cancelled'] as const) {
     test(`snapshot ${status} without metadata preserves estimated metadata in both merge orders`, () => {
@@ -1015,7 +1045,7 @@ test('full snapshot read sorts legacy files without an ordered format marker', a
 test('historical request details fully read and sort an unsorted legacy snapshot', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-legacy-details-'));
     const restoreHost = mockLoggerHost();
-    let logger: import('./index').TokenFileLogger | undefined;
+    let logger: TokenFileLogger | undefined;
     try {
         const { TokenFileLogger } = await import('./index');
         const { LogPathManager } = await import('./logPathManager');
@@ -1103,6 +1133,102 @@ test('full snapshot read merges uncompressed raw logs without losing snapshot re
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+for (const status of ['completed', 'failed', 'cancelled'] as const) {
+    for (const scenario of ['same-key', 'retry-balance', 'retry-missing'] as const) {
+        test(`historical compaction preserves dispatch balance for ${status} / ${scenario}`, async () => {
+            const dir = await mkdtemp(join(tmpdir(), 'gcmp-dispatch-balance-snapshot-'));
+            const restoreHost = mockLoggerHost();
+            try {
+                const { SnapshotManager } = await import('./snapshotManager');
+                const { LogPathManager } = await import('./logPathManager');
+                const paths = new LogPathManager(dir);
+                const date = DateUtils.getDateStringDaysAgo(3);
+                const timestamp = new Date(`${date}T00:00:00`).getTime();
+                const balance: NonNullable<TokenRequestLog['balance']> = {
+                    queriedAt: timestamp - 1000,
+                    entries: [],
+                    statusSnapshots: [
+                        {
+                            version: 1,
+                            provider: 'moonshot',
+                            queriedAt: timestamp - 1000,
+                            data: { balanceInfo: { available_balance: 30, cash_balance: 20, voucher_balance: 10 } }
+                        }
+                    ]
+                };
+                const first: TokenRequestLog = {
+                    ...createRequestLog('dispatch-balance'),
+                    timestamp,
+                    isoTime: new Date(timestamp).toISOString(),
+                    status: 'estimated',
+                    rawUsage: null,
+                    apiKeyHash: 'first-key',
+                    apiKeyName: 'First',
+                    balance
+                };
+                const dispatched: TokenRequestLog = {
+                    ...first,
+                    timestamp: timestamp + 1000,
+                    isoTime: new Date(timestamp + 1000).toISOString(),
+                    apiKeyHash: scenario === 'same-key' ? 'first-key' : 'second-key',
+                    apiKeyName: scenario === 'same-key' ? 'First' : 'Second',
+                    balance:
+                        scenario === 'retry-missing' ? null : (
+                            {
+                                ...balance,
+                                queriedAt: timestamp,
+                                statusSnapshots: [
+                                    {
+                                        ...balance.statusSnapshots![0],
+                                        provider: 'moonshot',
+                                        queriedAt: timestamp,
+                                        data: {
+                                            balanceInfo: { available_balance: 10, cash_balance: 8, voucher_balance: 2 }
+                                        }
+                                    }
+                                ]
+                            }
+                        )
+                };
+                const terminal: TokenRequestLog = {
+                    ...dispatched,
+                    status,
+                    timestamp: timestamp + 2000,
+                    isoTime: new Date(timestamp + 2000).toISOString(),
+                    rawUsage: { prompt_tokens: 11, completion_tokens: 7 },
+                    sessionTitle: 'Final title'
+                };
+                const snapshot = new SnapshotManager(paths, () => {});
+                await snapshot.buildSnapshotFromLogs(date, [first, createRequestLog('unrelated')]);
+                const rawPath = paths.getHourFilePath(date, 0);
+                await writeFile(
+                    rawPath,
+                    [first, dispatched, terminal].map(record => JSON.stringify(record)).join('\n')
+                );
+                assert.equal(await snapshot.compactHistoricalDates(2), 1);
+                await assert.rejects(readFile(rawPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+                const persisted = parseSnapshotFileContent(await readFile(paths.getSnapshotFilePath(date), 'utf8'));
+                assert.equal(Object.keys(persisted).length, 2);
+                const reopened = new SnapshotManager(paths, () => {});
+                for (const record of [persisted[first.requestId], await reopened.readRecord(date, first.requestId)]) {
+                    assert.ok(record);
+                    assert.equal(record.status, status);
+                    assert.equal(record.timestamp, timestamp);
+                    assert.equal(record.apiKeyHash, dispatched.apiKeyHash);
+                    assert.equal(record.apiKeyName, dispatched.apiKeyName);
+                    assert.deepEqual(record.balance, dispatched.balance);
+                    assert.deepEqual(record.rawUsage, terminal.rawUsage);
+                    assert.equal(record.sessionTitle, 'Final title');
+                }
+                assert.equal(await reopened.compactHistoricalDates(2), 0);
+            } finally {
+                restoreHost();
+                await rm(dir, { recursive: true, force: true });
+            }
+        });
+    }
+}
 
 test('independent snapshot managers preserve concurrent records', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-cross-host-snapshot-'));
@@ -1232,6 +1358,140 @@ test('snapshot writes recover an orphaned stale-lock reclaim guard', async () =>
     }
 });
 
+for (const operation of ['upsert', 'compaction'] as const) {
+    for (const { code, failures } of [
+        { code: 'EBUSY', failures: 1 },
+        { code: 'EBUSY', failures: 4 },
+        { code: 'EPERM', failures: 1 },
+        { code: 'EPERM', failures: 4 },
+        { code: 'EACCES', failures: 1 },
+        { code: 'EACCES', failures: 4 },
+        { code: 'EIO', failures: 1 }
+    ]) {
+        test(`${operation} preserves existing history across ${failures} ${code} rename failures`, async context => {
+            const dir = await mkdtemp(join(tmpdir(), 'gcmp-snapshot-rename-'));
+            const restoreHost = mockLoggerHost();
+            try {
+                const { SnapshotManager } = await import('./snapshotManager');
+                const { LogPathManager } = await import('./logPathManager');
+                const fileSystem = createRequire(import.meta.url)('node:fs/promises') as typeof FileSystem;
+                const paths = new LogPathManager(dir);
+                const date = DateUtils.getDateStringDaysAgo(3);
+                const timestamp = new Date(`${date}T00:00:00`).getTime();
+                const existing: TokenRequestLog = {
+                    ...createRequestLog('existing-history'),
+                    timestamp,
+                    isoTime: new Date(timestamp).toISOString(),
+                    apiKeyHash: 'a'.repeat(64),
+                    apiKeyName: 'Original credential',
+                    rawUsage: { prompt_tokens: 10, completion_tokens: 5 },
+                    balance: { queriedAt: timestamp - 1000, entries: [{ id: 'wallet', balance: 20, currency: 'USD' }] }
+                };
+                const incoming: TokenRequestLog = {
+                    ...existing,
+                    requestId: 'incoming-history',
+                    timestamp: timestamp + 1000,
+                    isoTime: new Date(timestamp + 1000).toISOString(),
+                    apiKeyHash: 'b'.repeat(64),
+                    apiKeyName: 'New credential',
+                    balance: { queriedAt: timestamp, entries: [{ id: 'wallet', balance: 5, currency: 'USD' }] }
+                };
+                const snapshots = new SnapshotManager(paths, () => {});
+                await snapshots.upsertRecord(date, existing);
+                const snapshotPath = paths.getSnapshotFilePath(date);
+                const originalContent = await readFile(snapshotPath, 'utf8');
+                const originalRecord = await snapshots.readRecord(date, existing.requestId);
+                assert.ok(originalRecord);
+                const rawPath = paths.getHourFilePath(date, 0);
+                const rawContent = `${JSON.stringify(incoming)}\n`;
+                if (operation === 'compaction') {
+                    await writeFile(rawPath, rawContent);
+                }
+                const originalRename = fileSystem.rename;
+                const observedSnapshots: string[] = [];
+                let attempts = 0;
+                context.mock.method(fileSystem, 'rename', async (source: PathLike, target: PathLike) => {
+                    if (target === snapshotPath) {
+                        attempts++;
+                        observedSnapshots.push(
+                            await readFile(snapshotPath, 'utf8').catch(error => {
+                                if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                                    return '<missing>';
+                                }
+                                throw error;
+                            })
+                        );
+                        if (attempts <= failures) {
+                            throw Object.assign(new Error('Injected snapshot rename failure'), { code });
+                        }
+                    }
+                    return originalRename(source, target);
+                });
+                const succeeds = failures === 1 && code !== 'EIO';
+                if (operation === 'compaction') {
+                    assert.equal(await snapshots.compactHistoricalDates(2), succeeds ? 1 : 0);
+                } else if (succeeds) {
+                    await snapshots.upsertRecord(date, incoming);
+                } else {
+                    await assert.rejects(snapshots.upsertRecord(date, incoming), error => {
+                        return (error as NodeJS.ErrnoException).code === code;
+                    });
+                }
+                assert.equal(
+                    attempts,
+                    code === 'EIO' ? 1
+                    : succeeds ? 2
+                    : 4
+                );
+                assert.deepEqual(
+                    observedSnapshots,
+                    Array.from({ length: attempts }, () => originalContent)
+                );
+                assert.deepEqual(
+                    (await readdir(paths.getDateFolderPath(date))).filter(file => file.endsWith('.tmp')),
+                    []
+                );
+                if (!succeeds) {
+                    assert.equal(await readFile(snapshotPath, 'utf8'), originalContent);
+                    const reopened = new SnapshotManager(paths, () => {});
+                    assert.deepEqual(await reopened.readRecord(date, existing.requestId), originalRecord);
+                    if (operation === 'compaction') {
+                        assert.equal(await readFile(rawPath, 'utf8'), rawContent);
+                    }
+                    context.mock.restoreAll();
+                    if (operation === 'compaction') {
+                        assert.equal(await snapshots.compactHistoricalDates(2), 1);
+                    } else {
+                        await snapshots.upsertRecord(date, incoming);
+                    }
+                }
+                const reopened = new SnapshotManager(paths, () => {});
+                assert.deepEqual((await reopened.read(date))?.map(record => record.requestId).sort(), [
+                    existing.requestId,
+                    incoming.requestId
+                ]);
+                assert.deepEqual(await reopened.readRecord(date, existing.requestId), originalRecord);
+                const persisted = await reopened.readRecord(date, incoming.requestId);
+                assert.equal(persisted?.apiKeyHash, incoming.apiKeyHash);
+                assert.equal(persisted?.apiKeyName, incoming.apiKeyName);
+                assert.deepEqual(persisted?.balance, incoming.balance);
+                assert.deepEqual(persisted?.rawUsage, incoming.rawUsage);
+                assert.equal(persisted?.status, incoming.status);
+                if (operation === 'compaction') {
+                    await assert.rejects(readFile(rawPath, 'utf8'), error => {
+                        return (error as NodeJS.ErrnoException).code === 'ENOENT';
+                    });
+                    assert.equal(await reopened.compactHistoricalDates(2), 0);
+                }
+            } finally {
+                context.mock.restoreAll();
+                restoreHost();
+                await rm(dir, { recursive: true, force: true });
+            }
+        });
+    }
+}
+
 test('historical compaction keeps raw logs when their source changes during the write', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-compaction-source-race-'));
     const restoreHost = mockLoggerHost();
@@ -1350,7 +1610,7 @@ for (const scenario of [
     test(`title backfill preserves hourly totals for ${scenario.name}`, async () => {
         const dir = await mkdtemp(join(tmpdir(), 'gcmp-hourly-title-totals-'));
         const restoreHost = mockLoggerHost();
-        let logger: import('./index').TokenFileLogger | undefined;
+        let logger: TokenFileLogger | undefined;
         try {
             const { TokenFileLogger } = await import('./index');
             const date = DateUtils.getDateStringDaysAgo(scenario.daysAgo);
@@ -1440,7 +1700,7 @@ for (const scenario of [
 test('historical title backfill updates the locked snapshot instead of appending compactable raw logs', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-historical-title-snapshot-'));
     const restoreHost = mockLoggerHost();
-    let logger: import('./index').TokenFileLogger | undefined;
+    let logger: TokenFileLogger | undefined;
     try {
         const { TokenFileLogger } = await import('./index');
         const date = DateUtils.getDateStringDaysAgo(3);
@@ -1485,8 +1745,7 @@ test('historical title backfill updates the locked snapshot instead of appending
         logger.clearDetailCaches();
         assert.equal((await logger.getRequestDetails(date))[0]?.sessionTitle, 'Resolved historical title');
 
-        const snapshotManager = (logger as unknown as { snapshotManager: import('./snapshotManager').SnapshotManager })
-            .snapshotManager;
+        const snapshotManager = (logger as unknown as { snapshotManager: SnapshotManager }).snapshotManager;
         assert.equal(await snapshotManager.compactHistoricalDates(2), 1);
         await assert.rejects(readFile(rawFile, 'utf8'), error => {
             return (error as NodeJS.ErrnoException).code === 'ENOENT';
@@ -1500,10 +1759,10 @@ test('historical title backfill updates the locked snapshot instead of appending
     }
 });
 
-test('late title backfill does not overwrite a cross-midnight terminal record', async () => {
+test('late title backfill updates a cross-midnight terminal title without changing usage', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'gcmp-cross-midnight-title-'));
     const restoreHost = mockLoggerHost();
-    let logger: import('./index').TokenFileLogger | undefined;
+    let logger: TokenFileLogger | undefined;
     try {
         const { TokenFileLogger } = await import('./index');
         const sourceDate = DateUtils.getDateStringDaysAgo(1);
@@ -1551,7 +1810,11 @@ test('late title backfill does not overwrite a cross-midnight terminal record', 
         const completedRecord = (await logger.getRequestDetails(completedDate)).find(
             log => log.requestId === requestId
         );
-        assert.equal(sourceRecord?.sessionTitle, 'Late title');
+        assert.equal(sourceRecord?.sessionTitle, baseLog.sessionTitle);
+        assert.equal(sourceRecord?.status, 'estimated');
+        assert.equal(sourceRecord?.timestamp, startedAt);
+        assert.equal(completedRecord?.sessionTitle, 'Late title');
+        assert.equal(completedRecord?.timestamp, completedAt);
         assert.equal(completedRecord?.status, 'completed');
         assert.equal(completedRecord?.rawUsage?.total_tokens, 12);
     } finally {
@@ -1567,15 +1830,15 @@ for (const recoveryPath of ['fast-index', 'cached-stats'] as const) {
         const restoreHost = mockLoggerHost();
         const { AtomicJsonFile } = await import('../atomicJsonFile');
         const write = AtomicJsonFile.writeJsonAtomically;
-        let logger: import('./index').TokenFileLogger | undefined;
+        let logger: TokenFileLogger | undefined;
         try {
             const { TokenFileLogger } = await import('./index');
             const { LogIndexManager } = await import('./logIndexManager');
             logger = new TokenFileLogger({ globalStorageUri: { fsPath: dir } } as never);
             const { readManager, indexManager, logStatsManager } = logger as unknown as {
-                readManager: import('./logReadManager').LogReadManager;
-                indexManager: import('./logIndexManager').LogIndexManager;
-                logStatsManager: import('./logStatsManager').LogStatsManager;
+                readManager: LogReadManager;
+                indexManager: LogIndexManager;
+                logStatsManager: LogStatsManager;
             };
             const date = DateUtils.getTodayDateString();
             const folder = join(dir, 'usages', date);

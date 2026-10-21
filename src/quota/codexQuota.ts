@@ -15,6 +15,7 @@ import { t } from '../utils/runtime/l10n';
 import type { QuotaTable } from './types';
 import { ConfigManager } from '../utils/config/configManager';
 import { formatCompactCountdown, formatLocaleDateTime, formatQuotaDateForSlot } from './format';
+import { hashRequestApiKey } from './requestBalance';
 
 /** ChatGPT 余量查询接口 */
 const USAGE_QUERY_URL = 'https://chatgpt.com/backend-api/wham/usage';
@@ -145,7 +146,13 @@ export function getResetDate(window: RateLimitWindow | undefined): Date | undefi
  * 查询 Codex (ChatGPT) 余量
  * 走 CliAuthFactory 静态入口，多窗口下由 Leader 单点刷新凭证
  */
-export async function queryCodexUsage(): Promise<{ success: boolean; data?: ChatGPTStatusData; error?: string }> {
+export async function queryCodexUsage(): Promise<{
+    success: boolean;
+    data?: ChatGPTStatusData;
+    error?: string;
+    requestBalanceKeyHash?: string;
+    queriedAt?: number;
+}> {
     try {
         const codexAuth = CliAuthFactory.getInstance('codex') as CodexCliAuth | null;
         if (!codexAuth) {
@@ -255,6 +262,8 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
 
         return {
             success: true,
+            requestBalanceKeyHash: hashRequestApiKey(credentials.access_token),
+            queriedAt: Date.now(),
             data: {
                 userId: parsedResponse.user_id,
                 accountId: parsedResponse.account_id,

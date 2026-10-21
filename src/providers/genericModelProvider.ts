@@ -14,6 +14,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { getCachedRequestBalanceForRequest } from '../quota/requestBalance';
 import { RateLimiter, type RateLimitHandle } from '../rateLimit/rateLimiter';
 import { sanitizeAuthoritativeDims } from '../rateLimit/rateLimitStore';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
@@ -84,7 +85,6 @@ import { SessionTitleService } from '../usages/sessionTitleService';
 import { MAX_RECOVERY_RESPONSE_LENGTH, SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
-import { StatusBarManager } from '../status/statusBarManager';
 import * as crypto from 'node:crypto';
 import type { SessionRecoverySource } from '../usages/fileLogger/types';
 import {
@@ -1229,6 +1229,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             :   undefined;
                         const handleRequestDispatched = (attemptStartedAt: number) => {
                             const apiKeyHash = ApiKeyManager.getRequestApiKeyHash(attemptModelConfig);
+                            const balance =
+                                requestId ?
+                                    getCachedRequestBalanceForRequest(effectiveProviderKey, apiKeyHash)
+                                :   undefined;
                             handleAttemptStarted(
                                 attemptStartedAt,
                                 apiKeyHash,
@@ -1236,6 +1240,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                     (failoverAttempt?.apiKeyName ?? requestApiKeyNames?.get(apiKeyHash))
                                 :   undefined
                             );
+                            if (requestId) {
+                                TokenUsagesManager.instance.recordRequestBalance(requestId, balance);
+                            }
                         };
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
@@ -1875,14 +1882,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
-
-            try {
-                // 通用 provider 也可能绑定独立状态栏（如 deepseek / codex / clinepass）。
-                // 请求完成后统一触发一次延迟刷新，让额度/用量类状态栏拉取最新服务端数据。
-                StatusBarManager.getStatusBar(effectiveProviderKey)?.delayedUpdate();
-            } catch (err) {
-                Logger.warn('Failed to update status bar:', err);
-            }
         }
     }
 

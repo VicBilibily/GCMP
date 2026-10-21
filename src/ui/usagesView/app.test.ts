@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import type { TokenRequestLog } from '../../usages/fileLogger/types';
+import type { RequestBalanceLog, RequestStatusSnapshot, TokenRequestLog } from '../../usages/fileLogger/types';
 import { UsageParser } from '../../usages/fileLogger/usageParser';
 import { buildNativeCostSplitIndex, buildRequestTotals, summarizeSessionRecords } from './aggregation';
 import type {
@@ -25,6 +25,7 @@ class TestElement {
     title = '';
     scrollLeft = 0;
     scrollTop = 0;
+    readonly style: Record<string, string> = {};
     readonly dataset: Record<string, string> = {};
     onclick: (() => void) | null = null;
     children: TestElement[] = [];
@@ -60,6 +61,7 @@ class TestElement {
     }
 
     appendChild(child: TestElement): TestElement {
+        child.remove();
         child.parentElement = this;
         this.children.push(child);
         return child;
@@ -603,14 +605,23 @@ test('request records render output duration and average speed in static and tot
             }
         }
     });
+    const documentListeners = new Map<string, EventListener>();
+    const windowListeners = new Map<string, EventListener>();
     const documentStub = {
         documentElement: { lang: 'zh-CN' },
-        createElement: (tag: string) => new TestElement(tag)
+        body: new TestElement('body'),
+        createElement: (tag: string) => new TestElement(tag),
+        addEventListener: (event: string, listener: EventListener) => documentListeners.set(event, listener),
+        removeEventListener: (event: string) => documentListeners.delete(event)
     };
     Reflect.set(globalThis, 'document', documentStub);
     Reflect.set(globalThis, 'window', {
         usagesState: { selectedSessionId: null, selectedSessionIds: [], displayCurrency: 'USD' },
-        usagesLiveMetrics: new Map()
+        usagesLiveMetrics: new Map(),
+        innerWidth: 800,
+        innerHeight: 600,
+        addEventListener: (event: string, listener: EventListener) => windowListeners.set(event, listener),
+        removeEventListener: (event: string) => windowListeners.delete(event)
     });
     const { createRequestRecordsTable } = await import('./components/requestRecords');
     const render = (overrides: Partial<TokenRequestLog> = {}) => {
@@ -661,6 +672,597 @@ test('request records render output duration and average speed in static and tot
             assert.equal(unnamed.textContent, '');
             assert.equal(unnamed.title, '');
         }
+    });
+
+    await context.test('request rows show saved balance after the key with an offline tooltip', () => {
+        const providerModel = render({
+            providerKey: 'moonshot',
+            apiKeyName: 'Primary Key',
+            balance: {
+                queriedAt: 1000,
+                entries: [{ id: 'moonshot', balance: 12.5, currency: 'CNY', paid: 10, granted: 2.5 }],
+                statusSnapshots: [
+                    {
+                        version: 1,
+                        provider: 'moonshot',
+                        queriedAt: 1000,
+                        data: {
+                            balanceInfo: { available_balance: 12.5, cash_balance: 10, voucher_balance: 2.5 },
+                            lastUpdated: '1970-01-01 00:00:01'
+                        }
+                    }
+                ]
+            }
+        }).providerModel;
+        const header = providerModel.children[0];
+        assert.equal(header.children[1].textContent, 'Primary Key');
+        const balance = header.children[2];
+        assert.ok(balance?.classList.contains('prov-model-balance'));
+        assert.equal(balance.querySelector('.request-balance-summary')?.textContent, '¥12.50');
+        const tooltip = balance.querySelector('.request-balance-tooltip');
+        assert.ok(tooltip);
+        assert.equal(Reflect.get(tooltip, 'hidden'), true);
+        assert.equal(tooltip.querySelector('.request-balance-title')?.textContent, 'Moonshot 用户账户余额');
+        assert.equal(tooltip.querySelector('th')?.textContent, '货币');
+        const enter: () => void = Reflect.get(balance, 'onmouseenter');
+        const focus: () => void = Reflect.get(balance, 'onfocus');
+        enter();
+        assert.equal(Reflect.get(tooltip, 'hidden'), false);
+        assert.equal(tooltip.parentElement, documentStub.body);
+        assert.ok(tooltip.style.left.endsWith('px'));
+        documentListeners.get('keydown')?.(Object.assign(new Event('keydown'), { key: 'Escape' }));
+        assert.equal(Reflect.get(tooltip, 'hidden'), true);
+        assert.equal(tooltip.parentElement, balance);
+        assert.equal(windowListeners.size, 0);
+        assert.equal(documentListeners.size, 0);
+        focus();
+        assert.equal(Reflect.get(tooltip, 'hidden'), false);
+        windowListeners.get('scroll')?.(new Event('scroll'));
+        assert.equal(Reflect.get(tooltip, 'hidden'), true);
+        assert.equal(windowListeners.size, 0);
+        assert.equal(documentListeners.size, 0);
+    });
+
+    await context.test('request rows without balance data keep the key-only header', () => {
+        const header = render({ apiKeyName: 'Legacy Key' }).providerModel.children[0];
+        assert.equal(header.children.length, 2);
+        assert.equal(header.querySelector('.prov-model-balance'), null);
+    });
+
+    await context.test('request balance tooltip stays inside the viewport for offscreen anchors', () => {
+        const providerModel = render({
+            balance: { queriedAt: 1000, entries: [{ id: 'test', balance: 1, currency: 'USD' }] }
+        }).providerModel;
+        const balance = providerModel.querySelector('.prov-model-balance')!;
+        const tooltip = balance.querySelector('.request-balance-tooltip')!;
+        balance.setRect(700, 710);
+        tooltip.setRect(0, 200);
+        const enter: () => void = Reflect.get(balance, 'onmouseenter');
+        const blur: () => void = Reflect.get(balance, 'onblur');
+        try {
+            enter();
+            assert.equal(tooltip.style.top, '392px');
+        } finally {
+            blur();
+        }
+    });
+
+    const queriedAt = Date.parse('2026-10-21T00:00:00Z');
+    const snapshotContext = {
+        icon: '$(credit-card)',
+        title: 'Saved balance',
+        language: 'en',
+        locale: 'en-US',
+        timeZone: 'Asia/Shanghai'
+    };
+    const commandcodeSnapshot: RequestStatusSnapshot = {
+        version: 1,
+        provider: 'commandcode',
+        queriedAt,
+        context: snapshotContext,
+        data: {
+            monthlyCredits: 10,
+            purchasedCredits: 2,
+            freeCredits: 3,
+            totalCredits: 15,
+            fiveHour: { used: 20, cap: 100, exceeded: false, resetAt: '2026-10-21T02:30:00Z' },
+            weekly: { used: 10, cap: 100, exceeded: false, resetAt: '2026-10-23T00:00:00Z' },
+            lastUpdated: 'saved query time'
+        }
+    };
+    const compatibleSnapshot: RequestStatusSnapshot = {
+        version: 1,
+        provider: 'compatible',
+        queriedAt,
+        context: snapshotContext,
+        data: {
+            providerId: 'custom',
+            providerName: '<img src=x onerror=alert(1)>',
+            balanceInfo: {
+                balance: 3,
+                currency: 'USD',
+                items: [
+                    { balance: 0, paid: 0, granted: 0, currency: 'CNY', displayName: 'Wallet' },
+                    { balance: 3, currency: 'USD', displayName: 'Credits' }
+                ]
+            },
+            lastUpdated: '2026-10-21T00:00:00Z'
+        }
+    };
+    const localTime = (timestamp: number, separator: string) => {
+        const date = new Date(timestamp);
+        const pad = (value: number) => String(value).padStart(2, '0');
+        return `${pad(date.getMonth() + 1)}${separator}${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+    const fixtures: Array<{
+        name: string;
+        language?: string;
+        snapshot: RequestStatusSnapshot;
+        summary: string;
+        cells: string[];
+    }> = [
+        {
+            name: 'MiniMax preserves minimum weekly and five-hour quotas',
+            summary: '70% (65%)',
+            cells: ['Weekly quota', 'Every 5 Hours', '65%', localTime(queriedAt + 3600000, '-')],
+            snapshot: {
+                version: 1,
+                provider: 'minimax-token',
+                queriedAt,
+                context: snapshotContext,
+                data: {
+                    limits: [
+                        { label: '5 Hours', limitType: '5h', remaining: 65, resetTime: queriedAt + 3600000 },
+                        { label: 'Weekly', limitType: 'weekly', remaining: 80 },
+                        { label: 'Weekly lower', limitType: 'weekly', remaining: 70 }
+                    ]
+                }
+            }
+        },
+        {
+            name: 'Kimi preserves all windows, booster details and concurrency',
+            summary: '75% (90%) $12.50',
+            cells: [
+                'Monthly quota',
+                '5 hours',
+                'N/A',
+                'Quota Booster (Active)',
+                '$12.50',
+                '¥2.50',
+                'Unlimited',
+                'Maximum concurrency: 10'
+            ],
+            snapshot: {
+                version: 1,
+                provider: 'kimi',
+                queriedAt,
+                context: snapshotContext,
+                data: {
+                    summary: {
+                        period: 'monthly',
+                        limit: 100,
+                        used: 25,
+                        remaining: 75,
+                        resetTime: '2026-10-23T00:00:00Z'
+                    },
+                    windows: [
+                        { duration: 5, timeUnit: 'TIME_UNIT_HOUR', detail: { limit: 100, used: 10, remaining: 90 } }
+                    ],
+                    parallel: { limit: 10 },
+                    boosterWallet: {
+                        balance: { amountLeft: '1250000000' },
+                        topupLimit: { currency: 'USD' },
+                        status: 'STATUS_ACTIVE',
+                        monthlyChargeLimitEnabled: false,
+                        monthlyChargeLimit: { currency: 'USD', priceInCents: '100' },
+                        monthlyUsed: { currency: 'CNY', priceInCents: '250' }
+                    }
+                }
+            }
+        },
+        {
+            name: 'OpenCode preserves rolling and both long windows',
+            summary: '60% (90%)',
+            cells: ['5 Hours', 'Weekly quota', 'Monthly quota', '60%', '2h 30m', localTime(queriedAt + 9000000, '/')],
+            snapshot: {
+                version: 1,
+                provider: 'opencode',
+                queriedAt,
+                context: snapshotContext,
+                data: {
+                    windows: [
+                        {
+                            type: 'rolling',
+                            usedPercent: 10,
+                            remainingPercent: 90,
+                            status: 'ok',
+                            resetAt: '2026-10-21T02:30:00Z'
+                        },
+                        { type: 'weekly', usedPercent: 25, remainingPercent: 75, status: 'ok' },
+                        { type: 'monthly', usedPercent: 40, remainingPercent: 60, status: 'ok' }
+                    ],
+                    lastUpdated: 'saved query time'
+                }
+            }
+        },
+        {
+            name: 'Codex reproduces monthly quota instead of treating it as weekly',
+            summary: '60% (90%)',
+            cells: ['Monthly quota', '5 Hours', '60%', '2h 30m', localTime(queriedAt + 9000000, '/')],
+            snapshot: {
+                version: 1,
+                provider: 'codex',
+                queriedAt,
+                context: snapshotContext,
+                data: {
+                    planType: 'free',
+                    codeReviewUsedPercent: 0,
+                    lastUpdated: 'saved query time',
+                    rateLimit: {
+                        allowed: true,
+                        limit_reached: false,
+                        primary_window: {
+                            used_percent: 40,
+                            limit_window_seconds: 2592000,
+                            reset_at: (queriedAt + 9000000) / 1000
+                        },
+                        secondary_window: {
+                            used_percent: 10,
+                            limit_window_seconds: 18000,
+                            reset_at: (queriedAt + 9000000) / 1000
+                        }
+                    }
+                }
+            }
+        },
+        {
+            name: 'Grok uses current language with recorded quota and original countdown',
+            language: 'zh-cn',
+            summary: '75%',
+            cells: ['每周额度', '75%', '即将重置', localTime(queriedAt - 60000, '/')],
+            snapshot: {
+                version: 1,
+                provider: 'grok',
+                queriedAt,
+                context: { ...snapshotContext, language: 'zh-cn' },
+                data: {
+                    usage: {
+                        type: 'weekly',
+                        usedPercent: 25,
+                        remainingPercent: 75,
+                        windowMinutes: 10080,
+                        subscriptionTier: 'SuperGrok',
+                        resetAt: '2026-10-20T23:59:00Z'
+                    },
+                    lastUpdated: 'saved query time'
+                }
+            }
+        },
+        {
+            name: 'DeepSeek preserves currency order and raw decimal strings',
+            summary: '$3.12',
+            cells: ['USD', '3.120000', 'CNY', '10.0000'],
+            snapshot: {
+                version: 1,
+                provider: 'deepseek',
+                queriedAt,
+                context: snapshotContext,
+                data: {
+                    primaryBalance: {
+                        currency: 'USD',
+                        total_balance: '3.120000',
+                        topped_up_balance: '3.000000',
+                        granted_balance: '0.120000'
+                    },
+                    allBalances: [
+                        {
+                            currency: 'USD',
+                            total_balance: '3.120000',
+                            topped_up_balance: '3.000000',
+                            granted_balance: '0.120000'
+                        },
+                        {
+                            currency: 'CNY',
+                            total_balance: '10.0000',
+                            topped_up_balance: '10.0000',
+                            granted_balance: '0.0000'
+                        }
+                    ],
+                    lastUpdated: 'saved query time'
+                }
+            }
+        },
+        {
+            name: 'CommandCode freezes countdown and uses the current timezone',
+            snapshot: commandcodeSnapshot,
+            summary: '90% (80%) $2.00',
+            cells: ['2h 30m', '2d', localTime(queriedAt + 9000000, '/'), '$15.00']
+        },
+        {
+            name: 'CommandCode without windows shows total credits',
+            summary: '$15.00',
+            cells: ['$10.00', '$2.00', '$3.00'],
+            snapshot: {
+                ...commandcodeSnapshot,
+                data: { ...commandcodeSnapshot.data, fiveHour: undefined, weekly: undefined }
+            }
+        },
+        {
+            name: 'Zhipu quota-only snapshots use the current language',
+            language: 'zh-cn',
+            summary: '75% (90%)',
+            cells: ['每周限额', '每 5 小时', localTime(queriedAt + 3600000, '-')],
+            snapshot: {
+                version: 1,
+                provider: 'zhipu',
+                queriedAt,
+                context: { ...snapshotContext, language: 'zh-cn' },
+                data: {
+                    limits: [
+                        { type: 'TOKENS_LIMIT', unit: 6, percentage: 25 },
+                        { type: 'TOKENS_LIMIT', unit: 3, percentage: 10, nextResetTime: queriedAt + 3600000 }
+                    ]
+                }
+            }
+        },
+        {
+            name: 'ClinePass quota-only snapshots retain all windows and the original countdown',
+            summary: '60% (90%)',
+            cells: ['5 Hours', 'Weekly limit', 'Monthly limit', '60%', '2h 30m', localTime(queriedAt + 9000000, '-')],
+            snapshot: {
+                version: 1,
+                provider: 'clinepass',
+                queriedAt,
+                context: snapshotContext,
+                data: {
+                    limits: [
+                        { type: 'five_hour', percentUsed: 10, resetsAt: '2026-10-21T02:30:00Z' },
+                        { type: 'weekly', percentUsed: 25, resetsAt: '2026-10-23T00:00:00Z' },
+                        { type: 'monthly', percentUsed: 40 }
+                    ],
+                    lastUpdated: 'saved query time'
+                }
+            }
+        },
+        {
+            name: 'ClinePass preserves depleted quota and omits an unused short window from the summary',
+            language: 'zh-cn',
+            summary: '0%',
+            cells: ['300 分钟', '每周限额', '每月限额', '100%', '0%', '即将重置'],
+            snapshot: {
+                version: 1,
+                provider: 'clinepass',
+                queriedAt,
+                context: { ...snapshotContext, language: 'zh-cn' },
+                data: {
+                    limits: [
+                        { type: 'five_hour', percentUsed: 0 },
+                        { type: 'weekly', percentUsed: 100, resetsAt: '2026-10-20T23:59:00Z' },
+                        { type: 'monthly', percentUsed: 90 }
+                    ],
+                    lastUpdated: 'saved query time'
+                }
+            }
+        },
+        {
+            name: 'Zhipu preserves negative account balances without quotas',
+            summary: '¥-1.25',
+            cells: ['¥-1.25', '¥2.00'],
+            snapshot: {
+                version: 1,
+                provider: 'zhipu',
+                queriedAt,
+                context: snapshotContext,
+                data: { limits: [], account: { balance: -1.25, rechargeAmount: 2 } }
+            }
+        },
+        {
+            name: 'Compatible preserves multiple units and treats provider names as text',
+            snapshot: compatibleSnapshot,
+            summary: '¥0.00 $3.00',
+            cells: ['<img src=x onerror=alert(1)> / Wallet', '$3.00', '¥0.00']
+        }
+    ];
+    for (const fixture of fixtures) {
+        await context.test(fixture.name, subtest => {
+            const previousLanguage = documentStub.documentElement.lang;
+            subtest.after(() => {
+                documentStub.documentElement.lang = previousLanguage;
+            });
+            documentStub.documentElement.lang = fixture.language ?? 'en';
+            subtest.mock.method(Date, 'now', () => Date.parse('2030-01-01T00:00:00Z'));
+            const providerModel = render({
+                balance: { queriedAt, entries: [], statusSnapshots: [fixture.snapshot] }
+            }).providerModel;
+            assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, fixture.summary);
+            const tooltip = providerModel.querySelector('.request-balance-tooltip')!;
+            const collect = (node: TestElement): string[] => [node.textContent, ...node.children.flatMap(collect)];
+            const text = collect(tooltip);
+            for (const cell of fixture.cells) {
+                assert.ok(text.includes(cell), `Missing saved cell: ${cell}`);
+            }
+            assert.equal(tooltip.querySelector('img'), null);
+            assert.equal(tooltip.querySelector('a'), null);
+            if (fixture.snapshot.provider === 'compatible') {
+                const localClock = new Intl.DateTimeFormat('en', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hourCycle: 'h23'
+                }).format(queriedAt);
+                assert.ok(tooltip.querySelector('.request-balance-updated')!.textContent.includes(localClock));
+            }
+        });
+    }
+
+    for (const fixture of fixtures) {
+        for (const language of ['en', 'zh-cn']) {
+            await context.test(`${fixture.name} ignores legacy presentation metadata in ${language}`, subtest => {
+                const previousLanguage = documentStub.documentElement.lang;
+                subtest.after(() => {
+                    documentStub.documentElement.lang = previousLanguage;
+                });
+                documentStub.documentElement.lang = language;
+                const snapshot = structuredClone(fixture.snapshot);
+                const collect = (node: TestElement): string[] => [node.textContent, ...node.children.flatMap(collect)];
+                const full = render({
+                    balance: { queriedAt, entries: [], statusSnapshots: [snapshot] }
+                }).providerModel.querySelector('.request-balance-tooltip')!;
+                const expected = collect(full);
+                Reflect.deleteProperty(snapshot, 'context');
+                if (snapshot.provider === 'commandcode') {
+                    for (const window of [snapshot.data.fiveHour, snapshot.data.weekly]) {
+                        if (window) {
+                            Reflect.deleteProperty(window, 'exceeded');
+                        }
+                    }
+                } else if (snapshot.provider === 'kimi') {
+                    for (const detail of [
+                        snapshot.data.summary,
+                        ...snapshot.data.windows.map(window => window.detail)
+                    ]) {
+                        Reflect.deleteProperty(detail, 'limit');
+                        Reflect.deleteProperty(detail, 'used');
+                    }
+                } else if (snapshot.provider === 'opencode') {
+                    for (const window of snapshot.data.windows) {
+                        Reflect.deleteProperty(window, 'status');
+                    }
+                } else if (snapshot.provider === 'codex') {
+                    Reflect.deleteProperty(snapshot.data, 'codeReviewUsedPercent');
+                    Reflect.deleteProperty(snapshot.data.rateLimit, 'allowed');
+                    Reflect.deleteProperty(snapshot.data.rateLimit, 'limit_reached');
+                    for (const window of [
+                        snapshot.data.rateLimit.primary_window,
+                        snapshot.data.rateLimit.secondary_window
+                    ]) {
+                        if (window) {
+                            Reflect.deleteProperty(window, 'reset_after_seconds');
+                        }
+                    }
+                } else if (snapshot.provider === 'grok') {
+                    Reflect.deleteProperty(snapshot.data.usage, 'usedPercent');
+                    Reflect.deleteProperty(snapshot.data.usage, 'windowMinutes');
+                }
+                const balance: RequestBalanceLog = { queriedAt, entries: [], statusSnapshots: [snapshot] };
+                const fresh = render({ balance }).providerModel.querySelector('.request-balance-tooltip')!;
+                assert.ok(fresh);
+                assert.equal(/[\u4e00-\u9fff]/u.test(fresh.querySelector('th')!.textContent), language === 'zh-cn');
+                assert.deepEqual(collect(fresh), expected);
+                Reflect.set(snapshot, 'context', {
+                    icon: 'old-icon',
+                    title: 'old localized title',
+                    language: language === 'en' ? 'zh-cn' : 'en',
+                    locale: 'invalid_locale',
+                    timeZone: 'invalid/timezone'
+                });
+                if (snapshot.provider === 'minimax-token') {
+                    for (const limit of snapshot.data.limits) {
+                        limit.label = 'old localized window label';
+                    }
+                }
+                const legacy = render({ balance }).providerModel.querySelector('.request-balance-tooltip')!;
+                assert.deepEqual(collect(legacy), expected);
+                assert.equal(collect(legacy).includes('old localized title'), false);
+            });
+        }
+    }
+
+    for (const scenario of ['legacy', 'unknown-version', 'broken-data', 'malformed-items'] as const) {
+        await context.test(`${scenario} falls back to recorded balances without breaking the row`, () => {
+            const snapshot = structuredClone(compatibleSnapshot);
+            if (scenario === 'unknown-version') {
+                Reflect.set(snapshot, 'version', 2);
+            }
+            if (scenario === 'broken-data') {
+                Reflect.set(snapshot, 'data', null);
+            }
+            const balance: RequestBalanceLog = {
+                queriedAt,
+                entries: [{ id: 'custom', balance: 0, currency: 'USD' }],
+                statusSnapshots: scenario === 'legacy' || scenario === 'malformed-items' ? undefined : [snapshot]
+            };
+            if (scenario === 'malformed-items') {
+                Reflect.set(balance.entries[0], 'items', [null, { balance: 0, currency: 'USD' }]);
+            }
+            assert.equal(
+                render({ balance }).providerModel.querySelector('.request-balance-summary')?.textContent,
+                '$0.00'
+            );
+        });
+    }
+
+    await context.test('saved compatible snapshots replace matching normalized entries and keep other entries', () => {
+        const providerModel = render({
+            balance: {
+                queriedAt,
+                entries: [
+                    { id: 'custom', balance: 3, currency: 'USD' },
+                    { id: 'other', balance: 5, currency: 'CNY' }
+                ],
+                statusSnapshots: [compatibleSnapshot]
+            }
+        }).providerModel;
+        assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, '¥0.00 $3.00 ¥5.00');
+    });
+
+    await context.test('compatible usages join sorted summaries and share one detailed result table', subtest => {
+        const previousLanguage = documentStub.documentElement.lang;
+        subtest.after(() => {
+            documentStub.documentElement.lang = previousLanguage;
+        });
+        documentStub.documentElement.lang = 'en';
+        const wallet: RequestStatusSnapshot = {
+            ...compatibleSnapshot,
+            data: { ...compatibleSnapshot.data, providerId: 'custom::z-wallet', providerName: 'Wallet query' }
+        };
+        const tokens: RequestStatusSnapshot = {
+            ...compatibleSnapshot,
+            queriedAt: queriedAt - 1000,
+            data: {
+                providerId: 'custom::a-tokens',
+                providerName: 'Token query',
+                queryScope: 'provider',
+                balanceInfo: { balance: 120, currency: 'Tokens' },
+                lastUpdated: '2026-10-20T23:59:59Z'
+            }
+        };
+        const providerModel = render({
+            balance: { queriedAt, entries: [], statusSnapshots: [wallet, tokens] }
+        }).providerModel;
+        assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, '120 Tokens ¥0.00 $3.00');
+        const tooltip = providerModel.querySelector('.request-balance-tooltip')!;
+        const descendants = (node: TestElement): TestElement[] =>
+            node.children.flatMap(child => [child, ...descendants(child)]);
+        const nodes = descendants(tooltip);
+        const tables = nodes.filter(node => node.classList.contains('request-balance-table'));
+        assert.equal(tables.length, 1);
+        assert.deepEqual(
+            descendants(tables[0])
+                .filter(node => node.tagName === 'th')
+                .map(cell => cell.textContent),
+            ['Provider', 'Paid Balance', 'Granted', 'Available']
+        );
+        assert.deepEqual(
+            descendants(tables[0])
+                .filter(node => node.tagName === 'td')
+                .slice(0, 4)
+                .map(cell => cell.textContent),
+            ['Token query', '-', '-', '120 Tokens']
+        );
+        const times = nodes
+            .filter(node => node.classList.contains('request-balance-detail'))
+            .map(cell => cell.textContent)
+            .join(' ');
+        assert.match(times, /Token query.*07:59:59/);
+        assert.match(times, /Wallet query.*08:00:00/);
+    });
+
+    await context.test('empty saved balances do not create an empty control', () => {
+        assert.equal(
+            render({ balance: { queriedAt, entries: [] } }).providerModel.querySelector('.prov-model-balance'),
+            null
+        );
     });
 
     for (const [requestKind, cssClass, label] of [

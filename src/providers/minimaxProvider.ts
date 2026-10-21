@@ -20,7 +20,6 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { MiniMaxWizard } from '../wizards/minimaxWizard';
-import { StatusBarManager } from '../status';
 
 /**
  * MiniMax 专用模型提供商类
@@ -102,13 +101,6 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         ];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
-    }
-
-    /**
-     * 获取 MiniMax 状态栏实例（用于 delayedUpdate 调用）
-     */
-    static getMiniMaxStatusBar() {
-        return StatusBarManager.minimax;
     }
 
     /**
@@ -363,16 +355,6 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
-
-            try {
-                // 如果使用的是 Token Plan 密钥，延时更新状态栏使用量
-                if (providerKey === 'minimax-token') {
-                    const statusBar = MiniMaxProvider.getMiniMaxStatusBar();
-                    statusBar?.delayedUpdate();
-                }
-            } catch (err) {
-                Logger.warn('Failed to update status bar:', err);
-            }
         }
     }
 

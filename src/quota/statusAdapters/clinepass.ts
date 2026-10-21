@@ -18,8 +18,10 @@ export interface ClinePassStatusData {
 
 export const clinepassStatusAdapter: QuotaStatusAdapter<ClinePassStatusData> = {
     async query(apiKey) {
-        return { limits: await fetchClinePassLimits(apiKey), lastUpdated: formatLocaleDateTime(new Date()) };
+        const data = { limits: await fetchClinePassLimits(apiKey), lastUpdated: formatLocaleDateTime(new Date()) };
+        return data;
     },
+    requestStatus: data => ({ provider: 'clinepass', data }),
     summary: data => formatClinePassQuotaSummary(data.limits),
     tables: data => [
         {

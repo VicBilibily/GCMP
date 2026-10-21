@@ -9,7 +9,7 @@
  * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
  * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
  */
-const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-10-11T00:00:00+08:00').getTime();
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-10-21T00:00:00+08:00').getTime();
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
@@ -27,7 +27,7 @@ import { DateUtils } from './dateUtils';
 import { onLiveMetrics, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { LeaderElectionService } from '../../status/leaderElectionService';
 import { InterInstanceBus } from '../../interInstance';
-import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
+import type { DateIndexEntry, LogFilePath, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 import type { LatestUsageStatus } from '../status/snapshot';
 import {
     normalizeRequestClassification,
@@ -60,6 +60,8 @@ export class TokenFileLogger {
 
     // 正在写入终态日志的请求，避免 fire-and-forget 场景下并发重复写入 completed/cancelled/failed
     private finalizingRequestIds = new Set<string>();
+    private readonly balanceTasks = new Set<Promise<void>>();
+    private readonly requestLogUpdates = new Map<string, Promise<void>>();
 
     // pendingLogs 清理任务
     private pendingLogsCleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -409,7 +411,7 @@ export class TokenFileLogger {
         this.pendingLogs.set(params.requestId, log);
 
         // 写入文件
-        const logPath = await this.writeManager.appendLog(log);
+        const logPath = await this.writeManager.appendLog({ ...log });
         this.invalidateDetailCaches(logPath.date, logPath.hour);
         this.refreshCurrentStats(logPath.date);
 
@@ -419,9 +421,41 @@ export class TokenFileLogger {
     }
 
     /**
-     * 更新实际token(请求完成后调用)
-     * 只有当前实例在请求完成时才计算统计并保存
+     * 记录实际派发时已取得的余额快照，并在请求进行中写入。
      */
+    recordRequestBalance(
+        requestId: string,
+        balance: TokenRequestLog['balance'],
+        onWritten?: (date: string) => void
+    ): void {
+        const pendingLog = this.pendingLogs.get(requestId);
+        if (!pendingLog || this.disposed || this.finalizingRequestIds.has(requestId)) {
+            return;
+        }
+        pendingLog.balance = balance ? structuredClone(balance) : null;
+        if (pendingLog.balance?.statusSnapshots?.length) {
+            const covered = new Set(
+                pendingLog.balance.statusSnapshots
+                    .filter(snapshot => snapshot.version === 1)
+                    .map(snapshot =>
+                        snapshot.provider === 'compatible' ? snapshot.data.providerId : snapshot.provider
+                    )
+            );
+            pendingLog.balance.entries = pendingLog.balance.entries.filter(entry => !covered.has(entry.id));
+        }
+        const timestamp = Date.now();
+        const startedLog = { ...pendingLog, timestamp, isoTime: new Date(timestamp).toISOString() };
+        const task = this.serializeRequestLogUpdate(requestId, async () => {
+            const path = await this.writeManager.appendLog(startedLog);
+            this.invalidateDetailCaches(path.date, path.hour);
+            onWritten?.(path.date);
+        }).catch(() => {
+            StatusLogger.warn(`[TokenFileLogger] Failed to record request-start balance: ${requestId}`);
+        });
+        this.balanceTasks.add(task);
+        void task.then(() => this.balanceTasks.delete(task));
+    }
+
     async updateActualTokens(
         params: {
             requestId: string;
@@ -461,6 +495,10 @@ export class TokenFileLogger {
         this.finalizingRequestIds.add(params.requestId);
 
         try {
+            const pendingUpdate = this.requestLogUpdates.get(params.requestId);
+            if (pendingUpdate) {
+                await pendingUpdate;
+            }
             // 更新时间戳逻辑:
             // - 如果当前时间与原始记录时间相同（毫秒级），则在原始时间戳基础上+1毫秒
             // - 否则使用当前时间戳
@@ -518,8 +556,16 @@ export class TokenFileLogger {
             }
 
             // 写入文件(追加新行,形成流水记录)
-            const logPath = await this.writeManager.appendLog(pendingLog);
-            this.invalidateDetailCaches(logPath.date, logPath.hour);
+            let writtenLog: TokenRequestLog;
+            let logPath: LogFilePath;
+            do {
+                writtenLog = { ...pendingLog };
+                logPath = await this.writeManager.appendLog(writtenLog);
+                this.invalidateDetailCaches(logPath.date, logPath.hour);
+            } while (
+                writtenLog.sessionTitle !== pendingLog.sessionTitle ||
+                writtenLog.sessionId !== pendingLog.sessionId
+            );
 
             // 从内存移除
             this.pendingLogs.delete(params.requestId);
@@ -540,12 +586,28 @@ export class TokenFileLogger {
         if (this.disposed) {
             return Promise.resolve(false);
         }
-        const task = this.persistSessionTitle(params);
+        const task = this.serializeRequestLogUpdate(params.requestId, () => this.persistSessionTitle(params));
         this.backfillTasks.add(task);
         void task.then(
             () => this.backfillTasks.delete(task),
             () => this.backfillTasks.delete(task)
         );
+        return task;
+    }
+
+    private serializeRequestLogUpdate<TResult>(requestId: string, update: () => Promise<TResult>): Promise<TResult> {
+        const previous = this.requestLogUpdates.get(requestId) ?? Promise.resolve();
+        const task = previous.then(update);
+        const settled = task.then(
+            () => {},
+            () => {}
+        );
+        this.requestLogUpdates.set(requestId, settled);
+        void settled.then(() => {
+            if (this.requestLogUpdates.get(requestId) === settled) {
+                this.requestLogUpdates.delete(requestId);
+            }
+        });
         return task;
     }
 
@@ -563,19 +625,36 @@ export class TokenFileLogger {
             return true;
         }
 
-        const dateStr = this.getDateStrFromRequestId(params.requestId);
+        let dateStr = this.getDateStrFromRequestId(params.requestId);
         if (!dateStr) {
             return false;
         }
 
-        let existingLog: TokenRequestLog | null | undefined;
-        const hasRawJsonlFiles = this.hasRawJsonlFiles(dateStr);
-        if (this.shouldReadRawJsonl(dateStr) && hasRawJsonlFiles) {
-            existingLog = await this.readManager.findLatestRequestLog(dateStr, params.requestId);
-        } else {
-            existingLog = (await this.snapshotManager.read(dateStr))?.find(log => log.requestId === params.requestId);
+        const readRequestLog = async (date: string): Promise<TokenRequestLog | null | undefined> => {
+            const hasRawJsonlFiles = this.hasRawJsonlFiles(date);
+            if (this.shouldReadRawJsonl(date) && hasRawJsonlFiles) {
+                return this.readManager.findLatestRequestLog(date, params.requestId);
+            }
+            const existingLog = (await this.snapshotManager.read(date))?.find(
+                log => log.requestId === params.requestId
+            );
             if (!existingLog && hasRawJsonlFiles) {
-                existingLog = await this.readManager.findLatestRequestLog(dateStr, params.requestId);
+                return this.readManager.findLatestRequestLog(date, params.requestId);
+            }
+            return existingLog;
+        };
+        let existingLog = await readRequestLog(dateStr);
+        if (!existingLog || existingLog.status === 'estimated') {
+            for (const candidateDate of await this.cleanupManager.getAllDates()) {
+                if (candidateDate <= dateStr) {
+                    continue;
+                }
+                const candidate = await readRequestLog(candidateDate);
+                if (candidate && candidate.status !== 'estimated') {
+                    dateStr = candidateDate;
+                    existingLog = candidate;
+                    break;
+                }
             }
         }
         if (!existingLog) {
@@ -592,7 +671,7 @@ export class TokenFileLogger {
             sessionTitle: params.sessionTitle
         };
 
-        if (this.shouldReadRawJsonl(dateStr) && hasRawJsonlFiles) {
+        if (this.shouldReadRawJsonl(dateStr) && this.hasRawJsonlFiles(dateStr)) {
             const logPath = await this.writeManager.appendLog(updatedLog);
             this.invalidateDetailCaches(logPath.date, logPath.hour);
         } else {
@@ -892,6 +971,8 @@ export class TokenFileLogger {
      */
     async flush(): Promise<void> {
         await this.writeManager.flush();
+        await Promise.allSettled(this.balanceTasks);
+        await this.writeManager.flush();
         await this.logStatsManager.flushStatsPublications();
     }
 
@@ -949,6 +1030,10 @@ export class TokenFileLogger {
             await statsDisposal;
 
             // 等待写入队列完成并销毁
+            await cleanup(async () => {
+                await this.writeManager.flush();
+                await Promise.allSettled(this.balanceTasks);
+            });
             await cleanup(() => this.logStatsManager.flushStatsPublications());
             await cleanup(() => this.writeManager.dispose());
             StatusLogger.debug('[TokenFileLogger] Write manager disposed');

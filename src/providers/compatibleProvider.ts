@@ -18,7 +18,6 @@ import { ConfigManager } from '../utils/config/configManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { KnownProviders } from '../utils/config/knownProviders';
 import { GenericModelProvider } from './genericModelProvider';
-import { StatusBarManager } from '../status';
 import { configProviders } from './config';
 import { fillClaudeCodeRequestHeaders, fillCodexRequestHeaders } from '../utils/net/cliUserAgent';
 import { mergeCustomHeaders } from '../utils/net/httpHeaders';
@@ -421,12 +420,6 @@ export class CompatibleProvider extends GenericModelProvider {
                 throw error;
             } finally {
                 Logger.debug(`Compatible Provider: ${model.name} request cleanup finished`);
-                try {
-                    // 延时更新状态栏以反映最新余额
-                    StatusBarManager.compatible?.delayedUpdate(modelConfig.provider!, 2000);
-                } catch (err) {
-                    Logger.warn('Failed to update status bar:', err);
-                }
             }
         } catch (error) {
             if (isCancellationError(error)) {

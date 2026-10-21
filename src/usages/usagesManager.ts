@@ -267,6 +267,20 @@ export class TokenUsagesManager {
     /**
      * 记录预估的输入 token（请求前调用）
      */
+    recordRequestBalance(requestId: string, balance: TokenRequestLog['balance']): void {
+        if (!this.initialized) {
+            return;
+        }
+        const fileLogger = this.fileLogger;
+        fileLogger.recordRequestBalance(requestId, balance, date => {
+            if (!this.initialized || this.fileLogger !== fileLogger) {
+                return;
+            }
+            this.clearDateRecordsCache(date);
+            this.notifyUpdate(date);
+        });
+    }
+
     async recordEstimatedTokens(params: {
         providerKey: string;
         displayName: string;

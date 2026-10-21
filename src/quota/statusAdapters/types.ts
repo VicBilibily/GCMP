@@ -7,6 +7,7 @@
 
 import { t } from '../../utils/runtime/l10n';
 import type { QuotaTable } from '../types';
+import type { RequestBalanceLog, RequestStatusData } from '../../usages/fileLogger/types';
 
 /** 状态查询上下文：多 key 模式按配置项查询时携带该配置的站点 */
 export interface QuotaQueryContext {
@@ -27,6 +28,9 @@ export interface QuotaStatusAdapter<TRaw> {
     highlightWarning?(data: TRaw, threshold: number): boolean;
     /** 当前可用余额；提供时由状态栏按 provider 的金额阈值判定红黄背景 */
     balance?(data: TRaw): number | undefined;
+    /** 账户余额映射；仅由成功的状态栏查询快照写入 usage 日志缓存 */
+    requestBalance?(data: TRaw): RequestBalanceLog['entries'];
+    requestStatus?(data: TRaw): RequestStatusData;
     /** 返回未来重置点时间戳；缓存写入早于重置点且当前已越过时触发刷新 */
     refreshHints?(data: TRaw, cachedAt: number): number[];
 }

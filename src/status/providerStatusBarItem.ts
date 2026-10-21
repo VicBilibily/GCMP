@@ -20,6 +20,8 @@ export interface ProviderApiQueryResult<T> {
     data?: T;
     error?: string;
     keyHash?: string;
+    requestBalanceKeyHash?: string;
+    queriedAt?: number;
 }
 
 /**
@@ -109,6 +111,7 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
 
             let queryKey = apiKey;
             let data = await this.performQuery(queryKey);
+            let queriedAt = Date.now();
             if (generation !== this.queryGeneration) {
                 return { success: false };
             }
@@ -117,6 +120,7 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
             if (currentKey && currentKey !== apiKey) {
                 queryKey = currentKey;
                 data = await this.performQuery(queryKey);
+                queriedAt = Date.now();
             }
             const finalKey = await ApiKeyManager.getApiKey(provider);
             if (generation !== this.queryGeneration) {
@@ -126,7 +130,14 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
                 this.onApiKeyChangeDetected();
                 return { success: false };
             }
-            return { success: true, data, keyHash: createHash('sha256').update(queryKey).digest('hex').slice(0, 16) };
+            const fullKeyHash = createHash('sha256').update(queryKey).digest('hex');
+            return {
+                success: true,
+                data,
+                keyHash: fullKeyHash.slice(0, 16),
+                requestBalanceKeyHash: fullKeyHash,
+                queriedAt
+            };
         } catch (error) {
             const message = error instanceof Error ? error.message : t('Unknown error', '未知错误');
             Logger.error(`[${this.config.logPrefix}] Query exception: ${message}`);

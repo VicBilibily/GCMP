@@ -19,7 +19,6 @@ import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { MoonshotWizard } from '../wizards/moonshotWizard';
-import { StatusBarManager } from '../status';
 
 /**
  * MoonshotAI 专用模型提供商类
@@ -302,17 +301,6 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
-
-            try {
-                // 根据使用的密钥类型，延时更新对应的状态栏使用量
-                if (providerKey === 'kimi') {
-                    StatusBarManager.delayedUpdate('kimi');
-                } else {
-                    StatusBarManager.delayedUpdate('moonshot');
-                }
-            } catch (err) {
-                Logger.warn('Failed to update status bar:', err);
-            }
         }
     }
 }

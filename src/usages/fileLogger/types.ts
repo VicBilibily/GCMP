@@ -5,6 +5,17 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import type { BalanceQueryResult } from '../../quota/compatible/balanceQuery';
+import type { DeepSeekStatusData } from '../../quota/statusAdapters/deepseek';
+import type { MoonshotStatusData } from '../../quota/statusAdapters/moonshot';
+import type { CommandCodeStatusData } from '../../quota/statusAdapters/commandcode';
+import type { ClinePassStatusData } from '../../quota/statusAdapters/clinepass';
+import type { ZhipuStatusData } from '../../quota/statusAdapters/zhipu';
+import type { MiniMaxStatusData } from '../../quota/statusAdapters/minimax';
+import type { KimiStatusData } from '../../quota/statusAdapters/kimi';
+import type { OpenCodeStatusData } from '../../quota/statusAdapters/opencode';
+import type { ChatGPTStatusData, RateLimitWindow, RateLimitInfo } from '../../quota/codexQuota';
+import type { GrokStatusData } from '../../quota/grokQuota';
 import type {
     RequestClassificationMetadata,
     RequestContinuity
@@ -154,6 +165,85 @@ export type SessionRecoverySource =
     | 'summary-bridge-truncated'
     | 'new-uuid';
 
+export interface RequestStatusContext {
+    icon: string;
+    title: string;
+    language: string;
+    locale: string;
+    timeZone: string;
+}
+
+export interface CompatibleRequestStatusData {
+    queryScope?: 'provider';
+    providerId: string;
+    providerName: string;
+    balanceInfo: BalanceQueryResult;
+    lastUpdated?: string;
+}
+
+export type RequestRateLimitWindow = Omit<RateLimitWindow, 'reset_after_seconds'> &
+    Partial<Pick<RateLimitWindow, 'reset_after_seconds'>>;
+
+export interface CodexRequestStatusData extends Pick<ChatGPTStatusData, 'planType'> {
+    codeReviewUsedPercent?: number;
+    lastUpdated?: string;
+    rateLimit: Partial<Pick<RateLimitInfo, 'allowed' | 'limit_reached'>> & {
+        primary_window: RequestRateLimitWindow;
+        secondary_window?: RequestRateLimitWindow;
+    };
+}
+
+type RequestStatusPayload<Data> = Omit<Data, 'lastUpdated'> & { lastUpdated?: string };
+type OptionalFields<Data, Fields extends keyof Data> = Omit<Data, Fields> & Partial<Pick<Data, Fields>>;
+
+export type RequestCommandCodeWindow = OptionalFields<NonNullable<CommandCodeStatusData['fiveHour']>, 'exceeded'>;
+type RequestCommandCodeData = Omit<CommandCodeStatusData, 'fiveHour' | 'weekly'> & {
+    fiveHour?: RequestCommandCodeWindow;
+    weekly?: RequestCommandCodeWindow;
+};
+type RequestKimiData = Omit<KimiStatusData, 'summary' | 'windows'> & {
+    summary: OptionalFields<KimiStatusData['summary'], 'limit' | 'used'>;
+    windows: Array<
+        Omit<KimiStatusData['windows'][number], 'detail'> & {
+            detail: OptionalFields<KimiStatusData['windows'][number]['detail'], 'limit' | 'used'>;
+        }
+    >;
+};
+type RequestOpenCodeData = Omit<OpenCodeStatusData, 'windows'> & {
+    windows: Array<OptionalFields<OpenCodeStatusData['windows'][number], 'status'>>;
+};
+type RequestGrokData = Omit<GrokStatusData, 'usage'> & {
+    usage: OptionalFields<GrokStatusData['usage'], 'usedPercent' | 'windowMinutes'>;
+};
+
+export type RequestStatusData =
+    | { provider: 'deepseek'; data: RequestStatusPayload<DeepSeekStatusData> }
+    | { provider: 'moonshot'; data: RequestStatusPayload<MoonshotStatusData> }
+    | { provider: 'commandcode'; data: RequestStatusPayload<RequestCommandCodeData> }
+    | { provider: 'clinepass'; data: RequestStatusPayload<ClinePassStatusData> }
+    | {
+          provider: 'minimax-token';
+          data: { limits: Array<Omit<MiniMaxStatusData['limits'][number], 'label'> & { label?: string }> };
+      }
+    | { provider: 'kimi'; data: RequestKimiData }
+    | { provider: 'opencode'; data: RequestStatusPayload<RequestOpenCodeData> }
+    | { provider: 'codex'; data: RequestStatusPayload<CodexRequestStatusData> }
+    | { provider: 'grok'; data: RequestStatusPayload<RequestGrokData> }
+    | { provider: 'zhipu'; data: ZhipuStatusData }
+    | { provider: 'compatible'; data: CompatibleRequestStatusData };
+
+export type RequestStatusSnapshot = RequestStatusData & {
+    version: 1;
+    queriedAt: number;
+    context?: RequestStatusContext;
+};
+
+export interface RequestBalanceLog {
+    queriedAt: number;
+    entries: Array<BalanceQueryResult & { id: string }>;
+    statusSnapshots?: RequestStatusSnapshot[];
+}
+
 export interface TokenRequestLog {
     /** 请求ID */
     requestId: string;
@@ -169,6 +259,7 @@ export interface TokenRequestLog {
     apiKeyHash?: string;
     /** 配置名称的请求时快照，不随后续改名回填。 */
     apiKeyName?: string;
+    balance?: RequestBalanceLog | null;
     /** 模型ID */
     modelId: string;
     /** 模型名称 */

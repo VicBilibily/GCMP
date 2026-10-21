@@ -14,6 +14,7 @@ import type {
     TrackRecordsMessage
 } from '../types';
 import { createElement } from '../../utils';
+import { createRequestBalance } from './requestBalance';
 import { getDisplayCostPresentation } from '../../costDisplay';
 import {
     createSessionFilter,
@@ -1093,6 +1094,10 @@ export function createRequestRecordsTable(
         apiKeyDiv.textContent = apiKeyName;
         apiKeyDiv.title = apiKeyName;
         providerHeader.append(providerDiv, apiKeyDiv);
+        const balance = createRequestBalance(record.balance);
+        if (balance) {
+            providerHeader.appendChild(balance);
+        }
         const modelDiv = createElement('div', 'prov-model-model');
         modelDiv.textContent = modName;
         providerModel.append(providerHeader, modelDiv);

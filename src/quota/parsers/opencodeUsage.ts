@@ -22,11 +22,13 @@ export interface OpenCodeUsageData {
 
 type OpenCodeUsageParseResult = { kind: 'usage'; usage: OpenCodeUsageData } | { kind: 'invalid'; error: string };
 
-export function buildOpenCodeUsageSummary(data: OpenCodeUsageData): string {
+export function buildOpenCodeUsageSummary(data: {
+    windows: Array<Omit<OpenCodeUsageWindow, 'status'> & { status?: string }>;
+}): string {
     const monthly = data.windows.find(window => window.type === 'monthly');
     const weekly = data.windows.find(window => window.type === 'weekly');
     const rolling = data.windows.find(window => window.type === 'rolling');
-    const primaryCandidates = [monthly, weekly].filter((window): window is OpenCodeUsageWindow => Boolean(window));
+    const primaryCandidates = [monthly, weekly].filter(window => window !== undefined);
     const primaryRemaining =
         primaryCandidates.length > 0 ?
             Math.min(...primaryCandidates.map(window => window.remainingPercent))

@@ -1,4 +1,4 @@
-import type { CostBreakdownLog, SessionRecoverySource } from './types';
+import type { CostBreakdownLog, RequestBalanceLog, SessionRecoverySource } from './types';
 import {
     mergeRequestClassificationFields,
     normalizeRequestContinuity,
@@ -14,6 +14,7 @@ export interface SnapshotRequestRecord {
     providerName: string;
     apiKeyHash?: string;
     apiKeyName?: string;
+    balance?: RequestBalanceLog | null;
     modelId: string;
     modelName: string;
     estimatedInput: number;
@@ -119,6 +120,7 @@ export function mergeSnapshotRecord(
         ...preferredRecord,
         apiKeyHash: preferredRecord.apiKeyHash,
         apiKeyName: preferredRecord.apiKeyName,
+        balance: preferredRecord.balance !== undefined ? preferredRecord.balance : fallbackRecord.balance,
         ...mergeRequestClassificationFields(baseRecord, overlayRecord),
         requestContinuity:
             normalizeRequestContinuity(baseRecord.requestContinuity) ??

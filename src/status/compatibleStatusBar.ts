@@ -18,6 +18,11 @@ import { InterInstanceBus, ApiKeyChangedEvent } from '../interInstance';
 import { t } from '../utils/runtime/l10n';
 import { ConfigManager } from '../utils/config/configManager';
 import { getHighestBalanceAlertLevel } from '../utils/config/balanceWarning';
+import {
+    cacheRequestBalanceEntryByKeyHash,
+    cacheProviderRequestBalanceEntry,
+    hashRequestApiKey
+} from '../quota/requestBalance';
 
 /**
  * Compatible 提供商余额信息
@@ -41,6 +46,9 @@ export interface CompatibleProviderBalance {
     success: boolean;
     /** 多组额度结果（可选，当同接口返回多个额度时提供） */
     items?: BalanceQueryItem[];
+    /** 该余额查询使用的完整 API Key SHA-256；不包含明文密钥 */
+    requestBalanceKeyHash?: string;
+    requestBalanceScope?: 'provider';
     /** 错误信息（如果查询失败） */
     error?: string;
 }
@@ -406,16 +414,23 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             // 并行查询需要更新的提供商
             const queryPromises = providersToQuery.map(async provider => {
                 try {
+                    const baseProviderId = BalanceQueryManager.getBaseProviderId(provider.providerId, 'entry');
+                    const apiKey = await ApiKeyManager.getApiKey(baseProviderId);
                     // 使用余额查询管理器查询余额
-                    const balanceInfo = await BalanceQueryManager.queryBalance(provider.providerId, undefined, 'entry');
+                    const providerScoped = !BalanceQueryManager.requiresApiKey(provider.providerId, 'entry');
+                    const balanceInfo = await BalanceQueryManager.queryBalance(provider.providerId, apiKey, 'entry');
+                    const requestBalanceKeyHash = !providerScoped && apiKey ? hashRequestApiKey(apiKey) : undefined;
 
                     provider.paid = balanceInfo.paid;
                     provider.granted = balanceInfo.granted;
                     provider.balance = balanceInfo.balance;
                     provider.currency = balanceInfo.currency;
                     provider.items = balanceInfo.items;
+                    provider.requestBalanceKeyHash = requestBalanceKeyHash;
+                    provider.requestBalanceScope = providerScoped ? 'provider' : undefined;
                     provider.lastUpdated = new Date();
                     provider.success = true;
+                    this.cacheProviderBalanceSnapshot(provider);
 
                     // 保存到独立缓存
                     await this.saveProviderCache(provider.providerId, provider);
@@ -826,6 +841,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 if (cached) {
                     // 直接使用缓存数据，无需修复 Date 对象序列化问题
                     this.providerCaches.set(providerId, cached);
+                    this.cacheProviderBalanceSnapshot(cached.balance);
                 }
             }
 
@@ -841,6 +857,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     protected override onStatusUpdatedFromEvent(data: CompatibleStatusData): void {
         const eventTimestamp = this.lastStatusData?.timestamp ?? Date.now();
         for (const provider of data.providers) {
+            this.cacheProviderBalanceSnapshot(provider);
             const cacheData = getCompatibleProviderCacheUpdate(
                 this.providerCaches.get(provider.providerId),
                 provider,
@@ -873,7 +890,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         try {
             const cacheData: ProviderCacheData = {
                 balance,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                ...(balance.requestBalanceKeyHash ? { requestBalanceKeyHash: balance.requestBalanceKeyHash } : {})
             };
 
             this.providerCaches.set(providerId, cacheData);
@@ -884,6 +902,40 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             StatusLogger.debug(`[${this.config.logPrefix}] Saved cache for provider ${providerId}`);
         } catch (error) {
             StatusLogger.error(`[${this.config.logPrefix}] Failed to save cache for provider ${providerId}`, error);
+        }
+    }
+
+    private cacheProviderBalanceSnapshot(provider: CompatibleProviderBalance): void {
+        if (!provider.success || (!provider.requestBalanceKeyHash && provider.requestBalanceScope !== 'provider')) {
+            return;
+        }
+        const queriedAt = new Date(provider.lastUpdated).getTime();
+        if (!Number.isFinite(queriedAt)) {
+            return;
+        }
+        const baseProviderId = BalanceQueryManager.getBaseProviderId(provider.providerId, 'entry');
+        const balanceInfo = {
+            balance: provider.balance,
+            currency: provider.currency,
+            ...(provider.paid !== undefined ? { paid: provider.paid } : {}),
+            ...(provider.granted !== undefined ? { granted: provider.granted } : {}),
+            ...(provider.items ? { items: provider.items } : {})
+        };
+        const entry = { id: provider.providerId, ...balanceInfo };
+        const status = {
+            provider: 'compatible' as const,
+            data: {
+                providerId: provider.providerId,
+                providerName: provider.providerName,
+                balanceInfo,
+                lastUpdated: new Date(queriedAt).toISOString(),
+                ...(provider.requestBalanceScope === 'provider' ? { queryScope: 'provider' as const } : {})
+            }
+        };
+        if (provider.requestBalanceScope === 'provider') {
+            cacheProviderRequestBalanceEntry(baseProviderId, entry, queriedAt, status);
+        } else if (provider.requestBalanceKeyHash) {
+            cacheRequestBalanceEntryByKeyHash(baseProviderId, provider.requestBalanceKeyHash, entry, queriedAt, status);
         }
     }
 
@@ -965,15 +1017,21 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                         }
                     }
 
-                    const balanceInfo = await BalanceQueryManager.queryBalance(targetProviderId, undefined, 'entry');
+                    const apiKey = await ApiKeyManager.getApiKey(baseProviderId);
+                    const providerScoped = !BalanceQueryManager.requiresApiKey(targetProviderId, 'entry');
+                    const balanceInfo = await BalanceQueryManager.queryBalance(targetProviderId, apiKey, 'entry');
+                    const requestBalanceKeyHash = !providerScoped && apiKey ? hashRequestApiKey(apiKey) : undefined;
 
                     providerBalance.paid = balanceInfo.paid;
                     providerBalance.granted = balanceInfo.granted;
                     providerBalance.balance = balanceInfo.balance;
                     providerBalance.currency = balanceInfo.currency;
                     providerBalance.items = balanceInfo.items;
+                    providerBalance.requestBalanceKeyHash = requestBalanceKeyHash;
+                    providerBalance.requestBalanceScope = providerScoped ? 'provider' : undefined;
                     providerBalance.lastUpdated = new Date();
                     providerBalance.success = true;
+                    this.cacheProviderBalanceSnapshot(providerBalance);
 
                     await this.saveProviderCache(targetProviderId, providerBalance);
 

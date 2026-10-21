@@ -2,7 +2,7 @@
  *  智谱状态栏适配器
  *--------------------------------------------------------------------------------------------*/
 
-import { type QuotaStatusAdapter, type QuotaTable } from './types';
+import type { QuotaStatusAdapter, QuotaTable } from './types';
 import { resolveQuotaSite } from '../common';
 import {
     buildZhipuBalanceTable,
@@ -26,10 +26,24 @@ export const zhipuStatusAdapter: QuotaStatusAdapter<ZhipuStatusData> = {
         const { limits, account } = await fetchZhipuUsage(apiKey, site);
 
         const resetTimes = limits.filter(l => l.nextResetTime !== undefined).map(l => l.nextResetTime as number);
-        return { limits, account, nextResetTime: resetTimes.length > 0 ? Math.min(...resetTimes) : undefined };
+        const data = { limits, account, nextResetTime: resetTimes.length > 0 ? Math.min(...resetTimes) : undefined };
+        return data;
     },
     summary: data => buildZhipuUsageSummary(data),
     balance: data => (data.limits.length === 0 ? data.account?.balance : undefined),
+    requestStatus: data => ({ provider: 'zhipu', data }),
+    requestBalance: data =>
+        data.account ?
+            [
+                {
+                    id: 'zhipu',
+                    balance: data.account.availableBalance ?? data.account.balance,
+                    currency: 'CNY',
+                    paid: data.account.rechargeAmount,
+                    granted: data.account.giveAmount
+                }
+            ]
+        :   [],
     tables: data => {
         const tables: QuotaTable[] = [];
         if (data.limits.length > 0) {

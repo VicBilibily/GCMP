@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { ConfigSetItem } from '../utils/config/configSetStore';
 import type { QuotaQueryContext } from '../quota/statusAdapters/types';
 import type { QuotaTable } from '../quota/types';
+import { hashRequestApiKey } from '../quota/requestBalance';
 import {
     collectMultiKeyStatus,
     hashApiKey,
@@ -114,17 +115,26 @@ test('collectMultiKeyStatus: passes per-config site to adapter query', async () 
     assert.deepEqual(queries[1].context, { site: 'api.z.ai' });
 });
 
-test('collectMultiKeyStatus: reuses main query result for active entry when key identity matches', async () => {
+test('collectMultiKeyStatus: reuses main query result for active entry when key identity matches', async context => {
+    const now = Date.now();
+    context.mock.method(Date, 'now', () => now);
     const { adapter, queries } = createAdapter();
     const { source } = createSource([itemA, itemB], { a: 'ka', b: 'kb' }, 'a');
+    const activeReuse = {
+        configId: 'a',
+        keyHash: hashApiKey('ka'),
+        requestBalanceKeyHash: hashRequestApiKey('ka'),
+        timestamp: now - 2_000,
+        data: { usage: 42 }
+    };
 
-    const status = await collectMultiKeyStatus(source, adapter, {
-        activeReuse: { configId: 'a', keyHash: hashApiKey('ka'), data: { usage: 42 } }
-    });
+    const status = await collectMultiKeyStatus(source, adapter, { activeReuse });
 
     const active = status.entries.find(e => e.configId === 'a');
     assert.equal(active?.status, 'success');
     assert.deepEqual(active?.data, { usage: 42 });
+    assert.equal(active?.requestBalanceKeyHash, hashRequestApiKey('ka'));
+    assert.equal(active?.timestamp, activeReuse.timestamp);
     // 激活 key 未被重复查询
     assert.deepEqual(
         queries.map(q => q.apiKey),
@@ -137,7 +147,13 @@ test('collectMultiKeyStatus: queries active entry itself when reuse identity mis
     const { source } = createSource([itemA, itemB], { a: 'ka', b: 'kb' }, 'a');
 
     const status = await collectMultiKeyStatus(source, adapter, {
-        activeReuse: { configId: 'a', keyHash: hashApiKey('stale-key'), data: { usage: 42 } }
+        activeReuse: {
+            configId: 'a',
+            keyHash: hashApiKey('stale-key'),
+            requestBalanceKeyHash: hashRequestApiKey('ka'),
+            timestamp: Date.now(),
+            data: { usage: 42 }
+        }
     });
 
     assert.deepEqual(
@@ -159,6 +175,56 @@ test('collectMultiKeyStatus: marks missing-key entry without querying adapter', 
         queries.map(q => q.apiKey),
         ['ka']
     );
+});
+
+test('collectMultiKeyStatus: keeps each key result with its own completion time', async context => {
+    const startedAt = Date.now();
+    let clock = startedAt;
+    context.mock.method(Date, 'now', () => clock);
+    const completions = new Map<string, (data: FakeData) => void>();
+    const { adapter } = createAdapter({
+        onQuery: apiKey => new Promise(resolve => completions.set(apiKey, resolve))
+    });
+    const { source } = createSource([itemA, itemB], { a: 'ka', b: 'kb' }, 'a');
+    const collecting = collectMultiKeyStatus(source, adapter);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(completions.size, 2);
+    clock = startedAt + 1_000;
+    completions.get('ka')!({ usage: 10 });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    clock = startedAt + 3_000;
+    completions.get('kb')!({ usage: 80 });
+    const status = await collecting;
+    assert.deepEqual(
+        status.entries.map(entry => ({
+            hash: entry.requestBalanceKeyHash,
+            usage: entry.data?.usage,
+            timestamp: entry.timestamp
+        })),
+        [
+            { hash: hashRequestApiKey('ka'), usage: 10, timestamp: startedAt + 1_000 },
+            { hash: hashRequestApiKey('kb'), usage: 80, timestamp: startedAt + 3_000 }
+        ]
+    );
+});
+
+test('collectMultiKeyStatus: matching short hash cannot reuse another full key identity', async () => {
+    const { adapter, queries } = createAdapter();
+    const { source } = createSource([itemA, itemB], { a: 'ka', b: 'kb' }, 'a');
+    const activeReuse = {
+        configId: 'a',
+        keyHash: hashApiKey('ka'),
+        requestBalanceKeyHash: hashRequestApiKey('kb'),
+        timestamp: Date.now(),
+        data: { usage: 99 }
+    };
+    const status = await collectMultiKeyStatus(source, adapter, { activeReuse });
+    assert.deepEqual(
+        queries.map(query => query.apiKey),
+        ['ka', 'kb']
+    );
+    assert.equal(status.entries[0].requestBalanceKeyHash, hashRequestApiKey('ka'));
+    assert.equal(status.entries[0].data?.usage, 50);
 });
 
 test('collectMultiKeyStatus: captures adapter failure as error entry', async () => {

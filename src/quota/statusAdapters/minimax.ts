@@ -14,14 +14,16 @@ export interface MiniMaxStatusData {
 export const minimaxStatusAdapter: QuotaStatusAdapter<MiniMaxStatusData> = {
     async query(apiKey, context) {
         const site = resolveQuotaSite('minimax-token', context?.site) === 'minimax.io' ? 'minimax.io' : undefined;
-        return { limits: await fetchMiniMaxLimits(apiKey, site) };
+        const data = { limits: await fetchMiniMaxLimits(apiKey, site) };
+        return data;
     },
+    requestStatus: data => ({ provider: 'minimax-token', data }),
     summary: data => formatMiniMaxQuotaSummary(data.limits),
     tables: data => [
         {
             columns: [t('Window', '限频类型'), t('Remain', '剩余'), t('Reset Time', '重置时间')],
             rows: data.limits.map(item => [
-                item.label,
+                item.limitType === '5h' ? t('Every 5 Hours', '每 5 小时') : t('Weekly quota', '每周限额'),
                 `${item.remaining}%`,
                 item.resetTime ? formatQuotaDateForSlot('minimax-token', new Date(item.resetTime)) : '-'
             ]),

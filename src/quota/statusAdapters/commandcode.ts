@@ -20,10 +20,21 @@ export interface CommandCodeStatusData extends CommandCodeUsageData {
 export const commandcodeStatusAdapter: QuotaStatusAdapter<CommandCodeStatusData> = {
     async query(apiKey) {
         const usage = await fetchCommandCodeUsageData(apiKey);
-        return { ...usage, lastUpdated: formatLocaleDateTime(new Date()) };
+        const data = { ...usage, lastUpdated: formatLocaleDateTime(new Date()) };
+        return data;
     },
     summary: data => buildCommandCodeUsageSummary(data),
     balance: data => (!data.fiveHour && !data.weekly ? data.totalCredits : undefined),
+    requestStatus: data => ({ provider: 'commandcode', data }),
+    requestBalance: data => [
+        {
+            id: 'commandcode',
+            balance: data.totalCredits,
+            currency: 'USD',
+            paid: data.purchasedCredits,
+            granted: data.monthlyCredits + data.freeCredits
+        }
+    ],
     tables: data => {
         const balanceColumns = [
             t('Monthly', '每月余额'),

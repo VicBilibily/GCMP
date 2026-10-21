@@ -10,6 +10,7 @@ import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { t } from '../utils/runtime/l10n';
 import { GrokStatusData, queryGrokUsage } from '../quota/grokQuota';
 import { formatDateTimeSlash } from '../quota/format';
+import { cacheRequestBalanceByKeyHash } from '../quota/requestBalance';
 
 export type { GrokStatusData } from '../quota/grokQuota';
 
@@ -71,7 +72,29 @@ export class GrokStatusBar extends BaseStatusBarItem<GrokStatusData> {
         const lastUpdated = new Date().toLocaleString(
             vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
         );
-        return queryGrokUsage(lastUpdated);
+        const result = await queryGrokUsage(lastUpdated);
+        if (result.success && result.data) {
+            this.cacheRequestStatus(result.data, result.requestBalanceKeyHash, result.queriedAt);
+        }
+        return result;
+    }
+
+    protected override onStatusUpdatedFromEvent(data: GrokStatusData, hash?: string, timestamp?: number): void {
+        this.cacheRequestStatus(data, hash, timestamp);
+    }
+
+    protected override onStatusRestoredFromCache(data: GrokStatusData, hash?: string, timestamp?: number): void {
+        this.cacheRequestStatus(data, hash, timestamp);
+    }
+
+    private cacheRequestStatus(data: GrokStatusData, hash?: string, timestamp?: number): void {
+        if (!hash || timestamp === undefined) {
+            return;
+        }
+        cacheRequestBalanceByKeyHash('grok', hash, [], timestamp, {
+            provider: 'grok',
+            data
+        });
     }
 
     protected async shouldShowStatusBar(): Promise<boolean> {

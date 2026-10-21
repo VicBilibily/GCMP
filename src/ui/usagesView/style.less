@@ -16,6 +16,83 @@ body {
     overflow: hidden;
 }
 
+.request-balance-tooltip {
+    position: fixed;
+    z-index: 1000;
+    width: max-content;
+    max-width: min(520px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+    overflow: auto;
+    box-sizing: border-box;
+    padding: 10px;
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+
+    &[hidden] {
+        display: none;
+    }
+
+    .request-balance-section + .request-balance-section {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--vscode-panel-border);
+    }
+
+    .request-balance-title {
+        margin-bottom: 6px;
+        font-weight: 600;
+    }
+
+    .request-balance-table-title {
+        padding: 6px 0;
+        text-align: left;
+        font-weight: 600;
+    }
+
+    .request-balance-detail {
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+
+    .request-balance-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+
+        & + .request-balance-table {
+            margin-top: 8px;
+        }
+
+        th,
+        td {
+            padding: 4px 6px;
+            vertical-align: top;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        th {
+            text-align: left;
+            overflow-wrap: normal;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+    }
+
+    .request-balance-updated {
+        margin-top: 8px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+    }
+}
+
 .container {
     display: flex;
     height: 100vh;
@@ -930,6 +1007,28 @@ body {
                 font-size: 0.9em;
                 margin-top: -3px;
                 margin-bottom: -0.6em;
+            }
+
+            .prov-model-balance {
+                display: inline-flex;
+                flex: 0 1 auto;
+                min-width: 0;
+                max-width: 26ch;
+                font-size: 0.85em;
+                color: var(--vscode-foreground);
+                cursor: default;
+
+                .request-balance-summary {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    border-bottom: 1px dotted var(--vscode-descriptionForeground);
+                }
+
+                &:focus-visible {
+                    outline: 1px solid var(--vscode-focusBorder);
+                    outline-offset: 2px;
+                }
             }
         }
 

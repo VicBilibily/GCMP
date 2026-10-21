@@ -511,7 +511,6 @@ export class SnapshotManager {
                 if (!this.isRetryableRenameError(error) || attempt === maxAttempts) {
                     throw error;
                 }
-                await fs.rm(toPath, { force: true }).catch(() => undefined);
                 await this.delay(attempt * 10);
             }
         }
@@ -543,6 +542,7 @@ export class SnapshotManager {
             providerName: log.providerName,
             apiKeyHash: log.apiKeyHash,
             apiKeyName: log.apiKeyName,
+            balance: log.balance,
             modelId: log.modelId,
             modelName: log.modelName,
             estimatedInput: log.estimatedInput,
@@ -613,6 +613,7 @@ export class SnapshotManager {
             providerName: c.providerName,
             apiKeyHash: c.apiKeyHash,
             apiKeyName: c.apiKeyName,
+            balance: c.balance,
             modelId: c.modelId,
             modelName: c.modelName,
             estimatedInput: c.estimatedInput,

@@ -3,6 +3,7 @@
 export interface CompatibleProviderCacheData {
     balance: CompatibleProviderBalance;
     timestamp: number;
+    requestBalanceKeyHash?: string;
 }
 
 export function getCompatibleProviderCacheUpdate(
@@ -24,6 +25,7 @@ export function getCompatibleProviderCacheUpdate(
             ...provider,
             lastUpdated: Number.isFinite(providerTimestamp) ? new Date(providerTimestamp) : provider.lastUpdated
         },
-        timestamp: cacheTimestamp
+        timestamp: cacheTimestamp,
+        ...(provider.requestBalanceKeyHash ? { requestBalanceKeyHash: provider.requestBalanceKeyHash } : {})
     };
 }

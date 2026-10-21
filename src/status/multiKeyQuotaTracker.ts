@@ -23,6 +23,8 @@ export interface MultiKeyEntry<TRaw> {
     isActive: boolean;
     /** 查询所用 key 的指纹；身份校验用，防止迟到结果冒充替换后的 key */
     keyHash: string;
+    /** 完整 API Key SHA-256，用于关联请求余额快照 */
+    requestBalanceKeyHash?: string;
     status: 'success' | 'error' | 'missing-key' | 'stale';
     data?: TRaw;
     error?: string;
@@ -46,6 +48,8 @@ export interface MultiKeyConfigSource {
 export interface ActiveEntryReuse<TRaw> {
     configId: string;
     keyHash: string;
+    requestBalanceKeyHash: string;
+    timestamp: number;
     data: TRaw;
 }
 
@@ -98,23 +102,43 @@ async function queryEntry<TRaw>(
         return { ...base, keyHash: '', status: 'missing-key' };
     }
     const keyHash = hashApiKey(apiKey);
+    const requestBalanceKeyHash = createHash('sha256').update(apiKey).digest('hex');
 
     // 激活项与主查询 key 身份一致时直接复用其结果，避免每周期重复请求激活 key
-    if (activeReuse && item.id === activeReuse.configId && keyHash === activeReuse.keyHash) {
-        return { ...base, keyHash, status: 'success', data: activeReuse.data };
+    if (
+        activeReuse &&
+        item.id === activeReuse.configId &&
+        keyHash === activeReuse.keyHash &&
+        requestBalanceKeyHash === activeReuse.requestBalanceKeyHash
+    ) {
+        return {
+            ...base,
+            keyHash,
+            requestBalanceKeyHash: activeReuse.requestBalanceKeyHash,
+            timestamp: activeReuse.timestamp,
+            status: 'success',
+            data: activeReuse.data
+        };
     }
 
     try {
         const context: QuotaQueryContext | undefined = item.site ? { site: item.site } : undefined;
         const data = await adapter.query(apiKey, context);
+        const timestamp = Date.now();
         // 身份校验：查询期间该配置的 key 被替换/删除时，丢弃迟到结果
         const currentKey = await source.getApiKey(item.id);
-        if (!currentKey || hashApiKey(currentKey) !== keyHash) {
-            return { ...base, keyHash, status: 'stale' };
+        if (!currentKey || createHash('sha256').update(currentKey).digest('hex') !== requestBalanceKeyHash) {
+            return { ...base, keyHash, requestBalanceKeyHash, status: 'stale' };
         }
-        return { ...base, keyHash, status: 'success', data };
+        return { ...base, keyHash, requestBalanceKeyHash, timestamp, status: 'success', data };
     } catch (error) {
-        return { ...base, keyHash, status: 'error', error: error instanceof Error ? error.message : String(error) };
+        return {
+            ...base,
+            keyHash,
+            requestBalanceKeyHash,
+            status: 'error',
+            error: error instanceof Error ? error.message : String(error)
+        };
     }
 }
 

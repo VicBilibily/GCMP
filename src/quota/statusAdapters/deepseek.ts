@@ -15,14 +15,27 @@ export interface DeepSeekStatusData {
 export const deepseekStatusAdapter: QuotaStatusAdapter<DeepSeekStatusData> = {
     async query(apiKey) {
         const allBalances = await fetchDeepSeekBalances(apiKey);
-        let primaryBalance = allBalances.find(b => b.currency === 'CNY');
+        let primaryBalance = allBalances.find(balance => balance.currency === 'CNY');
         if (!primaryBalance) {
-            primaryBalance = allBalances.find(b => b.currency === 'USD') || allBalances[0];
+            primaryBalance = allBalances.find(balance => balance.currency === 'USD') || allBalances[0];
         }
-        return { primaryBalance, allBalances, lastUpdated: formatLocaleDateTime(new Date()) };
+        const data = { primaryBalance, allBalances, lastUpdated: formatLocaleDateTime(new Date()) };
+        return data;
     },
     summary: data => formatCurrency(data.primaryBalance.currency, Number.parseFloat(data.primaryBalance.total_balance)),
     balance: data => Number.parseFloat(data.primaryBalance.total_balance),
+    requestStatus: data => ({ provider: 'deepseek', data }),
+    requestBalance: data =>
+        data.allBalances.map(balance => {
+            const amount = (raw: string) => (raw.trim() ? Number(raw) : NaN);
+            return {
+                id: 'deepseek',
+                balance: amount(balance.total_balance),
+                currency: balance.currency,
+                paid: amount(balance.topped_up_balance),
+                granted: amount(balance.granted_balance)
+            };
+        }),
     tables: data => [
         {
             columns: [

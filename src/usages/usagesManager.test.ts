@@ -117,6 +117,73 @@ test('optional historical title hydration preserves readable usage records', asy
             assert.equal(recorded?.requestInitiator, 'core');
         });
 
+        for (const state of ['active', 'disposed', 'replaced'] as const) {
+            await t.test(`request-start balance writes refresh only the ${state} owning manager`, () => {
+                const refreshedDates: string[] = [];
+                const clearedDates: string[] = [];
+                let onWritten: Parameters<FileLogger['recordRequestBalance']>[2];
+                const balance = { queriedAt: Date.now(), entries: [{ id: 'test', balance: 20, currency: 'USD' }] };
+                const fileLogger = {
+                    recordRequestBalance: (...args: Parameters<FileLogger['recordRequestBalance']>) => {
+                        assert.equal(args[0], 'start-balance');
+                        assert.deepEqual(args[1], balance);
+                        onWritten = args[2];
+                    }
+                };
+                const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+                Object.assign(manager, {
+                    initialized: true,
+                    fileLogger,
+                    clearDateRecordsCache: (date: string) => clearedDates.push(date),
+                    notifyUpdate: (date: string) => refreshedDates.push(date)
+                });
+                manager.recordRequestBalance('start-balance', balance);
+                assert.deepEqual(refreshedDates, []);
+                assert.ok(onWritten);
+                if (state === 'disposed') {
+                    Reflect.set(manager, 'initialized', false);
+                } else if (state === 'replaced') {
+                    Reflect.set(manager, 'fileLogger', {});
+                }
+                onWritten(today);
+                assert.deepEqual(refreshedDates, state === 'active' ? [today] : []);
+                assert.deepEqual(clearedDates, state === 'active' ? [today] : []);
+            });
+
+            await t.test(`terminal writes refresh only the ${state} owning manager`, async () => {
+                const clearedDates: string[] = [];
+                const refreshedDates: string[] = [];
+                let releaseWrite!: () => void;
+                const writeReady = new Promise<void>(resolve => {
+                    releaseWrite = resolve;
+                });
+                const fileLogger = {
+                    getPendingLogs: () => [createLog('balance-refresh', today, '')],
+                    updateActualTokens: async (...args: Parameters<FileLogger['updateActualTokens']>) => {
+                        await writeReady;
+                        args[1]?.(today);
+                    }
+                };
+                const manager = Object.create(TokenUsagesManager.prototype) as typeof TokenUsagesManager.instance;
+                Object.assign(manager, {
+                    initialized: true,
+                    fileLogger,
+                    clearDateRecordsCache: (date: string) => clearedDates.push(date),
+                    notifyUpdate: (date: string) => refreshedDates.push(date)
+                });
+                manager.updateActualTokens({ requestId: 'balance-refresh', status: 'completed' });
+                if (state === 'disposed') {
+                    Reflect.set(manager, 'initialized', false);
+                } else if (state === 'replaced') {
+                    Reflect.set(manager, 'fileLogger', {});
+                }
+                releaseWrite();
+                await new Promise<void>(resolve => setImmediate(resolve));
+                assert.deepEqual(clearedDates, state === 'active' ? [today, today] : []);
+                assert.deepEqual(refreshedDates, state === 'active' ? [today] : []);
+            });
+        }
+
         for (const overlay of ['remote', 'local'] as const) {
             for (const level of ['heuristic', 'signature', 'contract'] as const) {
                 await t.test(`${overlay} pending overlay pairs kind and purpose with ${level} evidence`, async () => {

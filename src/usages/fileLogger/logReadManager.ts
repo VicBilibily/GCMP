@@ -25,6 +25,7 @@ export class LogReadManager {
     private static readonly MAX_HOUR_DETAILS_CACHE_ENTRIES = 48;
     private static readonly MAX_HOUR_DETAILS_CACHE_RECORDS = 30_000;
     private static readonly HOUR_DETAILS_READ_CONCURRENCY = 4;
+    private static readonly REQUEST_LOOKUP_CHUNK_BYTES = 64 * 1024;
     private readonly pathManager: LogPathManager;
     private readonly hourDetailsCache = new Map<string, { mtime: number; details: TokenRequestLog[] }>();
     private cachedHourDetailsRecords = 0;
@@ -126,12 +127,49 @@ export class LogReadManager {
         }
 
         for (const file of (await this.listHourFiles(dateFolder)).reverse()) {
-            const hour = parseInt(path.basename(file, '.jsonl'), 10);
-            const logs = await this.readHourLogs(dateStr, hour, true);
-            for (let index = logs.length - 1; index >= 0; index--) {
-                if (logs[index].requestId === requestId) {
-                    return logs[index];
+            const handle = await fs.open(file, 'r');
+            try {
+                let position = (await handle.stat()).size;
+                let fragments: Buffer[] = [];
+                while (position > 0) {
+                    const buffer = Buffer.allocUnsafe(Math.min(position, LogReadManager.REQUEST_LOOKUP_CHUNK_BYTES));
+                    position -= buffer.length;
+                    let filled = 0;
+                    while (filled < buffer.length) {
+                        const { bytesRead } = await handle.read(
+                            buffer,
+                            filled,
+                            buffer.length - filled,
+                            position + filled
+                        );
+                        if (bytesRead === 0) {
+                            throw new Error(`Hourly log truncated while reading: ${file}`);
+                        }
+                        filled += bytesRead;
+                    }
+                    let end = buffer.length;
+                    for (let index = buffer.length - 1; index >= 0; index--) {
+                        if (buffer[index] !== 0x0a) {
+                            continue;
+                        }
+                        const line = Buffer.concat([buffer.subarray(index + 1, end), ...fragments]).toString('utf8');
+                        const log = this.parseJsonlContent(line)[0];
+                        if (log?.requestId === requestId) {
+                            return log;
+                        }
+                        fragments = [];
+                        end = index;
+                    }
+                    if (end > 0) {
+                        fragments.unshift(buffer.subarray(0, end));
+                    }
                 }
+                const log = this.parseJsonlContent(Buffer.concat(fragments).toString('utf8'))[0];
+                if (log?.requestId === requestId) {
+                    return log;
+                }
+            } finally {
+                await handle.close();
             }
         }
         return undefined;

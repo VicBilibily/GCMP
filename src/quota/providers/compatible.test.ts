@@ -9,19 +9,23 @@ import { parseEventsFromBuffer, serializeEvent, type StatusUpdatedEvent } from '
 import type { QuotaQueryResult } from '../types';
 import type { ConfigSetRow, ConfigUsageState, SlotState } from '../../ui/configSetManager/types';
 import type { ExtensionContext, StatusBarItem } from 'vscode';
+import type * as CompatibleModule from './compatible';
+import type * as CompatibleStatusModule from '../../status/compatibleStatusBar';
+import type * as UsageModule from '../../ui/configSetManager/components/usage';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
     prototype: { require: (id: string) => unknown };
 };
 
-let compatible: typeof import('./compatible');
-let statusModule: typeof import('../../status/compatibleStatusBar');
-let usageModule: typeof import('../../ui/configSetManager/components/usage');
+let compatible: typeof CompatibleModule;
+let statusModule: typeof CompatibleStatusModule;
+let usageModule: typeof UsageModule;
 let queryResult: BalanceQueryResult;
 let queryCount = 0;
 let warningThreshold = 20;
 let entryId = 'test_provider::default';
+let requiresApiKey = false;
 const broadcasts: unknown[] = [];
 
 class MockMarkdownString {
@@ -46,7 +50,7 @@ before(async () => {
                     getBaseProviderId: (id: string) => id.split('::')[0],
                     getRegisteredProviders: () => [entryId],
                     getRegisteredProvidersForBaseProvider: () => [entryId],
-                    requiresApiKey: () => false,
+                    requiresApiKey: () => requiresApiKey,
                     queryBalance: async () => {
                         queryCount++;
                         return queryResult;
@@ -75,7 +79,10 @@ before(async () => {
         if (id.endsWith('/configManager')) {
             return { ConfigManager: { getProviderBalanceWarningThreshold: () => warningThreshold } };
         }
-        if (id.endsWith('/apiKeyManager') || id.endsWith('/leaderElectionService')) {
+        if (id.endsWith('/apiKeyManager')) {
+            return { ApiKeyManager: { getApiKey: async () => 'status-key', hasValidApiKey: async () => true } };
+        }
+        if (id.endsWith('/leaderElectionService')) {
             return {};
         }
         if (id.endsWith('/interInstance')) {
@@ -94,6 +101,7 @@ before(async () => {
 
 beforeEach(() => {
     entryId = 'test_provider::default';
+    requiresApiKey = false;
 });
 
 describe('formatCompatibleQuotaEntries', () => {
@@ -256,25 +264,43 @@ describe('compatible multi-quota status', () => {
         };
     }
 
-    it('preserves every item from full refresh through targeted refresh, cache and broadcast', async () => {
-        const status = createStatus();
-        queryCount = 0;
-        broadcasts.length = 0;
-        setResult(30);
-        const initial = await status.queryAll();
-        assert.deepStrictEqual(initial.providers[0].items, queryResult.items);
-        setResult(5);
-        const refreshed = await status.refreshProvider();
-        assert.equal(queryCount, 2);
-        assert.deepStrictEqual(refreshed.providers[0].items, queryResult.items);
-        const cache = status.writes.get('compatible.v2.provider.test_provider::default') as CompatibleProviderCacheData;
-        assert.deepStrictEqual(cache.balance.items, queryResult.items);
-        assert.strictEqual(status.displayed, refreshed);
-        assert.equal(broadcasts.length, 1);
-        assert.ok(JSON.stringify(broadcasts[0]).includes('"balance":5'));
-        assert.ok(status.text(refreshed).includes('¥5.00'));
-        assert.ok(status.tooltip(refreshed).includes('test\\_provider / B'));
-    });
+    for (const authenticated of [true, false]) {
+        it(`preserves every item through refresh, cache and broadcast with authentication: ${authenticated}`, async () => {
+            requiresApiKey = authenticated;
+            entryId = `test_provider::${authenticated ? 'authenticated' : 'public'}`;
+            const status = createStatus();
+            queryCount = 0;
+            broadcasts.length = 0;
+            setResult(30);
+            const initial = await status.queryAll();
+            assert.deepStrictEqual(initial.providers[0].items, queryResult.items);
+            setResult(5);
+            const refreshed = await status.refreshProvider();
+            assert.equal(queryCount, 2);
+            assert.deepStrictEqual(refreshed.providers[0].items, queryResult.items);
+            const { getCachedRequestBalance } = await import('../requestBalance');
+            assert.deepStrictEqual(
+                getCachedRequestBalance('test_provider', 'status-key')?.entries[0].items,
+                queryResult.items
+            );
+            if (authenticated) {
+                assert.equal(getCachedRequestBalance('test_provider', 'other-key'), undefined);
+            } else {
+                assert.deepStrictEqual(
+                    getCachedRequestBalance('test_provider', 'other-key')?.entries[0].items,
+                    queryResult.items
+                );
+            }
+            assert.equal(queryCount, 2);
+            const cache = status.writes.get(`compatible.v2.provider.${entryId}`) as CompatibleProviderCacheData;
+            assert.deepStrictEqual(cache.balance.items, queryResult.items);
+            assert.strictEqual(status.displayed, refreshed);
+            assert.equal(broadcasts.length, 1);
+            assert.ok(JSON.stringify(broadcasts[0]).includes('"balance":5'));
+            assert.ok(status.text(refreshed).includes('¥5.00'));
+            assert.ok(status.tooltip(refreshed).includes('test\\_provider / B'));
+        });
+    }
 
     for (const [balance, threshold, expected] of [
         [-1, 0, 'error'],

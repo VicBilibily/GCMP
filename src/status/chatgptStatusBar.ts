@@ -20,6 +20,7 @@ import { formatChatGPTPlanType } from '../quota/parsers/chatgptPlanType';
 import { formatDateTimeSlash } from '../quota/format';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
+import { cacheRequestBalanceByKeyHash } from '../quota/requestBalance';
 
 export type { ChatGPTStatusData } from '../quota/codexQuota';
 
@@ -116,7 +117,29 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
      */
     protected async performApiQuery(): Promise<{ success: boolean; data?: ChatGPTStatusData; error?: string }> {
         StatusLogger.debug(`[${this.config.logPrefix}] Delegating ChatGPT usage query to shared module`);
-        return queryCodexUsage();
+        const result = await queryCodexUsage();
+        if (result.success && result.data) {
+            this.cacheRequestStatus(result.data, result.requestBalanceKeyHash, result.queriedAt);
+        }
+        return result;
+    }
+
+    protected override onStatusUpdatedFromEvent(data: ChatGPTStatusData, hash?: string, timestamp?: number): void {
+        this.cacheRequestStatus(data, hash, timestamp);
+    }
+
+    protected override onStatusRestoredFromCache(data: ChatGPTStatusData, hash?: string, timestamp?: number): void {
+        this.cacheRequestStatus(data, hash, timestamp);
+    }
+
+    private cacheRequestStatus(data: ChatGPTStatusData, hash?: string, timestamp?: number): void {
+        if (!hash || timestamp === undefined) {
+            return;
+        }
+        cacheRequestBalanceByKeyHash('codex', hash, [], timestamp, {
+            provider: 'codex',
+            data
+        });
     }
 
     /**

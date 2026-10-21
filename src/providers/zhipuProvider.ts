@@ -19,7 +19,6 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { ZhipuWizard } from '../wizards/zhipuWizard';
 import { GenericModelProvider } from './genericModelProvider';
-import { StatusBarManager } from '../status/statusBarManager';
 import { RetryableError } from '../utils/retry/retryManager';
 
 /**
@@ -70,13 +69,6 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     }
 
     /**
-     * 获取 Zhipu 状态栏实例（用于 delayedUpdate 调用）
-     */
-    static getZhipuStatusBar() {
-        return StatusBarManager.zhipu;
-    }
-
-    /**
      * 重写 provideLanguageModelChatInformation，在非静默模式下触发配置向导。
      */
     override async provideLanguageModelChatInformation(
@@ -95,9 +87,6 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         return super.provideLanguageModelChatInformation(options, _token);
     }
 
-    /**
-     * 覆盖 provideChatResponse 以在请求完成后更新状态栏
-     */
     override async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
@@ -106,42 +95,32 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         token: CancellationToken
     ): Promise<void> {
         options = this.createRequestOptions(messages, options);
-        try {
-            const modelConfig = this.findModelConfigById(model);
-            if (modelConfig?.sdkMode === 'anthropic') {
-                // 再注入 Claude Code 前缀（智谱服务端据此做路由）
-                const systemIndex = messages.findIndex(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
-                const systemMessage = messages[systemIndex];
-                if (systemMessage && Array.isArray(systemMessage.content)) {
-                    const systemPrompt = systemMessage.content.find(
-                        msgPart => msgPart instanceof vscode.LanguageModelTextPart
+        const modelConfig = this.findModelConfigById(model);
+        if (modelConfig?.sdkMode === 'anthropic') {
+            // 再注入 Claude Code 前缀（智谱服务端据此做路由）
+            const systemIndex = messages.findIndex(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
+            const systemMessage = messages[systemIndex];
+            if (systemMessage && Array.isArray(systemMessage.content)) {
+                const systemPrompt = systemMessage.content.find(
+                    msgPart => msgPart instanceof vscode.LanguageModelTextPart
+                );
+                if (systemPrompt?.value) {
+                    const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
+                    messages = [...messages];
+                    messages[systemIndex] = new vscode.LanguageModelChatMessage(
+                        systemMessage.role,
+                        systemMessage.content.map(part =>
+                            part === systemPrompt ?
+                                new vscode.LanguageModelTextPart(applyPatch + systemPrompt.value)
+                            :   part
+                        ),
+                        systemMessage.name
                     );
-                    if (systemPrompt?.value) {
-                        const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
-                        messages = [...messages];
-                        messages[systemIndex] = new vscode.LanguageModelChatMessage(
-                            systemMessage.role,
-                            systemMessage.content.map(part =>
-                                part === systemPrompt ?
-                                    new vscode.LanguageModelTextPart(applyPatch + systemPrompt.value)
-                                :   part
-                            ),
-                            systemMessage.name
-                        );
-                    }
                 }
             }
-
-            this.delegateRequestOptions(options);
-            await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
-        } finally {
-            try {
-                // 请求完成后，延时更新智谱AI状态栏使用量
-                StatusBarManager.zhipu?.delayedUpdate();
-            } catch (err) {
-                Logger.warn('Failed to update status bar:', err);
-            }
         }
+        this.delegateRequestOptions(options);
+        await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
     }
 
     /**

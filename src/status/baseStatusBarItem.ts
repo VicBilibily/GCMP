@@ -21,6 +21,8 @@ export interface CachedStatusData<T> {
     data: T;
     /** 缓存时间戳 */
     timestamp: number;
+    /** 余额快照对应的完整 API Key SHA-256；不包含明文密钥 */
+    requestBalanceKeyHash?: string;
 }
 
 /**
@@ -172,7 +174,13 @@ export abstract class BaseStatusBarItem<T> {
      * 执行 API 查询
      * @returns 查询结果
      */
-    protected abstract performApiQuery(): Promise<{ success: boolean; data?: T; error?: string }>;
+    protected abstract performApiQuery(): Promise<{
+        success: boolean;
+        data?: T;
+        error?: string;
+        requestBalanceKeyHash?: string;
+        queriedAt?: number;
+    }>;
 
     /**
      * 检查是否需要高亮警告
@@ -256,9 +264,12 @@ export abstract class BaseStatusBarItem<T> {
      * 接收到跨实例状态更新事件后的钩子方法
      * 子类可重写以同步额外的内部状态
      */
-    protected onStatusUpdatedFromEvent(_data: T): void {
+    protected onStatusUpdatedFromEvent(_data: T, _requestBalanceKeyHash?: string, _timestamp?: number): void {
         // 默认为空实现
     }
+
+    /** 从持久化状态恢复后同步依赖状态数据的本地快照。 */
+    protected onStatusRestoredFromCache(_data: T, _requestBalanceKeyHash?: string, _timestamp?: number): void {}
 
     /**
      * 检测到本槽位 API Key 可能已变化（本地设置或跨实例事件）时的钩子
@@ -619,7 +630,8 @@ export abstract class BaseStatusBarItem<T> {
                     // 保存完整的用量数据
                     this.lastStatusData = {
                         data: data,
-                        timestamp: Date.now()
+                        timestamp: result.queriedAt ?? Date.now(),
+                        ...(result.requestBalanceKeyHash ? { requestBalanceKeyHash: result.requestBalanceKeyHash } : {})
                     };
                     this.automaticRefreshRetryCount = 0;
 
@@ -757,6 +769,11 @@ export abstract class BaseStatusBarItem<T> {
 
                 // 更新内存中的数据
                 this.lastStatusData = cachedStatusData;
+                this.onStatusRestoredFromCache(
+                    cachedStatusData.data,
+                    cachedStatusData.requestBalanceKeyHash,
+                    cachedStatusData.timestamp
+                );
 
                 // 更新状态栏显示
                 this.updateStatusBarUI(cachedStatusData.data);
@@ -804,6 +821,14 @@ export abstract class BaseStatusBarItem<T> {
             if (!cachedData || !cachedData.data) {
                 return;
             }
+            if (
+                !Number.isFinite(cachedData.timestamp) ||
+                cachedData.timestamp < 0 ||
+                cachedData.timestamp > Date.now()
+            ) {
+                StatusLogger.debug(`[${this.config.logPrefix}] Ignored invalid inter-instance status timestamp`);
+                return;
+            }
             if (this.lastStatusData && cachedData.timestamp <= this.lastStatusData.timestamp) {
                 StatusLogger.debug(`[${this.config.logPrefix}] Ignored stale inter-instance status update`);
                 return;
@@ -817,7 +842,7 @@ export abstract class BaseStatusBarItem<T> {
             }
 
             this.updateStatusBarUI(cachedData.data);
-            this.onStatusUpdatedFromEvent(cachedData.data);
+            this.onStatusUpdatedFromEvent(cachedData.data, cachedData.requestBalanceKeyHash, cachedData.timestamp);
 
             StatusLogger.debug(
                 `[${this.config.logPrefix}] Updated status from inter-instance event (${((Date.now() - cachedData.timestamp) / 1000).toFixed(1)}s ago)`

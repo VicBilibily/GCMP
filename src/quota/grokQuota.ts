@@ -13,6 +13,7 @@ import type { QuotaTable } from './types';
 import { parseGrokBillingUsage, resolveGrokBillingBaseUrl } from './parsers/grokUsageParser';
 import type { GrokBillingParseResult, GrokUsageLimit } from './parsers/grokUsageParser';
 import { formatCompactCountdown, formatQuotaDateForSlot } from './format';
+import { hashRequestApiKey } from './requestBalance';
 
 // ============= 查询入口 =============
 
@@ -34,9 +35,13 @@ type BillingRequestResult = { kind: 'parsed'; result: GrokBillingParseResult } |
  * 先走 credits 端点取周配额；不可用时回退到 billing 端点取月度配额。
  * @param lastUpdated 已格式化的本地时间字符串（由调用方生成，避免依赖 vscode.env.language）
  */
-export async function queryGrokUsage(
-    lastUpdated: string
-): Promise<{ success: boolean; data?: GrokStatusData; error?: string }> {
+export async function queryGrokUsage(lastUpdated: string): Promise<{
+    success: boolean;
+    data?: GrokStatusData;
+    error?: string;
+    requestBalanceKeyHash?: string;
+    queriedAt?: number;
+}> {
     try {
         const credentials = (await CliAuthFactory.ensureAuthenticated('grok')) as GrokCredentials | null;
         if (!credentials?.access_token) {
@@ -84,6 +89,8 @@ export async function queryGrokUsage(
             :   parsedResult.usage;
         return {
             success: true,
+            requestBalanceKeyHash: hashRequestApiKey(credentials.access_token),
+            queriedAt: Date.now(),
             data: {
                 usage,
                 lastUpdated

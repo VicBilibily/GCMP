@@ -5,6 +5,7 @@
  *---------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { createHash } from 'node:crypto';
 import { ProviderStatusBarItem, StatusBarItemConfig, type ProviderApiQueryResult } from './providerStatusBarItem';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { t } from '../utils/runtime/l10n';
@@ -26,6 +27,7 @@ import type { QuotaStatusAdapter } from '../quota/statusAdapters';
 import type { QuotaTable } from '../quota/types';
 import { ConfigManager } from '../utils/config/configManager';
 import { getBalanceAlertLevel } from '../utils/config/balanceWarning';
+import { cacheRequestBalanceByKeyHash } from '../quota/requestBalance';
 
 /** 多 key 状态缓存键后缀（globalState） */
 const MULTI_KEY_CACHE_KEY = 'multiKeyStatusData';
@@ -90,6 +92,7 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
      */
     override async initialize(context: vscode.ExtensionContext): Promise<void> {
         await super.initialize(context);
+        this.readMultiKeyFromCache();
         this.failoverToggleSubscription = InterInstanceBus.subscribe('apiKeyFailoverToggled', event => {
             const payload = (event as ApiKeyFailoverToggledEvent).payload;
             if (payload.slot !== this.config.apiKeyProvider) {
@@ -131,17 +134,49 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
             this.multiKeyStatus = undefined;
         }
 
-        if (result.success && result.keyHash) {
+        if (result.success && result.requestBalanceKeyHash) {
             const currentKey = await ApiKeyManager.getApiKey(slot);
             if (generation !== this.queryGeneration) {
                 return { success: false };
             }
-            if (!currentKey || hashApiKey(currentKey) !== result.keyHash) {
+            if (!currentKey || createHash('sha256').update(currentKey).digest('hex') !== result.requestBalanceKeyHash) {
                 this.onApiKeyChangeDetected();
                 return { success: false };
             }
         }
+        if (result.success && result.data !== undefined && result.requestBalanceKeyHash) {
+            this.cacheRequestBalanceSnapshot(result.data, result.requestBalanceKeyHash, result.queriedAt);
+        }
         return result;
+    }
+
+    protected override onStatusUpdatedFromEvent(data: TRaw, requestBalanceKeyHash?: string, timestamp?: number): void {
+        if (requestBalanceKeyHash) {
+            this.cacheRequestBalanceSnapshot(data, requestBalanceKeyHash, timestamp);
+        }
+    }
+
+    protected override onStatusRestoredFromCache(data: TRaw, requestBalanceKeyHash?: string, timestamp?: number): void {
+        if (requestBalanceKeyHash) {
+            this.cacheRequestBalanceSnapshot(data, requestBalanceKeyHash, timestamp);
+        }
+    }
+
+    private cacheRequestBalanceSnapshot(data: TRaw, requestBalanceKeyHash: string, queriedAt?: number): void {
+        if (queriedAt === undefined) {
+            return;
+        }
+        const entries = this.adapter.requestBalance?.(data);
+        const status = this.adapter.requestStatus?.(data);
+        if (entries?.length || status) {
+            cacheRequestBalanceByKeyHash(
+                this.config.apiKeyProvider,
+                requestBalanceKeyHash,
+                entries ?? [],
+                queriedAt,
+                status
+            );
+        }
     }
 
     /** 收集槽位全部配置配额状态并持久化；失败不影响主状态显示 */
@@ -156,8 +191,17 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
                 return;
             }
             const activeReuse =
-                activeResult?.data !== undefined && activeResult.keyHash ?
-                    await this.buildActiveReuse(slot, activeResult.data, activeResult.keyHash)
+                (
+                    activeResult?.data !== undefined &&
+                    activeResult.requestBalanceKeyHash &&
+                    activeResult.queriedAt !== undefined
+                ) ?
+                    await this.buildActiveReuse(
+                        slot,
+                        activeResult.data,
+                        activeResult.requestBalanceKeyHash,
+                        activeResult.queriedAt
+                    )
                 :   undefined;
             const status = await collectMultiKeyStatus(createConfigSource(slot), this.adapter, {
                 activeReuse
@@ -176,6 +220,18 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
                 return;
             }
             this.multiKeyStatus = status;
+            for (const entry of status.entries) {
+                if (
+                    activeReuse &&
+                    entry.data === activeReuse.data &&
+                    entry.requestBalanceKeyHash === activeReuse.requestBalanceKeyHash
+                ) {
+                    continue;
+                }
+                if (entry.status === 'success' && entry.data !== undefined && entry.requestBalanceKeyHash) {
+                    this.cacheRequestBalanceSnapshot(entry.data, entry.requestBalanceKeyHash, entry.timestamp);
+                }
+            }
             await context?.globalState.update(this.getCacheKey(MULTI_KEY_CACHE_KEY), status);
         } catch (error) {
             StatusLogger.warn(`[${this.config.logPrefix}] Failed to collect multi-key status`, error);
@@ -189,7 +245,8 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
     private async buildActiveReuse(
         slot: string,
         data: TRaw,
-        queryKeyHash: string
+        queryRequestBalanceKeyHash: string,
+        queriedAt: number
     ): Promise<ActiveEntryReuse<TRaw> | undefined> {
         const activeId = ConfigSetStore.getActiveId(slot);
         if (!activeId) {
@@ -203,14 +260,21 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
             return undefined;
         }
         const activeHash = hashApiKey(activeKey);
+        const activeRequestBalanceKeyHash = createHash('sha256').update(activeKey).digest('hex');
         if (
-            activeHash !== queryKeyHash ||
-            activeHash !== hashApiKey(runtimeKey) ||
+            activeRequestBalanceKeyHash !== queryRequestBalanceKeyHash ||
+            activeRequestBalanceKeyHash !== createHash('sha256').update(runtimeKey).digest('hex') ||
             ConfigSetStore.getActiveId(slot) !== activeId
         ) {
             return undefined;
         }
-        return { configId: activeId, keyHash: activeHash, data };
+        return {
+            configId: activeId,
+            keyHash: activeHash,
+            requestBalanceKeyHash: createHash('sha256').update(activeKey).digest('hex'),
+            timestamp: queriedAt,
+            data
+        };
     }
 
     /** 读取持久化的多 key 缓存（重启/其他窗口恢复 tooltip） */
@@ -247,6 +311,13 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
         const cached = this.context?.globalState.get<MultiKeyStatusData<TRaw>>(this.getCacheKey(MULTI_KEY_CACHE_KEY));
         if (isValid(cached) && (!this.multiKeyStatus || cached.timestamp >= this.multiKeyStatus.timestamp)) {
             this.multiKeyStatus = cached;
+        }
+        if (this.multiKeyStatus) {
+            for (const entry of this.multiKeyStatus.entries) {
+                if (entry.status === 'success' && entry.data !== undefined && entry.requestBalanceKeyHash) {
+                    this.cacheRequestBalanceSnapshot(entry.data, entry.requestBalanceKeyHash, entry.timestamp);
+                }
+            }
         }
         return this.multiKeyStatus;
     }

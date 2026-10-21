@@ -19,7 +19,11 @@ import {
 export type KimiStatusData = KimiUsageSnapshot;
 
 export const kimiStatusAdapter: QuotaStatusAdapter<KimiStatusData> = {
-    query: apiKey => fetchKimiUsage(apiKey),
+    async query(apiKey) {
+        const data = await fetchKimiUsage(apiKey);
+        return data;
+    },
+    requestStatus: data => ({ provider: 'kimi', data }),
     summary: data => buildKimiUsageSummary(data),
     tables: data => {
         const tables: QuotaTable[] = [

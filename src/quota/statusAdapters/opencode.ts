@@ -14,8 +14,10 @@ export interface OpenCodeStatusData extends OpenCodeUsageData {
 export const opencodeStatusAdapter: QuotaStatusAdapter<OpenCodeStatusData> = {
     async query(apiKey) {
         const usage = await fetchOpenCodeUsageData(apiKey);
-        return { windows: usage.windows, lastUpdated: formatLocaleDateTime(new Date()) };
+        const data = { windows: usage.windows, lastUpdated: formatLocaleDateTime(new Date()) };
+        return data;
     },
+    requestStatus: data => ({ provider: 'opencode', data }),
     summary: data => buildOpenCodeUsageSummary(data),
     tables: data => [
         {
