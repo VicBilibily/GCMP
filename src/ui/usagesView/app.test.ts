@@ -19,6 +19,13 @@ const NodeModule = require('node:module') as {
     prototype: { require: (id: string) => unknown };
 };
 
+test('request records section shares the statistics table minimum width', async () => {
+    const styles = await readFile(new URL('./style.less', import.meta.url), 'utf8');
+    const sectionRule = styles.match(/\.content\s*\{[\s\S]*?> section\s*\{([^}]*)\}/)?.[1];
+    assert.ok(sectionRule);
+    assert.match(sectionRule, /min-width:\s*580px\b/);
+});
+
 test('compatible balance cells allow long unit labels to wrap while keeping emphasis', async () => {
     const styles = await readFile(new URL('./style.less', import.meta.url), 'utf8');
     const cellRule = styles.match(/\.request-balance-section-compatible\s*\{[\s\S]*?td:last-child\s*\{([^}]*)\}/)?.[1];
@@ -711,7 +718,8 @@ test('request records render output duration and average speed in static and tot
         const tooltip = balance.querySelector('.request-balance-tooltip');
         assert.ok(tooltip);
         assert.equal(Reflect.get(tooltip, 'hidden'), true);
-        assert.equal(tooltip.querySelector('.request-balance-title')?.textContent, 'Moonshot 用户账户余额');
+        assert.equal(tooltip.querySelector('.request-balance-title'), null);
+        assert.equal(tooltip.children[0].firstChild?.tagName, 'table');
         assert.equal(tooltip.querySelector('th')?.textContent, '货币');
         const enter: () => void = Reflect.get(balance, 'onmouseenter');
         const focus: () => void = Reflect.get(balance, 'onfocus');
@@ -1085,6 +1093,8 @@ test('request records render output duration and average speed in static and tot
             }).providerModel;
             assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, fixture.summary);
             const tooltip = providerModel.querySelector('.request-balance-tooltip')!;
+            assert.equal(tooltip.querySelector('.request-balance-title'), null);
+            assert.equal(tooltip.children[0].firstChild?.tagName, 'table');
             const collect = (node: TestElement): string[] => [node.textContent, ...node.children.flatMap(collect)];
             const text = collect(tooltip);
             for (const cell of fixture.cells) {
@@ -1194,10 +1204,11 @@ test('request records render output duration and average speed in static and tot
             if (scenario === 'malformed-items') {
                 Reflect.set(balance.entries[0], 'items', [null, { balance: 0, currency: 'USD' }]);
             }
-            assert.equal(
-                render({ balance }).providerModel.querySelector('.request-balance-summary')?.textContent,
-                '$0.00'
-            );
+            const providerModel = render({ balance }).providerModel;
+            assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, '$0.00');
+            const tooltip = providerModel.querySelector('.request-balance-tooltip')!;
+            assert.equal(tooltip.querySelector('.request-balance-title'), null);
+            assert.equal(tooltip.children[0].firstChild?.tagName, 'table');
         });
     }
 
@@ -1307,6 +1318,8 @@ test('request records render output duration and average speed in static and tot
                 const nodes = descendants(tooltip);
                 const times = nodes.filter(node => node.classList.contains('request-balance-row-updated'));
                 const footers = nodes.filter(node => node.classList.contains('request-balance-updated'));
+                assert.equal(tooltip.querySelector('.request-balance-title'), null);
+                assert.equal(tooltip.children[0].firstChild?.tagName, 'table');
                 assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, '$27.45 ¥575.03');
                 assert.equal(nodes.filter(node => node.tagName === 'table').length, 1);
                 assert.equal(tooltip.querySelector('.request-balance-detail'), null);

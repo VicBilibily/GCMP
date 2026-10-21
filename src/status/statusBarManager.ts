@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/runtime/statusLogger';
+import { setRequestCompletionHandler } from './requestCompletion';
 import { ChatGPTStatusBar } from './chatgptStatusBar';
 import { GrokStatusBar } from './grokStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
@@ -71,6 +72,14 @@ export class StatusBarManager {
     // ==================== 私有成员 ====================
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
     private static initialized = false;
+    private static requestRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    private static requestRefreshTimes = new Map<string, number>();
+    private static readonly REQUEST_REFRESH_DELAY_MS = 2000;
+    private static readonly REQUEST_REFRESH_INTERVAL_MS = 30000;
+
+    static {
+        setRequestCompletionHandler(providerKey => this.notifyRequestCompleted(providerKey));
+    }
 
     /** API Key 槽位名 → 状态栏注册键的别名（槽位名与注册键不一致的专属状态栏） */
     private static readonly keyAliases: Record<string, string> = {
@@ -269,10 +278,45 @@ export class StatusBarManager {
         }
     }
 
+    static notifyRequestCompleted(key: string): void {
+        if ((!this.getStatusBar(key) && !this.compatible) || this.requestRefreshTimers.has(key)) {
+            return;
+        }
+
+        const lastRefresh = this.requestRefreshTimes.get(key);
+        const delay = Math.max(
+            this.REQUEST_REFRESH_DELAY_MS,
+            lastRefresh === undefined ? 0 : this.REQUEST_REFRESH_INTERVAL_MS - (Date.now() - lastRefresh)
+        );
+        const timer = setTimeout(() => {
+            this.requestRefreshTimers.delete(key);
+            this.requestRefreshTimes.set(key, Date.now());
+            const statusBar = this.getStatusBar(key);
+            try {
+                statusBar?.delayedUpdate(0);
+            } catch (error) {
+                StatusLogger.warn(`[StatusBarManager] Request completion refresh failed for ${key}`, error);
+            }
+            if (this.compatible && this.compatible !== statusBar) {
+                try {
+                    this.compatible.delayedUpdate(key, 0);
+                } catch (error) {
+                    StatusLogger.warn(`[StatusBarManager] Compatible completion refresh failed for ${key}`, error);
+                }
+            }
+        }, delay);
+        this.requestRefreshTimers.set(key, timer);
+    }
+
     /**
      * 销毁所有状态栏项
      */
     static disposeAll(): void {
+        for (const timer of this.requestRefreshTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.requestRefreshTimers.clear();
+        this.requestRefreshTimes.clear();
         for (const [key, statusBar] of this.statusBars) {
             try {
                 statusBar.dispose();

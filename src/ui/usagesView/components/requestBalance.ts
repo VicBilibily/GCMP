@@ -10,13 +10,11 @@ type Translate = (english: string, chinese: string) => string;
 
 interface BalanceSection {
     id: string;
-    title: string;
     text: string;
     tables: QuotaTable[];
     details?: string[];
     rowUpdates?: string[];
     balanceItems?: Array<BalanceQueryItem & { name: string }>;
-    groupTitle?: string;
     updatedAt: string;
     translate: Translate;
 }
@@ -114,31 +112,8 @@ function fromSnapshot(snapshot: RequestStatusSnapshot): BalanceSection | undefin
         return undefined;
     }
     const translate = translateCurrent;
-    const titles: Record<RequestStatusSnapshot['provider'], [string, string]> = {
-        deepseek: ['DeepSeek Account Balance', 'DeepSeek 用户余额详情'],
-        moonshot: ['Moonshot Account Balance', 'Moonshot 用户账户余额'],
-        commandcode: ['CommandCode Usage', 'CommandCode 使用情况'],
-        clinepass: ['ClinePass Usage', 'ClinePass 使用情况'],
-        'minimax-token': ['MiniMax Usage', 'MiniMax 使用情况'],
-        kimi: ['Kimi For Coding Usage', 'Kimi For Coding 使用情况'],
-        opencode: ['OpenCode Usage', 'OpenCode 使用情况'],
-        codex: ['ChatGPT Usage', 'ChatGPT 使用情况'],
-        grok: ['Grok Usage', 'Grok 使用情况'],
-        zhipu: ['Zhipu Usage', '智谱使用情况'],
-        compatible: ['Balance', '余额']
-    };
-    const title = titles[snapshot.provider];
-    if (!title) {
-        return undefined;
-    }
-    const plan =
-        snapshot.provider === 'commandcode' ? snapshot.data.planId
-        : snapshot.provider === 'codex' ? snapshot.data.planType
-        : snapshot.provider === 'grok' ? snapshot.data.usage.subscriptionTier
-        : undefined;
     const section: BalanceSection = {
         id: snapshot.provider,
-        title: `${translate(...title)}${plan ? ` (${plan})` : ''}`,
         text: '',
         tables: [],
         updatedAt: dateText(snapshot.queriedAt),
@@ -568,8 +543,6 @@ function fromSnapshot(snapshot: RequestStatusSnapshot): BalanceSection | undefin
             const { providerId, providerName, balanceInfo } = snapshot.data;
             const items: BalanceQueryItem[] = balanceInfo.items?.length ? balanceInfo.items : [balanceInfo];
             section.id = providerId;
-            section.title = providerName;
-            section.groupTitle = translate('Balance', '余额');
             section.text = items.map(item => amount(item.balance, item.currency, translate)).join(' ');
             section.balanceItems = items.map(item => ({
                 ...item,
@@ -610,7 +583,6 @@ function sectionsFor(balance: RequestBalanceLog): BalanceSection[] {
     if (legacy.length) {
         sections.push({
             id: 'legacy',
-            title: translateCurrent('Balance', '余额'),
             text: legacy.map(item => amount(item.balance, item.currency, translateCurrent)).join(' '),
             tables: [balancesTable(legacy, translateCurrent)],
             updatedAt: dateText(balance.queriedAt),
@@ -625,7 +597,6 @@ function sectionsFor(balance: RequestBalanceLog): BalanceSection[] {
     const sharedUpdateTime = compatible.every(section => section.updatedAt === first.updatedAt);
     const combined: BalanceSection = {
         ...first,
-        title: first.groupTitle ?? first.title,
         text: compatible.map(section => section.text).join(' '),
         tables: [
             balancesTable(
@@ -715,7 +686,6 @@ export function createRequestBalance(balance: RequestBalanceLog | null | undefin
                 'request-balance-section request-balance-section-compatible'
             :   'request-balance-section'
         );
-        group.appendChild(createElement('div', 'request-balance-title', { textContent: section.title }));
         for (const table of section.tables) {
             appendTable(group, table, section.rowUpdates);
         }

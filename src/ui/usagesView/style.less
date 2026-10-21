@@ -16,100 +16,6 @@ body {
     overflow: hidden;
 }
 
-.request-balance-tooltip {
-    position: fixed;
-    z-index: 1000;
-    width: max-content;
-    max-width: min(520px, calc(100vw - 16px));
-    max-height: calc(100vh - 16px);
-    overflow: auto;
-    box-sizing: border-box;
-    padding: 10px;
-    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
-    background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
-    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
-    font-size: 12px;
-    line-height: 1.45;
-    white-space: normal;
-    overflow-wrap: anywhere;
-
-    &[hidden] {
-        display: none;
-    }
-
-    .request-balance-section + .request-balance-section {
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid var(--vscode-panel-border);
-    }
-
-    .request-balance-title {
-        margin-bottom: 6px;
-        font-weight: 600;
-    }
-
-    .request-balance-table-title {
-        padding: 6px 0;
-        text-align: left;
-        font-weight: 600;
-    }
-
-    .request-balance-detail {
-        margin-top: 6px;
-        overflow-wrap: anywhere;
-    }
-
-    .request-balance-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 11px;
-        font-variant-numeric: tabular-nums;
-
-        & + .request-balance-table {
-            margin-top: 8px;
-        }
-
-        th,
-        td {
-            padding: 4px 6px;
-            vertical-align: top;
-            white-space: normal;
-            overflow-wrap: anywhere;
-        }
-
-        th {
-            text-align: left;
-            overflow-wrap: normal;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-    }
-
-    .request-balance-updated {
-        margin-top: 8px;
-        color: var(--vscode-descriptionForeground);
-        font-size: 11px;
-    }
-
-    .request-balance-row-updated {
-        margin-top: 2px;
-        color: var(--vscode-descriptionForeground);
-        font-size: 11px;
-        font-weight: 400;
-    }
-
-    .request-balance-section-compatible {
-        tbody tr + tr td {
-            border-top: 1px solid var(--vscode-panel-border);
-        }
-
-        td:last-child {
-            font-weight: 600;
-        }
-    }
-}
-
 .container {
     display: flex;
     height: 100vh;
@@ -228,6 +134,10 @@ body {
         overflow-y: auto;
         padding: 10px;
         position: relative;
+
+        > section {
+            min-width: 580px;
+        }
 
         .sidebar-toggle {
             position: absolute;
@@ -822,6 +732,8 @@ body {
 
     /* 列宽分配 */
     .records-table {
+        min-width: 520px;
+
         th {
             height: 16px;
         }
@@ -838,7 +750,7 @@ body {
         /* 第2列（提供商/模型） */
         th:nth-child(2),
         td:nth-child(2) {
-            width: 50%;
+            width: auto;
             min-width: 120px;
         }
 
@@ -1031,7 +943,9 @@ body {
                 flex: 0 1 auto;
                 min-width: 0;
                 max-width: 26ch;
-                font-size: 0.85em;
+                font-size: 1em;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
                 color: var(--vscode-foreground);
                 cursor: default;
 
@@ -1249,6 +1163,95 @@ button {
     }
 }
 
+.request-balance-tooltip {
+    position: fixed;
+    z-index: 1000;
+    width: max-content;
+    max-width: min(520px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+    overflow: auto;
+    box-sizing: border-box;
+    padding: 10px;
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+
+    &[hidden] {
+        display: none;
+    }
+
+    .request-balance-section + .request-balance-section {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--vscode-panel-border);
+    }
+
+    .request-balance-table-title {
+        padding: 6px 0;
+        text-align: left;
+        font-weight: 600;
+    }
+
+    .request-balance-detail {
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+
+    .request-balance-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+
+        & + .request-balance-table {
+            margin-top: 8px;
+        }
+
+        th,
+        td {
+            padding: 4px 6px;
+            vertical-align: top;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        th {
+            text-align: left;
+            overflow-wrap: normal;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+    }
+
+    .request-balance-updated {
+        margin-top: 8px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+    }
+
+    .request-balance-row-updated {
+        margin-top: 2px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+        font-weight: 400;
+    }
+
+    .request-balance-section-compatible {
+        tbody tr + tr td {
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+
+        td:last-child {
+            font-weight: 600;
+        }
+    }
+}
+
 .status-completed {
     color: var(--vscode-testing-iconPassed);
 
@@ -1304,7 +1307,7 @@ button {
 .pagination {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: safe center;
     flex-wrap: nowrap;
     width: 100%;
     gap: 8px;

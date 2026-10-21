@@ -15,6 +15,7 @@ import {
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { getCachedRequestBalanceForRequest } from '../quota/requestBalance';
+import { notifyRequestCompleted } from '../status/requestCompletion';
 import { RateLimiter, type RateLimitHandle } from '../rateLimit/rateLimiter';
 import { sanitizeAuthoritativeDims } from '../rateLimit/rateLimitStore';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
@@ -1039,6 +1040,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let assistantResponseBuffer = '';
         let hasReportedProgress = false;
         let attemptDispatched = false;
+        let requestDispatched = false;
         let attemptDiagnostics: RequestDiagnostics | undefined;
         let requestOutcome: 'completed' | 'failed' | 'cancelled' = 'failed';
         const requestMetadata = this.getEstimatedRequestMetadata(options);
@@ -1228,6 +1230,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 await captureRequestApiKeyNames(effectiveProviderKey, requestSite, token)
                             :   undefined;
                         const handleRequestDispatched = (attemptStartedAt: number) => {
+                            requestDispatched = true;
                             const apiKeyHash = ApiKeyManager.getRequestApiKeyHash(attemptModelConfig);
                             const balance =
                                 requestId ?
@@ -1740,6 +1743,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     providerName: this.providerConfig.displayName,
                     modelName: model.name || modelConfig.name
                 });
+            }
+            if (requestDispatched) {
+                try {
+                    notifyRequestCompleted(effectiveProviderKey);
+                } catch (error) {
+                    Logger.warn('Failed to schedule request completion refresh:', error);
+                }
             }
         }
     }

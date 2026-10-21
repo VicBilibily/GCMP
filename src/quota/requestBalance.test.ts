@@ -9,13 +9,19 @@ import type { QuotaStatusAdapter } from './statusAdapters/types';
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as { prototype: { require(id: string): unknown } };
 
-test('request providers do not schedule additional balance queries', async () => {
+test('request providers share one completion notification without directly querying balances', async () => {
     for (const provider of ['generic', 'compatible', 'moonshot', 'minimax', 'zhipu']) {
         const source = await readFile(
             new URL(`../providers/${provider === 'generic' ? 'genericModel' : provider}Provider.ts`, import.meta.url),
             'utf8'
         );
         assert.doesNotMatch(source, /\.delayedUpdate\s*\(/);
+        if (provider === 'generic') {
+            assert.match(source, /notifyRequestCompleted\(effectiveProviderKey\)/);
+            assert.match(source, /from '\.\.\/status\/requestCompletion'/);
+            assert.doesNotMatch(source, /from '\.\.\/status(?:\/statusBarManager)?'/);
+            assert.equal(source.match(/\bnotifyRequestCompleted\s*\(/g)?.length, 1);
+        }
     }
 });
 
