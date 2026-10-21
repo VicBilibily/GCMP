@@ -13,9 +13,9 @@ const FEATURES = [
     },
     {
         enTitle: 'Any Compatible Model',
-        enDesc: 'Compatible with OpenAI and Anthropic API standards. Connect any third-party cloud service model with custom configuration.',
+        enDesc: 'Connect custom cloud services through OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, or Gemini GenerateContent APIs.',
         zhTitle: '任意兼容模型接入',
-        zhDesc: '适配 OpenAI 与 Anthropic API 兼容接口，自定义接入任何第三方云服务模型。'
+        zhDesc: '支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 和 Gemini GenerateContent 接口，自定义接入第三方云服务。'
     },
     {
         enTitle: 'Seamless Copilot Chat',
@@ -25,9 +25,9 @@ const FEATURES = [
     },
     {
         enTitle: 'Usage Quota Tracking',
-        enDesc: 'Status bar shows real-time Coding Plan / Token Plan remaining quota, account balance, and expiry date.',
+        enDesc: 'Periodically updated status-bar quotas, balances, and expiry dates. Request records retain cached balance snapshots for later review.',
         zhTitle: '套餐用量查询',
-        zhDesc: '状态栏实时显示 Coding Plan / Token Plan 周期剩余用量、账户余额与到期时间。'
+        zhDesc: '状态栏定期更新套餐剩余用量、账户余额与到期时间；请求记录保留派发时的缓存快照，便于历史核对。'
     },
     {
         enTitle: 'Auxiliary Preferences',

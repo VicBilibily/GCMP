@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.2] - 2026-10-21
+
+### 新增
+
+- **请求余额与额度快照**：在请求实际派发时记录所用凭据对应的余额或剩余额度，在 Key 标签旁展示摘要，悬停或聚焦可查看明细；支持原生提供商及 Compatible 多项查询结果，并可离线查看历史快照，按当前界面语言展示。未保存快照的旧请求不会使用当前额度回填。
+
+### 修复
+
+- **额度缓存与跨窗口同步**：完善多 Key 额度缓存的时间与归属校验，保留各项真实查询时间，防止旧结果覆盖较新数据；忽略无效或未来的同步时间戳，避免后续正常更新被阻塞。
+
+### 变更
+
+- **统计同步与自动刷新**：状态栏、用量详情和多日分析增加周期校正，改善通知遗漏、主实例交接、详情读取失败及慢查询后的刷新恢复，并减少稳定历史统计的重复读取。
+- **余额刷新调度**：请求完成后通知状态栏进行受限后台刷新，按提供商合并通知，默认延迟 2 秒、调度间隔至少 30 秒，冷却期内的新通知保留一次尾部刷新；周期和手动刷新继续生效，刷新结果不会回填已记录的请求快照。
+
+---
+
+### Added
+
+- **Request balance and quota snapshots**: Records the balance or remaining quota associated with the credentials actually used when a request is dispatched. Summaries appear beside the key label, with details available on hover or focus. Supports native providers and multiple Compatible query results, offline history viewing, and the current UI language. Older requests without snapshots are not backfilled with current quota values.
+
+### Fixed
+
+- **Quota caching and cross-window synchronization**: Improved credential and timestamp validation for multi-key quota caches, preserving each query's original completion time and preventing older results from replacing newer data. Invalid or future synchronization timestamps are ignored so they cannot block subsequent valid updates.
+
+### Changed
+
+- **Statistics synchronization and automatic refresh**: Added periodic reconciliation for status bars, usage details, and multi-day analysis, improving refresh recovery after missed notifications, Leader handoff, detail read failures, and slow queries while reducing repeated reads of unchanged historical statistics.
+- **Balance refresh scheduling**: Completed requests notify the status bar to schedule rate-limited background refreshes. Notifications are coalesced per provider, with a default 2-second delay, at least 30 seconds between scheduled refreshes, and one trailing refresh for notifications received during cooldown. Periodic and manual refreshes remain available, and refreshed values never overwrite recorded request snapshots.
+
 ## [0.29.1] - 2026-10-20
 
 ### 新增

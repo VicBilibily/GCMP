@@ -7,6 +7,7 @@ const SECTIONS = [
     { id: 'installation', en: 'Installation', zh: '安装' },
     { id: 'quick-start', en: 'Quick Start', zh: '快速开始' },
     { id: 'auxiliary-models', en: 'Auxiliary Models', zh: '辅助模型' },
+    { id: 'usage-statistics', en: 'Usage Statistics', zh: '用量统计' },
     { id: 'configs', en: 'Model Configs', zh: '模型配置分发' },
     { id: 'troubleshooting', en: 'Troubleshooting', zh: '常见问题' },
     { id: 'links', en: 'Related Links', zh: '相关链接' }
@@ -36,8 +37,8 @@ export default function Page() {
                     <h2>{t('Introduction', '简介')}</h2>
                     <p>
                         {t(
-                            'GCMP (AI Chat Models) connects native model providers to the GitHub Copilot Chat model picker. It also supports custom cloud services with OpenAI- and Anthropic-compatible APIs.',
-                            'GCMP（AI Chat Models）将原生大模型提供商接入 GitHub Copilot Chat 的模型选择器，也支持通过 OpenAI、Anthropic 兼容接口接入自定义云服务。'
+                            'GCMP (AI Chat Models) connects native model providers to the GitHub Copilot Chat model picker. It also supports custom cloud services through OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini GenerateContent APIs.',
+                            'GCMP（AI Chat Models）将原生大模型提供商接入 GitHub Copilot Chat 的模型选择器，也支持通过 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 和 Gemini GenerateContent 接口接入自定义云服务。'
                         )}{' '}
                         <a href="/models">
                             {t(
@@ -168,6 +169,48 @@ export default function Page() {
                             '，或在状态栏 Token 消耗图标的每日统计菜单中点击「设置辅助偏好」，在可视化面板统一配置。'
                         )}
                     </p>
+                </section>
+
+                <section className="docs-section" id="usage-statistics">
+                    <h2>{t('Usage Statistics and Balance Snapshots', '用量统计与余额快照')}</h2>
+                    <p>
+                        {t(
+                            'Click the token-usage indicator in the status bar to open usage details, including historical dates and paginated request records.',
+                            '点击状态栏的 Token 用量显示，可打开统计详情，查看历史日期与分页请求记录。'
+                        )}
+                    </p>
+                    <ul>
+                        <li>
+                            {t(
+                                'A balance or remaining-quota summary appears beside the request key label. Hover or focus it for details and query times. Native providers and multiple Compatible queries are supported; saved snapshots work offline and use the current UI language.',
+                                '请求 Key 标签旁展示余额或剩余额度摘要，悬停或聚焦可查看明细与查询时间。支持原生提供商和 Compatible 多项查询；已保存快照可离线查看，展示语言跟随当前界面。'
+                            )}
+                        </li>
+                        <li>
+                            {t(
+                                'At actual dispatch, snapshots read existing valid cached data for the credentials being used, without an additional query to save the snapshot. The query time can precede the request start; it is not a real-time balance or the actual charge for that request.',
+                                '快照在请求实际派发时读取所用凭据对应的已有有效缓存，不会为保存快照额外查询接口。查询时间可能早于请求开始时间，不代表该次请求的实时余额或实际扣费。'
+                            )}
+                        </li>
+                        <li>
+                            {t(
+                                "A snapshot may be unavailable if no query has completed, a query failed without a valid cache, or the cache expired. Another key's balance is never substituted.",
+                                '尚未查询、查询失败且没有有效缓存，或缓存已过期时，可能没有可展示的快照；不会使用其他 Key 的余额替代。'
+                            )}
+                        </li>
+                        <li>
+                            {t(
+                                'After a dispatched request ends, refresh notifications are coalesced per provider within each window, with a default 2-second delay and at least 30 seconds between scheduled refreshes. Notifications during cooldown retain one trailing refresh; periodic and manual refreshes remain available.',
+                                '实际派发的请求结束后，在同一窗口内按提供商合并刷新通知，默认延迟 2 秒、调度间隔至少 30 秒；冷却期内的新通知保留一次尾部刷新，周期和手动刷新仍可用。'
+                            )}
+                        </li>
+                        <li>
+                            {t(
+                                'Later refreshes do not overwrite saved request snapshots. Older requests without snapshots are not backfilled with current quota values.',
+                                '后续刷新不会覆盖已保存的请求快照；没有快照的旧请求也不会使用当前额度回填。'
+                            )}
+                        </li>
+                    </ul>
                 </section>
 
                 <section className="docs-section" id="configs">

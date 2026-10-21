@@ -42,7 +42,7 @@ Copilot Harness is not yet fully supported. Startup guidance recommends switchin
     // General utility tasks: title generation, summaries, intent classification, rename suggestions, terminal commands/fixes, search, VS Code Q&A
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
     // Lightweight utility tasks: commit messages, branch names, progress messages, todo tracking
-    "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash",
+    "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-flash",
     // Inline Chat default model
     "inlineChat.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // Agent-mode sub-agents for exploration/planning (e.g., codebase search, plan generation)
@@ -65,7 +65,7 @@ Copilot Harness is not yet fully supported. Startup guidance recommends switchin
 }
 ```
 
-> **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-v4-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks.
+> **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks.
 >
 > When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models.
 >
@@ -922,6 +922,7 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 - **Real-time status bar**: Status bar displays today's token usage, auto-refreshing every 30 seconds
 - **Incremental estimation**: Supports delta estimation based on the previous request's actual API usage. The WebView detail view shows a "this request" increment column (`~+xx`) to help track per-request token growth in long conversations
 - **Visual view**: WebView detail view supports viewing history and paginated request records
+- **Request balance and quota snapshots**: Displays the cached balance or remaining quota associated with the credentials actually used at dispatch beside the key label, with offline historical details
 - **Request kind classification**: Records and displays the Copilot request kind for each request (e.g., main agent, title generation, commit message, search subagent, vision recognition) so you can track the actual consumption of background utility tasks
 - **Real-time Request Metrics**: Displays time-to-first-token (TTFT) and time-per-output-token (TPOT) in real time during streaming, naturally refreshed by actual usage once completed
 - **Real-time Output Token Estimation**: Streaming-phase output tokens and output speed (tokens/s) are estimated in real time via tokenizer; the output column shows the "last received estimation delta" (`+xx tks`), replaced by actual usage once completed
@@ -936,6 +937,14 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 - **View statistics**: Click the token usage indicator in the status bar, or run `GCMP: View Today's Token Usage Details` from the command palette
 - **History**: View statistics for any date in the detail view
 - **Data management**: Open the log storage directory for manual management
+
+### Request Balance and Quota Snapshots
+
+- **View details**: Request records show a balance or remaining-quota summary beside the key label. Hover or focus the summary to see details and query times. Native providers and multiple Compatible queries are supported; historical snapshots work offline and use the current UI language.
+- **Cache boundary**: At actual dispatch, the request reads existing valid cached data for the credentials being used. Saving a snapshot does not make an additional query. Its query time can precede the request start; it is not a real-time balance or the actual charge for that request.
+- **Missing data**: A snapshot may be unavailable if no query has completed, a query failed without a valid cache, or the cache expired. Another key's balance is never substituted.
+- **Refresh scheduling**: After a dispatched request ends, refresh notifications are coalesced per provider within each window, with a default 2-second delay and at least 30 seconds between scheduled refreshes. Notifications during cooldown retain one trailing refresh; periodic and manual refreshes remain available.
+- **No historical backfill**: Later refreshes update current status-bar data without overwriting saved request snapshots. Older requests without snapshots are not backfilled with current quota values.
 
 ### Configuration
 
