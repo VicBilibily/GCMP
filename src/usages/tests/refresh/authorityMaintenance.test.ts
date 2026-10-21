@@ -245,7 +245,7 @@ test('periodic index maintenance follows owned authority terms', { timeout: 3000
                                 observed.scans.mock.callCount(),
                                 observed.loads.mock.callCount()
                             ],
-                            counts
+                            [counts[0] + round + 1, counts[1] + round + 1, counts[2] + 2 * (round + 1)]
                         );
                     }
                     async function assertBodies() {
@@ -267,44 +267,41 @@ test('periodic index maintenance follows owned authority terms', { timeout: 3000
             );
         }
 
-        await suite.test(
-            'first-per-term maintenance precedes today and never becomes an hourly scan',
-            async context => {
-                const f = await fixture(context);
-                const observed = observe(context, f);
-                const order: string[] = [];
-                const getIndex = f.fileLogger.getIndex.bind(f.fileLogger);
-                const maintenance = context.mock.method(f.fileLogger, 'getIndex', () => {
-                    order.push('maintenance');
-                    return getIndex();
-                });
-                const refresh = f.fileLogger.refreshStats.bind(f.fileLogger);
-                context.mock.method(f.fileLogger, 'refreshStats', (...args: Parameters<typeof refresh>) => {
-                    assert.equal(args[0], f.today);
-                    order.push('today');
-                    return refresh(...args);
-                });
-                const intervals = context.mock.method(globalThis, 'setInterval');
-                let now = Date.now();
-                context.mock.method(Date, 'now', () => now);
-                const tick = register(f, 'leader', f.clock);
+        await suite.test('each-cycle maintenance precedes today without raw log scans', async context => {
+            const f = await fixture(context);
+            const observed = observe(context, f);
+            const order: string[] = [];
+            const getIndex = f.fileLogger.getIndex.bind(f.fileLogger);
+            const maintenance = context.mock.method(f.fileLogger, 'getIndex', () => {
+                order.push('maintenance');
+                return getIndex();
+            });
+            const refresh = f.fileLogger.refreshStats.bind(f.fileLogger);
+            context.mock.method(f.fileLogger, 'refreshStats', (...args: Parameters<typeof refresh>) => {
+                assert.equal(args[0], f.today);
+                order.push('today');
+                return refresh(...args);
+            });
+            const intervals = context.mock.method(globalThis, 'setInterval');
+            let now = Date.now();
+            context.mock.method(Date, 'now', () => now);
+            const tick = register(f, 'leader', f.clock);
+            await tick();
+            assert.deepEqual(order, ['maintenance', 'today']);
+            assert.equal(maintenance.mock.callCount(), 1);
+            assert.equal(observed.scans.mock.callCount(), 1);
+            assert.equal(observed.loads.mock.callCount(), 2);
+            for (const hours of [0, 1, 3, 6]) {
+                now += hours * 60 * 60 * 1000;
                 await tick();
-                assert.deepEqual(order, ['maintenance', 'today']);
-                assert.equal(maintenance.mock.callCount(), 1);
-                assert.equal(observed.scans.mock.callCount(), 1);
-                assert.equal(observed.loads.mock.callCount(), 2);
-                for (const hours of [0, 1, 3, 6]) {
-                    now += hours * 60 * 60 * 1000;
-                    await tick();
-                }
-                assert.deepEqual(order, ['maintenance', 'today', 'today', 'today', 'today', 'today']);
-                assert.equal(maintenance.mock.callCount(), 1);
-                assert.equal(observed.scans.mock.callCount(), 1);
-                assert.equal(observed.loads.mock.callCount(), 2);
-                assert.equal(intervals.mock.callCount(), 0);
-                observed.assertNoRecalculation();
             }
-        );
+            assert.deepEqual(order, Array.from({ length: 5 }, () => ['maintenance', 'today']).flat());
+            assert.equal(maintenance.mock.callCount(), 5);
+            assert.equal(observed.scans.mock.callCount(), 5);
+            assert.equal(observed.loads.mock.callCount(), 10);
+            assert.equal(intervals.mock.callCount(), 0);
+            observed.assertNoRecalculation();
+        });
 
         await suite.test('a new owned term on the same instance gets one new maintenance', async context => {
             const f = await fixture(context);
@@ -319,9 +316,9 @@ test('periodic index maintenance follows owned authority terms', { timeout: 3000
             await tick();
             assert.equal(maintenance.mock.callCount(), 2);
             await tick();
-            assert.equal(maintenance.mock.callCount(), 2);
-            assert.equal(observed.scans.mock.callCount(), 2);
-            assert.equal(observed.loads.mock.callCount(), 4);
+            assert.equal(maintenance.mock.callCount(), 3);
+            assert.equal(observed.scans.mock.callCount(), 3);
+            assert.equal(observed.loads.mock.callCount(), 6);
             observed.assertNoRecalculation();
         });
 
@@ -391,8 +388,8 @@ test('periodic index maintenance follows owned authority terms', { timeout: 3000
             await tick();
             assert.equal(attempts, 2);
             await tick();
-            assert.equal(attempts, 2);
-            assert.deepEqual(order, ['maintenance', 'today', 'maintenance', 'today', 'today']);
+            assert.equal(attempts, 3);
+            assert.deepEqual(order, ['maintenance', 'today', 'maintenance', 'today', 'maintenance', 'today']);
             assert.equal(updates().length, 1);
         });
 
@@ -423,9 +420,9 @@ test('periodic index maintenance follows owned authority terms', { timeout: 3000
             await tick();
             assert.equal(attempts, 2);
             await tick();
-            assert.equal(attempts, 2);
-            assert.equal(observed.scans.mock.callCount(), 2);
-            assert.equal(observed.loads.mock.callCount(), 4);
+            assert.equal(attempts, 3);
+            assert.equal(observed.scans.mock.callCount(), 3);
+            assert.equal(observed.loads.mock.callCount(), 6);
             observed.assertNoRecalculation();
         });
     } finally {

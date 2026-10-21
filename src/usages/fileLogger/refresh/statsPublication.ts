@@ -1,46 +1,38 @@
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { createHash } from 'crypto';
 import { AtomicJsonFile } from '../../atomicJsonFile';
 import type { TokenUsageStatsFromFile } from '../types';
 
-interface PublicationMarker {
-    pending: string[];
-    baseVersion?: string;
-    baseFingerprint?: string;
-}
-
 export class StatsPublication {
-    private static readonly MAX_CACHED_VERSIONS = 256;
     private readonly versions = new Map<string, { signature: string; fingerprint: string }>();
+    private readonly applied = new Map<string, string>();
 
     async readPendingStats(statsPath: string): Promise<TokenUsageStatsFromFile | undefined> {
         return AtomicJsonFile.runExclusive(statsPath, async () => {
-            const marker = await this.read(statsPath);
-            if (!marker?.pending.length) {
-                return;
-            }
-            const published = await this.readAcknowledgement(statsPath);
-            if (
-                marker.pending.every(fingerprint => fingerprint === published) &&
-                (marker.baseFingerprint !== published || marker.baseVersion === (await this.statsVersion(statsPath)))
-            ) {
-                return;
-            }
-            return (await this.readCommittedPublication(statsPath, marker, published))?.stats;
+            const current = await this.readCommitted(statsPath, true);
+            return current?.fingerprint !== this.applied.get(statsPath) ? current?.stats : undefined;
         });
     }
 
-    private async readCommittedPublication(
+    private async readCommitted(
         statsPath: string,
-        marker: PublicationMarker,
-        published: string | undefined
-    ) {
+        includeStats = false
+    ): Promise<
+        | {
+              signature: string;
+              fingerprint: string;
+              stats?: TokenUsageStatsFromFile;
+          }
+        | undefined
+    > {
         try {
             const signature = await this.statsVersion(statsPath);
             const cached = this.versions.get(statsPath);
-            if (cached?.signature === signature && cached.fingerprint === published) {
-                return;
+            if (
+                cached?.signature === signature &&
+                (!includeStats || cached.fingerprint === this.applied.get(statsPath))
+            ) {
+                return cached;
             }
             const stats = JSON.parse(await fs.readFile(statsPath, 'utf8')) as TokenUsageStatsFromFile;
             if (!stats?.total || typeof stats.total !== 'object' || Array.isArray(stats.total)) {
@@ -48,17 +40,11 @@ export class StatsPublication {
             }
             const fingerprint = createHash('sha256').update(JSON.stringify(stats)).digest('hex');
             if ((await this.statsVersion(statsPath)) !== signature) {
+                this.versions.delete(statsPath);
                 return;
             }
-            this.versions.delete(statsPath);
             this.versions.set(statsPath, { signature, fingerprint });
-            if (this.versions.size > StatsPublication.MAX_CACHED_VERSIONS) {
-                this.versions.delete(this.versions.keys().next().value!);
-            }
-            const committed = marker.baseVersion !== undefined && marker.baseVersion !== signature;
-            return (marker.pending.includes(fingerprint) || committed) && fingerprint !== published ?
-                    { stats, fingerprint }
-                :   undefined;
+            return { signature, stats, fingerprint };
         } catch (error) {
             this.versions.delete(statsPath);
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -68,61 +54,22 @@ export class StatsPublication {
         }
     }
 
-    async prepare(
-        statsPath: string,
-        fingerprint: string,
-        previousFingerprint?: string,
-        canWrite?: () => boolean
-    ): Promise<void> {
-        const baseVersion = await this.statsVersion(statsPath);
-        if (previousFingerprint === undefined) {
-            try {
-                const previous: unknown = JSON.parse(await fs.readFile(statsPath, 'utf8'));
-                previousFingerprint = createHash('sha256').update(JSON.stringify(previous)).digest('hex');
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) {
-                    throw error;
+    retain(statsPaths: ReadonlySet<string>): void {
+        for (const entries of [this.versions, this.applied]) {
+            for (const statsPath of entries.keys()) {
+                if (!statsPaths.has(statsPath)) {
+                    entries.delete(statsPath);
                 }
             }
         }
-        const marker = await this.read(statsPath);
-        const pending = new Set([fingerprint]);
-        if (
-            previousFingerprint &&
-            marker &&
-            (marker.pending.includes(previousFingerprint) ||
-                (marker.baseVersion !== undefined && marker.baseVersion !== baseVersion)) &&
-            (await this.readAcknowledgement(statsPath)) !== previousFingerprint
-        ) {
-            pending.add(previousFingerprint);
-        }
-        await AtomicJsonFile.writeJsonAtomically(
-            this.markerPath(statsPath),
-            {
-                pending: [...pending],
-                baseVersion,
-                ...(previousFingerprint !== undefined ? { baseFingerprint: previousFingerprint } : {})
-            },
-            undefined,
-            canWrite
-        );
     }
 
     async isPending(statsPath: string, fingerprint: string): Promise<boolean> {
         return AtomicJsonFile.runExclusive(statsPath, async () => {
-            const marker = await this.read(statsPath);
-            if (!marker) {
+            if (this.applied.get(statsPath) === fingerprint) {
                 return false;
             }
-            const published = await this.readAcknowledgement(statsPath);
-            if (published === fingerprint) {
-                return false;
-            }
-            return (
-                marker.pending.includes(fingerprint) ||
-                (marker.baseVersion !== undefined &&
-                    (await this.readCommittedPublication(statsPath, marker, published))?.fingerprint === fingerprint)
-            );
+            return (await this.readCommitted(statsPath))?.fingerprint === fingerprint;
         });
     }
 
@@ -131,21 +78,14 @@ export class StatsPublication {
             if (!canWrite()) {
                 return false;
             }
-            const marker = await this.read(statsPath);
-            if (!canWrite() || !marker) {
+            const current = await this.readCommitted(statsPath);
+            if (!canWrite() || current?.fingerprint !== fingerprint) {
                 return false;
             }
-            const published = await this.readAcknowledgement(statsPath);
-            const pending =
-                marker.pending.includes(fingerprint) ||
-                (marker.baseVersion !== undefined &&
-                    (await this.readCommittedPublication(statsPath, marker, published))?.fingerprint === fingerprint);
-            if (!canWrite() || !pending) {
+            if (!canWrite()) {
                 return false;
             }
-            if (published !== fingerprint) {
-                await AtomicJsonFile.writeJsonAtomically(this.acknowledgementPath(statsPath), fingerprint);
-            }
+            this.applied.set(statsPath, fingerprint);
             return true;
         });
     }
@@ -157,57 +97,6 @@ export class StatsPublication {
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 return 'missing';
-            }
-            throw error;
-        }
-    }
-
-    private markerPath(statsPath: string): string {
-        return path.join(path.dirname(statsPath), 'stats-publication.json');
-    }
-
-    private acknowledgementPath(statsPath: string): string {
-        return path.join(path.dirname(statsPath), 'stats-published.json');
-    }
-
-    private async readAcknowledgement(statsPath: string): Promise<string | undefined> {
-        try {
-            const fingerprint: unknown = JSON.parse(await fs.readFile(this.acknowledgementPath(statsPath), 'utf8'));
-            if (typeof fingerprint !== 'string') {
-                throw new Error('Invalid statistics publication acknowledgement');
-            }
-            return fingerprint;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                return undefined;
-            }
-            throw error;
-        }
-    }
-
-    private async read(statsPath: string): Promise<PublicationMarker | undefined> {
-        try {
-            const marker: unknown = JSON.parse(await fs.readFile(this.markerPath(statsPath), 'utf8'));
-            if (
-                typeof marker !== 'object' ||
-                marker === null ||
-                !('pending' in marker) ||
-                !Array.isArray(marker.pending) ||
-                marker.pending.length > 2 ||
-                !marker.pending.every((value: unknown) => typeof value === 'string') ||
-                ('baseVersion' in marker && typeof marker.baseVersion !== 'string') ||
-                ('baseFingerprint' in marker && typeof marker.baseFingerprint !== 'string')
-            ) {
-                throw new Error('Invalid statistics publication marker');
-            }
-            return {
-                pending: marker.pending as string[],
-                ...('baseVersion' in marker ? { baseVersion: marker.baseVersion as string } : {}),
-                ...('baseFingerprint' in marker ? { baseFingerprint: marker.baseFingerprint as string } : {})
-            };
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                return undefined;
             }
             throw error;
         }

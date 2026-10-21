@@ -157,10 +157,21 @@ export async function diskState(f: LifecycleFixture) {
     const [stats, index, marker, receipt] = await Promise.all([
         readFile(f.statsPath, 'utf8'),
         readFile(join(f.dir, 'usages', 'index.json'), 'utf8'),
-        readFile(join(f.dir, 'usages', f.date, 'stats-publication.json'), 'utf8'),
-        readFile(join(f.dir, 'usages', f.date, 'stats-published.json'), 'utf8')
+        readLegacy(join(f.dir, 'usages', f.date, 'stats-publication.json')),
+        readLegacy(join(f.dir, 'usages', f.date, 'stats-published.json'))
     ]);
     return { stats, index, marker, receipt };
+}
+
+async function readLegacy(path: string): Promise<string | undefined> {
+    try {
+        return await readFile(path, 'utf8');
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return undefined;
+        }
+        throw error;
+    }
 }
 
 export function assertDiskCount(state: Awaited<ReturnType<typeof diskState>>, date: string, count: number): void {

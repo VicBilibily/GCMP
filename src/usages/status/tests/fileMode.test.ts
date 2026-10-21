@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
+import { AtomicJsonFile } from '../../atomicJsonFile';
 import { createUsageHost } from '../../tests/hostFixture';
 import { DateUtils } from '../../fileLogger/dateUtils';
 import { stats } from './fixture';
@@ -115,4 +116,71 @@ test('isolated status snapshots read actual saved files without raw aggregation 
         assert.equal((JSON.parse(await readFile(f.path, 'utf8')) as ReturnType<typeof stats>).total.requests, 5);
         f.assertNoWork();
     });
+
+    await t.test('an owned snapshot reconciles after a missed notification and honors explicit pulls', async c => {
+        host.reset();
+        Object.assign(host.bus, { publishIpcOnly: () => true });
+        let now = Date.now();
+        c.mock.method(Date, 'now', () => now);
+        let current = stats(4);
+        let reads = 0;
+        const service = new UsageStatusSnapshots(
+            false,
+            async () => current,
+            async () => {
+                reads++;
+                return current;
+            }
+        );
+        c.after(() => service.dispose());
+        assert.equal((await service.get())?.stats.total.requests, 4);
+        current = stats(5);
+        assert.equal((await service.get())?.stats.total.requests, 4);
+        now += 30001;
+        assert.equal((await service.get())?.stats.total.requests, 5);
+        assert.equal(reads, 2);
+        current = stats(6);
+        assert.equal((await service.get(true))?.stats.total.requests, 6);
+        assert.equal(reads, 3);
+    });
+
+    for (const mode of ['forced-fresh', 'forced-expired', 'expired'] as const) {
+        for (const unseenSource of [false, true]) {
+            await t.test(`${mode} reads the committed file with unseen source=${unseenSource}`, async c => {
+                host.reset();
+                Object.assign(host.bus, { publishIpcOnly: () => true });
+                const f = await host.fixture(c);
+                const path = join(f.fileLogger.getStorageDir(), date, 'stats.json');
+                await mkdir(join(f.fileLogger.getStorageDir(), date), { recursive: true });
+                await AtomicJsonFile.writeJsonAtomically(path, stats(1));
+                let now = Date.now();
+                c.mock.method(Date, 'now', () => now);
+                let reads = 0;
+                const service = new UsageStatusSnapshots(
+                    false,
+                    day => f.fileLogger.readSavedStats(day),
+                    async day => {
+                        reads++;
+                        const saved = await f.fileLogger.readSavedStats(day);
+                        assert.ok(saved);
+                        return saved;
+                    },
+                    value => f.fileLogger.getStatsSource(value),
+                    day => f.fileLogger.getLatestStatusStats(day)
+                );
+                c.after(() => service.dispose());
+                assert.equal((await service.get())?.stats.total.requests, 1);
+                if (unseenSource) {
+                    assert.equal((await f.fileLogger.readSavedStats(date))?.total.requests, 1);
+                }
+                await AtomicJsonFile.writeJsonAtomically(path, stats(2));
+                now += mode === 'forced-fresh' ? 1 : 30001;
+                const before = reads;
+                assert.equal((await service.get(mode !== 'expired'))?.stats.total.requests, 2);
+                assert.equal(reads - before, 1);
+                assert.equal((await service.get())?.stats.total.requests, 2);
+                assert.equal(reads - before, 1);
+            });
+        }
+    }
 });

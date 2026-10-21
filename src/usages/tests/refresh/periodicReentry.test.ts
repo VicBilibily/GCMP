@@ -259,9 +259,9 @@ test('periodic usage callback skips reentry across the entire cycle', { timeout:
                     f.advance();
                     await f.finish(f.start());
                     assert.deepEqual(f.counts(), {
-                        maintenance: 1,
-                        scans: 1,
-                        loads: 2,
+                        maintenance: 2,
+                        scans: 2,
+                        loads: 4,
                         today: 2,
                         recovery: 2,
                         history: 2
@@ -295,9 +295,13 @@ test('periodic usage callback skips reentry across the entire cycle', { timeout:
                     const loads = f.loads.mock.callCount();
                     f.advance();
                     await f.finish(f.start());
-                    assert.equal(f.maintenance.mock.callCount(), 2, 'successful retry must reconcile the term');
-                    assert.equal(f.scans.mock.callCount(), scans);
-                    assert.equal(f.loads.mock.callCount(), loads);
+                    assert.equal(
+                        f.maintenance.mock.callCount(),
+                        3,
+                        'each cycle must reconcile after a successful retry'
+                    );
+                    assert.equal(f.scans.mock.callCount(), scans + 1);
+                    assert.equal(f.loads.mock.callCount(), loads + 2);
                     assert.equal(f.refreshes.mock.callCount(), 3);
                     assert.equal(f.recoveries.mock.callCount(), 3);
                     assert.equal(f.historyRuns.mock.callCount(), 3);
@@ -326,9 +330,9 @@ test('periodic usage callback skips reentry across the entire cycle', { timeout:
                             f.advance();
                             await f.finish(f.start());
                             assert.deepEqual(f.counts(), {
-                                maintenance: 1,
-                                scans: 1,
-                                loads: 2,
+                                maintenance: round,
+                                scans: round,
+                                loads: 2 * round,
                                 today: round,
                                 recovery: phase === 'today' ? round - 1 : round,
                                 history: phase === 'today' ? round - 1 : round
@@ -365,9 +369,9 @@ test('periodic usage callback skips reentry across the entire cycle', { timeout:
                     f.advance();
                     await f.finish(f.start());
                     assert.deepEqual(f.counts(), {
-                        maintenance: 2,
-                        scans: 2,
-                        loads: 4,
+                        maintenance: 3,
+                        scans: 3,
+                        loads: 6,
                         today: 3,
                         recovery: 3,
                         history: 3

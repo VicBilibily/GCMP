@@ -9,7 +9,7 @@ test('snapshot synchronization repairs missed pushes without file polling', asyn
 
     await t.test('a connected follower requests its first snapshot despite incompatible detail queries', async c => {
         host.reset();
-        const owner = host.fixture(c);
+        const owner = host.fixture(c, 'leader', false, undefined, async () => stats(2));
         owner.update(DateUtils.getTodayDateString(), stats(2));
         const follower = host.fixture(c, 'follower');
         host.state.queryCompatible = false;
@@ -19,35 +19,34 @@ test('snapshot synchronization repairs missed pushes without file polling', asyn
         assert.equal(snapshot?.stats.total.requests, 2);
         assert.equal(host.events.filter(event => event.type === 'usageStatusSnapshotRequested').length, 1);
         assert.equal(host.state.savedReads, 0);
-        assert.equal(host.state.ownedReads, 0);
+        assert.equal(host.state.ownedReads, 1);
     });
 
-    await t.test(
-        'aged follower cache requests only the owner memory snapshot and renews on identical replies',
-        async c => {
-            host.reset();
-            let now = 1000;
-            c.mock.method(Date, 'now', () => now);
-            const owner = host.fixture(c);
-            const follower = host.fixture(c, 'follower');
-            owner.update(DateUtils.getTodayDateString(), stats(1));
-            assert.equal(follower.peek()?.stats.total.requests, 1);
-            host.state.deliver = false;
-            owner.update(DateUtils.getTodayDateString(), stats(2));
-            host.state.deliver = true;
-            assert.equal(follower.peek()?.stats.total.requests, 1);
-            now += 30000;
-            assert.equal((await host.run('follower', () => follower.get()))?.stats.total.requests, 2);
-            assert.equal(host.state.savedReads, 0);
-            assert.equal(host.state.ownedReads, 0);
-            now += 30000;
-            await host.run('follower', () => follower.get());
-            const requests = host.events.filter(event => event.type === 'usageStatusSnapshotRequested').length;
-            await host.run('follower', () => follower.get());
-            assert.equal(host.events.filter(event => event.type === 'usageStatusSnapshotRequested').length, requests);
-            assert.equal(requests, 2);
-        }
-    );
+    await t.test('aged follower cache requests current owner statistics and renews on identical replies', async c => {
+        host.reset();
+        let now = 1000;
+        c.mock.method(Date, 'now', () => now);
+        let saved = stats(1);
+        const owner = host.fixture(c, 'leader', false, undefined, async () => saved);
+        const follower = host.fixture(c, 'follower');
+        owner.update(DateUtils.getTodayDateString(), stats(1));
+        assert.equal(follower.peek()?.stats.total.requests, 1);
+        host.state.deliver = false;
+        saved = stats(2);
+        owner.update(DateUtils.getTodayDateString(), stats(2));
+        host.state.deliver = true;
+        assert.equal(follower.peek()?.stats.total.requests, 1);
+        now += 30000;
+        assert.equal((await host.run('follower', () => follower.get()))?.stats.total.requests, 2);
+        assert.equal(host.state.savedReads, 0);
+        assert.equal(host.state.ownedReads, 1);
+        now += 30000;
+        await host.run('follower', () => follower.get());
+        const requests = host.events.filter(event => event.type === 'usageStatusSnapshotRequested').length;
+        await host.run('follower', () => follower.get());
+        assert.equal(host.events.filter(event => event.type === 'usageStatusSnapshotRequested').length, requests);
+        assert.equal(requests, 2);
+    });
 
     await t.test('timed out snapshot request remains unknown and never reads local files', async c => {
         host.reset();

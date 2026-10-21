@@ -13,6 +13,8 @@ const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-10-21T00:00:00+08:00').get
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
+import { join } from 'path';
+import { getFileVersionSync } from '../persistence/versionedJsonFile';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogPathManager } from './logPathManager';
 import { LogWriteManager } from './logWriteManager';
@@ -1125,6 +1127,11 @@ export class TokenFileLogger {
      */
     private refreshCurrentStats(date = DateUtils.getTodayDateString()): void {
         void this.refreshStats(date, true);
+    }
+
+    getStatisticsVersion(date: string): string {
+        const baseDir = this.pathManager.getBaseDir();
+        return `${getFileVersionSync(join(baseDir, date, 'stats.json'))}:${getFileVersionSync(join(baseDir, 'index.json'))}`;
     }
 
     refreshStats(date: string, dirty = false): Promise<StatsRefreshResult | undefined> {

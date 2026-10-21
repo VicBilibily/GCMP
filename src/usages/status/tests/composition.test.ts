@@ -47,7 +47,9 @@ test('status presentation ordering preserves actual statistics publication', asy
                     assert.equal(f.broadcasts().length, 1);
                     assert.equal(acknowledgements.mock.calls.length, 1);
                     assert.equal(
-                        await new StatsPublication().readPendingStats(join(f.dir, 'usages', f.date, 'stats.json')),
+                        await (
+                            f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                        ).publication.readPendingStats(join(f.dir, 'usages', f.date, 'stats.json')),
                         undefined
                     );
                 }

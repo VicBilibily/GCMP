@@ -33,7 +33,7 @@ export class UsageStatusSnapshots {
     private disposed = false;
     private initialFileMode: boolean;
     private readonly requests = new SnapshotRequests(
-        () => this.get(),
+        () => this.get(true),
         () => this.generation,
         () => !this.disposed
     );
@@ -164,7 +164,7 @@ export class UsageStatusSnapshots {
         return this.initialFileMode;
     }
 
-    get(): Promise<UsageStatusSnapshot | undefined> {
+    get(force = false): Promise<UsageStatusSnapshot | undefined> {
         if (this.disposed) {
             return Promise.resolve(undefined);
         }
@@ -175,21 +175,24 @@ export class UsageStatusSnapshots {
         if (!savedRead && !term) {
             const current = this.peek();
             const age = Date.now() - this.lastSyncedAt;
-            return current?.authorityTerm === InterInstanceBus.getAuthorityTerm() && age >= 0 && age < 30000 ?
+            return !force && current?.authorityTerm === InterInstanceBus.getAuthorityTerm() && age >= 0 && age < 30000 ?
                     Promise.resolve(current)
                 :   this.requests.request();
         }
         const current = this.peek();
         const latest = this.getLatest?.(date);
+        const age = Date.now() - this.lastSyncedAt;
         if (
+            !force &&
             !this.fileMode &&
             latest &&
             latest.source.authorityTerm === term &&
+            (current?.authorityTerm !== term || (age >= 0 && age < 30000)) &&
             (current?.authorityTerm !== term || latest.source.revision > this.sourceRevision)
         ) {
             return Promise.resolve(this.apply(date, latest.stats, latest.source, latest));
         }
-        if (!this.fileMode && current?.authorityTerm === term) {
+        if (!force && !this.fileMode && current?.authorityTerm === term && age >= 0 && age < 30000) {
             return Promise.resolve(current);
         }
         const key = `${date}:${term}:${this.generation}`;
@@ -214,6 +217,9 @@ export class UsageStatusSnapshots {
                 }
                 if (this.snapshot !== previous || this.sourceRevision !== previousSource) {
                     return this.peek();
+                }
+                if (stats) {
+                    this.lastSyncedAt = Date.now();
                 }
                 return (
                     !stats ? undefined

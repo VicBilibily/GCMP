@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import type { RequestBalanceLog, RequestStatusSnapshot, TokenRequestLog } from '../../usages/fileLogger/types';
@@ -17,6 +18,14 @@ const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
     prototype: { require: (id: string) => unknown };
 };
+
+test('compatible balance cells allow long unit labels to wrap while keeping emphasis', async () => {
+    const styles = await readFile(new URL('./style.less', import.meta.url), 'utf8');
+    const cellRule = styles.match(/\.request-balance-section-compatible\s*\{[\s\S]*?td:last-child\s*\{([^}]*)\}/)?.[1];
+    assert.ok(cellRule);
+    assert.match(cellRule, /font-weight:\s*600\b/);
+    assert.doesNotMatch(cellRule, /white-space:\s*nowrap\b/);
+});
 
 class TestElement {
     id = '';
@@ -1247,16 +1256,90 @@ test('request records render output duration and average speed in static and tot
             descendants(tables[0])
                 .filter(node => node.tagName === 'td')
                 .slice(0, 4)
-                .map(cell => cell.textContent),
+                .map(cell => cell.querySelector('.request-balance-provider')?.textContent ?? cell.textContent),
             ['Token query', '-', '-', '120 Tokens']
         );
         const times = nodes
-            .filter(node => node.classList.contains('request-balance-detail'))
-            .map(cell => cell.textContent)
-            .join(' ');
-        assert.match(times, /Token query.*07:59:59/);
-        assert.match(times, /Wallet query.*08:00:00/);
+            .filter(node => node.classList.contains('request-balance-row-updated'))
+            .map(cell => cell.textContent);
+        assert.equal(times.length, 3);
+        assert.match(times[0], /07:59:59/);
+        assert.match(times[1], /08:00:00/);
+        assert.equal(times[1], times[2]);
+        assert.equal(tooltip.querySelector('.request-balance-detail'), null);
     });
+
+    for (const language of ['en', 'zh-CN']) {
+        for (const sameTime of [false, true]) {
+            await context.test(`compatible update times stay compact: ${language}, shared=${sameTime}`, subtest => {
+                const previousLanguage = documentStub.documentElement.lang;
+                subtest.after(() => {
+                    documentStub.documentElement.lang = previousLanguage;
+                });
+                documentStub.documentElement.lang = language;
+                const subscription: RequestStatusSnapshot = {
+                    ...compatibleSnapshot,
+                    data: {
+                        providerId: 'botcf::a-subscription',
+                        providerName: 'BotCF / Subscription',
+                        balanceInfo: {
+                            balance: 27.45,
+                            currency: 'USD',
+                            items: [{ balance: 27.45, currency: 'USD', displayName: '#317' }]
+                        }
+                    }
+                };
+                const wallet: RequestStatusSnapshot = {
+                    ...compatibleSnapshot,
+                    queriedAt: sameTime ? queriedAt : queriedAt - 1000,
+                    data: {
+                        providerId: 'botcf::z-wallet',
+                        providerName: 'BotCF / <Wallet>',
+                        balanceInfo: { balance: 575.03, currency: 'CNY' }
+                    }
+                };
+                const { providerModel } = render({
+                    balance: { queriedAt, entries: [], statusSnapshots: [wallet, subscription] }
+                });
+                const tooltip = providerModel.querySelector('.request-balance-tooltip')!;
+                const descendants = (node: TestElement): TestElement[] =>
+                    node.children.flatMap(child => [child, ...descendants(child)]);
+                const nodes = descendants(tooltip);
+                const times = nodes.filter(node => node.classList.contains('request-balance-row-updated'));
+                const footers = nodes.filter(node => node.classList.contains('request-balance-updated'));
+                assert.equal(providerModel.querySelector('.request-balance-summary')?.textContent, '$27.45 ¥575.03');
+                assert.equal(nodes.filter(node => node.tagName === 'table').length, 1);
+                assert.equal(tooltip.querySelector('.request-balance-detail'), null);
+                assert.equal(times.length, sameTime ? 0 : 2);
+                assert.equal(footers.length, sameTime ? 1 : 0);
+                const expectedTime = (timestamp: number) =>
+                    new Intl.DateTimeFormat(language, {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hourCycle: 'h23'
+                    }).format(timestamp);
+                const label = language === 'en' ? 'Last updated' : '最后更新';
+                if (sameTime) {
+                    assert.equal(footers[0].textContent, `${label}: ${expectedTime(queriedAt)}`);
+                } else {
+                    assert.deepEqual(
+                        times.map(time => time.textContent),
+                        [`${label}: ${expectedTime(queriedAt)}`, `${label}: ${expectedTime(queriedAt - 1000)}`]
+                    );
+                    const providerCells = nodes.filter(node => node.tagName === 'td' && node.children.length > 0);
+                    assert.deepEqual(
+                        providerCells.map(cell => cell.querySelector('.request-balance-provider')?.textContent),
+                        ['BotCF / Subscription / #317', 'BotCF / <Wallet>']
+                    );
+                    assert.ok(providerCells.every(cell => cell.querySelector('.request-balance-row-updated')));
+                }
+            });
+        }
+    }
 
     await context.test('empty saved balances do not create an empty control', () => {
         assert.equal(

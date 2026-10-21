@@ -72,7 +72,6 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
         })
     );
 
-    let reconciledAuthorityTerm: string | undefined;
     let periodicRefreshInFlight = false;
     LeaderElectionService.registerPeriodicTask(async () => {
         if (periodicRefreshInFlight) {
@@ -81,13 +80,9 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
         periodicRefreshInFlight = true;
         try {
             const fileLogger = TokenUsagesManager.instance.getFileLogger();
-            const authorityTerm = LeaderElectionService.getOwnedAuthorityTerm?.();
-            if (authorityTerm && authorityTerm !== reconciledAuthorityTerm) {
+            if (LeaderElectionService.getOwnedAuthorityTerm?.()) {
                 try {
                     await fileLogger.getIndex();
-                    if (LeaderElectionService.getOwnedAuthorityTerm?.() === authorityTerm) {
-                        reconciledAuthorityTerm = authorityTerm;
-                    }
                 } catch (error) {
                     Logger.trace(`[LeaderTask] Failed to reconcile usage index: ${error}`);
                 }

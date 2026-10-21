@@ -73,7 +73,7 @@ export async function externalCommit(
         assert.equal(report.unowned, true);
         assert.equal(report.stale, false);
         assert.equal(report.acknowledged, state === 'acknowledged');
-        assert.equal(report.pendingRequests, state === 'pending' ? 3 : undefined);
+        assert.equal(report.pendingRequests, 3);
         return report;
     } finally {
         if (!ended) {

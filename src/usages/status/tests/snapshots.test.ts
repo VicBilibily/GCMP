@@ -57,7 +57,7 @@ test('status snapshots use owner pushes and isolated-host file reads', async t =
         await new Promise<void>(resolve => setImmediate(resolve));
         const another = host.fixture(c, 'another');
         assert.equal((await host.run('another', () => another.get()))?.stats.total.requests, 1);
-        assert.equal(host.state.ownedReads, 1);
+        assert.equal(host.state.ownedReads, 2);
     });
 
     await t.test('disconnection and unavailable authority never trigger file fallback', async c => {
@@ -260,7 +260,7 @@ test('status snapshots use owner pushes and isolated-host file reads', async t =
 
     await t.test('reconnect requests the current snapshot without needing a changed broadcast', async c => {
         host.reset();
-        const owner = host.fixture(c);
+        const owner = host.fixture(c, 'leader', false, undefined, async () => stats(2));
         host.run('leader', () => owner.update(today, stats(2)));
         const follower = host.fixture(c, 'follower');
         host.deliver({
@@ -277,7 +277,7 @@ test('status snapshots use owner pushes and isolated-host file reads', async t =
         await new Promise<void>(resolve => setImmediate(resolve));
         assert.equal(follower.peek()?.stats.total.requests, 2);
         assert.equal(host.state.savedReads, 0);
-        assert.equal(host.state.ownedReads, 0);
+        assert.equal(host.state.ownedReads, 1);
     });
 
     await t.test('wrong sender, old revision, old authority and invalid data are rejected', async c => {

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createUsageHost } from '../hostFixture';
 import { nextTurn, refreshClock, refreshFixture, terminal } from './fixture';
 
-test('statistics publication survives publisher replacement without repeating acknowledged versions', async suite => {
+test('publisher replacement rediscovers committed statistics once', async suite => {
     const host = await createUsageHost();
     try {
         const { registerUsageRefreshHandlers } = await import('../../usageActivation');
@@ -72,7 +72,7 @@ test('statistics publication survives publisher replacement without repeating ac
                             await clock.settle(() => done);
                             await pending;
                             const count = host.events.filter(item => item.event.type === 'tokenUsageUpdated').length;
-                            assert.equal(count - before, published ? 0 : 1);
+                            assert.equal(count - before, published && lifecycle === 'stable' ? 0 : 1);
                         }
                         assert.equal(writer.counters.calculations, 0);
                         assert.equal(writer.counters.notifications, 1);

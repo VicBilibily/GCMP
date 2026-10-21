@@ -53,10 +53,14 @@ export class TokenUsagesView {
     private smartRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private smartRefreshInFlight: Promise<void> | null = null;
     private smartRefreshPending: boolean = false; // 执行期间又有新请求，需再刷一次
+    private reconcileTimer: ReturnType<typeof setInterval> | undefined;
+    private reconcileInFlight = false;
+    private reconciledVersion: string | undefined;
     // 摘要单调递增序列号，随每次摘要推送递增，页响应携带用于前端防竞态
     private detailSeq: number = 0;
     private detailRequestGeneration: number = 0;
     private detailRefreshGeneration: number = 0;
+    private failedDetailGeneration = 0;
     private readonly detailRefreshQueues = new Map<string, Promise<void>>();
     private readonly detailQueryQueues = new Map<string, DetailQueryQueue>();
 
@@ -71,6 +75,7 @@ export class TokenUsagesView {
         // 如果面板已存在，直接显示
         if (this.panel) {
             this.panel.reveal();
+            void this.reconcileView();
             return;
         }
 
@@ -90,6 +95,13 @@ export class TokenUsagesView {
         );
 
         this.updateView();
+        this.reconciledVersion = undefined;
+        this.reconcileTimer = setInterval(() => void this.reconcileView(), 60000);
+        this.panel.onDidChangeViewState(() => {
+            if (this.panel?.visible) {
+                void this.reconcileView();
+            }
+        });
 
         // 监听消息
         this.panel.webview.onDidReceiveMessage(
@@ -122,6 +134,9 @@ export class TokenUsagesView {
         // 监听关闭
         this.panel.onDidDispose(() => {
             this.panel = undefined;
+            clearInterval(this.reconcileTimer);
+            this.reconcileTimer = undefined;
+            this.reconciledVersion = undefined;
             this.updateDisposable?.dispose();
             this.updateDisposable = undefined;
             this.crossInstanceUsageUpdateDisposable?.dispose();
@@ -224,6 +239,40 @@ export class TokenUsagesView {
      * 合并为 50ms 窗口内的一次刷新，确保读到一致状态。
      * 执行期间若有新请求，会在当前完成后再刷一次（避免漏掉最新数据）。
      */
+    private async reconcileView(): Promise<void> {
+        const panel = this.panel;
+        if (!panel || panel.visible === false || this.reconcileInFlight) {
+            return;
+        }
+        const date = this.currentSelectedDate ?? getTodayDateString();
+        const logger = this.usagesManager.getFileLogger();
+        this.reconcileInFlight = true;
+        try {
+            const version = `${date}:${logger.getStatisticsVersion(date)}`;
+            if (this.reconciledVersion === version) {
+                return;
+            }
+            const failedDetailGeneration = this.failedDetailGeneration;
+            await logger.getIndex();
+            const detailsUpdated = await this.updateDateDetails(date, panel);
+            const listUpdated = await this.updateDateListOnly(panel);
+            if (
+                detailsUpdated &&
+                listUpdated &&
+                this.panel === panel &&
+                this.currentSelectedDate === date &&
+                this.failedDetailGeneration === failedDetailGeneration &&
+                `${date}:${logger.getStatisticsVersion(date)}` === version
+            ) {
+                this.reconciledVersion = version;
+            }
+        } catch (error) {
+            StatusLogger.warn('[TokenUsagesView] Statistics reconciliation failed', error);
+        } finally {
+            this.reconcileInFlight = false;
+        }
+    }
+
     private smartRefresh(): void {
         // 已有待执行的任务（在防抖窗口内），新请求会被它覆盖，无需再加
         if (this.smartRefreshTimer) {
@@ -279,7 +328,7 @@ export class TokenUsagesView {
     /**
      * 只更新日期列表的统计数字，不刷新右侧详情
      */
-    private async updateDateListOnly(expectedPanel?: vscode.WebviewPanel): Promise<void> {
+    private async updateDateListOnly(expectedPanel?: vscode.WebviewPanel): Promise<boolean | undefined> {
         const panel = expectedPanel ?? this.panel;
         if (!panel || this.panel !== panel) {
             return;
@@ -292,7 +341,7 @@ export class TokenUsagesView {
             }
             const today = getTodayDateString();
             // 直接发送原始数据，让组件自己处理格式化
-            panel.webview.postMessage({
+            return await panel.webview.postMessage({
                 command: 'updateDateList',
                 dateList: dateSummaries,
                 selectedDate: this.currentSelectedDate || today,
@@ -446,7 +495,7 @@ export class TokenUsagesView {
      * 更新日期详情（动态更新）
      * 聚合在扩展侧执行，WebView 只接收轻量摘要；明细由 WebView 按需拉取。
      */
-    private async updateDateDetails(date: string, expectedPanel?: vscode.WebviewPanel): Promise<void> {
+    private async updateDateDetails(date: string, expectedPanel?: vscode.WebviewPanel): Promise<boolean | undefined> {
         const panel = expectedPanel ?? this.panel;
         if (!panel || this.panel !== panel) {
             return;
@@ -465,14 +514,14 @@ export class TokenUsagesView {
                 this.detailRefreshQueues.delete(date);
             }
         });
-        await refresh;
+        return refresh;
     }
 
     private async updateDateDetailsInternal(
         panel: vscode.WebviewPanel,
         date: string,
         requestGeneration: number
-    ): Promise<void> {
+    ): Promise<boolean | undefined> {
         try {
             if (
                 this.panel !== panel ||
@@ -545,7 +594,7 @@ export class TokenUsagesView {
             this.detailSeq += 1;
 
             // 推送聚合摘要给 WebView
-            await panel.webview.postMessage({
+            const delivered = await panel.webview.postMessage({
                 command: 'updateDateDetails',
                 date,
                 isToday: date === today,
@@ -563,9 +612,25 @@ export class TokenUsagesView {
             StatusLogger.debug(
                 `[TokenUsagesView] Updated date details: ${date}, recordCount=${overview.allSummary.requestCount}`
             );
+            if (
+                !delivered &&
+                this.panel === panel &&
+                this.currentSelectedDate === date &&
+                requestGeneration === this.detailRefreshGeneration
+            ) {
+                this.failedDetailGeneration = requestGeneration;
+                this.reconciledVersion = undefined;
+            }
+            return delivered;
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update date details:', err);
-            if (this.panel === panel && this.currentSelectedDate === date) {
+            if (
+                this.panel === panel &&
+                this.currentSelectedDate === date &&
+                requestGeneration === this.detailRefreshGeneration
+            ) {
+                this.failedDetailGeneration = requestGeneration;
+                this.reconciledVersion = undefined;
                 await panel.webview
                     .postMessage({ command: 'dateLoadError', date } satisfies DateLoadErrorMessage)
                     .then(undefined, error => {

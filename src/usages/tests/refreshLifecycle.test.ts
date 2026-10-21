@@ -78,6 +78,8 @@ test('usage refresh completion and multi-day feedback regressions', async suite 
             }
             host.state.createPanel = () =>
                 ({
+                    visible: true,
+                    onDidChangeViewState: () => ({ dispose() {} }),
                     webview: {
                         html: '',
                         onDidReceiveMessage(callback: typeof receive) {
@@ -103,8 +105,8 @@ test('usage refresh completion and multi-day feedback regressions', async suite 
                 }) as unknown as vscode.WebviewPanel;
             const view = host.run('follower', () => new MultiDayView(extensionContext));
             context.mock.method(view as unknown as { getWebviewContent(): string }, 'getWebviewContent', () => '');
-            host.run('follower', () => view.show());
             context.after(() => view.dispose());
+            host.run('follower', () => view.show());
             return {
                 query,
                 view,

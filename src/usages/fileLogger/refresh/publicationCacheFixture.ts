@@ -26,7 +26,6 @@ export async function publicationFixture(context: TestContext, acknowledgePrevio
     const save = async (requests: number) => {
         const stats = publicationStats(requests);
         await AtomicJsonFile.runExclusive(statsPath, async () => {
-            await publication.prepare(statsPath, fingerprint(stats));
             await AtomicJsonFile.writeJsonAtomically(statsPath, stats);
         });
         return stats;

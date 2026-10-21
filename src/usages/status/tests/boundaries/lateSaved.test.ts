@@ -78,9 +78,9 @@ test('late saved reads cannot supersede a completed source or suppress its publi
                     f.manager.notifyStatsUpdate(result);
                     const displayed = await f.manager.getStatusSnapshot();
                     await f.internals.logStatsManager.flushStatsPublications();
-                    const pending = await new StatsPublication().readPendingStats(
-                        join(f.dir, 'usages', f.date, 'stats.json')
-                    );
+                    const pending = await (
+                        f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                    ).publication.readPendingStats(join(f.dir, 'usages', f.date, 'stats.json'));
                     assert.equal((await f.saved()).total.requests, 2);
                     assert.equal(latest?.stats.total.requests, 2);
                     assert.equal(displayed?.stats.total.requests, 2);

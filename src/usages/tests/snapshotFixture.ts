@@ -150,6 +150,8 @@ export async function snapshotPage(
     }
     host.state.createPanel = () =>
         ({
+            visible: true,
+            onDidChangeViewState: () => ({ dispose() {} }),
             webview: {
                 html: '',
                 onDidReceiveMessage(callback: typeof receive) {
@@ -175,8 +177,8 @@ export async function snapshotPage(
         }) as unknown as vscode.WebviewPanel;
     const view = host.run('follower', () => new MultiDayView(extensionContext));
     context.mock.method(view as unknown as { getWebviewContent(): string }, 'getWebviewContent', () => '');
-    host.run('follower', () => view.show());
     context.after(() => view.dispose());
+    host.run('follower', () => view.show());
     return {
         view,
         query,

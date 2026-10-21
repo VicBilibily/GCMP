@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import type { UsageStatusSnapshotEvent } from '../../../interInstance/eventProtocol';
@@ -160,7 +160,12 @@ test('statistics notification source validation work', async suite => {
                     );
                     assert.equal(f.acknowledgements.mock.calls.length, 1);
                     assert.equal(f.acknowledgements.mock.calls[0].arguments[0], f.result);
-                    assert.equal(await new StatsPublication().readPendingStats(f.statsPath), undefined);
+                    assert.equal(
+                        await (
+                            f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                        ).publication.readPendingStats(f.statsPath),
+                        undefined
+                    );
                     assert.equal(getFileVersionSync(f.statsPath), f.version);
                     assert.equal(f.statusUpdates.mock.calls.length, 1);
                     assert.equal(f.currentChecks.mock.calls.length, 1);
@@ -208,7 +213,7 @@ test('statistics notification source validation work', async suite => {
                 async c => {
                     const f = await prepare(c, fileMode);
                     const receiptPath = join(f.dir, 'usages', f.date, 'stats-published.json');
-                    const receipt = readFileSync(receiptPath, 'utf8');
+                    assert.equal(existsSync(receiptPath), false);
                     let replaced = false;
                     const listener = f.status.onUpdate(() => {
                         writeFileSync(f.statsPath, `${f.savedBody}\n`);
@@ -235,7 +240,7 @@ test('statistics notification source validation work', async suite => {
                     assert.deepEqual(f.updates, [1]);
                     assert.equal(f.broadcasts().length, 0);
                     assert.equal(f.acknowledgements.mock.calls.length, 0);
-                    assert.equal(readFileSync(receiptPath, 'utf8'), receipt);
+                    assert.equal(existsSync(receiptPath), false);
                     assert.deepEqual(await new StatsPublication().readPendingStats(f.statsPath), await f.saved());
                     const current = await f.fileLogger.readSavedStats(f.date);
                     assert.ok(current);

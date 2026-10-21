@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { TokenFileLogger } from '../../../fileLogger';
 import type { StatsPublication } from '../../../fileLogger/refresh/statsPublication';
@@ -94,19 +95,14 @@ async function workerMain(): Promise<void> {
         const snapshotRequests = (await internals.snapshotManager.read(date))?.length ?? 0;
         const stats = internals.logStatsManager as unknown as PublicationInternals;
         const save = stats.saveDateStats.bind(stats);
-        const prepare = stats.publication.prepare.bind(stats.publication);
         let expectedVersion = '',
             requests = 0,
             fingerprint = '';
-        stats.saveDateStats = (...args: Parameters<typeof save>) => {
+        const workerHost = host;
+        stats.saveDateStats = async (...args: Parameters<typeof save>) => {
             expectedVersion = args[4];
             requests = args[1].total.requests;
-            return save(...args);
-        };
-        const workerHost = host;
-        stats.publication.prepare = async (...args: Parameters<typeof prepare>) => {
-            await prepare(...args);
-            fingerprint = args[1];
+            fingerprint = createHash('sha256').update(JSON.stringify(args[1])).digest('hex');
             await sendReport({
                 kind: 'prepared',
                 pid: process.pid,
@@ -114,12 +110,13 @@ async function workerMain(): Promise<void> {
                 expectedVersion,
                 requests,
                 unowned: workerHost.state.leaderId === undefined,
-                canCommit: args[3]?.() === true
+                canCommit: args[3]()
             });
             await commit.promise;
             if (stopped) {
                 throw new Error('Worker stopped before statistics commit');
             }
+            return save(...args);
         };
         if (stopped) {
             return;
@@ -135,7 +132,7 @@ async function workerMain(): Promise<void> {
             diskRequests: saved.total.requests,
             indexRequests: index.dates[date].total_requests,
             snapshotRequests,
-            fingerprint,
+            fingerprint: createHash('sha256').update(JSON.stringify(saved)).digest('hex'),
             stale: logger.getStatsSource(result)?.stale === true,
             publications: host.events.filter(item => item.event.type === 'tokenUsageUpdated').length
         });

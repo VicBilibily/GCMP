@@ -32,16 +32,13 @@ async function observe(f: StatsLocation) {
     const folder = join(f.dir, 'usages', f.date);
     const stats = JSON.parse(await readFile(f.statsPath, 'utf8')) as TokenUsageStatsFromFile;
     const index = JSON.parse(await readFile(join(f.dir, 'usages', 'index.json'), 'utf8')) as DateIndex;
-    const marker = JSON.parse(await readFile(join(folder, 'stats-publication.json'), 'utf8')) as { pending: string[] };
-    const acknowledgement: unknown = JSON.parse(await readFile(join(folder, 'stats-published.json'), 'utf8'));
     const statsFingerprint = fingerprint(stats);
     return {
         stats: stats.total.requests,
         index: index.dates[f.date].total_requests,
         statsFingerprint,
-        marker: marker.pending,
-        markerMatchesStats: marker.pending.includes(statsFingerprint),
-        acknowledgement,
+        markerExists: await exists(join(folder, 'stats-publication.json')),
+        acknowledgementExists: await exists(join(folder, 'stats-published.json')),
         statsVersion: getFileVersionSync(f.statsPath),
         statsCommitLock: await exists(`${f.statsPath}.commit.lock`),
         markerCommitLock: await exists(join(folder, 'stats-publication.json.commit.lock'))
@@ -55,22 +52,20 @@ test(
         const host = await createUsageHost();
         const { StatsPublication } = await import('../../../fileLogger/refresh/statsPublication');
         try {
-            for (const scenario of ['control: A prepares first', 'race: B prepares first'] as const) {
+            for (const scenario of ['control: A reaches save first', 'race: B reaches save first'] as const) {
                 await suite.test(scenario, { timeout: 55000 }, async c => {
                     const f = await snapshotFixture(host, c);
                     const initial = JSON.parse(f.originalStats) as TokenUsageStatsFromFile;
                     await f.internals.logStatsManager.markStatsPublished(f.date, initial);
                     assert.equal(initial.total.requests, 1);
-                    assert.equal(await new StatsPublication().readPendingStats(f.statsPath), undefined);
-                    const initialFingerprint = fingerprint(initial);
+                    assert.deepEqual(await new StatsPublication().readPendingStats(f.statsPath), initial);
                     const initialVersion = getFileVersionSync(f.statsPath);
-                    assert.equal((await observe(f)).acknowledgement, initialFingerprint);
+                    assert.equal((await observe(f)).acknowledgementExists, false);
                     host.state.leaderId = undefined;
                     await f.internals.snapshotManager.upsertRecord(f.date, snapshotRow(f.date, 'second', 10));
                     const stats = f.internals.logStatsManager as unknown as PublicationInternals;
                     const calculate = stats.calculateDateStats.bind(stats);
                     const save = stats.saveDateStats.bind(stats);
-                    const prepare = stats.publication.prepare.bind(stats.publication);
                     const permission = f.internals.logStatsManager.captureWritePermission();
                     const calculated = gate(),
                         allowPrepare = gate(),
@@ -87,16 +82,13 @@ test(
                         await allowPrepare.promise;
                         return result;
                     });
-                    c.mock.method(stats, 'saveDateStats', (...args: Parameters<typeof save>) => {
+                    c.mock.method(stats, 'saveDateStats', async (...args: Parameters<typeof save>) => {
                         aVersion = args[4];
-                        return save(...args);
-                    });
-                    c.mock.method(stats.publication, 'prepare', async (...args: Parameters<typeof prepare>) => {
-                        await prepare(...args);
                         aPrepares++;
-                        aFingerprint = args[1];
+                        aFingerprint = fingerprint(args[1]);
                         prepared.release();
                         await allowSave.promise;
+                        return save(...args);
                     });
                     let worker: ReturnType<typeof startWorker> | undefined;
                     const old = f.fileLogger.getDateStats(f.date, true);
@@ -163,7 +155,7 @@ test(
                         assert.equal(bSaved.diskRequests, 3);
                         assert.equal(bSaved.indexRequests, 3);
                         assert.equal(bSaved.stale, false);
-                        assert.equal(bPrepared.fingerprint, after.statsFingerprint);
+                        assert.equal(bSaved.fingerprint, after.statsFingerprint);
                         assert.notEqual(aFingerprint, bPrepared.fingerprint);
                         assert.equal(result.total.requests, 2);
                         assert.equal(aStale, true);
@@ -176,7 +168,8 @@ test(
                         assert.equal(after.statsVersion, committed.statsVersion);
                         assert.notEqual(committed.statsVersion, initialVersion);
                         assert.equal(getFileVersionSync(join(f.dir, 'usages', 'index.json')), indexVersion);
-                        assert.equal(after.acknowledgement, initialFingerprint);
+                        assert.equal(after.acknowledgementExists, false);
+                        assert.equal(after.markerExists, false);
                         assert.equal(host.events.filter(item => item.event.type === 'tokenUsageUpdated').length, 0);
                         assert.equal(
                             pending?.total.requests,

@@ -19,7 +19,7 @@ test(
     async suite => {
         const host = await createUsageHost();
         try {
-            for (const artifact of ['marker', 'stats', 'index'] as const) {
+            for (const artifact of ['stats', 'index'] as const) {
                 for (const phase of ['call', 'temporary-file', 'rename-retry'] as const) {
                     await suite.test(`${artifact}/${phase}`, async context => {
                         host.reset();
@@ -131,8 +131,8 @@ test(
                         for (const key of ['marker', 'stats', 'index'] as const) {
                             assert.equal(await fs.readFile(paths[key], 'utf8'), expected[key], key);
                         }
-                        assert.equal(await new StatsPublication().isPending(paths.stats, fingerprint), false);
-                        assert.equal(await new StatsPublication().readPendingStats(paths.stats), undefined);
+                        assert.equal(await new StatsPublication().isPending(paths.stats, fingerprint), true);
+                        assert.deepEqual(await new StatsPublication().readPendingStats(paths.stats), successor);
                     });
                 }
             }

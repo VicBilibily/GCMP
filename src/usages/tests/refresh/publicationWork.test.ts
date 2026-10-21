@@ -104,7 +104,12 @@ test('statistics publication avoids redundant hashing and logger-local events', 
         const source = f.fileLogger.getStatsSource(result.stats);
         assert.ok(source);
         assert.notEqual(source.stale, true);
-        assert.deepEqual(await new StatsPublication().readPendingStats(f.statsPath), await f.saved());
+        assert.deepEqual(
+            await (
+                f.internals.logStatsManager as unknown as { publication: StatsPublication }
+            ).publication.readPendingStats(f.statsPath),
+            await f.saved()
+        );
         assert.equal(f.counters.notifications, 0);
         assert.equal(f.broadcasts().length, 0);
         return { ...f, result };
@@ -118,7 +123,12 @@ test('statistics publication avoids redundant hashing and logger-local events', 
                     const stats = f.internals.logStatsManager;
                     if (acknowledged) {
                         await stats.markStatsPublished(f.date, f.result.stats);
-                        assert.equal(await new StatsPublication().readPendingStats(f.statsPath), undefined);
+                        assert.equal(
+                            await (
+                                f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                            ).publication.readPendingStats(f.statsPath),
+                            undefined
+                        );
                     }
                     const work = publicationWork(context, f);
                     try {
@@ -192,7 +202,9 @@ test('statistics publication avoids redundant hashing and logger-local events', 
                     assert.equal(await checking, false);
                     assert.equal(f.fileLogger.getStatsSource(f.result.stats)?.stale === true, stale);
                     assert.equal(await ackSpy.mock.calls[0].result, !stale);
-                    const pending = await new StatsPublication().readPendingStats(f.statsPath);
+                    const pending = await (
+                        f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                    ).publication.readPendingStats(f.statsPath);
                     assert.deepEqual(pending, stale ? await f.saved() : undefined);
                     if (!stale) {
                         assert.equal(work.hashes.mock.callCount(), 1);
@@ -311,7 +323,9 @@ test('statistics publication avoids redundant hashing and logger-local events', 
                     publication,
                     'acknowledge',
                     async (...args: Parameters<typeof acknowledge>) => {
-                        pendingBeforeAck = await new StatsPublication().readPendingStats(f.statsPath);
+                        pendingBeforeAck = await (
+                            f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                        ).publication.readPendingStats(f.statsPath);
                         return acknowledge(...args);
                     }
                 );
@@ -342,7 +356,12 @@ test('statistics publication avoids redundant hashing and logger-local events', 
                 assert.equal(publications.mock.callCount(), 1);
                 assert.equal(acknowledgements.mock.callCount(), 1);
                 assert.equal(await acknowledgements.mock.calls[0].result, true);
-                assert.equal(await new StatsPublication().readPendingStats(f.statsPath), undefined);
+                assert.equal(
+                    await (
+                        f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                    ).publication.readPendingStats(f.statsPath),
+                    undefined
+                );
                 const next = await refreshResult(f, f.clock);
                 assert.equal(next.changed, false);
                 f.manager.notifyStatsUpdate(next);

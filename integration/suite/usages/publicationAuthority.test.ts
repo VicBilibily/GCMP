@@ -138,11 +138,11 @@ suite('Statistics publication follows the current shared leader identity', () =>
                 stats = StatsCalculator.aggregateLogs([]);
             stats.total.requests = 3;
             const folder = join(dir, 'usages', date),
-                statsPath = join(folder, 'stats.json');
-            const publication = new StatsPublication();
+                statsPath = join(fileLogger.getStorageDir(), date, 'stats.json');
+            const publication = (fileLogger as unknown as { logStatsManager: { publication: StatsPublication } })
+                .logStatsManager.publication;
             const fingerprint = createHash('sha256').update(JSON.stringify(stats)).digest('hex');
             await mkdir(folder, { recursive: true });
-            await publication.prepare(statsPath, fingerprint);
             await writeFile(statsPath, JSON.stringify(stats));
             const replace = () => {
                 if (scenario.startsWith('missing')) {

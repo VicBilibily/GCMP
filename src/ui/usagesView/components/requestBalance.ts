@@ -14,6 +14,7 @@ interface BalanceSection {
     text: string;
     tables: QuotaTable[];
     details?: string[];
+    rowUpdates?: string[];
     balanceItems?: Array<BalanceQueryItem & { name: string }>;
     groupTitle?: string;
     updatedAt: string;
@@ -621,6 +622,7 @@ function sectionsFor(balance: RequestBalanceLog): BalanceSection[] {
     if (!first) {
         return sections;
     }
+    const sharedUpdateTime = compatible.every(section => section.updatedAt === first.updatedAt);
     const combined: BalanceSection = {
         ...first,
         title: first.groupTitle ?? first.title,
@@ -631,14 +633,15 @@ function sectionsFor(balance: RequestBalanceLog): BalanceSection[] {
                 first.translate
             )
         ],
-        updatedAt: compatible.length === 1 ? first.updatedAt : '',
-        details:
-            compatible.length === 1 ?
-                []
-            :   compatible.map(
-                    section =>
-                        `${section.title} - ${section.translate('Last updated', '最后更新')}: ${section.updatedAt}`
+        updatedAt: sharedUpdateTime ? first.updatedAt : '',
+        rowUpdates:
+            sharedUpdateTime ? undefined : (
+                compatible.flatMap(section =>
+                    (section.balanceItems ?? []).map(
+                        () => `${section.translate('Last updated', '最后更新')}: ${section.updatedAt}`
+                    )
                 )
+            )
     };
     return sections.flatMap(section =>
         section === first ? [combined]
@@ -647,22 +650,32 @@ function sectionsFor(balance: RequestBalanceLog): BalanceSection[] {
     );
 }
 
-function appendTable(parent: HTMLElement, data: QuotaTable): void {
+function appendTable(parent: HTMLElement, data: QuotaTable, rowUpdates?: string[]): void {
     const table = createElement('table', 'request-balance-table');
     if (data.title) {
         table.appendChild(createElement('caption', 'request-balance-table-title', { textContent: data.title }));
     }
     const head = createElement('thead');
     const header = createElement('tr');
-    for (const column of data.columns) {
-        header.appendChild(createElement('th', '', { textContent: column }));
+    for (const [index, column] of data.columns.entries()) {
+        const cell = createElement('th', '', { textContent: column });
+        cell.style.textAlign = data.align?.[index] ?? 'left';
+        header.appendChild(cell);
     }
     head.appendChild(header);
     const body = createElement('tbody');
-    for (const cells of data.rows) {
+    for (const [rowIndex, cells] of data.rows.entries()) {
         const row = createElement('tr');
         for (const [index, text] of cells.entries()) {
-            const cell = createElement('td', '', { textContent: text });
+            const cell = createElement('td');
+            if (index === 0 && rowUpdates?.[rowIndex]) {
+                cell.append(
+                    createElement('div', 'request-balance-provider', { textContent: text }),
+                    createElement('div', 'request-balance-row-updated', { textContent: rowUpdates[rowIndex] })
+                );
+            } else {
+                cell.textContent = text;
+            }
             cell.style.textAlign = data.align?.[index] ?? 'left';
             if (data.boldColumns?.includes(index)) {
                 cell.style.fontWeight = '600';
@@ -696,10 +709,15 @@ export function createRequestBalance(balance: RequestBalanceLog | null | undefin
     tooltip.setAttribute('role', 'tooltip');
     element.setAttribute('aria-describedby', tooltip.id);
     for (const section of sections) {
-        const group = createElement('section', 'request-balance-section');
+        const group = createElement(
+            'section',
+            section.balanceItems ?
+                'request-balance-section request-balance-section-compatible'
+            :   'request-balance-section'
+        );
         group.appendChild(createElement('div', 'request-balance-title', { textContent: section.title }));
         for (const table of section.tables) {
-            appendTable(group, table);
+            appendTable(group, table, section.rowUpdates);
         }
         for (const detail of section.details ?? []) {
             group.appendChild(createElement('div', 'request-balance-detail', { textContent: detail }));

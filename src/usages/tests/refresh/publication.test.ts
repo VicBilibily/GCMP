@@ -78,7 +78,8 @@ test('statistics publication survives foreground calculations', async suite => {
             const newer = await f.fileLogger.getDateStats(f.date, true);
             assert.equal(newer.total.completedRequests, 2);
             const acknowledgements = context.mock.method(f.fileLogger, 'markStatsPublished');
-            const publication = new StatsPublication();
+            const publication = (f.internals.logStatsManager as unknown as { publication: StatsPublication })
+                .publication;
             const statsPath = join(f.dir, 'usages', f.date, 'stats.json');
             f.manager.notifyStatsUpdate(first);
             assert.equal(f.broadcasts().length, 0);

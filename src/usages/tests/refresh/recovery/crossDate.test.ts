@@ -36,8 +36,12 @@ test('cross-midnight publication recovery is independent of historical regenerat
                             await original.fileLogger.flush();
                         }
                         if (publication === 'legacy') {
-                            await rm(join(original.dir, 'usages', original.date, 'stats-publication.json'));
-                            await rm(join(original.dir, 'usages', original.date, 'stats-published.json'));
+                            await rm(join(original.dir, 'usages', original.date, 'stats-publication.json'), {
+                                force: true
+                            });
+                            await rm(join(original.dir, 'usages', original.date, 'stats-published.json'), {
+                                force: true
+                            });
                         }
                         await original.manager.dispose();
                         for (const subscription of original.extensionContext.subscriptions) {
@@ -95,7 +99,7 @@ test('cross-midnight publication recovery is independent of historical regenerat
                                 await receiver.settled();
                             }
                             await receiver.fileLogger.flush();
-                            assert.equal(count() - before, route === 'periodic' && publication === 'pending' ? 1 : 0);
+                            assert.equal(count() - before, route === 'periodic' ? 1 : 0);
                         }
                         if (route === 'all-then-periodic') {
                             let done = false;
@@ -107,7 +111,7 @@ test('cross-midnight publication recovery is independent of historical regenerat
                             await clock.settle(() => done);
                             await work;
                             await receiver.fileLogger.flush();
-                            assert.equal(count() - before, publication === 'pending' ? 1 : 0);
+                            assert.equal(count() - before, 1);
                         }
                         const saved = await host.run(id, () => receiver.fileLogger.getDateStats(original.date));
                         assert.ok(saved);
@@ -122,20 +126,15 @@ test('cross-midnight publication recovery is independent of historical regenerat
                 }
             }
         }
-        await suite.test('bounded batches eventually recover all dates without parsing raw logs', async context => {
+        await suite.test('the next cycle recovers all dates without parsing raw logs', async context => {
             host.reset();
             const f = await host.fixture(context);
-            const publication = new StatsPublication();
             for (let day = 1; day <= 45; day++) {
                 const date = new Date(2026, 7, day).toLocaleDateString('sv-SE');
                 const folder = join(f.dir, 'usages', date);
                 const stats = host.emptyStats();
                 stats.total.requests = day;
                 await mkdir(folder, { recursive: true });
-                await publication.prepare(
-                    join(folder, 'stats.json'),
-                    createHash('sha256').update(JSON.stringify(stats)).digest('hex')
-                );
                 await writeFile(join(folder, 'stats.json'), JSON.stringify(stats));
             }
             context.mock.method(f.internals.logStatsManager, 'getDateStats', () => {
@@ -157,7 +156,7 @@ test('cross-midnight publication recovery is independent of historical regenerat
                 await f.fileLogger.recoverStatsPublications(result => f.manager.notifyStatsUpdate(result));
                 batches.push(reads - before);
                 const updates = host.events.filter(item => item.event.type === 'tokenUsageUpdated');
-                assert.equal(updates.length, Math.min((round + 1) * 20, 45));
+                assert.equal(updates.length, 45);
                 assert.equal(
                     new Set(
                         updates.map(item => (item.event.type === 'tokenUsageUpdated' ? item.event.payload.date : ''))
@@ -165,7 +164,7 @@ test('cross-midnight publication recovery is independent of historical regenerat
                     updates.length
                 );
             }
-            assert.deepEqual(batches, [20, 20, 20, 20]);
+            assert.deepEqual(batches, [45, 45, 45, 45]);
         });
         for (const scenario of ['concurrent', 'follower', 'replacement', 'disposed', 'corrupt'] as const) {
             await suite.test(`pending recovery boundary/${scenario}`, async context => {
@@ -175,14 +174,14 @@ test('cross-midnight publication recovery is independent of historical regenerat
                 const stats: TokenUsageStatsFromFile = host.emptyStats();
                 await mkdir(folder, { recursive: true });
                 const statsPath = join(folder, 'stats.json');
-                const publication = new StatsPublication();
+                const publication = (f.internals.logStatsManager as unknown as { publication: StatsPublication })
+                    .publication;
                 const fingerprint = createHash('sha256').update(JSON.stringify(stats)).digest('hex');
-                await publication.prepare(statsPath, fingerprint);
                 await writeFile(statsPath, JSON.stringify(stats));
                 if (scenario === 'corrupt') {
                     const badFolder = join(f.dir, 'usages', '2026-09-30');
                     await mkdir(badFolder, { recursive: true });
-                    await writeFile(join(badFolder, 'stats-publication.json'), '{');
+                    await writeFile(join(badFolder, 'stats.json'), '{');
                 }
                 if (scenario === 'follower') {
                     host.state.leaderId = 'successor';

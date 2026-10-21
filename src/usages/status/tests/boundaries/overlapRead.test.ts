@@ -106,9 +106,9 @@ test(
                         const latest = f.fileLogger.getLatestStatusStats(f.date);
                         const displayed = status.peek();
                         const ownerRead = await f.manager.getStatusSnapshot();
-                        const pending = await new StatsPublication().readPendingStats(
-                            join(f.dir, 'usages', f.date, 'stats.json')
-                        );
+                        const pending = await (
+                            f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                        ).publication.readPendingStats(join(f.dir, 'usages', f.date, 'stats.json'));
                         assert.equal((await f.saved()).total.requests, 2);
                         assert.equal(latest?.stats.total.requests, 2);
                         assert.equal(displayed?.stats.total.requests, 2);

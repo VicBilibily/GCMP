@@ -80,7 +80,6 @@ export class LogStatsManager {
     private readonly publication = new StatsPublication();
     private readonly publicationWrites = new Set<Promise<void>>();
     private readonly statsTasks = new Set<Promise<TokenUsageStatsFromFile>>();
-    private publicationRecoveryCursor = '';
     private readonly rawHourlyStats = new RawHourlyStats();
     private disposed = false;
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
@@ -338,17 +337,12 @@ export class LogStatsManager {
         const dates = entries
             .filter(entry => entry.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(entry.name))
             .map(entry => entry.name)
-            .filter(date => !excludedDates.includes(date))
             .sort((left, right) => right.localeCompare(left));
-        const batch = [
-            ...dates.filter(date => date < this.publicationRecoveryCursor),
-            ...dates.filter(date => date >= this.publicationRecoveryCursor)
-        ].slice(0, 20);
-        for (const date of batch) {
+        this.publication.retain(new Set(dates.map(date => this.getStatsFilePath(date))));
+        for (const date of dates.filter(date => !excludedDates.includes(date))) {
             if (this.disposed || !canRecover()) {
                 return;
             }
-            this.publicationRecoveryCursor = date;
             try {
                 const authorityTerm = this.getStatsAuthorityTerm();
                 const revision = ++this.resultRevision;
@@ -922,8 +916,6 @@ export class LogStatsManager {
                 if (!canCommit()) {
                     throw new WritePermissionLostError();
                 }
-                // 待发布指纹必须先于统计落盘，才能在进程退出后恢复通知。
-                await this.publication.prepare(filePath, fingerprint, undefined, canCommit);
                 await AtomicJsonFile.writeJsonAtomically(filePath, stats, undefined, canCommit);
                 statisticsFiles.invalidate(filePath);
                 const observed: { path: string; version?: string; revision: number } = {

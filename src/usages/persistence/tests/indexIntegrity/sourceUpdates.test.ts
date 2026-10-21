@@ -108,32 +108,38 @@ test('source-based index updates and prepared stats reject superseded versions w
                 }
             });
         }
-        await suite.test('completed prepare cannot overwrite a newer unowned process commit', async c => {
+        await suite.test('a paused save cannot overwrite a newer unowned process commit', async c => {
             const f = await snapshotFixture(host, c);
             host.state.leaderId = undefined;
             await f.internals.snapshotManager.upsertRecord(f.date, snapshotRow(f.date, 'second', 10));
             const publication = (f.internals.logStatsManager as unknown as { publication: StatsPublication })
                 .publication;
-            const prepare = publication.prepare.bind(publication);
+            const saving = f.internals.logStatsManager as unknown as {
+                saveDateStats(
+                    date: string,
+                    stats: TokenUsageStatsFromFile,
+                    term: string | undefined,
+                    canWrite: () => boolean,
+                    version: string
+                ): Promise<boolean>;
+            };
+            const save = saving.saveDateStats.bind(saving);
             const permission = f.internals.logStatsManager.captureWritePermission();
             const entered = gate(),
                 release = gate();
             let prepared = 0;
-            let fingerprint = '';
-            c.mock.method(publication, 'prepare', async (...args: Parameters<typeof prepare>) => {
-                await prepare(...args);
+            c.mock.method(saving, 'saveDateStats', async (...args: Parameters<typeof save>) => {
                 prepared++;
-                fingerprint = args[1];
                 entered.release();
                 await release.promise;
+                return save(...args);
             });
             const old = f.fileLogger.getDateStats(f.date, true);
             try {
                 await Promise.race([entered.promise, old]);
                 assert.equal(prepared, 1);
                 const markerPath = join(f.dir, 'usages', f.date, 'stats-publication.json');
-                const marker = JSON.parse(await readFile(markerPath, 'utf8')) as { pending: string[] };
-                assert.ok(marker.pending.includes(fingerprint));
+                await assert.rejects(readFile(markerPath, 'utf8'), { code: 'ENOENT' });
                 assert.equal(
                     (JSON.parse(await readFile(f.statsPath, 'utf8')) as TokenUsageStatsFromFile).total.requests,
                     1

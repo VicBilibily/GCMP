@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
-import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { AtomicJsonFile } from '../../../atomicJsonFile';
 import { StatsPublication } from '../../../fileLogger/refresh/statsPublication';
@@ -33,20 +32,27 @@ async function assertRejected(
     assert.notEqual(f.fileLogger.getLatestStatusStats(f.date)?.stats.total.requests, 2);
     assert.equal(f.updates.includes(2), false);
     assert.deepEqual(await diskState(f), before, 'Old publication must preserve stats, index, intent and receipt');
-    assert.equal((await new StatsPublication().readPendingStats(f.statsPath))?.total.requests, pendingRequests);
+    assert.equal(
+        (
+            await (
+                f.internals.logStatsManager as unknown as { publication: StatsPublication }
+            ).publication.readPendingStats(f.statsPath)
+        )?.total.requests,
+        pendingRequests
+    );
 }
 
 async function publishFreshThree(
     f: LifecycleFixture,
     old: StatsRefreshResult,
-    state: PublicationState,
+    _state: PublicationState,
     before: DiskState
 ): Promise<void> {
     const saved = await f.fileLogger.readSavedStats(f.date);
     assert.ok(saved);
     assert.equal(saved.total.requests, 3);
     assert.notEqual(f.fileLogger.getStatsSource(saved)?.stale, true);
-    await assertRejected(f, { ...old, changed: true }, true, before, state === 'pending' ? 3 : undefined);
+    await assertRejected(f, { ...old, changed: true }, true, before, 3);
     f.manager.notifyStatsUpdate({ date: f.date, stats: saved, changed: true, delegated: false });
     await f.flushPublications();
     assert.deepEqual(f.publications(), [3]);
@@ -55,15 +61,18 @@ async function publishFreshThree(
     assert.equal(f.status.peek()?.stats.total.requests, 3);
     assert.equal((await f.manager.getStatusSnapshot())?.stats.total.requests, 3);
     assert.equal(f.fileLogger.getLatestStatusStats(f.date)?.stats.total.requests, 3);
-    assert.equal(await new StatsPublication().readPendingStats(f.statsPath), undefined);
+    assert.equal(
+        await (
+            f.internals.logStatsManager as unknown as { publication: StatsPublication }
+        ).publication.readPendingStats(f.statsPath),
+        undefined
+    );
     const acknowledged = await diskState(f);
     assertDiskCount(acknowledged, f.date, 3);
     assert.equal(acknowledged.stats, before.stats);
     assert.equal(acknowledged.index, before.index);
     assert.equal(acknowledged.marker, before.marker);
-    if (state === 'acknowledged') {
-        assert.equal(acknowledged.receipt, before.receipt);
-    }
+    assert.equal(acknowledged.receipt, before.receipt);
     f.manager.notifyStatsUpdate({ ...old, changed: true }, true);
     await f.flushPublications();
     assert.deepEqual(f.publications(), [3]);
@@ -72,7 +81,9 @@ async function publishFreshThree(
     assert.equal(f.fileLogger.getStatsSource(old.stats)?.stale, true);
     assert.deepEqual(await diskState(f), acknowledged);
     assert.equal(
-        await new StatsPublication().readPendingStats(f.statsPath),
+        await (
+            f.internals.logStatsManager as unknown as { publication: StatsPublication }
+        ).publication.readPendingStats(f.statsPath),
         undefined,
         'A late old ACK must not turn acknowledged 3 back into pending'
     );
@@ -146,12 +157,13 @@ test('registered notification lifecycle across external commits and recovery', {
                             }
                             const before = await diskState(f);
                             assertDiskCount(before, f.date, state === 'none' ? 2 : 3);
-                            const pending =
-                                state === 'acknowledged' ? undefined
-                                : state === 'pending' ? 3
-                                : 2;
+                            const pending = state === 'none' ? 2 : 3;
                             assert.equal(
-                                (await new StatsPublication().readPendingStats(f.statsPath))?.total.requests,
+                                (
+                                    await (
+                                        f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                                    ).publication.readPendingStats(f.statsPath)
+                                )?.total.requests,
                                 pending
                             );
                             const result = await f.resume();
@@ -166,7 +178,12 @@ test('registered notification lifecycle across external commits and recovery', {
                                 assert.equal(f.status.peek()?.stats.total.requests, 2);
                                 assert.equal((await f.manager.getStatusSnapshot())?.stats.total.requests, 2);
                                 assert.notEqual(f.fileLogger.getStatsSource(result.stats)?.stale, true);
-                                assert.equal(await new StatsPublication().readPendingStats(f.statsPath), undefined);
+                                assert.equal(
+                                    await (
+                                        f.internals.logStatsManager as unknown as { publication: StatsPublication }
+                                    ).publication.readPendingStats(f.statsPath),
+                                    undefined
+                                );
                                 const after = await diskState(f);
                                 assertDiskCount(after, f.date, 2);
                                 assert.equal(after.stats, before.stats);
@@ -195,13 +212,13 @@ test('registered notification lifecycle across external commits and recovery', {
                         await externalCommit(f.dir, f.date, state, context.signal);
                         const current = await diskState(f);
                         assertDiskCount(current, f.date, 3);
-                        await assertRejected(f, result, true, current, state === 'pending' ? 3 : undefined);
+                        await assertRejected(f, result, true, current, 3);
                         await publishFreshThree(f, result, state, current);
                     });
                 });
             }
         }
-        for (const boundary of ['ack queued', 'ack marker read', 'ack receipt read'] as const) {
+        for (const boundary of ['ack queued', 'ack metadata read'] as const) {
             for (const state of ['pending', 'acknowledged'] as const) {
                 await suite.test(`${boundary}/${state}`, { timeout: 60000 }, async context => {
                     await withPausedRefresh(host, context, 'returned', async f => {
@@ -213,10 +230,7 @@ test('registered notification lifecycle across external commits and recovery', {
                         const entered = gate();
                         const release = gate();
                         const checks: boolean[] = [];
-                        const passedChecks =
-                            boundary === 'ack queued' ? []
-                            : boundary === 'ack marker read' ? [true]
-                            : [true, true];
+                        const passedChecks = boundary === 'ack queued' ? [] : [true];
                         const acknowledge = StatsPublication.prototype.acknowledge;
                         const acknowledgements = context.mock.method(
                             StatsPublication.prototype,
@@ -254,14 +268,9 @@ test('registered notification lifecycle across external commits and recovery', {
                                     context.signal
                                 );
                             } else {
-                                const target = join(
-                                    f.dir,
-                                    'usages',
-                                    f.date,
-                                    boundary === 'ack marker read' ? 'stats-publication.json' : 'stats-published.json'
-                                );
-                                const read = fs.promises.readFile;
-                                const paused = context.mock.method(fs.promises, 'readFile', (async (
+                                const target = f.statsPath;
+                                const read = fs.promises.stat;
+                                const paused = context.mock.method(fs.promises, 'stat', (async (
                                     ...args: Parameters<typeof read>
                                 ) => {
                                     const pause = String(args[0]) === target && intercepted === 0;
@@ -270,10 +279,6 @@ test('registered notification lifecycle across external commits and recovery', {
                                     }
                                     const content = await read(...args);
                                     if (pause) {
-                                        assert.equal(
-                                            content,
-                                            boundary === 'ack marker read' ? initial.marker : initial.receipt
-                                        );
                                         assert.deepEqual(checks, passedChecks);
                                         entered.release();
                                         await bounded(release.promise, 'release ACK read', 45000, context.signal);
@@ -337,7 +342,7 @@ test('registered notification lifecycle across external commits and recovery', {
                             assert.notEqual(f.fileLogger.getLatestStatusStats(f.date)?.stats.total.requests, 2);
                             assert.equal(f.fileLogger.getStatsSource(result.stats)?.stale, true);
                             assert.deepEqual(f.acknowledgements(), []);
-                            await assertRejected(f, result, true, current, state === 'pending' ? 3 : undefined);
+                            await assertRejected(f, result, true, current, 3);
                             await publishFreshThree(f, result, state, current);
                         } finally {
                             entered.release();

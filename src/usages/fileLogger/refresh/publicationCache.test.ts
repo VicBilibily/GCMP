@@ -7,29 +7,33 @@ import { StatsPublication } from './statsPublication';
 import { countStatsReads, fingerprint, publicationFixture, publicationStats } from './publicationCacheFixture';
 
 for (const restart of [false, true]) {
-    test(`confirmed previous versions need no full statistics read, restart=${restart}`, async context => {
+    test(`applied versions stay lightweight after initial reconciliation, restart=${restart}`, async context => {
         const f = await publicationFixture(context, true);
         const reader = restart ? new StatsPublication() : f.publication;
         const reads = countStatsReads(context);
+        if (restart) {
+            assert.deepEqual(await reader.readPendingStats(f.statsPath), f.current);
+            await reader.acknowledge(f.statsPath, fingerprint(f.current), () => true);
+        }
         for (let round = 0; round < 3; round++) {
             assert.equal(await reader.readPendingStats(f.statsPath), undefined);
-            assert.equal(reads(), 0);
+            assert.equal(reads(), restart ? 1 : 0);
         }
-        const marker = JSON.parse(await readFile(f.markerPath, 'utf8')) as { pending: string[] };
-        assert.deepEqual(marker.pending, [fingerprint(f.current)]);
+        await assert.rejects(readFile(f.markerPath), { code: 'ENOENT' });
     });
 }
 
-test('a cold two-version marker reads once then uses only lightweight file metadata', async context => {
+test('a cold tracker reads the current version once and acknowledges only in memory', async context => {
     const f = await publicationFixture(context);
     const reader = new StatsPublication(),
         reads = countStatsReads(context);
-    const marker = await readFile(f.markerPath, 'utf8');
+    assert.deepEqual(await reader.readPendingStats(f.statsPath), f.current);
+    await reader.acknowledge(f.statsPath, fingerprint(f.current), () => true);
     for (let round = 0; round < 3; round++) {
         assert.equal(await reader.readPendingStats(f.statsPath), undefined);
         assert.equal(reads(), 1);
     }
-    assert.equal(await readFile(f.markerPath, 'utf8'), marker);
+    await assert.rejects(readFile(f.receiptPath), { code: 'ENOENT' });
 });
 
 test('a pending disk fingerprint can be reused after its acknowledgement without retaining statistics', async context => {
@@ -45,7 +49,7 @@ test('a pending disk fingerprint can be reused after its acknowledgement without
     }
 });
 
-test('metadata eviction permits safe rereads while the most recent 256 dates stay lightweight', async context => {
+test('all historical dates stay lightweight and deleted dates release their metadata', async context => {
     const f = await publicationFixture(context);
     const stats = publicationStats(2),
         current = fingerprint(stats);
@@ -54,37 +58,35 @@ test('metadata eviction permits safe rereads while the most recent 256 dates sta
         const folder = join(f.dir, String(index)),
             path = join(folder, 'stats.json');
         await AtomicJsonFile.writeJsonAtomically(path, stats);
-        await AtomicJsonFile.writeJsonAtomically(join(folder, 'stats-publication.json'), {
-            pending: [current, 'older']
-        });
-        await AtomicJsonFile.writeJsonAtomically(join(folder, 'stats-published.json'), current);
-        assert.equal(await f.publication.readPendingStats(path), undefined);
+        assert.deepEqual(await f.publication.readPendingStats(path), stats);
+        await f.publication.acknowledge(path, current, () => true);
         paths.push(path);
     }
     const reads = countStatsReads(context);
     assert.equal(await f.publication.readPendingStats(paths[256]), undefined);
     assert.equal(reads(), 0);
     assert.equal(await f.publication.readPendingStats(paths[0]), undefined);
+    assert.equal(reads(), 0);
+    f.publication.retain(new Set([paths[256]]));
+    assert.deepEqual(await f.publication.readPendingStats(paths[0]), stats);
     assert.equal(reads(), 1);
 });
 
 for (const confirmed of [false, true]) {
-    test(`an uncommitted successor preserves the saved publication state, confirmed=${confirmed}`, async context => {
+    test(`uncommitted legacy intent cannot change local application state, confirmed=${confirmed}`, async context => {
         const f = await publicationFixture(context);
-        if (!confirmed) {
-            await writeFile(f.receiptPath, JSON.stringify(fingerprint(publicationStats(1))));
-        }
-        await f.publication.prepare(f.statsPath, fingerprint(publicationStats(3)));
-        const result = await new StatsPublication().readPendingStats(f.statsPath);
+        const tracker = confirmed ? f.publication : new StatsPublication();
+        await writeFile(f.markerPath, JSON.stringify({ pending: [fingerprint(publicationStats(3))] }));
+        const result = await tracker.readPendingStats(f.statsPath);
         assert.deepEqual(result, confirmed ? undefined : f.current);
-        assert.equal(await f.publication.isPending(f.statsPath, fingerprint(f.current)), !confirmed);
+        assert.equal(await tracker.isPending(f.statsPath, fingerprint(f.current)), !confirmed);
     });
 }
 
-test('preparing a newer intent never rewrites a previously persisted acknowledgement', async context => {
+test('reconciliation never creates a persistent acknowledgement', async context => {
     const f = await publicationFixture(context);
-    const receipt = await readFile(f.receiptPath, 'utf8');
-    await f.publication.prepare(f.statsPath, fingerprint(publicationStats(3)));
-    assert.equal(await readFile(f.receiptPath, 'utf8'), receipt);
-    assert.equal(await f.publication.isPending(f.statsPath, fingerprint(publicationStats(3))), true);
+    const next = await f.save(3);
+    assert.equal(await f.publication.isPending(f.statsPath, fingerprint(next)), true);
+    await f.publication.acknowledge(f.statsPath, fingerprint(next), () => true);
+    await assert.rejects(readFile(f.receiptPath), { code: 'ENOENT' });
 });

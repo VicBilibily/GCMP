@@ -32,6 +32,8 @@ test('opening usages view reconciles a stale index once, without slowing event r
     const messages: HostMessage[] = [];
     let activeMetricsSnapshot: LiveStreamMetricEvent[] = [];
     const panel = {
+        visible: true,
+        onDidChangeViewState: () => ({ dispose() {} }),
         webview: {
             html: '',
             onDidReceiveMessage: () => ({ dispose() {} }),
@@ -146,8 +148,10 @@ test('opening usages view reconciles a stale index once, without slowing event r
             })
         );
         let reconciliations = 0;
+        let statisticsVersion = 'first';
         let failRegeneration = false;
         const logger = {
+            getStatisticsVersion: () => statisticsVersion,
             regenerateOutdatedStats: async () => {
                 if (failRegeneration) {
                     throw new Error('stats rebuild failed');
@@ -194,8 +198,10 @@ test('opening usages view reconciles a stale index once, without slowing event r
             sessionGroups: []
         };
         const view = new TokenUsagesView({ subscriptions: [] } as never);
+        t.after(() => view.dispose());
         Object.defineProperty(view, 'getWebviewContent', { value: () => '' });
         let detailCallCount = 0;
+        let failReconciliation = false;
         let blockFirstDetail = false;
         let releaseFirstDetail: (() => void) | undefined;
         Object.defineProperty(view, 'updateDateDetailsInternal', {
@@ -207,6 +213,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
                         releaseFirstDetail = resolve;
                     });
                 }
+                return !failReconciliation;
             }
         });
         view.show();
@@ -236,6 +243,30 @@ test('opening usages view reconciles a stale index once, without slowing event r
         onStatsUpdate();
         await nextList;
         assert.equal(reconciliations, 1);
+        const reconciliation = view as unknown as { reconcileView(): Promise<void> };
+        Object.assign(view, { currentSelectedDate: '2026-09-22' });
+        await reconciliation.reconcileView();
+        const firstReconciliation = reconciliations;
+        await reconciliation.reconcileView();
+        assert.equal(reconciliations, firstReconciliation);
+        statisticsVersion = 'next';
+        await reconciliation.reconcileView();
+        assert.equal(reconciliations, firstReconciliation + 1);
+        panel.visible = false;
+        statisticsVersion = 'hidden';
+        await reconciliation.reconcileView();
+        assert.equal(reconciliations, firstReconciliation + 1);
+        panel.visible = true;
+        failReconciliation = true;
+        const failedDetails = detailCallCount;
+        await reconciliation.reconcileView();
+        await reconciliation.reconcileView();
+        assert.equal(detailCallCount, failedDetails + 2);
+        failReconciliation = false;
+        await reconciliation.reconcileView();
+        assert.equal(detailCallCount, failedDetails + 3);
+        await reconciliation.reconcileView();
+        assert.equal(detailCallCount, failedDetails + 3);
         view.dispose();
 
         await writeFile(indexManager.getIndexPath(), JSON.stringify({ dates: {} }));
@@ -245,7 +276,7 @@ test('opening usages view reconciles a stale index once, without slowing event r
         });
         view.show();
         assert.deepEqual((await nextList).dateList, [{ date: '2026-09-22', total_requests: 3 }]);
-        assert.equal(reconciliations, 2);
+        assert.equal(reconciliations, firstReconciliation + 5);
 
         const realDetailRefresh = (
             Object.getPrototypeOf(view) as {
@@ -671,23 +702,85 @@ test('opening usages view reconciles a stale index once, without slowing event r
             assert.equal(publishedOldPage, false);
         });
 
-        await t.test('history read failure reports an error and permits retry', async () => {
-            Object.assign(manager, {
-                getDateStatsFromFile: async () => ({ providers: {}, hourly: {} }),
-                getDateOverview: async () => {
-                    throw new Error('transient read failure');
-                }
-            });
-            messages.length = 0;
-            await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
-            assert.deepEqual(
-                messages.map(message => message.command),
-                ['updateDateStats', 'dateLoadError']
-            );
-            Object.assign(manager, { getDateOverview: async () => emptyOverview });
-            await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
-            assert.equal(messages.at(-1)?.command, 'updateDateDetails');
-        });
+        for (const overlap of [false, true]) {
+            for (const failure of ['none', 'stats', 'overview', 'delivery'] as const) {
+                await t.test(
+                    `returning to a reconciled date retries ${failure} failures with overlap=${overlap}`,
+                    async c => {
+                        let fail = false;
+                        let reads = 0;
+                        let releaseList!: () => void;
+                        let signalList!: () => void;
+                        const listBlocked = new Promise<void>(resolve => {
+                            releaseList = resolve;
+                        });
+                        const listStarted = new Promise<void>(resolve => {
+                            signalList = resolve;
+                        });
+                        if (overlap) {
+                            let firstList = true;
+                            c.mock.method(manager, 'getAllDateSummaries', async () => {
+                                if (firstList) {
+                                    firstList = false;
+                                    signalList();
+                                    await listBlocked;
+                                }
+                                return [];
+                            });
+                        }
+                        const postMessage = panel.webview.postMessage;
+                        c.mock.method(panel.webview, 'postMessage', (message: HostMessage) =>
+                            fail && failure === 'delivery' && message.command === 'updateDateDetails' ?
+                                Promise.resolve(false)
+                            :   postMessage(message)
+                        );
+                        Object.assign(manager, {
+                            getDateStatsFromFile: async () => {
+                                reads++;
+                                if (fail && failure === 'stats') {
+                                    throw new Error('transient stats failure');
+                                }
+                                return { providers: {}, hourly: {} };
+                            },
+                            getDateOverview: async () => {
+                                if (fail && failure === 'overview') {
+                                    throw new Error('transient overview failure');
+                                }
+                                return emptyOverview;
+                            }
+                        });
+                        statisticsVersion = `return-${failure}-${overlap}`;
+                        actions.currentSelectedDate = '2026-09-22';
+                        const initial = reconciliation.reconcileView();
+                        try {
+                            await (overlap ? listStarted : initial);
+                            await actions.handleMessage({ command: 'selectDate', date: '2026-09-21' });
+                            fail = true;
+                            messages.length = 0;
+                            await actions.handleMessage({ command: 'selectDate', date: '2026-09-22' });
+                            if (failure === 'stats' || failure === 'overview') {
+                                assert.equal(messages.at(-1)?.command, 'dateLoadError');
+                            }
+                        } finally {
+                            fail = false;
+                            releaseList();
+                            await initial;
+                        }
+                        const before = reads;
+                        messages.length = 0;
+                        for (let cycle = 0; cycle < 3; cycle++) {
+                            await reconciliation.reconcileView();
+                        }
+                        const retries = failure === 'none' ? 0 : 1;
+                        assert.equal(reads - before, retries);
+                        assert.equal(
+                            messages.filter(message => message.command === 'updateDateDetails').length,
+                            retries
+                        );
+                    }
+                );
+            }
+        }
 
         await t.test('initial summary failure is reported even before a date list arrives', async () => {
             Object.assign(manager, {
