@@ -5,6 +5,36 @@
     "codingKeyTemplate": "sk-kimi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "kfc-k3.1-pro",
+            "model": "k3.1-pro",
+            "name": "Kimi K3.1 Pro (Kimi Code)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.kimi.com/coding",
+            "provider": "kimi",
+            "tooltip": "Kimi K3.1 Pro (Kimi Code) - Kimi 最新一代旗舰模型，3 万亿参数规模，最高 100 万上下文，仅支持思考模式（关闭思考的请求会被拒绝）；支持 low / high / max 三档思考强度。新套餐 Plus 及以上可用、Pro 及以上支持 1M 上下文；老套餐 Moderato 及以上可用、Allegretto 及以上支持 1M 上下文。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [2.0, 10.0, 0.2, 2.0], "RMB": [13.0, 68.0, 1.3, 13.0] }
+        },
+        {
+            "id": "kfc-k3.1-pro-highspeed",
+            "model": "k3.1-pro-highspeed",
+            "name": "Kimi K3.1 Pro · HighSpeed (Kimi Code)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.kimi.com/coding",
+            "provider": "kimi",
+            "tooltip": "Kimi K3.1 Pro · HighSpeed (Kimi Code) - K3.1 Pro 的高速版，模型能力一致，输出速度约为普速版 2–3 倍、套餐消耗约为普速版两倍；最高 100 万上下文，仅支持思考模式；支持 low / high / max 三档思考强度。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [4.0, 20.0, 0.2, 4.0], "RMB": [26.0, 136.0, 1.3, 26.0] }
+        },
+        {
             "id": "kfc-k3",
             "model": "k3",
             "name": "Kimi K3 (Kimi Code)",
@@ -17,7 +47,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [3.0, 15.0, 0.3], "RMB": [20.0, 100.0, 2.0] }
+            "tokenPricing": { "USD": [3.0, 15.0, 0.3, 3.0], "RMB": [20.0, 100.0, 2.0, 20.0] }
         },
         {
             "id": "kfc-k3-256k",
@@ -31,7 +61,7 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [3.0, 15.0, 0.3], "RMB": [20.0, 100.0, 2.0] }
+            "tokenPricing": { "USD": [3.0, 15.0, 0.3, 3.0], "RMB": [20.0, 100.0, 2.0, 20.0] }
         },
         {
             "id": "kimi-for-coding",
@@ -101,13 +131,39 @@
             "name": "Kimi K3 (PayGo)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.moonshot.cn/anthropic",
-            "tooltip": "Kimi K3 是 Kimi 迄今能力最强的模型，拥有 2.8 万亿参数。它基于 Kimi 混合线性注意力机制（Kimi Delta Attention）和注意力残差（Attention Residuals）技术构建，原生支持视觉理解，并拥有 100 万 token 上下文窗口，面向软件工程、知识工作和深度推理等前沿智能场景而设计。",
+            "tooltip": "Kimi K3 是上一代旗舰模型，拥有 2.8 万亿参数。它基于 Kimi 混合线性注意力机制（Kimi Delta Attention）和注意力残差（Attention Residuals）技术构建，原生支持视觉理解，并拥有 100 万 token 上下文窗口，面向软件工程、知识工作和深度推理等前沿智能场景而设计。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [3.0, 15.0, 0.3], "RMB": [20.0, 100.0, 2.0] }
+            "tokenPricing": { "USD": [3.0, 15.0, 0.3, 3.0], "RMB": [20.0, 100.0, 2.0, 20.0] }
+        },
+        {
+            "id": "kimi-k3.1-pro",
+            "name": "Kimi K3.1 Pro (PayGo)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "tooltip": "Kimi K3.1 Pro 是 Kimi K3.1 系列的首个模型，也是 Kimi 迄今能力最强的旗舰模型：3 万亿级参数，原生支持视觉理解，100 万 token 上下文窗口，代码、3D 创作、金融研究与建模等能力显著提升；仅支持思考模式，支持 low / high / max 三档思考强度（默认 max）。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [2.0, 10.0, 0.2, 2.0], "RMB": [13.0, 68.0, 1.3, 13.0] }
+        },
+        {
+            "id": "kimi-k3.1-pro-highspeed",
+            "name": "Kimi K3.1 Pro HighSpeed (PayGo)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "tooltip": "Kimi K3.1 Pro HighSpeed 是 K3.1 Pro 的高速版模型，约为 K3.1 Pro 的 2～3 倍速度，模型能力一致，输入与输出价格约为普速版两倍、缓存命中价格相同；100 万 token 上下文窗口，仅支持思考模式，支持 low / high / max 三档思考强度（默认 max）。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [4.0, 20.0, 0.2, 4.0], "RMB": [26.0, 136.0, 1.3, 26.0] }
         }
     ]
 }
