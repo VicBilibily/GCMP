@@ -200,6 +200,10 @@
         "kimi-k3": {
             "name": "Kimi-K3",
             "template": ["1m", "vision", "max-high-low"]
+        },
+        "kimi-k3.1-pro": {
+            "name": "Kimi-K3.1-Pro",
+            "template": ["1m", "vision", "max-high-low"]
         }
     },
     "meta": {
@@ -286,6 +290,13 @@
         },
         "nemotron-3.5-super-vl": {
             "name": "Nemotron-3.5-Super-VL",
+            "template": ["256k", "vision"]
+        }
+    },
+    // Ornith 1.5 122B：MIT 许可开源权重，文本+图片输入、默认开启思考（无可调档位），262144 上下文 / 32768 输出
+    "ornith": {
+        "ornith-1.5-122b": {
+            "name": "Ornith-1.5-122B",
             "template": ["256k", "vision"]
         }
     },

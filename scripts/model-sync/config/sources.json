@@ -79,7 +79,17 @@
             "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" },
             "gpt-6-luna": { "ref": "openai/gpt-6-luna" },
             "gemini-4-argon-contributor": { "ref": "google/gemini-4-argon-contributor" },
-            "step-5-preview": { "ref": "stepfun/step-5-preview" }
+            "step-5-preview": { "ref": "stepfun/step-5-preview" },
+            "kimi-k3.1-pro": { "ref": "moonshotai/kimi-k3.1-pro" },
+            "minimax-m3.1-flash": {
+                "ref": "minimax/minimax-m3.1-flash",
+                // 远端清单无定价，按 OpenCode Go 官网价目表（Cached Write 为 —）
+                // 端点按 Go 官方端点表：M3.1 Flash 走 OpenAI 兼容端点，与 M3（anthropic）不同
+                "overrides": {
+                    "baseUrl": "https://opencode.ai/inference/go/openai/v1",
+                    "sdkMode": "openai-sse"
+                }
+            }
         }
     },
     "commandcode": {
@@ -152,6 +162,8 @@
                 // 远端清单无定价，按 MiniMax 官方参考价展示
                 "overrides": { "tokenPricing": [0.15, 0.6, 0.015] }
             },
+            "moonshotai/Kimi-K3.1-Pro": { "ref": "moonshotai/kimi-k3.1-pro", "localId": "kimi-k3.1-pro" },
+            "ornith/ornith-1.5-122b": { "localId": "ornith-1.5-122b" },
             "mistral/mistral-large-4": { "localId": "mistral-large-4" }
         }
     },
