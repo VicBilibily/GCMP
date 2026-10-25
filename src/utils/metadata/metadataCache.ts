@@ -5,7 +5,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import { AtomicJsonFile } from '../../usages/atomicJsonFile';
+import * as path from 'path';
+import { AtomicJsonFile, WritePermissionLostError } from '../../usages/atomicJsonFile';
+import { withDirectoryLock } from '../../usages/persistence/directoryLock';
 import { hashCliMetadata, parseGcmpMetadata } from './metadataResolver';
 import type { GcmpCliMetadata } from './metadataResolver';
 
@@ -32,8 +34,35 @@ export async function readMetadataSnapshot(filePath: string): Promise<MetadataSn
 }
 
 /** 元数据原文原子写盘；失败抛错由调用方决定降级策略 */
-export async function writeMetadataSnapshot(filePath: string, text: string): Promise<void> {
+export async function writeMetadataSnapshot(filePath: string, text: string, canWrite?: () => boolean): Promise<void> {
     await AtomicJsonFile.runExclusive(filePath, () =>
-        AtomicJsonFile.writeJsonAtomically(filePath, text, value => value as string)
+        AtomicJsonFile.writeJsonAtomically(filePath, text, value => value as string, canWrite)
+    );
+}
+
+export async function withMetadataCacheTransaction<T>(
+    filePath: string,
+    canWrite: () => boolean,
+    operation: () => Promise<T>
+): Promise<T> {
+    const assertActive = (): void => {
+        if (!canWrite()) {
+            throw new WritePermissionLostError();
+        }
+    };
+    assertActive();
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    return withDirectoryLock(
+        `${filePath}.refresh.lock`,
+        {
+            waitMs: 10000,
+            retryMs: 25,
+            orphanMs: 60000,
+            reclaimOrphanMs: 60000,
+            timeoutMessage: `Timed out waiting for metadata cache: ${filePath}`,
+            ownershipLost: () => new WritePermissionLostError(),
+            assertActive
+        },
+        operation
     );
 }

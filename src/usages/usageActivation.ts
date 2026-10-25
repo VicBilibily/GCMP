@@ -1,6 +1,7 @@
 ﻿import * as vscode from 'vscode';
 import { InterInstanceBus } from '../interInstance';
 import { LeaderElectionService } from '../status/leaderElectionService';
+import { registerInstanceMaintenanceTask } from '../status/instanceMaintenance';
 import { TokenUsagesManager } from './usagesManager';
 import { DateUtils } from './fileLogger/dateUtils';
 import { Logger } from '../utils/runtime/logger';
@@ -73,18 +74,18 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
     );
 
     let periodicRefreshInFlight = false;
-    LeaderElectionService.registerPeriodicTask(async () => {
+    registerInstanceMaintenanceTask(context, async () => {
         if (periodicRefreshInFlight) {
             return;
         }
         periodicRefreshInFlight = true;
         try {
             const fileLogger = TokenUsagesManager.instance.getFileLogger();
-            if (LeaderElectionService.getOwnedAuthorityTerm?.()) {
+            if (typeof vscode.env.remoteName !== 'undefined' || LeaderElectionService.getOwnedAuthorityTerm?.()) {
                 try {
                     await fileLogger.getIndex();
                 } catch (error) {
-                    Logger.trace(`[LeaderTask] Failed to reconcile usage index: ${error}`);
+                    Logger.trace(`[UsageMaintenance] Failed to reconcile usage index: ${error}`);
                 }
             }
             const today = DateUtils.getTodayDateString();
@@ -97,7 +98,7 @@ export function registerUsageRefreshHandlers(context: vscode.ExtensionContext): 
                 [today]
             );
         } catch (error) {
-            Logger.trace(`[LeaderTask] Failed to refresh today stats: ${error}`);
+            Logger.trace(`[UsageMaintenance] Failed to refresh today stats: ${error}`);
         } finally {
             periodicRefreshInFlight = false;
         }

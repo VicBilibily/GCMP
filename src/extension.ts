@@ -307,6 +307,10 @@ async function disposeResources(subscriptions: vscode.Disposable[] = []): Promis
         }
     };
 
+    await cleanup('remote metadata services', () => {
+        RemoteMetadataService.dispose();
+        RemoteModelsService.dispose();
+    });
     await cleanup('API key consumer refresher', () => ApiKeyManager.setApiKeyConsumerRefresher(undefined));
     await cleanup('status bars', () => StatusBarManager.disposeAll());
     await cleanup('leader election service', () => LeaderElectionService.stop());

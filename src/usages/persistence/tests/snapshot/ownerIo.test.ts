@@ -11,7 +11,9 @@ for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
                 rename = promises.rename;
             await seedOwner(f);
             let reads = 0,
-                writes = 0;
+                writes = 0,
+                logicalTime = Date.now();
+            context.mock.method(Date, 'now', () => logicalTime++);
             context.mock.method(promises, 'readFile', (async (...args: Parameters<typeof readFile>) => {
                 if (String(args[0]) === f.ownerPath && reads++ < failures) {
                     throw Object.assign(new Error('injected owner read'), { code });

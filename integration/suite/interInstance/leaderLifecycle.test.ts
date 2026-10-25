@@ -4,7 +4,9 @@ import { InterInstanceBus } from '../../../src/interInstance/interInstanceBus';
 import { IpcServer } from '../../../src/interInstance/ipcServer';
 import { LeaderFilePublisher } from '../../../src/interInstance/leaderFile';
 import { LeaderElectionService } from '../../../src/status/leaderElectionService';
+import { UsageStatusPresentation } from '../../../src/status/tokenUsage/presentation';
 import { UserActivityService } from '../../../src/status/userActivityService';
+import { registerInstanceMaintenanceTask } from '../../../src/status/instanceMaintenance';
 import { createContext } from '../balance/retryFixture';
 
 interface LeaderRecord {
@@ -252,6 +254,194 @@ suite('Leader lifecycle recovery', () => {
         });
         await election.checkLeader();
         return `${election.instanceId}:${now}`;
+    }
+
+    test('maintenance scheduling delegates local tasks to the leader lifecycle', async () => {
+        const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+        let calls = 0;
+        try {
+            Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: undefined });
+            const registration = registerInstanceMaintenanceTask(context, async () => {
+                calls++;
+            });
+            assert.equal(election.periodicTasks.length, 1);
+            await election.periodicTasks[0]();
+            assert.equal(calls, 1);
+            registration.dispose();
+            await election.periodicTasks[0]();
+            assert.equal(calls, 1);
+        } finally {
+            if (originalRemoteName) {
+                Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+            }
+        }
+    });
+
+    for (const remoteName of ['ssh-remote', 'wsl', 'dev-container']) {
+        test(`remote compatibility ${remoteName} maintenance scheduling respects activity and lifecycle`, async () => {
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            const originalSetInterval = globalThis.setInterval;
+            const originalActive = UserActivityService.isUserActive;
+            const running = deferred();
+            let active = false;
+            let calls = 0;
+            let tick: (() => unknown) | undefined;
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                UserActivityService.isUserActive = () => active;
+                globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+                    assert.equal(args[1], 60_000);
+                    tick = () => args[0](undefined);
+                    return originalSetInterval(...args);
+                }) as typeof setInterval;
+                registerInstanceMaintenanceTask(context, async () => {
+                    calls++;
+                    if (calls === 1) {
+                        await running.promise;
+                    } else if (calls === 2) {
+                        throw new Error('maintenance test failure');
+                    }
+                });
+                assert.ok(tick);
+                assert.equal(election.periodicTasks.length, 0);
+                await tick();
+                assert.equal(calls, 0);
+                active = true;
+                const first = tick();
+                await tick();
+                assert.equal(calls, 1);
+                running.resolve();
+                await first;
+                await tick();
+                await tick();
+                assert.equal(calls, 3);
+                for (const subscription of context.subscriptions) {
+                    subscription.dispose();
+                }
+                await tick();
+                assert.equal(calls, 3);
+            } finally {
+                running.resolve();
+                globalThis.setInterval = originalSetInterval;
+                UserActivityService.isUserActive = originalActive;
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+            }
+        });
+
+        test(`remote compatibility ${remoteName} keeps user activity window-local`, async () => {
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            const activityKey = 'gcmp.user.activity';
+            const localActivity = { instanceId: 'local-window', lastActiveTime: now - 1000, recentActivityCount: 1 };
+            await context.globalState.update(activityKey, localActivity);
+            const originalGet = context.globalState.get.bind(context.globalState);
+            const originalUpdate = context.globalState.update.bind(context.globalState);
+            context.globalState.get = <Value>(entry: string, defaultValue?: Value): Value => {
+                assert.notEqual(entry, activityKey, 'Remote activity must not read the shared activity record');
+                return originalGet(entry, defaultValue) as Value;
+            };
+            context.globalState.update = async (entry: string, value: unknown) => {
+                assert.notEqual(entry, activityKey, 'Remote activity must not update the shared activity record');
+                await originalUpdate(entry, value);
+            };
+            UserActivityService.initialize = originalInitializeActivity;
+            UserActivityService.stop = originalStopActivity;
+            const activity = UserActivityService as unknown as {
+                recordUserActivity(type: 'textSelection'): Promise<void>;
+            };
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                election.initialized = false;
+                LeaderElectionService.initialize(context);
+                await activity.recordUserActivity('textSelection');
+                assert.equal(UserActivityService.isUserActive(), true);
+                now += 6000;
+                assert.equal(UserActivityService.isUserActive(), true);
+                now += 30 * 60 * 1000;
+                assert.equal(UserActivityService.isUserActive(), false);
+                assert.deepEqual(originalGet(activityKey), localActivity);
+            } finally {
+                await LeaderElectionService.stop();
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+            }
+        });
+
+        test(`remote compatibility ${remoteName} never participates in leader election`, async () => {
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            const localLeader: LeaderRecord = {
+                instanceId: 'other-host-leader',
+                electedAt: now - 1000,
+                lastHeartbeat: now
+            };
+            await context.globalState.update(key, localLeader);
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                election.initialized = false;
+                LeaderElectionService.initialize(context);
+                assert.equal(election.startTimer, undefined);
+                assert.equal(election.heartbeatTimer, undefined);
+                assert.equal(election.taskTimer, undefined);
+                assert.equal(LeaderElectionService.isInitialized(), false);
+                assert.equal(LeaderElectionService.isLeader(), false);
+                assert.equal(LeaderElectionService.getLeaderIdentity(), undefined);
+                assert.equal(LeaderElectionService.getAuthorityTerm(), undefined);
+                assert.equal(LeaderElectionService.isLeaderHeartbeatFresh(), false);
+                const subscriptions = context.subscriptions.length;
+                LeaderElectionService.subscribeToLeaderResigning();
+                LeaderElectionService.registerPeriodicTask(async () => {
+                    assert.fail('Remote leader task executed');
+                });
+                assert.equal(context.subscriptions.length, subscriptions);
+                assert.deepEqual(election.periodicTasks, []);
+                const presentation = new UsageStatusPresentation();
+                assert.equal(presentation.icon(), '$(layers-active)');
+                const tooltip = presentation.generateTooltip().value;
+                assert.match(tooltip, /Compatibility Mode/);
+                assert.doesNotMatch(tooltip, /Primary Instance|Sub Instance/);
+                await election.checkLeader();
+                await election.becomeLeader(true);
+                assert.equal(LeaderElectionService.isLeader(), false);
+                assert.equal(await LeaderElectionService.resignLeadership(), 'not-leader');
+                await LeaderElectionService.stop();
+                assert.deepEqual(context.globalState.get(key), localLeader);
+                assert.deepEqual(context.globalState.keys(), [key]);
+            } finally {
+                await LeaderElectionService.stop();
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+            }
+        });
+
+        test(`remote compatibility ${remoteName} starts no coordination transport`, async () => {
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            let fallbackStarts = 0;
+            bus.startFallbackTransport = () => {
+                fallbackStarts++;
+            };
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                InterInstanceBus.initialize(context);
+                busStarted = true;
+                await bus.roleSwitchChain;
+                assert.equal(fallbackStarts, 0);
+                assert.equal(serverStarts, 0);
+                assert.equal(bus.initialized, false);
+                assert.equal(InterInstanceBus.isIpcEnabled(), false);
+                assert.equal(InterInstanceBus.isConnected(), false);
+                assert.equal(InterInstanceBus.hasActiveTransport(), false);
+                assert.equal(InterInstanceBus.getAuthorityTerm(), undefined);
+            } finally {
+                await InterInstanceBus.dispose();
+                busStarted = false;
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+            }
+        });
     }
 
     test('stable election and repeated identity notifications keep one IPC server', async () => {

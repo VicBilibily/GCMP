@@ -335,7 +335,7 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → 内置�
 providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置预置
 ```
 
-**跨实例行为**：多个 VS Code 窗口共享 Leader 权威限流桶（窗口间自动选举），维度以 Leader 本机配置为准，配置修改即时生效；Leader 不可用时自动降级为单窗口本地桶并每 60 秒探测恢复，恢复后自动回到跨实例严格模式；窗口关闭或断线时，其排队请求与持有的配额会被自动回收，不会阻塞其他窗口。Remote（SSH/WSL 等）场景跨实例通道不可用，各窗口始终使用本地桶。
+**跨实例行为**：多个本地 VS Code 窗口共享 Leader 权威限流桶（窗口间自动选举），维度以 Leader 本机配置为准，配置修改即时生效；Leader 不可用时自动降级为单窗口本地桶并每 60 秒探测恢复，恢复后自动回到跨实例严格模式；窗口关闭或断线时，其排队请求与持有的配额会被自动回收，不会阻塞其他窗口。Remote（SSH/WSL/容器等）窗口统一使用兼容模式，不参与 Leader 选举、心跳或交接，不启用 IPC 和文件协调通道；各窗口使用本地限流桶，在当前宿主启动时生成当天 Token 统计，并独立执行统计、余额和模型/CLI 元数据的周期刷新及过期日志清理，周期任务仍遵守用户活动、缓存过期和保留天数设置；不影响本地窗口的 Leader，状态栏显示“兼容模式”。
 
 > 各功能专属设置（如 `gcmp.commit.enabled`、`gcmp.vision.model`、`gcmp.zhipu.search.enableMCP`）分别在其对应的功能章节中说明，不在此处展开。
 

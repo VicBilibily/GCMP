@@ -88,7 +88,16 @@ export async function createUsageHost() {
             return {
                 window: { createWebviewPanel: () => state.createPanel?.() },
                 ViewColumn: { One: 1 },
-                env: { language: 'zh-cn' }
+                env: { language: 'zh-cn' },
+                Disposable: class {
+                    constructor(private callback: (() => void) | undefined) {}
+
+                    dispose(): void {
+                        const callback = this.callback;
+                        this.callback = undefined;
+                        callback?.();
+                    }
+                }
             };
         }
         if (id.endsWith('/interInstance')) {

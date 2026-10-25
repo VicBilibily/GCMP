@@ -12,6 +12,7 @@ import type { StatsRefreshResult } from './fileLogger/refresh/statsRefreshQueue'
 import { SessionTitleService } from './sessionTitleService';
 import { InterInstanceBus } from '../interInstance';
 import { LeaderElectionService } from '../status/leaderElectionService';
+import { registerInstanceMaintenanceTask } from '../status/instanceMaintenance';
 import { EventEmitter } from 'events';
 import type { DateSummary } from './types';
 import type {
@@ -106,6 +107,7 @@ export class TokenUsagesManager {
     private usagesQueryCoordinator: UsagesQueryCoordinator | undefined;
     private leaderChangeDisposable: vscode.Disposable | undefined;
     private cacheInvalidationDisposable: vscode.Disposable | undefined;
+    private cleanupMaintenance: vscode.Disposable | undefined;
     private statusSnapshots: UsageStatusSnapshots | undefined;
     private dateRecordsCache = new Map<string, DateRecordsCacheEntry>();
     private dateRecordsBuilds = new Map<string, Promise<ExtendedTokenRequestLog[]>>();
@@ -209,23 +211,39 @@ export class TokenUsagesManager {
         );
         this.initialized = true;
 
+        if (typeof vscode.env.remoteName !== 'undefined') {
+            try {
+                const result = await fileLogger.refreshStats(DateUtils.getTodayDateString(), true);
+                if (generation !== this.lifecycleGeneration) {
+                    return;
+                }
+                if (result) {
+                    this.notifyStatsUpdate(result);
+                }
+            } catch (error) {
+                StatusLogger.warn('[UsagesManager] Failed to initialize compatibility statistics:', error);
+            }
+            if (generation !== this.lifecycleGeneration) {
+                return;
+            }
+        }
+
         const elapsed = Date.now() - startTime;
         StatusLogger.debug(`[UsagesManager] Token usage manager initialization completed (elapsed: ${elapsed}ms)`);
 
         // 异步后台清理过期数据（不阻塞初始化）
-        this.scheduleBackgroundCleanup();
+        this.scheduleBackgroundCleanup(context);
     }
 
     /**
      * 调度后台清理任务。
-     * 仅由 Leader 实例执行（通过 Leader 周期任务驱动，内部已保证仅 Leader 运行），
-     * 避免多窗口下清理整目录与 Leader 的 stats 写入/历史压缩交叉竞态；
+     * 本地由 Leader 执行，远程兼容模式在本机独立执行；
      * 周期任务每分钟触发，清理逻辑按固定间隔节流。
      */
-    private scheduleBackgroundCleanup(): void {
+    private scheduleBackgroundCleanup(context: vscode.ExtensionContext): void {
         const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 每小时最多执行一次
         let lastCleanupTime = 0;
-        LeaderElectionService.registerPeriodicTask(async () => {
+        this.cleanupMaintenance = registerInstanceMaintenanceTask(context, async () => {
             if (Date.now() - lastCleanupTime < CLEANUP_INTERVAL_MS) {
                 return;
             }
@@ -1328,6 +1346,9 @@ export class TokenUsagesManager {
         const cacheInvalidationDisposable = this.cacheInvalidationDisposable;
         this.cacheInvalidationDisposable = undefined;
         cleanup(() => cacheInvalidationDisposable?.dispose());
+        const cleanupMaintenance = this.cleanupMaintenance;
+        this.cleanupMaintenance = undefined;
+        cleanup(() => cleanupMaintenance?.dispose());
         cleanup(() => this.clearDateRecordsCache());
         this.dateRecordsBuilds.clear();
         this.dateStatsReads.clear();

@@ -237,7 +237,9 @@ export class UserActivityService {
         this.cachedActivityInfo = activityInfo;
         this.lastCacheUpdate = now;
 
-        await this.context.globalState.update(this.USER_ACTIVITY_KEY, activityInfo);
+        if (typeof vscode.env.remoteName === 'undefined') {
+            await this.context.globalState.update(this.USER_ACTIVITY_KEY, activityInfo);
+        }
         StatusLogger.trace(
             `[UserActivityService] 记录用户活跃状态: type=${activityType}, count=${recentActivityCount}, time=${now}`
         );
@@ -247,6 +249,9 @@ export class UserActivityService {
      * 获取缓存的活跃信息（减少 globalState 读取）
      */
     private static getCachedActivityInfo(): UserActivityInfo | null {
+        if (typeof vscode.env.remoteName !== 'undefined') {
+            return this.cachedActivityInfo;
+        }
         const now = Date.now();
 
         // 检查缓存是否有效

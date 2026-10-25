@@ -14,6 +14,9 @@ export class UsageStatusPresentation {
     }
 
     icon(): string {
+        if (typeof vscode.env.remoteName !== 'undefined') {
+            return '$(layers-active)';
+        }
         return LeaderElectionService.isLeader() ? '$(layers-dot)' : '$(layers)';
     }
 
@@ -77,7 +80,10 @@ export class UsageStatusPresentation {
                 'gcmp.har.revealCurrent'
             ]
         };
-        const role = LeaderElectionService.isLeader() ? t('Primary Instance', '主实例') : t('Sub Instance', '从实例');
+        const role =
+            typeof vscode.env.remoteName !== 'undefined' ? t('Compatibility Mode', '兼容模式')
+            : LeaderElectionService.isLeader() ? t('Primary Instance', '主实例')
+            : t('Sub Instance', '从实例');
         md.appendMarkdown(
             `**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** <small>${role}${this.harSuffix()}</small>\n\n`
         );

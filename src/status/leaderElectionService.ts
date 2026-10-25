@@ -129,6 +129,14 @@ export class LeaderElectionService {
         this.ownElectedAt = 0;
         this.lastCandidateElectedAt = 0;
         this.context = context;
+        // 初始化用户活跃检测服务
+        UserActivityService.initialize(context, this.instanceId);
+        if (this.isRemoteWindow()) {
+            StatusLogger.info(
+                '[LeaderElectionService] Remote window uses compatibility mode; leader election disabled'
+            );
+            return;
+        }
         // Agents 窗体检测（复刻 VS Code 内部判定，不依赖提案 API）：
         // Agents 窗口打开的是主进程约定的合成工作区文件
         // <appSettingsHome>/agent-sessions.code-workspace（见 windowsMainService.ensureAgentsWindow），
@@ -138,9 +146,6 @@ export class LeaderElectionService {
         StatusLogger.info(
             `[LeaderElectionService] Initializing leader election service, current instance ID: ${this.instanceId}`
         );
-
-        // 初始化用户活跃检测服务
-        UserActivityService.initialize(context, this.instanceId);
 
         if (this.agentsWindow) {
             // Agents 窗体不参与选举：不启动竞选定时器，_isLeader 恒为 false，
@@ -281,6 +286,9 @@ export class LeaderElectionService {
         UserActivityService.stop();
 
         try {
+            if (this.isRemoteWindow()) {
+                return;
+            }
             if (this.resignationPromise) {
                 await this.resignationPromise.catch(error =>
                     StatusLogger.warn('[LeaderElectionService] Pending manual handoff failed during stop', error)
@@ -435,7 +443,9 @@ export class LeaderElectionService {
      * @param task 任务函数
      */
     public static registerPeriodicTask(task: () => Promise<void>): void {
-        this.periodicTasks.push(task);
+        if (!this.isRemoteWindow()) {
+            this.periodicTasks.push(task);
+        }
     }
 
     /**
@@ -485,7 +495,7 @@ export class LeaderElectionService {
      * 获取当前实例是否为主实例
      */
     public static isLeader(): boolean {
-        return this._isLeader;
+        return !this.isRemoteWindow() && this._isLeader;
     }
 
     public static isInitialized(): boolean {
@@ -514,7 +524,7 @@ export class LeaderElectionService {
     }
 
     public static getLeaderIdentity(): LeaderIdentity | undefined {
-        if (!this.context) {
+        if (!this.context || this.isRemoteWindow()) {
             return undefined;
         }
         // Agents 窗体的 globalState 与普通窗口隔离，读到的是本窗体独立副本，不可作为选举依据
@@ -551,7 +561,7 @@ export class LeaderElectionService {
      * 仅当 Leader 确实失联（无记录或心跳超时）时才允许本地兜底写盘，避免与存活 Leader 并发写。
      */
     public static isLeaderHeartbeatFresh(): boolean {
-        if (!this.context) {
+        if (!this.context || this.isRemoteWindow()) {
             return false;
         }
         const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
@@ -566,7 +576,7 @@ export class LeaderElectionService {
      * 在 LeaderElectionService.initialize 完成后调用，避免 InterInstanceBus 尚未初始化。
      */
     public static subscribeToLeaderResigning(): void {
-        if (!this.context) {
+        if (!this.context || this.isRemoteWindow()) {
             return;
         }
         // Agents 窗体不参与选举，收到卸任通知后也不应触发本地竞选/接管
@@ -648,8 +658,18 @@ export class LeaderElectionService {
         this.balanceLeaseSnapshotValidator = validator;
     }
 
+    private static isRemoteWindow(): boolean {
+        return typeof vscode.env.remoteName !== 'undefined';
+    }
+
     private static isElectionCurrent(generation: number): boolean {
-        return this.initialized && !this.stopping && !this.agentsWindow && generation === this.lifecycleGeneration;
+        return (
+            this.initialized &&
+            !this.stopping &&
+            !this.agentsWindow &&
+            !this.isRemoteWindow() &&
+            generation === this.lifecycleGeneration
+        );
     }
 
     private static isDecisionCurrent(generation: number, decision: number): boolean {

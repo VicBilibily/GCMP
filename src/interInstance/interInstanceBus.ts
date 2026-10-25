@@ -97,6 +97,11 @@ export class InterInstanceBus {
         if (this.initialized) {
             return;
         }
+        if (typeof vscode.env.remoteName !== 'undefined') {
+            this.options = { enabled: false };
+            StatusLogger.info('[InterInstanceBus] Remote window uses compatibility mode; coordination disabled');
+            return;
+        }
 
         this.lifecycleGeneration++;
         this.context = context;
@@ -106,18 +111,14 @@ export class InterInstanceBus {
         this.remoteUsagesQueryCompatible = false;
         this.remoteLeaderLivenessCompatible = false;
 
-        // 远程开发环境（Remote/SSH/WSL/Container）下禁用 IPC，仅使用文件系统降级通道
-        const isLocalHost = typeof vscode.env.remoteName === 'undefined';
-        const ipcEnabled = options.enabled !== false && isLocalHost;
-
         this.options = {
-            enabled: ipcEnabled
+            enabled: options.enabled !== false
         };
 
         // 必须先拿到 instanceId 再启动 fallback transport，否则自己的事件文件会命名为 unknown
         this.instanceId = LeaderElectionService.getInstanceId();
 
-        // 文件系统降级通道无条件启动，确保 Remote/IPC 不可用场景下事件仍能落盘
+        // 本地窗口保留文件通道，用于 IPC 不可用时的降级。
         this.startFallbackTransport();
 
         // 监听 Leader 变化（角色切换经串行链执行，避免并发交错）

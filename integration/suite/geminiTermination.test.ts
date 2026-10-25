@@ -275,6 +275,7 @@ suite('Gemini response termination', () => {
                 Object.assign(logger, {
                     pendingLogs: new Map([[requestId, { ...initialLog }]]),
                     finalizingRequestIds: new Set<string>(),
+                    requestLogUpdates: new Map<string, Promise<void>>(),
                     writeManager: writer,
                     readManager: reader,
                     snapshotManager: snapshots,

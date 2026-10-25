@@ -14,6 +14,7 @@ import { ProviderQuotaStatusBar } from '../../src/status/providerQuotaStatusBar'
 import { ChatGPTStatusBar, type ChatGPTStatusData } from '../../src/status/chatgptStatusBar';
 import { GrokStatusBar, type GrokStatusData } from '../../src/status/grokStatusBar';
 import { CliAuthFactory } from '../../src/cli/auth/cliAuthFactory';
+import { UserActivityService } from '../../src/status/userActivityService';
 import type { CodexCliAuth } from '../../src/cli/auth/codexCliAuth';
 import { ConfigManager } from '../../src/utils/config/configManager';
 import { ConfigSetStore, type ConfigSetItem, type ConfigSetSwitchMode } from '../../src/utils/config/configSetStore';
@@ -705,6 +706,53 @@ suite('multi-key quota status bar', () => {
         bar.dispose();
         restore();
     });
+
+    for (const remoteName of ['ssh-remote', 'wsl', 'dev-container']) {
+        test(`remote compatibility ${remoteName} refreshes expired quota on a local maintenance tick`, async () => {
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            const originalSetInterval = globalThis.setInterval;
+            const originalActive = UserActivityService.isUserActive;
+            const ticks: Array<() => unknown> = [];
+            let queries = 0;
+            const probe = new BaseStatusBarProbe(async () => {
+                queries++;
+                return dataA;
+            });
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                UserActivityService.isUserActive = () => true;
+                globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+                    if (args[1] === 60_000) {
+                        ticks.push(() => args[0](undefined));
+                    }
+                    return originalSetInterval(...args);
+                }) as typeof setInterval;
+                await probe.initialize(context);
+                await new Promise(resolve => setImmediate(resolve));
+                assert.equal(queries, 1);
+                assert.equal(ticks.length, 1);
+                now += 6 * 60_000;
+                await ticks[0]();
+                assert.equal(queries, 2);
+                for (const subscription of context.subscriptions) {
+                    subscription.dispose();
+                }
+                now += 6 * 60_000;
+                await ticks[0]();
+                assert.equal(queries, 2);
+            } finally {
+                probe.dispose();
+                for (const subscription of context.subscriptions) {
+                    subscription.dispose();
+                }
+                globalThis.setInterval = originalSetInterval;
+                UserActivityService.isUserActive = originalActive;
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+            }
+        });
+    }
 
     test('stable refresh reuses active query and renders a compact two-key table', async () => {
         await bar.run();

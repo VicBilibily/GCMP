@@ -7,7 +7,7 @@
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/runtime/statusLogger';
-import { LeaderElectionService } from './leaderElectionService';
+import { registerInstanceMaintenanceTask } from './instanceMaintenance';
 import { InterInstanceBus, StatusUpdatedEvent } from '../interInstance';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { t } from '../utils/runtime/l10n';
@@ -87,6 +87,7 @@ export abstract class BaseStatusBarItem<T> {
     // 定时器
     protected updateDebouncer: NodeJS.Timeout | undefined;
     protected cacheUpdateTimer: NodeJS.Timeout | undefined;
+    private maintenanceRegistration: vscode.Disposable | undefined;
 
     // 时间戳
     protected lastDelayedUpdateTime = 0;
@@ -395,7 +396,7 @@ export abstract class BaseStatusBarItem<T> {
         this.context.subscriptions.push(this.configurationSubscription);
 
         // 注册主实例定时刷新任务
-        this.registerLeaderPeriodicTask();
+        this.registerMaintenanceTask();
 
         // 调用初始化钩子
         await this.onInitialized();
@@ -477,6 +478,8 @@ export abstract class BaseStatusBarItem<T> {
             clearInterval(this.cacheUpdateTimer);
             this.cacheUpdateTimer = undefined;
         }
+        this.maintenanceRegistration?.dispose();
+        this.maintenanceRegistration = undefined;
 
         // 清理跨实例事件订阅
         this.interInstanceSubscription?.dispose();
@@ -880,38 +883,38 @@ export abstract class BaseStatusBarItem<T> {
     }
 
     /**
-     * 注册主实例定时刷新任务
+     * 注册定时刷新任务
      */
-    private registerLeaderPeriodicTask(): void {
-        LeaderElectionService.registerPeriodicTask(async () => {
-            // 只有主实例才会执行此任务
+    private registerMaintenanceTask(): void {
+        if (!this.context) {
+            return;
+        }
+        this.maintenanceRegistration = registerInstanceMaintenanceTask(this.context, async () => {
             if (!this.initialized || !this.context || !this.statusBarItem) {
                 StatusLogger.trace(
-                    `[${this.config.logPrefix}] Skipping leader periodic task: not initialized or missing context.`
+                    `[${this.config.logPrefix}] Skipping periodic task: not initialized or missing context.`
                 );
                 return;
             }
 
             if (!this.statusBarEligible) {
-                StatusLogger.trace(
-                    `[${this.config.logPrefix}] Skipping leader periodic task: display conditions not met.`
-                );
+                StatusLogger.trace(`[${this.config.logPrefix}] Skipping periodic task: display conditions not met.`);
                 return;
             }
 
             // 检查是否需要刷新
             const needRefresh = this.shouldRefresh();
             StatusLogger.trace(
-                `[${this.config.logPrefix}] Leader periodic task check: needRefresh=${needRefresh}, lastStatusData=${!!this.lastStatusData}`
+                `[${this.config.logPrefix}] Periodic task check: needRefresh=${needRefresh}, lastStatusData=${!!this.lastStatusData}`
             );
 
             if (needRefresh) {
-                StatusLogger.debug(`[${this.config.logPrefix}] Leader instance triggered scheduled refresh`);
+                StatusLogger.debug(`[${this.config.logPrefix}] Instance triggered scheduled refresh`);
                 // 定时刷新属于自动刷新，失败时不显示 ERR
                 await this.executeApiQuery(false);
             }
         });
 
-        StatusLogger.debug(`[${this.config.logPrefix}] Registered leader periodic refresh task`);
+        StatusLogger.debug(`[${this.config.logPrefix}] Registered periodic refresh task`);
     }
 }

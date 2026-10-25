@@ -2,7 +2,7 @@
  *  远程元数据服务（宿主层）
  *  生产环境：激活读磁盘缓存；仅主实例在用户活跃时每 3 分钟拉取 GitHub Pages 元数据并原子写盘，
  *  同时查询 npm registry latest 版本，npm 较新时自动覆盖 CLI 仿真版本（免等待发版），
- *  非主实例在定时/手动刷新或收到主实例通知时重读共享缓存
+ *  本地非主实例重读共享缓存；远程兼容模式独立联网刷新当前宿主缓存
  *  开发环境：直接读取共享源文件 src/utils/metadata/gcmp-metadata.json，跳过远程与磁盘缓存
  *  任何失败仅 warn 并保留当前生效值（内置兜底见 metadataResolver）
  *--------------------------------------------------------------------------------------------*/
@@ -13,7 +13,7 @@ import { InterInstanceBus, type RemoteMetadataUpdatedEvent } from '../../interIn
 import { LeaderElectionService } from '../../status/leaderElectionService';
 import { UserActivityService } from '../../status/userActivityService';
 import { Logger } from '../runtime/logger';
-import { readMetadataSnapshot, writeMetadataSnapshot } from './metadataCache';
+import { readMetadataSnapshot, withMetadataCacheTransaction, writeMetadataSnapshot } from './metadataCache';
 import {
     hashCliMetadata,
     isOlderGcmpMetadata,
@@ -43,20 +43,35 @@ export class RemoteMetadataService {
     /** 当前生效快照的内容哈希，用于刷新时跳过无变化的写盘 */
     private static currentContentHash?: string;
     private static cacheLoadGeneration = 0;
+    private static lifecycleGeneration = 0;
+    private static disposed = false;
     private static refreshPromise?: Promise<void>;
 
     /** 初始化：同步段仅读本地/磁盘缓存（不发起网络），随后启动定时刷新（首次立即执行） */
     static async initialize(context: vscode.ExtensionContext): Promise<void> {
+        this.dispose();
+        this.disposed = false;
+        this.refreshPromise = undefined;
+        const lifecycleGeneration = this.lifecycleGeneration;
         this.isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         this.cacheFilePath = path.join(context.globalStorageUri.fsPath, 'metadata', 'gcmp-metadata.json');
         this.localFilePath = path.join(context.extensionPath, 'src', 'utils', 'metadata', 'gcmp-metadata.json');
 
         await this.loadInitial();
+        if (this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
+            return;
+        }
 
         context.subscriptions.push(
             vscode.commands.registerCommand('gcmp.metadata.refresh', async () => {
+                if (this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
+                    return;
+                }
                 // 一条命令同时刷新 CLI 元数据与模型清单；非主实例仅重读共享缓存
                 await this.refresh();
+                if (this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
+                    return;
+                }
                 await RemoteModelsService.refresh();
                 Logger.info('[Metadata] Manual refresh finished');
             }),
@@ -67,7 +82,13 @@ export class RemoteMetadataService {
                     void this.loadFromCache();
                 }
             }),
-            { dispose: () => this.dispose() }
+            {
+                dispose: () => {
+                    if (lifecycleGeneration === this.lifecycleGeneration) {
+                        this.dispose();
+                    }
+                }
+            }
         );
 
         this.refreshIfActive();
@@ -77,12 +98,19 @@ export class RemoteMetadataService {
     }
 
     private static refreshIfActive(): void {
-        if (this.isDevelopment || !LeaderElectionService.isLeader() || UserActivityService.isUserActive()) {
+        if (
+            this.isDevelopment ||
+            (typeof vscode.env.remoteName === 'undefined' && !LeaderElectionService.isLeader()) ||
+            UserActivityService.isUserActive()
+        ) {
             void this.refresh();
         }
     }
 
-    private static dispose(): void {
+    static dispose(): void {
+        this.disposed = true;
+        this.lifecycleGeneration++;
+        this.cacheLoadGeneration++;
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = undefined;
@@ -90,6 +118,9 @@ export class RemoteMetadataService {
     }
 
     private static handleLeaderChanged(isLeader: boolean): void {
+        if (this.disposed) {
+            return;
+        }
         this.cacheLoadGeneration++;
         if (!isLeader) {
             return;
@@ -99,8 +130,9 @@ export class RemoteMetadataService {
             this.refreshIfActive();
             return;
         }
+        const lifecycleGeneration = this.lifecycleGeneration;
         const refreshAfterPending = (): void => {
-            if (LeaderElectionService.isLeader()) {
+            if (lifecycleGeneration === this.lifecycleGeneration && LeaderElectionService.isLeader()) {
                 this.refreshIfActive();
             }
         };
@@ -116,8 +148,12 @@ export class RemoteMetadataService {
     }
 
     private static async loadFromLocalFile(): Promise<boolean> {
+        if (this.disposed) {
+            return false;
+        }
+        const lifecycleGeneration = this.lifecycleGeneration;
         const snapshot = await readMetadataSnapshot(this.localFilePath);
-        if (!snapshot) {
+        if (!snapshot || this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
             return false;
         }
         setRemoteCliMetadata(snapshot.cli);
@@ -127,6 +163,9 @@ export class RemoteMetadataService {
     }
 
     private static async loadFromCache(): Promise<boolean> {
+        if (this.disposed) {
+            return false;
+        }
         const generation = ++this.cacheLoadGeneration;
         const snapshot = await readMetadataSnapshot(this.cacheFilePath);
         if (!snapshot || generation !== this.cacheLoadGeneration) {
@@ -140,10 +179,16 @@ export class RemoteMetadataService {
 
     /** 立即刷新一次：生产拉远程并落盘，开发重读本地文件；失败保留当前生效值；并发调用单飞合并 */
     static async refresh(): Promise<void> {
+        if (this.disposed) {
+            return;
+        }
         if (!this.refreshPromise) {
-            this.refreshPromise = this.refreshCore().finally(() => {
-                this.refreshPromise = undefined;
+            const refresh = this.refreshCore().finally(() => {
+                if (this.refreshPromise === refresh) {
+                    this.refreshPromise = undefined;
+                }
             });
+            this.refreshPromise = refresh;
         }
         await this.refreshPromise;
     }
@@ -155,13 +200,22 @@ export class RemoteMetadataService {
             }
             return;
         }
-        if (!LeaderElectionService.isLeader()) {
+        const remoteName = vscode.env.remoteName;
+        const standalone = remoteName !== undefined;
+        if (!standalone && !LeaderElectionService.isLeader()) {
             await this.loadFromCache();
             return;
         }
         const authorityTerm = LeaderElectionService.getAuthorityTerm();
-        const stillLeader = () =>
-            LeaderElectionService.isLeader() && LeaderElectionService.getAuthorityTerm() === authorityTerm;
+        const generation = this.cacheLoadGeneration;
+        const lifecycleGeneration = this.lifecycleGeneration;
+        const isCurrentLifecycle = () => lifecycleGeneration === this.lifecycleGeneration;
+        const canRefresh = () =>
+            isCurrentLifecycle() &&
+            vscode.env.remoteName === remoteName &&
+            generation === this.cacheLoadGeneration &&
+            (standalone ||
+                (LeaderElectionService.isLeader() && LeaderElectionService.getAuthorityTerm() === authorityTerm));
         try {
             const text = await this.fetchText(REMOTE_METADATA_URL, METADATA_MAX_BYTES);
             if (text === undefined) {
@@ -172,54 +226,75 @@ export class RemoteMetadataService {
                 Logger.warn('[Metadata] Remote metadata content invalid, keeping current values');
                 return;
             }
-            if (!stillLeader()) {
-                await this.loadFromCache();
+            if (!canRefresh()) {
+                if (isCurrentLifecycle()) {
+                    await this.loadFromCache();
+                }
                 return;
             }
-            const existing = await readMetadataSnapshot(this.cacheFilePath);
             const npmVersions = await this.fetchNpmCliVersions();
-            const siteIsOlder =
-                existing !== undefined &&
-                isOlderGcmpMetadata(parsed, {
-                    schemaVersion: 1,
-                    cli: existing.cli,
-                    generatedAt: existing.generatedAt
-                });
-            const baseCli = siteIsOlder ? existing.cli : parsed.cli;
-            const cli = mergeNpmCliVersions(baseCli, npmVersions);
-            const generatedAt = siteIsOlder ? existing.generatedAt : parsed.generatedAt;
-            const contentHash = hashCliMetadata(cli);
-            const cacheUnchanged = existing?.contentHash === contentHash && existing.generatedAt === generatedAt;
-            if (cacheUnchanged && contentHash === this.currentContentHash) {
-                Logger.trace(`[Metadata] Remote metadata unchanged (hash=${contentHash})`);
+            if (!canRefresh()) {
+                if (isCurrentLifecycle()) {
+                    await this.loadFromCache();
+                }
                 return;
             }
             try {
-                if (!stillLeader()) {
-                    await this.loadFromCache();
-                    return;
-                }
-                if (!cacheUnchanged) {
-                    await writeMetadataSnapshot(
-                        this.cacheFilePath,
-                        this.serializeSnapshot(parsed.schemaVersion, generatedAt, cli, contentHash)
-                    );
-                }
-                if (!stillLeader()) {
-                    await this.loadFromCache();
-                    return;
-                }
-                if (contentHash === this.currentContentHash) {
-                    return;
-                }
-                setRemoteCliMetadata(cli);
-                // 写盘成功才推进哈希并通知其他实例：失败时保留旧哈希，下一次 tick 重试落盘
-                this.currentContentHash = contentHash;
-                InterInstanceBus.publish(
-                    { type: 'remoteMetadataUpdated', payload: { target: 'cli', contentHash } },
-                    { alsoFallback: true }
-                );
-                Logger.debug(`[Metadata] Remote metadata updated (hash=${contentHash})`);
+                await withMetadataCacheTransaction(this.cacheFilePath, canRefresh, async () => {
+                    const existing = await readMetadataSnapshot(this.cacheFilePath);
+                    const siteIsOlder =
+                        existing !== undefined &&
+                        isOlderGcmpMetadata(parsed, {
+                            schemaVersion: 1,
+                            cli: existing.cli,
+                            generatedAt: existing.generatedAt
+                        });
+                    const baseCli = siteIsOlder ? existing.cli : parsed.cli;
+                    const generatedAt = siteIsOlder ? existing.generatedAt : parsed.generatedAt;
+                    let cli = mergeNpmCliVersions(baseCli, npmVersions);
+                    if (existing) {
+                        cli = mergeNpmCliVersions(cli, existing.cli);
+                    }
+                    const contentHash = hashCliMetadata(cli);
+                    const cacheUnchanged =
+                        existing?.contentHash === contentHash && existing.generatedAt === generatedAt;
+                    if (cacheUnchanged && contentHash === this.currentContentHash) {
+                        Logger.trace(`[Metadata] Remote metadata unchanged (hash=${contentHash})`);
+                        return;
+                    }
+                    if (!canRefresh()) {
+                        if (isCurrentLifecycle()) {
+                            await this.loadFromCache();
+                        }
+                        return;
+                    }
+                    if (!cacheUnchanged) {
+                        await writeMetadataSnapshot(
+                            this.cacheFilePath,
+                            this.serializeSnapshot(parsed.schemaVersion, generatedAt, cli, contentHash),
+                            canRefresh
+                        );
+                    }
+                    if (!canRefresh()) {
+                        if (isCurrentLifecycle()) {
+                            await this.loadFromCache();
+                        }
+                        return;
+                    }
+                    if (contentHash === this.currentContentHash) {
+                        return;
+                    }
+                    setRemoteCliMetadata(cli);
+                    // 写盘成功才推进哈希并通知其他实例：失败时保留旧哈希，下一次 tick 重试落盘
+                    this.currentContentHash = contentHash;
+                    if (!standalone) {
+                        InterInstanceBus.publish(
+                            { type: 'remoteMetadataUpdated', payload: { target: 'cli', contentHash } },
+                            { alsoFallback: true }
+                        );
+                    }
+                    Logger.debug(`[Metadata] Remote metadata updated (hash=${contentHash})`);
+                });
             } catch (error) {
                 Logger.warn('[Metadata] Failed to persist metadata cache:', error);
             }

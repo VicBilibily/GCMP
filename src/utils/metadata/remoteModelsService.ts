@@ -2,7 +2,7 @@
  *  模型清单远程更新服务（宿主层）
  *  生产环境：激活读磁盘缓存；仅主实例每 5 分钟拉取 /configs/index.json 清单，
  *  仅下载内容哈希有变化的 provider 文件，白名单清洗后原子更新共享缓存并热推送
- *  非主实例在定时/手动刷新或收到主实例通知时重读共享缓存，不发起远程同步
+ *  本地非主实例只重读共享缓存；远程兼容模式独立联网更新当前宿主缓存
  *  模型策略：远端与内置合并去重，同 id 用远端定义，内置剩余项作为回退（待下次插件更新移除）
  *  缓存提交为整体事务：任一变化 provider 下载/写盘失败即放弃本轮提交，等待下轮重试
  *  开发环境：直接读取共享源文件目录 src/providers/config/*.json，并合并 website/remote-extra/*.json
@@ -15,10 +15,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { InterInstanceBus, type RemoteMetadataUpdatedEvent } from '../../interInstance';
 import { LeaderElectionService } from '../../status/leaderElectionService';
+import { UserActivityService } from '../../status/userActivityService';
 import { Logger } from '../runtime/logger';
 import { registeredProviders } from '../config/providerRegistry';
 import { configProviders } from '../../providers/config';
-import { writeMetadataSnapshot } from './metadataCache';
+import { withMetadataCacheTransaction, writeMetadataSnapshot } from './metadataCache';
 import { fetchRemoteText } from './remoteFetch';
 import type { ModelConfig } from '../../types/sharedTypes';
 import {
@@ -51,18 +52,27 @@ export class RemoteModelsService {
     private static isDevelopment = false;
     private static refreshPromise?: Promise<void>;
     private static cacheLoadGeneration = 0;
+    private static lifecycleGeneration = 0;
+    private static disposed = false;
     /** 各 provider 当前生效快照的文本哈希，用于刷新时跳过无变化的下载与写盘 */
     private static currentContentHashes = new Map<string, string>();
     private static currentManifestHash?: string;
 
     /** 初始化：同步段仅读本地/磁盘缓存并启动定时器；首次网络刷新在 provider 注册完成后触发 */
     static async initialize(context: vscode.ExtensionContext): Promise<void> {
+        this.dispose();
+        this.disposed = false;
+        this.refreshPromise = undefined;
+        const lifecycleGeneration = this.lifecycleGeneration;
         this.isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         this.cacheDir = path.join(context.globalStorageUri.fsPath, 'models');
         this.localDir = path.join(context.extensionPath, 'src', 'providers', 'config');
         this.localExtraDir = path.join(context.extensionPath, 'website', 'remote-extra');
 
         await this.loadInitial();
+        if (this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
+            return;
+        }
 
         context.subscriptions.push(
             LeaderElectionService.onLeaderChanged(isLeader => this.handleLeaderChanged(isLeader)),
@@ -72,16 +82,29 @@ export class RemoteModelsService {
                     void this.loadFromCache();
                 }
             }),
-            { dispose: () => this.dispose() }
+            {
+                dispose: () => {
+                    if (lifecycleGeneration === this.lifecycleGeneration) {
+                        this.dispose();
+                    }
+                }
+            }
         );
 
-        this.timer = setInterval(() => void this.refresh(), REFRESH_INTERVAL_MS);
+        this.timer = setInterval(() => {
+            if (typeof vscode.env.remoteName === 'undefined' || UserActivityService.isUserActive()) {
+                void this.refresh();
+            }
+        }, REFRESH_INTERVAL_MS);
         this.timer.unref();
         Logger.trace(`[Models] Service initialized (dev=${this.isDevelopment})`);
     }
 
     /** 提供商注册完成后启动首次网络刷新，避免热推送早于注册表初始化而丢失 */
     static startAfterProvidersRegistered(): void {
+        if (this.disposed) {
+            return;
+        }
         this.pushLoadedModelsToProviders();
         void this.refresh();
     }
@@ -94,6 +117,9 @@ export class RemoteModelsService {
     }
 
     private static handleLeaderChanged(isLeader: boolean): void {
+        if (this.disposed) {
+            return;
+        }
         this.cacheLoadGeneration++;
         if (!isLeader) {
             return;
@@ -103,15 +129,19 @@ export class RemoteModelsService {
             void this.refresh();
             return;
         }
+        const lifecycleGeneration = this.lifecycleGeneration;
         const refreshAfterPending = (): void => {
-            if (LeaderElectionService.isLeader()) {
+            if (lifecycleGeneration === this.lifecycleGeneration && LeaderElectionService.isLeader()) {
                 void this.refresh();
             }
         };
         void pendingRefresh.then(refreshAfterPending, refreshAfterPending);
     }
 
-    private static dispose(): void {
+    static dispose(): void {
+        this.disposed = true;
+        this.lifecycleGeneration++;
+        this.cacheLoadGeneration++;
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = undefined;
@@ -245,38 +275,47 @@ export class RemoteModelsService {
         isCurrent?: () => boolean
     ): Promise<boolean> {
         const manifestPath = path.join(this.cacheDir, MANIFEST_FILE_NAME);
-        const existingText = await this.readText(manifestPath);
-        if (existingText && this.isOlderManifest(manifestText, existingText)) {
-            return false;
-        }
-        for (const entry of supportedEntries) {
-            if (downloadedFiles.has(entry.id)) {
-                continue;
+        return withMetadataCacheTransaction(
+            manifestPath,
+            () => !isCurrent || isCurrent(),
+            async () => {
+                const existingText = await this.readText(manifestPath);
+                if (existingText && this.isOlderManifest(manifestText, existingText)) {
+                    return false;
+                }
+                for (const entry of supportedEntries) {
+                    if (downloadedFiles.has(entry.id)) {
+                        continue;
+                    }
+                    try {
+                        await fs.access(
+                            path.join(this.cacheDir, this.providerCacheFileName(entry.id, entry.contentHash))
+                        );
+                    } catch {
+                        return false;
+                    }
+                }
+                for (const [entryId, text] of downloadedFiles) {
+                    if (isCurrent && !isCurrent()) {
+                        return false;
+                    }
+                    await writeMetadataSnapshot(
+                        path.join(this.cacheDir, this.providerCacheFileName(entryId, hashModelsText(text))),
+                        text,
+                        isCurrent
+                    );
+                }
+                if (isCurrent && !isCurrent()) {
+                    return false;
+                }
+                await writeMetadataSnapshot(manifestPath, manifestText, isCurrent);
+                // 清单一旦落盘即提交成功：后续清理失败或任期失效不得撤销
+                await this.pruneStaleCacheFiles(supportedEntries, isCurrent).catch(error => {
+                    Logger.warn('[Models] Failed to prune stale config cache:', error);
+                });
+                return true;
             }
-            try {
-                await fs.access(path.join(this.cacheDir, this.providerCacheFileName(entry.id, entry.contentHash)));
-            } catch {
-                return false;
-            }
-        }
-        for (const [entryId, text] of downloadedFiles) {
-            if (isCurrent && !isCurrent()) {
-                return false;
-            }
-            await writeMetadataSnapshot(
-                path.join(this.cacheDir, this.providerCacheFileName(entryId, hashModelsText(text))),
-                text
-            );
-        }
-        if (isCurrent && !isCurrent()) {
-            return false;
-        }
-        await writeMetadataSnapshot(manifestPath, manifestText);
-        // 清单一旦落盘即提交成功：后续清理失败或任期失效不得撤销
-        await this.pruneStaleCacheFiles(supportedEntries, isCurrent).catch(error => {
-            Logger.warn('[Models] Failed to prune stale config cache:', error);
-        });
-        return true;
+        );
     }
 
     private static async pruneStaleCacheFiles(
@@ -314,6 +353,10 @@ export class RemoteModelsService {
 
     /** 开发环境：逐个读取共享源文件目录的 provider 配置作为快照（无清单、无新鲜度门槛） */
     private static async loadFromLocalFiles(): Promise<boolean> {
+        if (this.disposed) {
+            return false;
+        }
+        const lifecycleGeneration = this.lifecycleGeneration;
         let files: string[];
         try {
             files = (await fs.readdir(this.localDir)).filter(name => name.endsWith('.json'));
@@ -354,12 +397,18 @@ export class RemoteModelsService {
                 continue;
             }
             const hash = hashModelsText(mergedText);
+            if (this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
+                return false;
+            }
             if (this.currentContentHashes.get(providerKey) !== hash) {
                 changedProviders.set(providerKey, models);
             }
             setRemoteProviderModels(providerKey, models);
             this.currentContentHashes.set(providerKey, hash);
             loaded++;
+        }
+        if (this.disposed || lifecycleGeneration !== this.lifecycleGeneration) {
+            return false;
         }
         // 本地已删除的配置文件同步移出快照（回退内置）
         for (const providerKey of [...this.currentContentHashes.keys()]) {
@@ -383,6 +432,9 @@ export class RemoteModelsService {
 
     /** 生产环境读磁盘缓存；激活与主实例更新通知共用，按哈希差异热推送 */
     private static async loadFromCache(): Promise<boolean> {
+        if (this.disposed) {
+            return false;
+        }
         const generation = ++this.cacheLoadGeneration;
         const manifestText = await this.readText(path.join(this.cacheDir, MANIFEST_FILE_NAME));
         if (!manifestText) {
@@ -452,10 +504,16 @@ export class RemoteModelsService {
 
     /** 立即刷新一次：生产拉远程清单并按哈希条件下载，开发重读本地目录；失败保留当前生效值 */
     static async refresh(): Promise<void> {
+        if (this.disposed) {
+            return;
+        }
         if (!this.refreshPromise) {
-            this.refreshPromise = this.refreshCore().finally(() => {
-                this.refreshPromise = undefined;
+            const refresh = this.refreshCore().finally(() => {
+                if (this.refreshPromise === refresh) {
+                    this.refreshPromise = undefined;
+                }
             });
+            this.refreshPromise = refresh;
         }
         await this.refreshPromise;
     }
@@ -467,16 +525,25 @@ export class RemoteModelsService {
             }
             return;
         }
-        if (!LeaderElectionService.isLeader()) {
+        const remoteName = vscode.env.remoteName;
+        const standalone = remoteName !== undefined;
+        if (!standalone && !LeaderElectionService.isLeader()) {
             await this.loadFromCache();
             return;
         }
         const authorityTerm = LeaderElectionService.getAuthorityTerm();
-        const stillLeader = () =>
-            LeaderElectionService.isLeader() && LeaderElectionService.getAuthorityTerm() === authorityTerm;
+        const generation = this.cacheLoadGeneration;
+        const lifecycleGeneration = this.lifecycleGeneration;
+        const isCurrentLifecycle = () => lifecycleGeneration === this.lifecycleGeneration;
+        const canRefresh = () =>
+            isCurrentLifecycle() &&
+            vscode.env.remoteName === remoteName &&
+            generation === this.cacheLoadGeneration &&
+            (standalone ||
+                (LeaderElectionService.isLeader() && LeaderElectionService.getAuthorityTerm() === authorityTerm));
         try {
             const manifestText = await this.fetchText(MANIFEST_URL, MANIFEST_MAX_BYTES);
-            if (!manifestText || !stillLeader()) {
+            if (!manifestText || !canRefresh()) {
                 return;
             }
             const manifest = parseModelsManifest(manifestText);
@@ -505,14 +572,14 @@ export class RemoteModelsService {
                     }
                 }
                 try {
-                    if (!stillLeader()) {
+                    if (!canRefresh()) {
                         return;
                     }
                     const text = await this.fetchText(
                         `${CONFIG_FILE_BASE_URL}${entry.id}.json`,
                         PROVIDER_CONFIG_MAX_BYTES
                     );
-                    if (!stillLeader()) {
+                    if (!canRefresh()) {
                         return;
                     }
                     if (!text) {
@@ -527,7 +594,7 @@ export class RemoteModelsService {
                     downloadedFiles.set(entry.id, text);
                     changedProviders.set(entry.id, models);
                 } catch (error) {
-                    if (!stillLeader()) {
+                    if (!canRefresh()) {
                         return;
                     }
                     failedChangedEntries++;
@@ -552,17 +619,22 @@ export class RemoteModelsService {
             if (downloadedFiles.size === 0 && removedProviders.size === 0 && !manifestChanged) {
                 return;
             }
-            if (!stillLeader()) {
+            if (!canRefresh()) {
                 Logger.trace('[Models] Leadership changed before cache commit, skipped');
                 return;
             }
 
-            if (!(await this.persistCache(manifestText, downloadedFiles, supportedEntries, stillLeader))) {
+            if (!(await this.persistCache(manifestText, downloadedFiles, supportedEntries, canRefresh))) {
                 Logger.warn('[Models] Failed to persist config cache, keeping current values');
+                if (canRefresh()) {
+                    await this.loadFromCache();
+                }
                 return;
             }
-            if (!stillLeader()) {
-                await this.loadFromCache();
+            if (!canRefresh()) {
+                if (isCurrentLifecycle()) {
+                    await this.loadFromCache();
+                }
                 return;
             }
             for (const [entryId, models] of changedProviders) {
@@ -574,10 +646,12 @@ export class RemoteModelsService {
             this.currentContentHashes = new Map(supportedEntries.map(entry => [entry.id, entry.contentHash]));
             this.currentManifestHash = manifestHash;
             this.pushToProviders(new Map([...changedProviders, ...removedProviders]));
-            InterInstanceBus.publish(
-                { type: 'remoteMetadataUpdated', payload: { target: 'models', contentHash: manifestHash } },
-                { alsoFallback: true }
-            );
+            if (!standalone) {
+                InterInstanceBus.publish(
+                    { type: 'remoteMetadataUpdated', payload: { target: 'models', contentHash: manifestHash } },
+                    { alsoFallback: true }
+                );
+            }
             Logger.debug(
                 `[Models] Remote configs updated (${changedProviders.size + removedProviders.size} providers, manifest ${manifest.gcmpVersion})`
             );

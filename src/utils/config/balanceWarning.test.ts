@@ -126,6 +126,16 @@ test('provider override changes preserve refresh errors until a successful query
         if (id === 'vscode') {
             return {
                 window: { createStatusBarItem: () => statusBar },
+                env: { remoteName: undefined },
+                Disposable: class {
+                    constructor(private callback: (() => void) | undefined) {}
+
+                    dispose(): void {
+                        const callback = this.callback;
+                        this.callback = undefined;
+                        callback?.();
+                    }
+                },
                 workspace: {
                     onDidChangeConfiguration: (listener: typeof onConfigChanged) => {
                         onConfigChanged = listener;

@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { InterInstanceBus } from '../../src/interInstance';
 import { CodexProvider } from '../../src/cli/codexProvider';
 import { configProviders } from '../../src/providers/config';
 import { RateLimiter } from '../../src/rateLimit/rateLimiter';
@@ -15,11 +16,18 @@ import {
     setRemoteProviderModels
 } from '../../src/utils/metadata/modelsResolver';
 import { RemoteMetadataService } from '../../src/utils/metadata/remoteMetadataService';
-import { hashCliMetadata } from '../../src/utils/metadata/metadataResolver';
+import {
+    getClaudeCodeCliVersion,
+    getCodexTuiCliHeader,
+    hashCliMetadata,
+    setRemoteCliMetadata
+} from '../../src/utils/metadata/metadataResolver';
 import { RemoteModelsService } from '../../src/utils/metadata/remoteModelsService';
 import type { ModelConfig } from '../../src/types/sharedTypes';
 
 interface CacheState {
+    dispose(): void;
+    disposed: boolean;
     cacheDir: string;
     isDevelopment: boolean;
     extensionVersion: string;
@@ -50,6 +58,8 @@ interface LeaderState {
 }
 
 interface MetadataState {
+    dispose(): void;
+    disposed: boolean;
     cacheFilePath: string;
     currentContentHash?: string;
     fetchText(url: string): Promise<string | undefined>;
@@ -87,6 +97,53 @@ interface CodexCacheState {
 }
 
 suite('Remote models lifecycle regression', () => {
+    for (const [name, service] of [
+        ['models', RemoteModelsService],
+        ['CLI metadata', RemoteMetadataService]
+    ] as const) {
+        for (const remoteName of [undefined, 'ssh-remote', 'wsl', 'dev-container']) {
+            test(`remote compatibility ${name} refresh uses ${remoteName ?? 'local follower'} policy`, async () => {
+                const state = service as unknown as Pick<
+                    CacheState,
+                    'isDevelopment' | 'fetchText' | 'loadFromCache' | 'refreshPromise'
+                >;
+                const previous = {
+                    isDevelopment: state.isDevelopment,
+                    fetchText: state.fetchText,
+                    loadFromCache: state.loadFromCache,
+                    refreshPromise: state.refreshPromise
+                };
+                const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+                const originalIsLeader = LeaderElectionService.isLeader;
+                let fetches = 0;
+                let cacheReads = 0;
+                try {
+                    Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                    LeaderElectionService.isLeader = () => false;
+                    state.isDevelopment = false;
+                    state.refreshPromise = undefined;
+                    state.fetchText = async () => {
+                        fetches++;
+                        return undefined;
+                    };
+                    state.loadFromCache = async () => {
+                        cacheReads++;
+                        return false;
+                    };
+                    await service.refresh();
+                    assert.equal(fetches, remoteName === undefined ? 0 : 1);
+                    assert.equal(cacheReads, remoteName === undefined ? 1 : 0);
+                } finally {
+                    Object.assign(state, previous);
+                    LeaderElectionService.isLeader = originalIsLeader;
+                    if (originalRemoteName) {
+                        Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                    }
+                }
+            });
+        }
+    }
+
     test('provider 下载失败且卸任后不再发起后续下载', async () => {
         const state = RemoteModelsService as unknown as CacheState;
         const original = {
@@ -239,61 +296,110 @@ suite('Remote models lifecycle regression', () => {
         }
     });
 
-    test('CLI 刷新合并 npm latest：npm 较新时采用 npm 版本并原子写盘', async () => {
-        const state = RemoteMetadataService as unknown as MetadataState;
-        const original = {
-            cacheFilePath: state.cacheFilePath,
-            currentContentHash: state.currentContentHash,
-            fetchText: state.fetchText,
-            isDevelopment: state.isDevelopment
-        };
-        const originalIsLeader = LeaderElectionService.isLeader;
-        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-metadata-npm-'));
-        const mergedHash = hashCliMetadata({
-            claudeCodeVersion: '2.1.301',
-            codexTuiVersion: '0.201.0',
-            codexTuiOriginator: 'codex-tui'
-        });
-        const site = JSON.stringify({
-            schemaVersion: 1,
-            generatedAt: '2026-09-07T00:00:00Z',
-            cli: {
-                claudeCode: { version: '2.1.300' },
-                codexTui: { version: '0.200.0', originator: 'codex-tui' }
+    for (const remoteName of [undefined, 'ssh-remote', 'wsl', 'dev-container']) {
+        test(`CLI 刷新合并 npm latest：npm 较新时采用 npm 版本并原子写盘 (${remoteName ?? 'local leader'})`, async () => {
+            const state = RemoteMetadataService as unknown as MetadataState;
+            const original = {
+                disposed: state.disposed,
+                cacheFilePath: state.cacheFilePath,
+                currentContentHash: state.currentContentHash,
+                fetchText: state.fetchText,
+                isDevelopment: state.isDevelopment
+            };
+            const originalIsLeader = LeaderElectionService.isLeader;
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            const originalPublish = InterInstanceBus.publish;
+            const originalCli = {
+                claudeCodeVersion: getClaudeCodeCliVersion(),
+                codexTuiVersion: getCodexTuiCliHeader().version,
+                codexTuiOriginator: getCodexTuiCliHeader().originator
+            };
+            let broadcasts = 0;
+            const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-metadata-npm-'));
+            const mergedHash = hashCliMetadata({
+                claudeCodeVersion: '2.1.301',
+                codexTuiVersion: '0.201.0',
+                codexTuiOriginator: 'codex-tui'
+            });
+            const site = JSON.stringify({
+                schemaVersion: 1,
+                generatedAt: '2026-09-07T00:00:00Z',
+                cli: {
+                    claudeCode: { version: '2.1.300' },
+                    codexTui: { version: '0.200.0', originator: 'codex-tui' }
+                }
+            });
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                InterInstanceBus.publish = () => {
+                    broadcasts++;
+                };
+                state.cacheFilePath = path.join(directory, 'metadata.json');
+                state.currentContentHash = undefined;
+                state.isDevelopment = false;
+                state.fetchText = async (url: string) => {
+                    if (url.includes('registry.npmjs.org')) {
+                        return JSON.stringify({ version: url.includes('claude-code') ? '2.1.301' : '0.201.0' });
+                    }
+                    return site;
+                };
+                LeaderElectionService.isLeader = () => remoteName === undefined;
+                await state.refreshCore();
+                const written = JSON.parse(await fs.readFile(state.cacheFilePath, 'utf8')) as {
+                    contentHash: string;
+                    generatedAt?: string;
+                    cli: {
+                        claudeCode: { version?: string };
+                        codexTui: { version?: string; originator?: string };
+                    };
+                };
+                assert.equal(written.cli.claudeCode.version, '2.1.301');
+                assert.equal(written.cli.codexTui.version, '0.201.0');
+                assert.equal(written.cli.codexTui.originator, 'codex-tui');
+                assert.equal(written.generatedAt, '2026-09-07T00:00:00.000Z');
+                assert.equal(written.contentHash, mergedHash);
+                assert.equal(state.currentContentHash, mergedHash);
+                assert.equal(getClaudeCodeCliVersion(), '2.1.301');
+                assert.equal(getCodexTuiCliHeader().version, '0.201.0');
+                assert.equal(broadcasts, remoteName === undefined ? 1 : 0);
+                state.fetchText = async () => undefined;
+                await state.refreshCore();
+                assert.equal(await fs.readFile(state.cacheFilePath, 'utf8'), JSON.stringify(written));
+                assert.equal(getCodexTuiCliHeader().version, '0.201.0');
+                if (remoteName !== undefined) {
+                    let release!: () => void;
+                    state.fetchText = url =>
+                        url.includes('registry.npmjs.org') ?
+                            Promise.resolve(undefined)
+                        :   new Promise(resolve => {
+                                release = () =>
+                                    resolve(
+                                        JSON.stringify({
+                                            schemaVersion: 1,
+                                            generatedAt: '2026-09-08T00:00:00Z',
+                                            cli: { codexTui: { version: '0.202.0' } }
+                                        })
+                                    );
+                            });
+                    const pending = state.refreshCore();
+                    state.dispose();
+                    release();
+                    await pending;
+                    assert.equal(await fs.readFile(state.cacheFilePath, 'utf8'), JSON.stringify(written));
+                    assert.equal(getCodexTuiCliHeader().version, '0.201.0');
+                }
+            } finally {
+                Object.assign(state, original);
+                LeaderElectionService.isLeader = originalIsLeader;
+                InterInstanceBus.publish = originalPublish;
+                setRemoteCliMetadata(originalCli);
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+                await fs.rm(directory, { recursive: true, force: true });
             }
         });
-        try {
-            state.cacheFilePath = path.join(directory, 'metadata.json');
-            // 预设合并后哈希：写盘后即命中"无变化"早退，避免触碰全局快照与实例间通知
-            state.currentContentHash = mergedHash;
-            state.isDevelopment = false;
-            state.fetchText = async (url: string) => {
-                if (url.includes('registry.npmjs.org')) {
-                    return JSON.stringify({ version: url.includes('claude-code') ? '2.1.301' : '0.201.0' });
-                }
-                return site;
-            };
-            LeaderElectionService.isLeader = () => true;
-            await state.refreshCore();
-            const written = JSON.parse(await fs.readFile(state.cacheFilePath, 'utf8')) as {
-                contentHash: string;
-                generatedAt?: string;
-                cli: {
-                    claudeCode: { version?: string };
-                    codexTui: { version?: string; originator?: string };
-                };
-            };
-            assert.equal(written.cli.claudeCode.version, '2.1.301');
-            assert.equal(written.cli.codexTui.version, '0.201.0');
-            assert.equal(written.cli.codexTui.originator, 'codex-tui');
-            assert.equal(written.generatedAt, '2026-09-07T00:00:00.000Z');
-            assert.equal(written.contentHash, mergedHash);
-        } finally {
-            Object.assign(state, original);
-            LeaderElectionService.isLeader = originalIsLeader;
-            await fs.rm(directory, { recursive: true, force: true });
-        }
-    });
+    }
 
     test('清理目录读取失败不撤销已经提交的清单', async () => {
         const state = RemoteModelsService as unknown as CacheState;
@@ -540,75 +646,136 @@ suite('Remote models lifecycle regression', () => {
         }
     });
 
-    test('共享缓存重载按哈希热推送新增与移除的 provider', async () => {
-        const state = RemoteModelsService as unknown as CacheState;
-        const providerKey = Object.keys(configProviders)[0] as keyof typeof configProviders;
-        const builtinModels = configProviders[providerKey].models;
-        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-cache-reload-test-'));
-        const providerText = JSON.stringify({
-            models: [
-                {
-                    id: 'remote-cache-reload-test',
-                    name: 'Remote Cache Reload Test',
-                    maxInputTokens: 1024,
-                    maxOutputTokens: 128
-                }
-            ]
-        });
-        const contentHash = hashModelsText(providerText);
-        const originalDirectory = state.cacheDir;
-        const originalVersion = state.extensionVersion;
-        const originalHashes = state.currentContentHashes;
-        const originalManifestHash = state.currentManifestHash;
-        const originalPush = state.pushToProviders;
-        const originalOverlay = getRemoteModelsOverlay().get(providerKey);
-        const pushes: ReadonlyMap<string, ModelConfig[]>[] = [];
-        try {
-            state.cacheDir = directory;
-            state.extensionVersion = '1.0.0';
-            state.currentContentHashes = new Map();
-            state.currentManifestHash = undefined;
-            state.pushToProviders = changed => {
-                pushes.push(changed);
+    for (const remoteName of [undefined, 'ssh-remote', 'wsl', 'dev-container']) {
+        test(`共享缓存重载按哈希热推送新增与移除的 provider (${remoteName ?? 'local cache'})`, async () => {
+            const state = RemoteModelsService as unknown as CacheState;
+            const providerKey = Object.keys(configProviders)[0] as keyof typeof configProviders;
+            const builtinModels = configProviders[providerKey].models;
+            const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gcmp-cache-reload-test-'));
+            const providerText = JSON.stringify({
+                models: [
+                    {
+                        id: 'remote-cache-reload-test',
+                        name: 'Remote Cache Reload Test',
+                        maxInputTokens: 1024,
+                        maxOutputTokens: 128
+                    }
+                ]
+            });
+            const contentHash = hashModelsText(providerText);
+            const originalDirectory = state.cacheDir;
+            const originalVersion = state.extensionVersion;
+            const originalHashes = state.currentContentHashes;
+            const originalManifestHash = state.currentManifestHash;
+            const originalPush = state.pushToProviders;
+            const originalOverlay = getRemoteModelsOverlay().get(providerKey);
+            const originalRemoteName = Object.getOwnPropertyDescriptor(vscode.env, 'remoteName');
+            const originalIsLeader = LeaderElectionService.isLeader;
+            const originalPublish = InterInstanceBus.publish;
+            const originalRuntime = {
+                disposed: state.disposed,
+                fetchText: state.fetchText,
+                isDevelopment: state.isDevelopment,
+                refreshPromise: state.refreshPromise
             };
-            await fs.writeFile(path.join(directory, `${providerKey}.${contentHash}.json`), providerText, 'utf8');
-            await fs.writeFile(
-                path.join(directory, 'index.json'),
-                JSON.stringify({
+            let broadcasts = 0;
+            const pushes: ReadonlyMap<string, ModelConfig[]>[] = [];
+            try {
+                Object.defineProperty(vscode.env, 'remoteName', { configurable: true, value: remoteName });
+                state.cacheDir = directory;
+                state.extensionVersion = '1.0.0';
+                state.currentContentHashes = new Map();
+                state.currentManifestHash = undefined;
+                state.pushToProviders = changed => {
+                    pushes.push(changed);
+                };
+                const manifestText = JSON.stringify({
                     schemaVersion: 1,
                     gcmpVersion: '1.0.0',
+                    generatedAt: '2026-09-07T00:00:00Z',
                     providers: [{ id: providerKey, contentHash }]
-                }),
-                'utf8'
-            );
+                });
+                if (remoteName !== undefined) {
+                    LeaderElectionService.isLeader = () => false;
+                    InterInstanceBus.publish = () => {
+                        broadcasts++;
+                    };
+                    state.isDevelopment = false;
+                    state.refreshPromise = undefined;
+                    state.fetchText = async url => (url.endsWith('index.json') ? manifestText : providerText);
+                    await RemoteModelsService.refresh();
+                    assert.equal(await fs.readFile(path.join(directory, 'index.json'), 'utf8'), manifestText);
+                    assert.equal(
+                        await fs.readFile(path.join(directory, `${providerKey}.${contentHash}.json`), 'utf8'),
+                        providerText
+                    );
+                    assert.equal(getRemoteModelsOverlay().get(providerKey)?.[0].id, 'remote-cache-reload-test');
+                    assert.equal(broadcasts, 0);
+                    state.fetchText = async () => undefined;
+                    await RemoteModelsService.refresh();
+                    assert.equal(await fs.readFile(path.join(directory, 'index.json'), 'utf8'), manifestText);
+                    let release!: () => void;
+                    state.fetchText = () =>
+                        new Promise(resolve => {
+                            release = () =>
+                                resolve(
+                                    JSON.stringify({
+                                        schemaVersion: 1,
+                                        gcmpVersion: '1.0.0',
+                                        generatedAt: '2026-09-08T00:00:00Z',
+                                        providers: [{ id: providerKey, contentHash }]
+                                    })
+                                );
+                        });
+                    const pending = RemoteModelsService.refresh();
+                    state.dispose();
+                    release();
+                    await pending;
+                    assert.equal(await fs.readFile(path.join(directory, 'index.json'), 'utf8'), manifestText);
+                    state.disposed = false;
+                } else {
+                    await fs.writeFile(
+                        path.join(directory, `${providerKey}.${contentHash}.json`),
+                        providerText,
+                        'utf8'
+                    );
+                    await fs.writeFile(path.join(directory, 'index.json'), manifestText, 'utf8');
+                }
 
-            assert.equal(await state.loadFromCache(), true);
-            assert.equal(state.currentContentHashes.get(providerKey), contentHash);
-            assert.equal(pushes.length, 1);
-            assert.equal(
-                pushes[0]?.get(providerKey)?.some(model => model.id === 'remote-cache-reload-test'),
-                true
-            );
+                assert.equal(await state.loadFromCache(), true);
+                assert.equal(state.currentContentHashes.get(providerKey), contentHash);
+                assert.equal(pushes.length, 1);
+                assert.equal(
+                    pushes[0]?.get(providerKey)?.some(model => model.id === 'remote-cache-reload-test'),
+                    true
+                );
 
-            await fs.writeFile(
-                path.join(directory, 'index.json'),
-                JSON.stringify({ schemaVersion: 1, gcmpVersion: '1.0.0', providers: [] }),
-                'utf8'
-            );
-            assert.equal(await state.loadFromCache(), true);
-            assert.equal(state.currentContentHashes.has(providerKey), false);
-            assert.equal(pushes.length, 2);
-            assert.deepEqual(pushes[1]?.get(providerKey), builtinModels);
-        } finally {
-            state.cacheDir = originalDirectory;
-            state.extensionVersion = originalVersion;
-            state.currentContentHashes = originalHashes;
-            state.currentManifestHash = originalManifestHash;
-            state.pushToProviders = originalPush;
-            setRemoteProviderModels(providerKey, originalOverlay ? [...originalOverlay] : undefined);
-            await fs.rm(directory, { recursive: true, force: true });
-        }
-    });
+                await fs.writeFile(
+                    path.join(directory, 'index.json'),
+                    JSON.stringify({ schemaVersion: 1, gcmpVersion: '1.0.0', providers: [] }),
+                    'utf8'
+                );
+                assert.equal(await state.loadFromCache(), true);
+                assert.equal(state.currentContentHashes.has(providerKey), false);
+                assert.equal(pushes.length, 2);
+                assert.deepEqual(pushes[1]?.get(providerKey), builtinModels);
+            } finally {
+                state.cacheDir = originalDirectory;
+                state.extensionVersion = originalVersion;
+                state.currentContentHashes = originalHashes;
+                state.currentManifestHash = originalManifestHash;
+                state.pushToProviders = originalPush;
+                Object.assign(state, originalRuntime);
+                LeaderElectionService.isLeader = originalIsLeader;
+                InterInstanceBus.publish = originalPublish;
+                if (originalRemoteName) {
+                    Object.defineProperty(vscode.env, 'remoteName', originalRemoteName);
+                }
+                setRemoteProviderModels(providerKey, originalOverlay ? [...originalOverlay] : undefined);
+                await fs.rm(directory, { recursive: true, force: true });
+            }
+        });
+    }
 
     test('非主实例刷新 CLI 元数据时不访问远程地址', async () => {
         const state = RemoteMetadataService as unknown as MetadataState;

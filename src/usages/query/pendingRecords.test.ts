@@ -98,7 +98,19 @@ test('remote usages queries preserve caller pending state without retaining full
     };
     NodeModule.prototype.require = function (id: string): unknown {
         if (id === 'vscode') {
-            return { window: {}, env: { language: 'zh-cn' } };
+            return {
+                window: {},
+                env: { language: 'zh-cn' },
+                Disposable: class {
+                    constructor(private callback: (() => void) | undefined) {}
+
+                    dispose(): void {
+                        const callback = this.callback;
+                        this.callback = undefined;
+                        callback?.();
+                    }
+                }
+            };
         }
         if (id.endsWith('/interInstance')) {
             return { InterInstanceBus: bus };
@@ -155,7 +167,10 @@ test('remote usages queries preserve caller pending state without retaining full
             transportFailure = false;
             remoteExecutions = 0;
             const dir = await mkdtemp(join(tmpdir(), 'gcmp-pending-query-'));
-            const extensionContext = { globalStorageUri: { fsPath: dir } };
+            const extensionContext = {
+                globalStorageUri: { fsPath: dir },
+                subscriptions: [] as Array<{ dispose(): void }>
+            };
             const leaderTitles = new Titles();
             const followerTitles = new Titles();
             const leader = new Manager();
