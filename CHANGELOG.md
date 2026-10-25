@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.3] - 2026-10-25
+
+### 修复
+
+- **远程统计与维护**：修复远程窗口可能持续显示统计加载中的问题，启动时主动刷新当日统计；余额查询、统计对账、元数据刷新和日志保留清理不再依赖 Leader 调度。
+- **元数据缓存一致性**：改进并发刷新时的缓存合并与写入，避免过期数据覆盖较新缓存，并防止不同来源的旧数据导致 CLI 版本信息回退。
+- **元数据生命周期**：扩展清理开始时即停止元数据刷新，使失效的命令和异步响应不再继续写入缓存或更新已释放的提供商。
+
+### 变更
+
+- **远程窗口兼容模式**：SSH、WSL、Dev Container 等远程扩展宿主自动使用兼容模式，不参与 Leader 选举及 IPC/文件协调；限流和认证刷新由各宿主独立处理，状态栏使用专用图标和兼容模式提示进行区分，本地窗口行为保持不变。
+
+---
+
+### Fixed
+
+- **Remote Statistics and Maintenance**: Fixed remote windows potentially remaining stuck loading statistics and added a startup refresh of today's statistics. Balance queries, statistics reconciliation, metadata refreshes, and retention cleanup no longer depend on Leader scheduling.
+- **Metadata Cache Consistency**: Improved cache merging and writes during concurrent refreshes to prevent stale data from overwriting newer caches and older data from different sources from downgrading cached CLI versions.
+- **Metadata Lifecycle**: Metadata refreshes now stop at the start of extension cleanup, preventing invalidated commands and asynchronous responses from continuing to write caches or update disposed providers.
+
+### Changed
+
+- **Remote Window Compatibility Mode**: Remote extension hosts such as SSH, WSL, and Dev Containers automatically use compatibility mode without participating in Leader election or IPC/file coordination. Each host handles rate limiting and authentication refresh independently, with a dedicated status bar icon and compatibility-mode tooltip. Local window behavior is unchanged.
+
 ## [0.29.2] - 2026-10-21
 
 ### 新增
