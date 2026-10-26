@@ -154,6 +154,20 @@
             "tokenPricing": { "RMB": [20.0, 100.0, 2.0] }
         },
         {
+            "id": "ark-code-kimi-k3.1-pro",
+            "name": "Kimi-K3.1-Pro (CodingPlan)",
+            "model": "kimi-k3.1-pro",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Kimi K3.1 Pro 是月之暗面旗舰模型，面向企业级长程任务与 Agentic 编程，支持深度思考、函数调用与上下文缓存，含 5min/1h 两档缓存写入，适配复杂工程与智能体应用。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [13.0, 68.0, 1.3] }
+        },
+        {
             "id": "ark-plan-doubao-seed-evolving",
             "name": "Doubao-Seed-Evolving (AgentPlan)",
             "model": "doubao-seed-evolving",
@@ -231,6 +245,21 @@
             "tokenPricing": { "RMB": [20.0, 100.0, 2.0] }
         },
         {
+            "id": "ark-plan-kimi-k3.1-pro",
+            "name": "Kimi-K3.1-Pro (AgentPlan)",
+            "model": "kimi-k3.1-pro",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。Kimi K3.1 Pro 是月之暗面旗舰模型，面向企业级长程任务与 Agentic 编程，支持深度思考、函数调用与上下文缓存，含 5min/1h 两档缓存写入，适配复杂工程与智能体应用。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [13.0, 68.0, 1.3] }
+        },
+        {
             "id": "ark-plan-deepseek-v4.1-flash",
             "name": "DeepSeek-V4.1-Flash (AgentPlan)",
             "model": "deepseek-v4.1-flash",
@@ -305,34 +334,6 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [6, 30, 1.2] }
-        },
-        {
-            "id": "doubao-seed-2-1-turbo",
-            "name": "Doubao-Seed-2.1-turbo-260628",
-            "model": "doubao-seed-2-1-turbo-260628",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
-            "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [3, 15, 0.6] }
-        },
-        {
-            "id": "doubao-seed-2-1-pro",
-            "name": "Doubao-Seed-2.1-pro-260915",
-            "model": "doubao-seed-2-1-pro-260915",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
-            "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
             "capabilities": { "toolCalling": true, "imageInput": true },

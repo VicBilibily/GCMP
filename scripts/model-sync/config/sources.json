@@ -78,7 +78,7 @@
             "mimo-v2.6-pro": { "ref": "xiaomi/mimo-v2.6-pro" },
             "mimo-v2.6-flash": { "ref": "xiaomi/mimo-v2.6-flash" },
             "gpt-6-luna": { "ref": "openai/gpt-6-luna" },
-            "gemini-4-argon-contributor": { "ref": "google/gemini-4-argon-contributor" },
+            "gemini-4-argon": { "ref": "google/gemini-4-argon" },
             "step-5-preview": { "ref": "stepfun/step-5-preview" },
             "kimi-k3.1-pro": { "ref": "moonshotai/kimi-k3.1-pro" },
             "minimax-m3.1-flash": {

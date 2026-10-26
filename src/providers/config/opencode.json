@@ -504,11 +504,11 @@
             }
         },
         {
-            "id": "gemini-4-argon-contributor-go",
-            "name": "Gemini-4-Argon-Contributor (Go)",
-            "model": "gemini-4-argon-contributor",
+            "id": "gemini-4-argon-go",
+            "name": "Gemini-4-Argon (Go)",
+            "model": "gemini-4-argon",
             "baseUrl": "https://opencode.ai/inference/go/google/v1beta",
-            "tooltip": "OpenCode Go 套餐 — Gemini-4-Argon-Contributor。",
+            "tooltip": "OpenCode Go 套餐 — Gemini-4-Argon。",
             "sdkMode": "gemini-sse",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
