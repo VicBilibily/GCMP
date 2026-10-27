@@ -11,6 +11,7 @@ import { ConfigManager } from '../utils/config/configManager';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { ZhipuMCPWebSearchClient, type ZhipuWebSearchRequest } from './mcp/zhipuMCPClient';
 import { StatusBarManager } from '../status/statusBarManager';
+import { formatSearchToolResult, getSearchQuery } from './searchToolResult';
 
 /**
  * 智谱AI搜索引擎类型
@@ -179,11 +180,15 @@ export class ZhipuSearchTool {
      * 准备调用时的提示信息
      */
     async prepareInvocation(
-        _options: vscode.LanguageModelToolInvocationPrepareOptions<ZhipuSearchRequest>,
+        options: vscode.LanguageModelToolInvocationPrepareOptions<ZhipuSearchRequest>,
         _token: vscode.CancellationToken
     ): Promise<vscode.PreparedToolInvocation | undefined> {
+        const query = getSearchQuery(options.input, 'search_query');
         return {
-            invocationMessage: t('Searching the web via Zhipu AI...', '正在通过智谱AI搜索网络...')
+            invocationMessage:
+                query ?
+                    t('Zhipu AI web search: "{0}"', '智谱AI网络搜索：“{0}”', query)
+                :   t('Zhipu AI web search', '智谱AI网络搜索')
         };
     }
 
@@ -218,7 +223,9 @@ export class ZhipuSearchTool {
             StatusBarManager.zhipu?.delayedUpdate();
 
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
+                new vscode.LanguageModelTextPart(
+                    formatSearchToolResult({ provider: 'zhipu', query: params.search_query, results: searchResults })
+                )
             ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

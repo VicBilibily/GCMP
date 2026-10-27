@@ -10,6 +10,7 @@ import { t } from '../utils/runtime/l10n';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { StatusBarManager } from '../status';
+import { formatSearchToolResult, getSearchQuery } from './searchToolResult';
 
 /**
  * MiniMax 搜索请求参数
@@ -118,11 +119,15 @@ export class MiniMaxSearchTool {
      * 准备调用时的提示信息
      */
     async prepareInvocation(
-        _options: vscode.LanguageModelToolInvocationPrepareOptions<MiniMaxSearchRequest>,
+        options: vscode.LanguageModelToolInvocationPrepareOptions<MiniMaxSearchRequest>,
         _token: vscode.CancellationToken
     ): Promise<vscode.PreparedToolInvocation | undefined> {
+        const query = getSearchQuery(options.input, 'q');
         return {
-            invocationMessage: t('Searching the web via MiniMax...', '正在通过MiniMax搜索网络...')
+            invocationMessage:
+                query ?
+                    t('MiniMax web search: "{0}"', 'MiniMax网络搜索：“{0}”', query)
+                :   t('MiniMax web search', 'MiniMax网络搜索')
         };
     }
 
@@ -147,7 +152,9 @@ export class MiniMaxSearchTool {
 
             const searchResults = response.organic;
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
+                new vscode.LanguageModelTextPart(
+                    formatSearchToolResult({ provider: 'minimax', query: params.q, results: searchResults })
+                )
             ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -8,6 +8,7 @@ import { Logger } from '../utils/runtime/logger';
 import { t } from '../utils/runtime/l10n';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { StatusBarManager } from '../status';
+import { formatSearchToolResult, getSearchQuery } from './searchToolResult';
 
 /**
  * Kimi 搜索请求参数
@@ -186,11 +187,13 @@ export class KimiSearchTool {
      * 准备调用时的提示信息
      */
     async prepareInvocation(
-        _options: vscode.LanguageModelToolInvocationPrepareOptions<KimiSearchRequest>,
+        options: vscode.LanguageModelToolInvocationPrepareOptions<KimiSearchRequest>,
         _token: vscode.CancellationToken
     ): Promise<vscode.PreparedToolInvocation | undefined> {
+        const query = getSearchQuery(options.input, 'query');
         return {
-            invocationMessage: t('Searching the web via Kimi...', '正在通过Kimi搜索网络...')
+            invocationMessage:
+                query ? t('Kimi web search: "{0}"', 'Kimi网络搜索：“{0}”', query) : t('Kimi web search', 'Kimi网络搜索')
         };
     }
 
@@ -214,7 +217,14 @@ export class KimiSearchTool {
 
             const searchResults = response.searchResults;
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
+                new vscode.LanguageModelTextPart(
+                    formatSearchToolResult({
+                        provider: 'kimi',
+                        query: params.query,
+                        results: searchResults,
+                        requestId: response.requestId
+                    })
+                )
             ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -9,6 +9,7 @@ import { Logger } from '../utils/runtime/logger';
 import { t } from '../utils/runtime/l10n';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { StatusBarManager } from '../status';
+import { formatSearchToolResult, getSearchQuery } from './searchToolResult';
 
 export interface DeepSeekSearchRequest {
     query: string;
@@ -106,11 +107,15 @@ export class DeepSeekSearchTool {
     }
 
     async prepareInvocation(
-        _options: vscode.LanguageModelToolInvocationPrepareOptions<DeepSeekSearchRequest>,
+        options: vscode.LanguageModelToolInvocationPrepareOptions<DeepSeekSearchRequest>,
         _token: vscode.CancellationToken
     ): Promise<vscode.PreparedToolInvocation | undefined> {
+        const query = getSearchQuery(options.input, 'query');
         return {
-            invocationMessage: t('Searching the web via DeepSeek...', '正在通过 DeepSeek 搜索网络...')
+            invocationMessage:
+                query ?
+                    t('DeepSeek web search: "{0}"', 'DeepSeek网络搜索：“{0}”', query)
+                :   t('DeepSeek web search', 'DeepSeek网络搜索')
         };
     }
 
@@ -122,7 +127,9 @@ export class DeepSeekSearchTool {
             const response = await this.search(params);
             StatusBarManager.deepseek?.delayedUpdate();
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(JSON.stringify(response.results))
+                new vscode.LanguageModelTextPart(
+                    formatSearchToolResult({ provider: 'deepseek', query: params.query, results: response.results })
+                )
             ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

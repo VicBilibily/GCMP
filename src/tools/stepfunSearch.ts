@@ -10,6 +10,7 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { StepFunMCPWebSearchClient, type StepFunWebSearchRequest } from './mcp/stepfunMCPClient';
+import { formatSearchToolResult, getSearchQuery } from './searchToolResult';
 
 /**
  * 搜索场景类型
@@ -149,11 +150,15 @@ export class StepFunSearchTool {
      * 准备调用时的提示信息
      */
     async prepareInvocation(
-        _options: vscode.LanguageModelToolInvocationPrepareOptions<StepFunSearchParams>,
+        options: vscode.LanguageModelToolInvocationPrepareOptions<StepFunSearchParams>,
         _token: vscode.CancellationToken
     ): Promise<vscode.PreparedToolInvocation | undefined> {
+        const query = getSearchQuery(options.input, 'query', 'q', 'text', 'search_query');
         return {
-            invocationMessage: t('Searching the web via StepFun...', '正在通过阶跃星辰搜索网络...')
+            invocationMessage:
+                query ?
+                    t('StepFun web search: "{0}"', '阶跃星辰网络搜索：“{0}”', query)
+                :   t('StepFun web search', '阶跃星辰网络搜索')
         };
     }
 
@@ -198,7 +203,9 @@ export class StepFunSearchTool {
             Logger.info('✅ [Tool Call] StepFun web search tool invocation succeeded');
 
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
+                new vscode.LanguageModelTextPart(
+                    formatSearchToolResult({ provider: 'stepfun', query: params.query, results: searchResults })
+                )
             ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
