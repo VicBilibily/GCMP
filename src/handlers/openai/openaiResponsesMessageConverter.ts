@@ -15,6 +15,7 @@ import {
     shouldReplayPlainThinking
 } from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
+import { extractToolResultImages } from './shared/toolResultImages';
 
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
 type ResponseInputMessageItem = OpenAI.Responses.ResponseInputMessageItem;
@@ -37,6 +38,11 @@ interface EncryptedReasoningItem {
     reasoningId?: string;
     provider?: string;
     modelId?: string;
+}
+
+interface ToolResultImages {
+    callId: string;
+    images: vscode.LanguageModelDataPart[];
 }
 
 interface RequestOrigin {
@@ -72,6 +78,27 @@ export class OpenAIResponsesMessageConverter {
         requestOrigin: RequestOrigin
     ): { systemMessage: string; messages: ResponseInputItem[] } {
         const out: ResponseInputItem[] = [];
+        const pendingToolCallIds = new Set<string>();
+        let pendingToolResultImages: ToolResultImages[] = [];
+        const flushToolResultImages = () => {
+            for (const { callId, images } of pendingToolResultImages) {
+                const content: Array<ResponseInputText | ResponseInputImage> = [
+                    { type: 'input_text' as const, text: `Images associated with tool call "${callId}":` },
+                    ...images.map(image => ({
+                        type: 'input_image' as const,
+                        image_url: this.images.createDataUrl(image),
+                        detail: 'auto' as const
+                    }))
+                ];
+                out.push({
+                    type: 'message' as const,
+                    role: 'user' as const,
+                    status: 'completed' as const,
+                    content
+                } as unknown as ResponseInputMessageItem);
+            }
+            pendingToolResultImages = [];
+        };
         let systemMessage = '';
         const callIdResolver = new OpenAIResponsesCallIdResolver();
         // 历史密文回放：有密文就回传（不限 GPT）；extraBody.include 接管为关闭时不回传。
@@ -92,10 +119,18 @@ export class OpenAIResponsesMessageConverter {
             if (role === 'user' && message.name === GCMP_SYSTEM_MESSAGE_NAME) {
                 role = 'system';
             }
+            if (role !== 'user') {
+                flushToolResultImages();
+                pendingToolCallIds.clear();
+            }
             const textParts: string[] = [];
             const imageParts: vscode.LanguageModelDataPart[] = [];
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];
-            const toolResults: Array<{ callId: string; content: string }> = [];
+            const toolResults: Array<{
+                callId: string;
+                content: string;
+                images: vscode.LanguageModelDataPart[];
+            }> = [];
             const thinkingParts: string[] = [];
             const encryptedReasonings: EncryptedReasoningItem[] = [];
             const markerReasonings = this.getEncryptedReasoningFromMarker(message.content);
@@ -145,8 +180,12 @@ export class OpenAIResponsesMessageConverter {
                 } else if (isToolResultPart(part)) {
                     const callId = callIdResolver.resolveToolResultCallId({ callId: part.callId });
                     const content = this.collectToolResultText(part);
+                    const images =
+                        modelConfig?.capabilities?.imageInput === true ?
+                            extractToolResultImages(part.content, this.images.isImageMimeType)
+                        :   [];
                     if (callId) {
-                        toolResults.push({ callId, content });
+                        toolResults.push({ callId, content, images });
                     }
                 }
             }
@@ -212,6 +251,7 @@ export class OpenAIResponsesMessageConverter {
                         arguments: toolCall.args,
                         status: 'completed' as const
                     } as unknown as ResponseFunctionToolCall);
+                    pendingToolCallIds.add(toolCall.id);
                 }
             }
 
@@ -225,6 +265,10 @@ export class OpenAIResponsesMessageConverter {
                     output: toolResult.content || '',
                     status: 'completed' as const
                 } as unknown as ResponseFunctionToolCallOutputItem);
+                pendingToolCallIds.delete(toolResult.callId);
+                if (toolResult.images.length > 0) {
+                    pendingToolResultImages.push({ callId: toolResult.callId, images: toolResult.images });
+                }
             }
 
             if (role === 'user') {
@@ -247,6 +291,9 @@ export class OpenAIResponsesMessageConverter {
                         content: contentArray
                     } as unknown as ResponseInputMessageItem);
                 }
+                if (pendingToolCallIds.size === 0) {
+                    flushToolResultImages();
+                }
             }
 
             if (role === 'system' && joinedText) {
@@ -254,6 +301,7 @@ export class OpenAIResponsesMessageConverter {
             }
         }
 
+        flushToolResultImages();
         return { systemMessage, messages: out };
     }
 

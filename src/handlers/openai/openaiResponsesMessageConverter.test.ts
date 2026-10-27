@@ -105,6 +105,12 @@ const handlerStub = {
     createDataUrl: () => ''
 } as never;
 
+const toolImageHandler = {
+    isImageMimeType: (mimeType: string) => mimeType.toLowerCase().trim().startsWith('image/'),
+    createDataUrl: (part: { data: Uint8Array; mimeType: string }) =>
+        `data:${part.mimeType};base64,${Buffer.from(part.data).toString('base64')}`
+};
+
 const gptIncludeEnabled = {
     reasoning: { effort: 'medium' },
     include: ['reasoning.encrypted_content']
@@ -431,3 +437,268 @@ test('历史中重复 callId 被唯一化且 function_call_output 成对改写',
         .map(item => (item as { call_id: string }).call_id);
     assert.equal(new Set(callIds).size, callIds.length);
 });
+
+test('工具结果图片在并行工具输出配对后作为关联 user 图片回传', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const imageBytes = Uint8Array.from([137, 80, 78, 71]);
+    const imageUrl = `data:image/png;base64,${Buffer.from(imageBytes).toString('base64')}`;
+    const converter = new OpenAIResponsesMessageConverter(
+        {
+            isImageMimeType: (mimeType: string) => mimeType === 'image/png',
+            createDataUrl: (part: { data: Uint8Array; mimeType: string }) =>
+                `data:${part.mimeType};base64,${Buffer.from(part.data).toString('base64')}`
+        } as never,
+        'Test'
+    );
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    { callId: 'view-1', name: 'capture', input: {} },
+                    { callId: 'view-2', name: 'capture', input: {} }
+                ]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.User,
+                content: [
+                    {
+                        callId: 'view-1',
+                        content: [
+                            { value: 'Screenshot follows' },
+                            { data: imageBytes, mimeType: 'image/png' },
+                            { value: 'End of screenshot' }
+                        ]
+                    }
+                ]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.User,
+                content: [
+                    {
+                        callId: 'view-2',
+                        content: [
+                            { data: Uint8Array.from([1, 2, 3]), mimeType: 'application/x-internal' },
+                            { value: 'second result' }
+                        ]
+                    }
+                ]
+            }
+        ] as never,
+        { capabilities: { imageInput: true } } as never,
+        { provider: 'openai', modelId: 'gpt-5.4' }
+    );
+
+    assert.deepEqual(result.messages, [
+        {
+            type: 'function_call',
+            call_id: 'view-1',
+            name: 'capture',
+            arguments: '{}',
+            status: 'completed'
+        },
+        {
+            type: 'function_call',
+            call_id: 'view-2',
+            name: 'capture',
+            arguments: '{}',
+            status: 'completed'
+        },
+        {
+            type: 'function_call_output',
+            call_id: 'view-1',
+            output: 'Screenshot follows\n[Image]\nEnd of screenshot',
+            status: 'completed'
+        },
+        {
+            type: 'function_call_output',
+            call_id: 'view-2',
+            output: 'second result',
+            status: 'completed'
+        },
+        {
+            type: 'message',
+            role: 'user',
+            status: 'completed',
+            content: [
+                { type: 'input_text', text: 'Images associated with tool call "view-1":' },
+                { type: 'input_image', image_url: imageUrl, detail: 'auto' }
+            ]
+        }
+    ]);
+});
+
+test('非视觉 Responses 模型仍只收到工具图片占位文本', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(
+        {
+            isImageMimeType: (mimeType: string) => mimeType === 'image/png',
+            createDataUrl: () => 'data:image/png;base64,'
+        } as never,
+        'Test'
+    );
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [{ callId: 'view-1', name: 'capture', input: {} }]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.User,
+                content: [{ callId: 'view-1', content: [{ data: Uint8Array.from([1]), mimeType: 'image/png' }] }]
+            }
+        ] as never,
+        { capabilities: { imageInput: false } } as never,
+        { provider: 'openai', modelId: 'text-only' }
+    );
+
+    assert.deepEqual(result.messages, [
+        {
+            type: 'function_call',
+            call_id: 'view-1',
+            name: 'capture',
+            arguments: '{}',
+            status: 'completed'
+        },
+        {
+            type: 'function_call_output',
+            call_id: 'view-1',
+            output: '[Image]',
+            status: 'completed'
+        }
+    ]);
+});
+
+for (const mimeType of ['image/svg+xml', 'image/bmp']) {
+    test(`Responses 工具结果中的 ${mimeType} 保留占位但不发送图片`, async () => {
+        const { OpenAIResponsesMessageConverter } = await getConverterModule();
+        const converter = new OpenAIResponsesMessageConverter(toolImageHandler, 'Test');
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                    content: [{ callId: 'view-1', name: 'capture', input: {} }]
+                },
+                {
+                    role: vscodeMock.LanguageModelChatMessageRole.User,
+                    content: [
+                        {
+                            callId: 'view-1',
+                            content: [{ value: 'before' }, { data: Uint8Array.from([1]), mimeType }, { value: 'after' }]
+                        }
+                    ]
+                }
+            ] as never,
+            { capabilities: { imageInput: true } } as never,
+            { provider: 'openai', modelId: 'vision' }
+        );
+
+        assert.equal(result.messages.length, 2);
+        assert.deepEqual(result.messages[1], {
+            type: 'function_call_output',
+            call_id: 'view-1',
+            output: 'before\n[Image]\nafter',
+            status: 'completed'
+        });
+    });
+}
+
+for (const [inputMime, outputMime] of [
+    ['image/png', 'image/png'],
+    ['image/jpeg', 'image/jpeg'],
+    ['image/gif', 'image/gif'],
+    ['image/webp', 'image/webp'],
+    ['image/jpg', 'image/jpeg'],
+    [' IMAGE/PNG ', 'image/png']
+] as const) {
+    test(`Responses 工具图片 ${inputMime} 使用规范 MIME ${outputMime}`, async () => {
+        const { OpenAIResponsesMessageConverter } = await getConverterModule();
+        const converter = new OpenAIResponsesMessageConverter(toolImageHandler, 'Test');
+        const imagePart = { data: Uint8Array.from([1]), mimeType: inputMime };
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                    content: [{ callId: 'view-1', name: 'capture', input: {} }]
+                },
+                {
+                    role: vscodeMock.LanguageModelChatMessageRole.User,
+                    content: [{ callId: 'view-1', content: [imagePart] }]
+                }
+            ] as never,
+            { capabilities: { imageInput: true } } as never,
+            { provider: 'openai', modelId: 'vision' }
+        );
+
+        assert.deepEqual(result.messages[2], {
+            type: 'message',
+            role: 'user',
+            status: 'completed',
+            content: [
+                { type: 'input_text', text: 'Images associated with tool call "view-1":' },
+                { type: 'input_image', image_url: `data:${outputMime};base64,AQ==`, detail: 'auto' }
+            ]
+        });
+        assert.equal(imagePart.mimeType, inputMime);
+    });
+}
+
+for (const parallel of [false, true]) {
+    test(`Responses 重复 call ID 的不同图片正确配对（并行=${parallel}）`, async () => {
+        const { OpenAIResponsesMessageConverter } = await getConverterModule();
+        const converter = new OpenAIResponsesMessageConverter(toolImageHandler, 'Test');
+        const calls = [
+            { callId: 'view-1', name: 'capture', input: { index: 1 } },
+            { callId: 'view-1', name: 'capture', input: { index: 2 } }
+        ];
+        const outputs = [
+            { callId: 'view-1', content: [{ data: Uint8Array.from([1]), mimeType: 'image/png' }] },
+            { callId: 'view-1', content: [{ data: Uint8Array.from([2]), mimeType: 'image/webp' }] }
+        ];
+        const history =
+            parallel ?
+                [
+                    { role: vscodeMock.LanguageModelChatMessageRole.Assistant, content: calls },
+                    { role: vscodeMock.LanguageModelChatMessageRole.User, content: outputs }
+                ]
+            :   calls.flatMap((toolCall, index) => [
+                    { role: vscodeMock.LanguageModelChatMessageRole.Assistant, content: [toolCall] },
+                    { role: vscodeMock.LanguageModelChatMessageRole.User, content: [outputs[index]] }
+                ]);
+        const result = converter.convertMessagesToOpenAIResponses(
+            history as never,
+            { capabilities: { imageInput: true } } as never,
+            { provider: 'openai', modelId: 'vision' }
+        );
+
+        assert.deepEqual(
+            result.messages.filter(item => item.type === 'function_call_output').map(item => item.call_id),
+            ['view-1', 'view-1__gcmpDup2']
+        );
+        assert.deepEqual(
+            result.messages.filter(item => item.type === 'message'),
+            [
+                {
+                    type: 'message',
+                    role: 'user',
+                    status: 'completed',
+                    content: [
+                        { type: 'input_text', text: 'Images associated with tool call "view-1":' },
+                        { type: 'input_image', image_url: 'data:image/png;base64,AQ==', detail: 'auto' }
+                    ]
+                },
+                {
+                    type: 'message',
+                    role: 'user',
+                    status: 'completed',
+                    content: [
+                        { type: 'input_text', text: 'Images associated with tool call "view-1__gcmpDup2":' },
+                        { type: 'input_image', image_url: 'data:image/webp;base64,Ag==', detail: 'auto' }
+                    ]
+                }
+            ]
+        );
+    });
+}

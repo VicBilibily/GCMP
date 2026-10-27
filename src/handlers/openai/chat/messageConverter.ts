@@ -8,12 +8,18 @@ import { shouldInjectReasoningPlaceholder } from '../../reasoningPlaceholder';
 import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../../types';
 import type { OpenAIProviderContext } from '../shared/providerContext';
 import { isImageMimeType, createDataUrl } from '../shared/images';
+import { extractToolResultImages } from '../shared/toolResultImages';
 
 /**
  * 扩展助手消息类型，支持 reasoning_content 字段
  */
 interface ExtendedAssistantMessageParam extends OpenAI.Chat.ChatCompletionAssistantMessageParam {
     reasoning_content?: string;
+}
+
+interface ToolResultImages {
+    callId: string;
+    images: vscode.LanguageModelDataPart[];
 }
 
 /**
@@ -58,16 +64,49 @@ export class OpenAIChatMessageConverter {
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
         const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+        const pendingToolCallIds = new Set<string>();
+        const pendingUserMessages: OpenAI.Chat.ChatCompletionUserMessageParam[] = [];
+        const flushPendingUserMessages = () => {
+            result.push(...pendingUserMessages);
+            pendingUserMessages.length = 0;
+        };
+
         for (const message of messages) {
+            const isAssistantMessage = message.role === vscode.LanguageModelChatMessageRole.Assistant;
+            const isUserResultMessage =
+                message.role === vscode.LanguageModelChatMessageRole.User && message.name !== GCMP_SYSTEM_MESSAGE_NAME;
             const convertedMessage = this.convertSingleMessage(message, modelConfig);
-            if (convertedMessage) {
-                if (Array.isArray(convertedMessage)) {
-                    result.push(...convertedMessage);
-                } else {
-                    result.push(convertedMessage);
+            if (!convertedMessage || (Array.isArray(convertedMessage) && convertedMessage.length === 0)) {
+                continue;
+            }
+
+            if (isAssistantMessage || !isUserResultMessage) {
+                flushPendingUserMessages();
+                pendingToolCallIds.clear();
+            }
+            if (isAssistantMessage) {
+                for (const part of message.content) {
+                    if (part instanceof vscode.LanguageModelToolCallPart) {
+                        pendingToolCallIds.add(part.callId);
+                    }
                 }
             }
+
+            for (const convertedPart of Array.isArray(convertedMessage) ? convertedMessage : [convertedMessage]) {
+                if (isUserResultMessage && convertedPart.role === 'user') {
+                    pendingUserMessages.push(convertedPart);
+                } else {
+                    result.push(convertedPart);
+                    if (convertedPart.role === 'tool') {
+                        pendingToolCallIds.delete(convertedPart.tool_call_id);
+                    }
+                }
+            }
+            if (isUserResultMessage && pendingToolCallIds.size === 0) {
+                flushPendingUserMessages();
+            }
         }
+        flushPendingUserMessages();
         return result;
     }
 
@@ -119,15 +158,59 @@ export class OpenAIChatMessageConverter {
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
         const results: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+        // 处理工具结果
+        const toolMessages = this.convertToolResultMessages(message);
+        results.push(...toolMessages);
         // 处理文本和图片内容
         const userMessage = this.convertUserContentMessage(message, modelConfig);
         if (userMessage) {
             results.push(userMessage);
         }
-        // 处理工具结果
-        const toolMessages = this.convertToolResultMessages(message);
-        results.push(...toolMessages);
+        results.push(...this.convertToolResultImageMessages(this.collectToolResultImages(message, modelConfig)));
         return results;
+    }
+
+    private collectToolResultImages(
+        message: vscode.LanguageModelChatMessage,
+        modelConfig?: ModelConfig
+    ): ToolResultImages[] {
+        const results: ToolResultImages[] = [];
+        const seenCallIds = new Set<string>();
+
+        for (const part of message.content) {
+            if (!(part instanceof vscode.LanguageModelToolResultPart) || seenCallIds.has(part.callId)) {
+                continue;
+            }
+            seenCallIds.add(part.callId);
+            results.push({
+                callId: part.callId,
+                images:
+                    modelConfig?.capabilities?.imageInput === true ?
+                        extractToolResultImages(part.content, isImageMimeType)
+                    :   []
+            });
+        }
+
+        return results;
+    }
+
+    private convertToolResultImageMessages(
+        toolResults: readonly ToolResultImages[]
+    ): OpenAI.Chat.ChatCompletionUserMessageParam[] {
+        return toolResults.flatMap(({ callId, images }) => {
+            if (images.length === 0) {
+                return [];
+            }
+
+            const content: OpenAI.Chat.ChatCompletionContentPart[] = [
+                { type: 'text', text: `Images associated with tool call "${callId}":` },
+                ...images.map(image => ({
+                    type: 'image_url' as const,
+                    image_url: { url: createDataUrl(image) }
+                }))
+            ];
+            return [{ role: 'user', content }];
+        });
     }
 
     /**
