@@ -4,85 +4,6 @@
     "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
     "models": [
         {
-            "id": "gpt-5.4",
-            "name": "GPT-5.4 (ChatGPT)",
-            "sdkMode": "openai-responses",
-            "tooltip": "OpenAI 针对专业化工作负载能力最强、效率最高的前沿模型，整合GPT-5.3-Codex编程能力",
-            "contextSize": [400000, 1000000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
-            "webSearchTool": true,
-            "useInstructions": true,
-            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "serviceTier": ["default", "priority"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": [2.5, 15, 0.25],
-                "tiers": [
-                    { "serviceTier": "priority", "pricing": [5, 30, 0.5] },
-                    { "contextSizeMin": 272001, "pricing": [5, 22.5, 0.5] }
-                ]
-            },
-            "extraBody": {
-                "store": false,
-                "tool_choice": "auto",
-                "reasoning": {
-                    "effort": "medium",
-                    "summary": "auto"
-                }
-            }
-        },
-        {
-            "id": "gpt-5.4-mini",
-            "name": "GPT-5.4 mini (ChatGPT)",
-            "sdkMode": "openai-responses",
-            "tooltip": "OpenAI 迄今能力最强的小型模型，快速高效，专为代码编写与子智能体优化，Codex中仅消耗GPT-5.4配额的30%",
-            "maxInputTokens": 272000,
-            "maxOutputTokens": 128000,
-            "webSearchTool": true,
-            "useInstructions": true,
-            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.75, 4.5, 0.075],
-            "extraBody": {
-                "store": false,
-                "tool_choice": "auto",
-                "reasoning": {
-                    "effort": "medium",
-                    "summary": "auto"
-                }
-            }
-        },
-        {
-            "id": "gpt-5.5",
-            "name": "GPT-5.5 (ChatGPT)",
-            "sdkMode": "openai-responses",
-            "tooltip": "ChatGPT 提供的 GPT-5.5 模型，通过 Codex 端点访问，适合代码生成与理解任务",
-            "contextSize": [400000, 1000000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
-            "webSearchTool": true,
-            "useInstructions": true,
-            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "serviceTier": ["default", "priority"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": [5, 30, 0.5],
-                "tiers": [
-                    { "serviceTier": "priority", "pricing": [12.5, 75, 1.25] },
-                    { "contextSizeMin": 272001, "pricing": [10, 45, 1] }
-                ]
-            },
-            "extraBody": {
-                "store": false,
-                "tool_choice": "auto",
-                "reasoning": {
-                    "effort": "medium",
-                    "summary": "auto"
-                }
-            }
-        },
-        {
             "id": "gpt-5.6-sol",
             "name": "GPT-5.6 Sol (ChatGPT)",
             "sdkMode": "openai-responses",
@@ -97,11 +18,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [5, 30, 0.5],
-                "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [20, 90, 2] },
-                    { "serviceTier": "priority", "pricing": [10, 60, 1] },
-                    { "contextSizeMin": 272001, "pricing": [10, 45, 1] }
-                ]
+                "tiers": [{ "serviceTier": "priority", "pricing": [10, 60, 1] }]
             },
             "extraBody": {
                 "store": false,
@@ -129,11 +46,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 12, 0.2],
-                "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [8, 36, 0.8] },
-                    { "serviceTier": "priority", "pricing": [4, 24, 0.4] },
-                    { "contextSizeMin": 272001, "pricing": [4, 18, 0.4] }
-                ]
+                "tiers": [{ "serviceTier": "priority", "pricing": [4, 24, 0.4] }]
             },
             "extraBody": {
                 "store": false,
@@ -159,11 +72,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.2, 1.2, 0.02],
-                "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [0.8, 3.6, 0.08] },
-                    { "serviceTier": "priority", "pricing": [0.4, 2.4, 0.04] },
-                    { "contextSizeMin": 272001, "pricing": [0.4, 1.8, 0.04] }
-                ]
+                "tiers": [{ "serviceTier": "priority", "pricing": [0.4, 2.4, 0.04] }]
             },
             "extraBody": {
                 "store": false,
@@ -176,7 +85,7 @@
         },
         {
             "id": "gpt-6-astra",
-            "name": "GPT-6-Astra (ChatGPT)",
+            "name": "GPT-6 Astra (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "ChatGPT 提供的 GPT-6 旗舰模型，为最难端到端工作构建（复杂推理、编码、计算机使用、研究），支持 max 推理强度",
             "contextSize": [400000, 600000, 1000000],
@@ -207,7 +116,7 @@
         },
         {
             "id": "gpt-6-sol",
-            "name": "GPT-6-Sol (ChatGPT)",
+            "name": "GPT-6 Sol (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "OpenAI GPT-6 模型，为复杂编程与智能体工作流打造，相比 GPT-5.6 Sol 事实可靠性更强、沟通更清晰",
             "contextSize": [400000, 1000000],
@@ -220,11 +129,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 10, 0.2, 2.5],
-                "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [8, 30, 0.8, 10] },
-                    { "serviceTier": "priority", "pricing": [4, 20, 0.4, 5] },
-                    { "contextSizeMin": 272001, "pricing": [4, 15, 0.4, 5] }
-                ]
+                "tiers": [{ "serviceTier": "priority", "pricing": [4, 20, 0.4, 5] }]
             },
             "extraBody": {
                 "store": false,
@@ -239,7 +144,7 @@
         },
         {
             "id": "gpt-6-luna",
-            "name": "GPT-6-Luna (ChatGPT)",
+            "name": "GPT-6 Luna (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "OpenAI 最高效的 GPT-6 模型，适合摘要、信息提取、聚焦编程等目标明确的高频任务，支持 Max 推理强度",
             "contextSize": [400000, 1000000],
@@ -252,11 +157,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.1, 0.5, 0.01, 0.125],
-                "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 272001, "pricing": [0.4, 1.5, 0.04, 0.5] },
-                    { "serviceTier": "priority", "pricing": [0.2, 1, 0.02, 0.25] },
-                    { "contextSizeMin": 272001, "pricing": [0.2, 0.75, 0.02, 0.25] }
-                ]
+                "tiers": [{ "serviceTier": "priority", "pricing": [0.2, 1, 0.02, 0.25] }]
             },
             "extraBody": {
                 "store": false,
@@ -271,7 +172,7 @@
         },
         {
             "id": "gpt-6.1-sol",
-            "name": "GPT-6.1-Sol (ChatGPT)",
+            "name": "GPT-6.1 Sol (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "GPT-6 Sol 升级版，复杂编程、电脑操作与专业工作流上性能接近旗舰 GPT-6 Astra，而标准价格仅为其五分之一，缓存输入再降 50%",
             "contextSize": [400000, 600000, 1000000],
@@ -288,6 +189,34 @@
                     { "serviceTier": "ultrafast", "pricing": [12, 60, 0.6, 15] },
                     { "serviceTier": "priority", "pricing": [4, 20, 0.2, 5] }
                 ]
+            },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "text": { "verbosity": "low" },
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto",
+                    "context": "all_turns"
+                }
+            }
+        },
+        {
+            "id": "gpt-6.1-terra",
+            "name": "GPT-6.1 Terra (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "ChatGPT 提供的 GPT-6.1 高效模型，面向视觉推理、精确电脑操作与自然清晰的写作，标准价格约为 GPT-6.1 Sol 的一半",
+            "contextSize": [400000, 600000, 1000000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
+            "webSearchTool": true,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh", "max"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [1, 5, 0.05, 1.25],
+                "tiers": [{ "serviceTier": "priority", "pricing": [2, 10, 0.1, 2.5] }]
             },
             "extraBody": {
                 "store": false,
