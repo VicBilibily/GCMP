@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.5] - 2026-10-28
+
+### 修复
+
+- **工具结果图片历史恢复**：恢复历史工具结果中被宿主剥离的图片，优先使用原会话资源，并在资源不可用时对受支持的图片工具安全回读源文件；兼容无资源 URI、宿主合并文本、重复调用 ID 和多图结果，避免图片静默丢失。 [#455](https://github.com/VicBilibily/GCMP/issues/455)
+- **跨协议图片传递**：完善 OpenAI Chat、Responses、Anthropic 和 Gemini 通道的工具结果图片转换，保留工具调用关联、图片顺序和历史请求续传语义。
+
+---
+
+### Fixed
+
+- **Historical tool-result image recovery**: Restored images stripped from historical tool results by the host. Recovery prefers the original session resource and safely falls back to source files for supported image tools when the resource is unavailable. URI-less markers, merged host text, reused call IDs, and multi-image results are handled without silently dropping images. [#455](https://github.com/VicBilibily/GCMP/issues/455)
+- **Cross-protocol image delivery**: Improved tool-result image conversion for OpenAI Chat, Responses, Anthropic, and Gemini while preserving tool-call association, image ordering, and historical request continuation semantics.
+
 ## [0.29.4] - 2026-10-28
 
 ### 新增
