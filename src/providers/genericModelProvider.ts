@@ -1518,10 +1518,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             throw cancellationError;
                         }
                         if (error instanceof ResponsesTransportFailure) {
-                            if (!error.safeToRetry) {
+                            if (!error.safeToRetry && !error.retryIfNoOutput) {
                                 throw error;
                             }
                             if (
+                                error.retryIfNoOutput ||
                                 error.retryWithFullContext ||
                                 (error.phase === 'handshake' &&
                                     (error.status === undefined || error.status === 404 || error.status === 426))
@@ -1596,13 +1597,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         return decide(false, 'not_dispatched');
                     }
                     if (error instanceof ResponsesTransportFailure) {
-                        if (!error.safeToRetry || hasReportedProgress || token.isCancellationRequested) {
+                        if (
+                            (!error.safeToRetry && !error.retryIfNoOutput) ||
+                            hasReportedProgress ||
+                            token.isCancellationRequested
+                        ) {
                             return decide(false, 'websocket_replay_unsafe');
                         }
                         if (error.retryWithFullContext && responsesFullContextRetried) {
                             return decide(false, 'websocket_full_retry_exhausted');
                         }
                         if (
+                            error.retryIfNoOutput ||
                             error.retryWithFullContext ||
                             (error.phase === 'handshake' &&
                                 (error.status === undefined || error.status === 404 || error.status === 426))
@@ -1616,6 +1622,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             return decide(
                                 remaining,
                                 !remaining ? 'budget_exhausted'
+                                : error.retryIfNoOutput ? 'websocket_no_output_retry'
                                 : error.retryWithFullContext ? 'websocket_full_retry'
                                 : 'websocket_handshake_retry'
                             );

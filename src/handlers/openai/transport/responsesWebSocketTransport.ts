@@ -16,7 +16,8 @@ export class ResponsesTransportFailure extends Error {
         readonly acceptance: 'unknown' | 'rejected' | 'accepted' = 'unknown',
         readonly status?: number,
         readonly code?: string,
-        cause?: unknown
+        cause?: unknown,
+        readonly retryIfNoOutput = false
     ) {
         super(message, { cause });
         this.name = 'ResponsesTransportFailure';
@@ -675,7 +676,7 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
             active?.cancelDeadline?.();
             if (active && !active.receipt) {
                 active.outputItems.clear();
-                active.queue.fail(this.failure('Responses disconnected without terminal', 'receive', error));
+                active.queue.fail(this.failure('Responses disconnected without terminal', 'receive', error, true));
             }
             this.unsubscribeMessage();
             this.unsubscribeClose();
@@ -720,7 +721,7 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
         };
         this.active = active;
         active.cancelDeadline = this.clock.schedule(
-            () => this.interrupt(this.failure('Responses first event deadline exceeded', 'receive')),
+            () => this.interrupt(this.failure('Responses first event deadline exceeded', 'receive', undefined, true)),
             this.limits.firstMs
         );
         try {
@@ -812,7 +813,8 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
     private failure(
         message: string,
         phase: ResponsesTransportFailure['phase'],
-        cause?: unknown
+        cause?: unknown,
+        retryIfNoOutput = false
     ): ResponsesTransportFailure {
         return new ResponsesTransportFailure(
             message,
@@ -821,7 +823,8 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
             this.active?.accepted ? 'accepted' : 'unknown',
             undefined,
             undefined,
-            cause
+            cause,
+            retryIfNoOutput
         );
     }
 
@@ -860,7 +863,7 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
                 return;
             }
             if (this.clock.now() >= active.eventDeadline) {
-                throw new Error('Responses event deadline exceeded');
+                throw this.failure('Responses event deadline exceeded', 'receive', undefined, true);
             }
             if (object(value) && value.type === 'error') {
                 const detail = object(value.error) ? value.error : value;
@@ -956,7 +959,10 @@ export class ResponsesWebSocketTransport implements ResponsesConnection {
             } else {
                 active.eventDeadline = this.clock.now() + this.limits.idleMs;
                 active.cancelDeadline = this.clock.schedule(
-                    () => this.interrupt(this.failure('Responses event idle deadline exceeded', 'receive')),
+                    () =>
+                        this.interrupt(
+                            this.failure('Responses event idle deadline exceeded', 'receive', undefined, true)
+                        ),
                     this.limits.idleMs
                 );
             }

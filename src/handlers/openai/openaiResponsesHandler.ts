@@ -455,7 +455,10 @@ export class OpenAIResponsesHandler {
                         requestId &&
                         reporter &&
                         (reporter.hasContent || webSocketHandle) &&
-                        !(error instanceof ResponsesTransportFailure && error.retryWithFullContext)
+                        !(
+                            error instanceof ResponsesTransportFailure &&
+                            (error.retryWithFullContext || (error.retryIfNoOutput && !reporter.hasContent))
+                        )
                     ) {
                         const finalUsage = streamProcessor?.getFinalUsage();
                         let costNanoAiu: number | undefined;
@@ -546,10 +549,8 @@ export class OpenAIResponsesHandler {
         signal: AbortSignal,
         requestId: string
     ): Promise<ResponsesConnectionLease | undefined> {
-        const loopback =
-            endpoint.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname);
-        if (endpoint.protocol !== 'https:' && !loopback) {
-            throw new Error('Responses WebSocket requires HTTPS or loopback HTTP');
+        if (endpoint.protocol !== 'https:' && endpoint.protocol !== 'http:') {
+            throw new Error('Responses WebSocket requires an HTTP or HTTPS endpoint');
         }
         const headers = new Headers({
             Authorization: `Bearer ${parameters.apiKey}`
@@ -569,7 +570,7 @@ export class OpenAIResponsesHandler {
             connectionHeaders[name] = value;
         });
         const url = new URL(endpoint);
-        url.protocol = loopback ? 'ws:' : 'wss:';
+        url.protocol = endpoint.protocol === 'http:' ? 'ws:' : 'wss:';
         const network = (this.webSocketServices.dispatcher ?? leaseProxyDispatcher)(parameters.proxyUrl, true);
         const identity: ResponsesConnectionIdentity = {
             ownerId: this.ownerId,

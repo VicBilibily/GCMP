@@ -1415,38 +1415,61 @@ suite('Responses WebSocket roundtrip scenario matrix', function () {
         });
     }
 
-    test('WS-LOOP-16: distinct known usage survives terminal failure and later unknown usage', async () => {
-        const fixture = await createLiveResponsesFixture('usage-sequence');
-        const original = StreamReporter.prototype.flushAll;
-        try {
-            await fixture.begin(fixture.history('first'), 1).result;
-            StreamReporter.prototype.flushAll = function (...args) {
-                const result = original.apply(this, args);
-                if (args[2]) {
-                    throw new Error('injected failure after known usage');
+    for (const retryEnabled of [false, true]) {
+        const title =
+            retryEnabled ?
+                'WS-LOOP-16: known usage remains isolated after no-output retry recovery'
+            :   'WS-LOOP-16: distinct known usage survives terminal failure and later unknown usage';
+        test(title, async () => {
+            const fixture = await createLiveResponsesFixture('usage-sequence', { retryEnabled });
+            fixture.configure({ tokenPricing: { inputPrice: 1, outputPrice: 2 } });
+            const original = StreamReporter.prototype.flushAll;
+            try {
+                await fixture.begin(fixture.history('first'), 1).result;
+                StreamReporter.prototype.flushAll = function (...args) {
+                    const result = original.apply(this, args);
+                    if (args[2]) {
+                        throw new Error('injected failure after known usage');
+                    }
+                    return result;
+                };
+                await assert.rejects(fixture.begin(fixture.history('second'), 2).result);
+                StreamReporter.prototype.flushAll = original;
+                const third = fixture.begin(fixture.history('third'), 3);
+                if (retryEnabled) {
+                    assert.equal(fixture.text(await third.result), 'mock response');
+                } else {
+                    await assert.rejects(third.result);
+                    assert.equal(third.parts.length, 0);
                 }
-                return result;
-            };
-            await assert.rejects(fixture.begin(fixture.history('second'), 2).result);
-            StreamReporter.prototype.flushAll = original;
-            await assert.rejects(fixture.begin(fixture.history('third'), 3).result);
-            assert.deepEqual(
-                fixture.updates.map(update => ({ status: update.status, usage: update.rawUsage })),
-                [
-                    { status: 'completed', usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 } },
-                    { status: 'failed', usage: { input_tokens: 22, output_tokens: 6, total_tokens: 28 } },
-                    { status: 'failed', usage: undefined }
-                ]
-            );
-            assert.equal(new Set(fixture.updates.map(update => update.requestId)).size, 3);
-            assert.equal((await fixture.mock.snapshot()).received, 3);
-            assert.equal(fixture.provider.grants, 3);
-            assert.equal((await fixture.close()).length, 0);
-        } finally {
-            StreamReporter.prototype.flushAll = original;
-            await fixture.dispose();
-        }
-    });
+                assert.deepEqual(
+                    fixture.updates.map(update => ({ status: update.status, usage: update.rawUsage })),
+                    [
+                        { status: 'completed', usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 } },
+                        { status: 'failed', usage: { input_tokens: 22, output_tokens: 6, total_tokens: 28 } },
+                        retryEnabled ?
+                            { status: 'completed', usage: { input_tokens: 44, output_tokens: 12, total_tokens: 56 } }
+                        :   { status: 'failed', usage: undefined }
+                    ]
+                );
+                assert.deepEqual(
+                    fixture.updates.map(update => update.estimatedCost),
+                    [17 / 1_000_000, 34 / 1_000_000, retryEnabled ? 68 / 1_000_000 : undefined]
+                );
+                assert.equal(fixture.estimates.length, 3);
+                assert.equal(new Set(fixture.updates.map(update => update.requestId)).size, 3);
+                const observed = await fixture.mock.snapshot();
+                assert.equal(observed.received, retryEnabled ? 4 : 3);
+                assert.equal(observed.accepted, retryEnabled ? 4 : 3);
+                assert.equal(observed.httpAccepted, 0);
+                assert.equal(fixture.provider.grants, retryEnabled ? 4 : 3);
+                assert.equal((await fixture.close()).length, 0);
+            } finally {
+                StreamReporter.prototype.flushAll = original;
+                await fixture.dispose();
+            }
+        });
+    }
 
     test('WS-LOOP-16: upstream cancellation preserves usage and cost without replay', async () => {
         const fixture = await createLiveResponsesFixture('cancelled', { delta: true });
@@ -1478,7 +1501,7 @@ suite('Responses WebSocket roundtrip scenario matrix', function () {
     });
 
     test('WS-LOOP-09: public accepted request closes before first frame without replay', async () => {
-        const fixture = await createLiveResponsesFixture('accepted-close');
+        const fixture = await createLiveResponsesFixture('accepted-close', { retryEnabled: false });
         try {
             const request = fixture.begin(fixture.history('accepted without a response frame'), 1);
             await assert.rejects(request.result);

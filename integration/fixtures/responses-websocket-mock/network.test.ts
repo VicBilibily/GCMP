@@ -544,7 +544,7 @@ for (const scenario of ['malformed', 'binary', 'oversize', 'queue-overflow', 'id
             oversize: /message budget/,
             'queue-overflow': /queue budget/,
             identity: /identity mismatch/,
-            'unknown-terminal': /Unsupported or malformed/
+            'unknown-terminal': /first event deadline exceeded/
         }[scenario];
         const real = await client(scenario, {
             messageBytes: scenario === 'oversize' ? 256 : 16 * 1024,
@@ -554,15 +554,22 @@ for (const scenario of ['malformed', 'binary', 'oversize', 'queue-overflow', 'id
         try {
             handle = real.transport.begin({ model: 'mock-model', input: [] }, () => undefined);
             await real.socket.closed;
-            await assert.rejects(
-                drain(handle),
-                (error: unknown) =>
-                    error instanceof ResponsesTransportFailure &&
-                    !error.safeToRetry &&
-                    error.modelDispatch === 'possibly-sent' &&
-                    error.cause instanceof Error &&
-                    expectedCause.test(error.cause.message)
-            );
+            await assert.rejects(drain(handle), (error: unknown) => {
+                assert.ok(error instanceof ResponsesTransportFailure);
+                assert.equal(error.safeToRetry, false);
+                assert.equal(error.modelDispatch, 'possibly-sent');
+                assert.equal(error.retryIfNoOutput, scenario === 'unknown-terminal');
+                if (scenario === 'unknown-terminal') {
+                    assert.equal(error.phase, 'receive');
+                    assert.equal(error.acceptance, 'unknown');
+                    assert.equal(error.cause, undefined);
+                    assert.match(error.message, expectedCause);
+                } else {
+                    assert.ok(error.cause instanceof Error);
+                    assert.match(error.cause.message, expectedCause);
+                }
+                return true;
+            });
             assert.equal(real.mock.snapshot().received, 1);
             handle.finish(false);
             await assertClosed(real);

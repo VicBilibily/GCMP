@@ -434,22 +434,57 @@
         },
         {
             "id": "WS-LOOP-09",
-            "title": "Unknown acceptance",
+            "title": "No-output retry safety",
             "checks": [
                 {
-                    "variant": "accepted silence timeout with unknown usage",
+                    "variant": "retry disabled: accepted silence timeout with unknown usage",
                     "layer": "Host",
                     "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider accepted silence never replays or invents usage"
                 },
                 {
-                    "variant": "public server accepted then closed before first frame",
+                    "variant": "retry disabled: public server accepted then closed before first frame",
                     "layer": "Host",
                     "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-09: public accepted request closes before first frame without replay"
                 },
                 {
                     "variant": "no first event disconnect at transport boundary",
                     "layer": "Unit",
-                    "test": "WS-LOOP-09: sent request without first event is never safe to replay"
+                    "test": "WS-LOOP-09: sent request without first event can retry only when no output was reported"
+                },
+                {
+                    "variant": "first event timeout retries within budget without output",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry first-timeout"
+                },
+                {
+                    "variant": "idle timeout after lifecycle events retries without output",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry idle-timeout"
+                },
+                {
+                    "variant": "disconnect without output retries within budget",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry disconnect"
+                },
+                {
+                    "variant": "disabled retries do not replay first event timeout",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry disabled"
+                },
+                {
+                    "variant": "zero retry budget does not replay first event timeout",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry zero-budget"
+                },
+                {
+                    "variant": "partial output prevents disconnect replay",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry partial-output"
+                },
+                {
+                    "variant": "retry rebuilds full context and records one successful logical request",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip WS-LOOP-09: public Provider no-output retry recovers once with full context"
                 }
             ],
             "unverified": []
@@ -781,9 +816,14 @@
                     "test": "WS-LOOP-16: known network failure does not inherit an internal proxy abort"
                 },
                 {
-                    "variant": "distinct known request usage survives consumer failure then unknown usage",
+                    "variant": "retry disabled: distinct known request usage survives consumer failure then unknown usage",
                     "layer": "Host",
                     "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-16: distinct known usage survives terminal failure and later unknown usage"
+                },
+                {
+                    "variant": "no-output retry preserves per-request usage and cost with one final status",
+                    "layer": "Host",
+                    "test": "Responses WebSocket roundtrip scenario matrix WS-LOOP-16: known usage remains isolated after no-output retry recovery"
                 },
                 {
                     "variant": "upstream cancellation preserves received usage and cost without replay",

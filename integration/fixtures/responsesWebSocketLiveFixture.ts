@@ -79,6 +79,7 @@ export interface LiveResponsesOptions {
     responseText?: string;
     poolIdleMs?: number;
     requestMs?: number;
+    eventMs?: number;
     retryEnabled?: boolean;
     retryAttempts?: number;
     network?: MockNetwork;
@@ -217,6 +218,10 @@ export async function createLiveResponsesFixture(scenario: MockScenario, options
     pool.acquire = async (...args) => {
         const lease = await acquire(...args);
         if (lease?.connection instanceof ResponsesWebSocketTransport) {
+            if (options.eventMs !== undefined) {
+                lease.connection['limits'].firstMs = options.eventMs;
+                lease.connection['limits'].idleMs = options.eventMs;
+            }
             connections.add(lease.connection);
         }
         return lease;
@@ -294,7 +299,7 @@ export async function createLiveResponsesFixture(scenario: MockScenario, options
             : 'noproxy',
         useWebSocket: true,
         useInstructions: 'useInstructions' in options ? options.useInstructions : true,
-        extraBody: { store: false },
+        extraBody: { store: false, parallel_tool_calls: false },
         maxInputTokens: 128_000,
         maxOutputTokens: 1024,
         capabilities: { toolCalling: true, imageInput: false }

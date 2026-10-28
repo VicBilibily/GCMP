@@ -307,7 +307,7 @@ export async function startResponsesMockServer(
             sent++;
         };
         const reject = (code: string) => {
-            send({ type: 'error', status: 400, error: { code, message: 'mock request rejected' } });
+            send({ type: 'error', status: 400, error: { code, message: `mock request rejected: ${code}` } });
             notify();
         };
         clients.add(socket);

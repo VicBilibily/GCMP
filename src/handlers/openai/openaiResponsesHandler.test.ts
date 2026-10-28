@@ -262,7 +262,7 @@ async function createHandshakeFixture(providerKey: string, release: () => void |
         pool,
         handshakes,
         internal,
-        acquire: (requestId: string) =>
+        acquire: (requestId: string, endpoint = 'http://127.0.0.1/responses') =>
             internal.acquireWebSocket(
                 { id: 'test-model' },
                 {
@@ -281,12 +281,52 @@ async function createHandshakeFixture(providerKey: string, release: () => void |
                     defaultHeaders: { 'X-Custom': 'retained' },
                     proxyUrl: 'noproxy'
                 },
-                new URL('http://127.0.0.1/responses'),
+                new URL(endpoint),
                 { origin: 'sdk', purpose: 'chat', branchId: 'main' },
                 new AbortController().signal,
                 requestId
             )
     };
+}
+
+for (const [endpoint, expectedUrl] of [
+    ['http://gateway.invalid:8080/v1/responses?mode=stream', 'ws://gateway.invalid:8080/v1/responses?mode=stream'],
+    ['http://192.0.2.10:8080/responses', 'ws://192.0.2.10:8080/responses'],
+    ['http://[2001:db8::1]:8080/responses', 'ws://[2001:db8::1]:8080/responses'],
+    ['http://127.0.0.1:8080/responses', 'ws://127.0.0.1:8080/responses'],
+    ['http://localhost:8080/responses', 'ws://localhost:8080/responses'],
+    ['http://[::1]:8080/responses', 'ws://[::1]:8080/responses'],
+    ['https://gateway.invalid:8443/v1/responses?mode=stream', 'wss://gateway.invalid:8443/v1/responses?mode=stream'],
+    ['https://127.0.0.1:8443/responses', 'wss://127.0.0.1:8443/responses']
+]) {
+    test(`WS-LOOP-06: endpoint ${endpoint} preserves WebSocket security scheme`, async () => {
+        const fixture = await createHandshakeFixture('compatible');
+        try {
+            const lease = await fixture.acquire('request', endpoint);
+            assert.ok(lease);
+            assert.equal(fixture.handshakes.length, 1);
+            assert.equal(fixture.handshakes[0].url, expectedUrl);
+            assert.equal(fixture.handshakes[0].headers.authorization, 'Bearer synthetic-key');
+            lease.release(true);
+        } finally {
+            await fixture.handler.dispose();
+            await fixture.pool.dispose();
+        }
+    });
+}
+
+for (const endpoint of ['ftp://gateway.invalid/responses', 'file:///responses', 'data:text/plain,responses']) {
+    test(`WS-LOOP-06: unsupported endpoint ${endpoint} is rejected before handshake`, async () => {
+        const fixture = await createHandshakeFixture('compatible');
+        try {
+            await assert.rejects(fixture.acquire('request', endpoint), /Responses WebSocket requires/);
+            assert.equal(fixture.handshakes.length, 0);
+            assert.deepEqual(fixture.pool.diagnostics(), { connections: 0, leases: 0, closing: 0 });
+        } finally {
+            await fixture.handler.dispose();
+            await fixture.pool.dispose();
+        }
+    });
 }
 
 test('WS-LOOP-15: provider disposal waits for its dispatcher and retains capacity', async () => {

@@ -551,7 +551,10 @@ suite('Responses WebSocket roundtrip', () => {
             }
         });
         test('WS-LOOP-09: public Provider accepted silence never replays or invents usage', async () => {
-            const fixture = await createLiveResponsesFixture('accepted-silent', { requestMs: 250 });
+            const fixture = await createLiveResponsesFixture('accepted-silent', {
+                requestMs: 250,
+                retryEnabled: false
+            });
             try {
                 const request = fixture.begin(fixture.history('first'), 1);
                 await assert.rejects(
@@ -570,6 +573,74 @@ suite('Responses WebSocket roundtrip', () => {
                 assert.equal(failed.length, 1);
                 assert.equal(failed[0].rawUsage, undefined);
                 assert.equal(fixture.counters().http, 0);
+                assert.equal((await fixture.close()).length, 0);
+            } finally {
+                await fixture.dispose();
+            }
+        });
+        for (const variant of [
+            'first-timeout',
+            'idle-timeout',
+            'disconnect',
+            'disabled',
+            'zero-budget',
+            'partial-output'
+        ] as const) {
+            test(`WS-LOOP-09: public Provider no-output retry ${variant}`, async () => {
+                const fixture = await createLiveResponsesFixture(
+                    variant === 'idle-timeout' ? 'idle-after-created'
+                    : variant === 'disconnect' ? 'accepted-close'
+                    : variant === 'partial-output' ? 'partial-close'
+                    : 'accepted-silent',
+                    {
+                        eventMs: 250,
+                        retryEnabled: variant !== 'disabled',
+                        retryAttempts: variant === 'zero-budget' ? 0 : 1
+                    }
+                );
+                try {
+                    const request = fixture.begin(fixture.history('first'), 1);
+                    await assert.rejects(request.result, error => error instanceof ResponsesTransportFailure);
+                    const attempts =
+                        variant === 'disabled' || variant === 'zero-budget' || variant === 'partial-output' ? 1 : 2;
+                    const observed = await fixture.mock.snapshot();
+                    assert.equal(observed.handshakes, attempts);
+                    assert.equal(observed.received, attempts);
+                    assert.equal(observed.accepted, attempts);
+                    assert.equal(observed.httpAccepted, 0);
+                    assert.equal(fixture.provider.grants, attempts);
+                    assert.equal(fixture.text(request.parts), variant === 'partial-output' ? 'mock response' : '');
+                    assert.equal(fixture.updates.length, 1);
+                    assert.equal(fixture.updates[0].status, 'failed');
+                    assert.equal(fixture.updates[0].rawUsage, undefined);
+                    assert.equal((await fixture.close()).length, 0);
+                } finally {
+                    await fixture.dispose();
+                }
+            });
+        }
+        test('WS-LOOP-09: public Provider no-output retry recovers once with full context', async () => {
+            const fixture = await createLiveResponsesFixture('paused', { eventMs: 500, delta: true });
+            try {
+                const request = fixture.begin(fixture.history('first'), 1);
+                void request.result.catch(() => undefined);
+                await fixture.mock.waitFor({ accepted: 2, pendingResponses: 1 });
+                await fixture.mock.releasePending();
+                assert.equal(fixture.text(await request.result), 'mock response');
+                const observed = await fixture.mock.snapshot();
+                assert.equal(observed.handshakes, 2);
+                assert.equal(observed.received, 2);
+                assert.equal(observed.full, 2);
+                assert.equal(observed.delta, 0);
+                assert.equal(observed.httpAccepted, 0);
+                assert.equal(fixture.provider.grants, 2);
+                assert.equal(fixture.updates.length, 1);
+                assert.equal(fixture.updates[0].status, 'completed');
+                assert.deepEqual(fixture.updates[0].rawUsage, {
+                    input_tokens: 2,
+                    output_tokens: 1,
+                    total_tokens: 3
+                });
                 assert.equal((await fixture.close()).length, 0);
             } finally {
                 await fixture.dispose();

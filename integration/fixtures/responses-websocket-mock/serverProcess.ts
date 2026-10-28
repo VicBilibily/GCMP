@@ -13,7 +13,7 @@ function reply(value: MockReply, finish = false): void {
     if (!process.connected || !process.send) {
         return;
     }
-    process.send(value, error => {
+    process.send(value, undefined, undefined, error => {
         if (error) {
             process.exitCode = 1;
         }

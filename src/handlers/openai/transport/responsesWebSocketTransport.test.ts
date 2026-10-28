@@ -93,6 +93,7 @@ for (const variant of ['delta-rejected', 'full-rejected', 'already-accepted', 'w
                 assert.equal(error.modelDispatch, 'possibly-sent');
                 assert.equal(error.retryWithFullContext, variant === 'delta-rejected');
                 assert.equal(error.safeToRetry, variant === 'delta-rejected');
+                assert.equal(error.retryIfNoOutput, false);
                 assert.equal(
                     error.acceptance,
                     variant === 'delta-rejected' ? 'rejected'
@@ -696,6 +697,7 @@ for (const type of [
                         assert.match(error.message, /deadline/);
                         assert.equal(error.acceptance, phase === 'first' ? 'unknown' : 'accepted');
                         assert.equal(error.safeToRetry, false);
+                        assert.equal(error.retryIfNoOutput, true);
                         return true;
                     }
                 );
@@ -798,6 +800,7 @@ for (const variant of [
                 assert.ok(error instanceof ResponsesTransportFailure);
                 assert.equal(error.modelDispatch, 'possibly-sent');
                 assert.equal(error.safeToRetry, false);
+                assert.equal(error.retryIfNoOutput, false);
                 const expectedReasons: Record<string, string> = {
                     malformed: 'Invalid Responses JSON',
                     binary: 'Unsupported binary Responses message',
@@ -820,7 +823,7 @@ for (const variant of [
     });
 }
 
-test('WS-LOOP-09: sent request without first event is never safe to replay', async () => {
+test('WS-LOOP-09: sent request without first event can retry only when no output was reported', async () => {
     const socket = new Socket();
     const transport = new ResponsesWebSocketTransport(socket);
     const handle = transport.begin({ model: 'test', input: [] }, () => undefined);
@@ -831,8 +834,13 @@ test('WS-LOOP-09: sent request without first event is never safe to replay', asy
                 assert.ok(event.type);
             }
         },
-        (error: unknown) =>
-            error instanceof ResponsesTransportFailure && error.acceptance === 'unknown' && !error.safeToRetry
+        (error: unknown) => {
+            assert.ok(error instanceof ResponsesTransportFailure);
+            assert.equal(error.acceptance, 'unknown');
+            assert.equal(error.safeToRetry, false);
+            assert.equal(error.retryIfNoOutput, true);
+            return true;
+        }
     );
     assert.equal(socket.sent.length, 1);
     handle.finish(false);
