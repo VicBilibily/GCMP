@@ -6,7 +6,7 @@ import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../stateful/statefulMarker';
 import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
-import type { openAIImages } from './shared/images';
+import { isImageMimeCategory, type openAIImages } from './shared/images';
 import { filterResponsesExtraBodyParams } from './responses/requestParameters';
 import {
     isEncryptedReasoningOriginMatch,
@@ -15,7 +15,8 @@ import {
     shouldReplayPlainThinking
 } from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
-import { extractToolResultImages } from './shared/toolResultImages';
+import { extractToolResultImages, getToolResultImagePlaceholder } from './shared/toolResultImages';
+import { IMAGE_UNAVAILABLE_PLACEHOLDER } from '../imagePlaceholder';
 
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
 type ResponseInputMessageItem = OpenAI.Responses.ResponseInputMessageItem;
@@ -160,7 +161,7 @@ export class OpenAIResponsesMessageConverter {
                     if (modelConfig?.capabilities?.imageInput === true) {
                         imageParts.push(part);
                     } else {
-                        textParts.push('[Image]');
+                        textParts.push(IMAGE_UNAVAILABLE_PLACEHOLDER);
                     }
                 } else if (isToolCallPart(part)) {
                     let args = '{}';
@@ -179,7 +180,7 @@ export class OpenAIResponsesMessageConverter {
                     toolCalls.push({ id, name: part.name, args });
                 } else if (isToolResultPart(part)) {
                     const callId = callIdResolver.resolveToolResultCallId({ callId: part.callId });
-                    const content = this.collectToolResultText(part);
+                    const content = this.collectToolResultText(part, modelConfig?.capabilities?.imageInput === true);
                     const images =
                         modelConfig?.capabilities?.imageInput === true ?
                             extractToolResultImages(part.content, this.images.isImageMimeType)
@@ -475,7 +476,7 @@ export class OpenAIResponsesMessageConverter {
         }
     }
 
-    private collectToolResultText(part: vscode.LanguageModelToolResultPart): string {
+    private collectToolResultText(part: vscode.LanguageModelToolResultPart, allowImages: boolean): string {
         if (!part.content || part.content.length === 0) {
             return '';
         }
@@ -484,8 +485,8 @@ export class OpenAIResponsesMessageConverter {
         for (const item of part.content) {
             if (isTextPart(item)) {
                 texts.push(item.value);
-            } else if (isDataPart(item) && this.images.isImageMimeType(item.mimeType)) {
-                texts.push('[Image]');
+            } else if (isDataPart(item) && isImageMimeCategory(item.mimeType)) {
+                texts.push(getToolResultImagePlaceholder(item, allowImages, this.images.isImageMimeType));
             }
         }
         return texts.join('\n');

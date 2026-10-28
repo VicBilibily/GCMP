@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 
 import { CustomDataPartMimeTypes } from '../types';
+import { IMAGE_UNAVAILABLE_PLACEHOLDER, UNSUPPORTED_IMAGE_PLACEHOLDER } from '../imagePlaceholder';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -31,6 +32,7 @@ function encodeStatefulMarkerForTest(modelId: string, marker: Record<string, unk
 let converterModulePromise:
     | Promise<{
           OpenAIResponsesMessageConverter: typeof import('./openaiResponsesMessageConverter').OpenAIResponsesMessageConverter;
+          openAIImages: typeof import('./shared/images').openAIImages;
       }>
     | undefined;
 
@@ -68,7 +70,7 @@ async function getConverterModule() {
         if (id === 'vscode') {
             return vscodeMock;
         }
-        if (id === '../../utils/runtime/logger' || id === '../utils/runtime/logger') {
+        if (id.endsWith('/utils/runtime/logger')) {
             return {
                 Logger: {
                     trace() {},
@@ -82,9 +84,14 @@ async function getConverterModule() {
         return originalRequire.call(this, id);
     };
 
-    converterModulePromise = import('./openaiResponsesMessageConverter').finally(() => {
-        NodeModule.prototype.require = originalRequire;
-    });
+    converterModulePromise = import('./openaiResponsesMessageConverter')
+        .then(async converter => ({
+            ...converter,
+            ...(await import('./shared/images'))
+        }))
+        .finally(() => {
+            NodeModule.prototype.require = originalRequire;
+        });
 
     return converterModulePromise;
 }
@@ -529,7 +536,7 @@ test('工具结果图片在并行工具输出配对后作为关联 user 图片�
     ]);
 });
 
-test('非视觉 Responses 模型仍只收到工具图片占位文本', async () => {
+test('非视觉 Responses 模型明确说明工具图片未投递', async () => {
     const { OpenAIResponsesMessageConverter } = await getConverterModule();
     const converter = new OpenAIResponsesMessageConverter(
         {
@@ -565,16 +572,23 @@ test('非视觉 Responses 模型仍只收到工具图片占位文本', async () 
         {
             type: 'function_call_output',
             call_id: 'view-1',
-            output: '[Image]',
+            output: IMAGE_UNAVAILABLE_PLACEHOLDER,
             status: 'completed'
         }
     ]);
 });
 
-for (const mimeType of ['image/svg+xml', 'image/bmp']) {
-    test(`Responses 工具结果中的 ${mimeType} 保留占位但不发送图片`, async () => {
-        const { OpenAIResponsesMessageConverter } = await getConverterModule();
-        const converter = new OpenAIResponsesMessageConverter(toolImageHandler, 'Test');
+for (const [mimeType, imageInput] of [
+    ['image/svg+xml', true],
+    ['image/bmp', true],
+    ['image/avif', true],
+    [' IMAGE/HEIC ', true],
+    ['image/avif', false],
+    [' IMAGE/HEIC ', false]
+] as const) {
+    test(`Responses 工具结果中的 ${mimeType} 明确说明未投递: vision=${imageInput}`, async () => {
+        const { OpenAIResponsesMessageConverter, openAIImages } = await getConverterModule();
+        const converter = new OpenAIResponsesMessageConverter(openAIImages, 'Test');
         const result = converter.convertMessagesToOpenAIResponses(
             [
                 {
@@ -591,7 +605,7 @@ for (const mimeType of ['image/svg+xml', 'image/bmp']) {
                     ]
                 }
             ] as never,
-            { capabilities: { imageInput: true } } as never,
+            { capabilities: { imageInput } } as never,
             { provider: 'openai', modelId: 'vision' }
         );
 
@@ -599,7 +613,7 @@ for (const mimeType of ['image/svg+xml', 'image/bmp']) {
         assert.deepEqual(result.messages[1], {
             type: 'function_call_output',
             call_id: 'view-1',
-            output: 'before\n[Image]\nafter',
+            output: `before\n${imageInput ? UNSUPPORTED_IMAGE_PLACEHOLDER : IMAGE_UNAVAILABLE_PLACEHOLDER}\nafter`,
             status: 'completed'
         });
     });
@@ -702,3 +716,29 @@ for (const parallel of [false, true]) {
         );
     });
 }
+
+test('Responses 空工具图片明确说明无法投递且不产生图片消息', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(toolImageHandler, 'Test');
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [{ callId: 'empty', name: 'view_image', input: {} }]
+            },
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.User,
+                content: [{ callId: 'empty', content: [{ data: new Uint8Array(), mimeType: 'image/png' }] }]
+            }
+        ] as never,
+        { capabilities: { imageInput: true } } as never,
+        { provider: 'openai', modelId: 'vision' }
+    );
+    assert.equal(result.messages.length, 2);
+    assert.deepEqual(result.messages[1], {
+        type: 'function_call_output',
+        call_id: 'empty',
+        output: UNSUPPORTED_IMAGE_PLACEHOLDER,
+        status: 'completed'
+    });
+});

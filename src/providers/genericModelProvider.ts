@@ -86,6 +86,7 @@ import { SessionTitleService } from '../usages/sessionTitleService';
 import { MAX_RECOVERY_RESPONSE_LENGTH, SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
+import { recoverToolResultImages } from '../handlers/toolResultImageRecovery';
 import * as crypto from 'node:crypto';
 import type { SessionRecoverySource } from '../usages/fileLogger/types';
 import {
@@ -1010,6 +1011,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         ) {
             preferredBalanceCredentialId = BalanceAffinityCache.instance.get(effectiveProviderKey, balanceKey);
         }
+
+        messages = await recoverToolResultImages(messages, modelConfig.capabilities?.imageInput === true, token);
 
         // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
         if (this.visionCache && !modelConfig.capabilities?.imageInput) {

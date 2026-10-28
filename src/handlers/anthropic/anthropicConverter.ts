@@ -27,6 +27,7 @@ import type {
 } from '@anthropic-ai/sdk/resources';
 import { ModelConfig } from '../../types/sharedTypes';
 import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
+import { IMAGE_UNAVAILABLE_PLACEHOLDER } from '../imagePlaceholder';
 
 /**
  * 思考部分的元数据接口
@@ -253,7 +254,7 @@ function apiMessageToAnthropicContent(
                 } as ImageBlockParam);
             } else {
                 // 模型不支持图片时，添加占位符
-                otherBlocks.push({ type: 'text', text: '[Image]' } as TextBlockParam);
+                otherBlocks.push({ type: 'text', text: IMAGE_UNAVAILABLE_PLACEHOLDER } as TextBlockParam);
             }
         }
         // 工具结果
@@ -292,7 +293,7 @@ function apiMessageToAnthropicContent(
                 if (isDataPart(p) && p.mimeType.startsWith('image/')) {
                     if (!allowImages) {
                         // 模型不支持图片时，添加占位符
-                        convertedContents.push({ type: 'text', text: '[Image]' });
+                        convertedContents.push({ type: 'text', text: IMAGE_UNAVAILABLE_PLACEHOLDER });
                         continue;
                     }
                     convertedContents.push({

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 
 import { CustomDataPartMimeTypes } from '../types';
+import { IMAGE_UNAVAILABLE_PLACEHOLDER } from '../imagePlaceholder';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -104,6 +105,35 @@ function makeModelConfig(model = 'claude-haiku-4.5') {
 function getAssistantContent(result: { messages: { role: string; content: unknown }[] }): { type: string }[] {
     const assistant = result.messages.find(message => message.role === 'assistant');
     return assistant?.content as { type: string }[];
+}
+
+for (const toolResult of [false, true]) {
+    for (const imageInput of [false, true]) {
+        test(`Anthropic image delivery and unavailable warning: tool=${toolResult}, vision=${imageInput}`, async () => {
+            const { apiMessageToAnthropicMessage } = await getConverterModule();
+            const image = { data: Uint8Array.from([1]), mimeType: 'image/png' };
+            const result = apiMessageToAnthropicMessage(
+                {
+                    id: 'test',
+                    capabilities: { imageInput }
+                } as never,
+                [
+                    {
+                        role: vscodeMock.LanguageModelChatMessageRole.User,
+                        content: toolResult ? [{ callId: 'view-1', content: [image] }] : [image]
+                    }
+                ] as never
+            );
+            const serialized = JSON.stringify(result);
+            if (imageInput) {
+                assert.match(serialized, /"type":"image"/);
+                assert.match(serialized, /"data":"AQ=="/);
+            } else {
+                assert.doesNotMatch(serialized, /"type":"image"/);
+                assert.ok(serialized.includes(IMAGE_UNAVAILABLE_PLACEHOLDER));
+            }
+        });
+    }
 }
 
 for (const field of ['data', 'redactedData'] as const) {

@@ -1,6 +1,10 @@
 import type * as vscode from 'vscode';
 import { Logger } from '../../../utils/runtime/logger';
 
+export function isImageMimeCategory(mimeType: string): boolean {
+    return mimeType.toLowerCase().trim().startsWith('image/');
+}
+
 /**
  * 检查是否为图片MIME类型
  */
@@ -17,7 +21,7 @@ export function isImageMimeType(mimeType: string): boolean {
         'image/bmp',
         'image/svg+xml'
     ];
-    const isImageCategory = normalizedMime.startsWith('image/');
+    const isImageCategory = isImageMimeCategory(normalizedMime);
     const isSupported = supportedTypes.includes(normalizedMime);
     // 调试日志
     if (isImageCategory && !isSupported) {

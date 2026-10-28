@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import { IMAGE_UNAVAILABLE_PLACEHOLDER, UNSUPPORTED_IMAGE_PLACEHOLDER } from '../../imagePlaceholder';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -406,7 +407,7 @@ for (const role of ['User', 'Assistant', 'System'] as const) {
     }
 }
 
-test('不支持图像输入时工具图片继续降级为占位文本', async () => {
+test('不支持图像输入时明确说明工具图片未投递', async () => {
     const { OpenAIChatMessageConverter } = await getConverterModule();
     const converter = new OpenAIChatMessageConverter({ provider: 'openai' } as never);
 
@@ -430,7 +431,7 @@ test('不支持图像输入时工具图片继续降级为占位文本', async ()
             content: null,
             tool_calls: [{ id: 'view-1', type: 'function', function: { name: 'capture', arguments: '{}' } }]
         },
-        { role: 'tool', content: '[Image]', tool_call_id: 'view-1' }
+        { role: 'tool', content: IMAGE_UNAVAILABLE_PLACEHOLDER, tool_call_id: 'view-1' }
     ]);
 });
 
@@ -456,8 +457,15 @@ test('顶层用户图片仍按既有 Chat 多模态格式回传', async () => {
     ]);
 });
 
-for (const mimeType of ['image/svg+xml', 'image/bmp']) {
-    test(`Chat 工具结果中的 ${mimeType} 保留占位但不发送图片`, async () => {
+for (const [mimeType, imageInput] of [
+    ['image/svg+xml', true],
+    ['image/bmp', true],
+    ['image/avif', true],
+    [' IMAGE/HEIC ', true],
+    ['image/avif', false],
+    [' IMAGE/HEIC ', false]
+] as const) {
+    test(`Chat 工具结果中的 ${mimeType} 明确说明未投递: vision=${imageInput}`, async () => {
         const { OpenAIChatMessageConverter } = await getConverterModule();
         const converter = new OpenAIChatMessageConverter({ provider: 'openai' } as never);
         const result = converter.convertMessagesToOpenAI(
@@ -477,7 +485,7 @@ for (const mimeType of ['image/svg+xml', 'image/bmp']) {
                     ]
                 }
             ] as never,
-            { capabilities: { imageInput: true } } as never
+            { capabilities: { imageInput } } as never
         );
 
         assert.deepEqual(
@@ -487,7 +495,7 @@ for (const mimeType of ['image/svg+xml', 'image/bmp']) {
         assert.deepEqual(result[1], {
             role: 'tool',
             tool_call_id: 'view-1',
-            content: 'before\n[Image]\nafter'
+            content: `before\n${imageInput ? UNSUPPORTED_IMAGE_PLACEHOLDER : IMAGE_UNAVAILABLE_PLACEHOLDER}\nafter`
         });
     });
 }
@@ -547,7 +555,7 @@ test('Chat 混合工具图片仅回传支持格式并保留像素顺序', async 
     );
 
     assert.deepEqual(result, [
-        { role: 'tool', tool_call_id: 'view-1', content: '[Image]\n[Image]\n[Image]' },
+        { role: 'tool', tool_call_id: 'view-1', content: `[Image]\n${UNSUPPORTED_IMAGE_PLACEHOLDER}\n[Image]` },
         {
             role: 'user',
             content: [
@@ -557,4 +565,17 @@ test('Chat 混合工具图片仅回传支持格式并保留像素顺序', async 
             ]
         }
     ]);
+});
+
+test('Chat 空工具图片明确说明无法投递且不产生图片消息', async () => {
+    const { OpenAIChatMessageConverter } = await getConverterModule();
+    const converter = new OpenAIChatMessageConverter({ provider: 'openai' } as never);
+    const result = converter.convertSingleMessage(
+        {
+            role: vscodeMock.LanguageModelChatMessageRole.User,
+            content: [new MockToolResultPart('view-empty', [new MockDataPart(new Uint8Array(), 'image/png')])]
+        } as never,
+        { capabilities: { imageInput: true } } as never
+    );
+    assert.deepEqual(result, [{ role: 'tool', tool_call_id: 'view-empty', content: UNSUPPORTED_IMAGE_PLACEHOLDER }]);
 });

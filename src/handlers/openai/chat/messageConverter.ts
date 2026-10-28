@@ -7,8 +7,8 @@ import { decodeStatefulMarker } from '../../stateful/statefulMarker';
 import { shouldInjectReasoningPlaceholder } from '../../reasoningPlaceholder';
 import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../../types';
 import type { OpenAIProviderContext } from '../shared/providerContext';
-import { isImageMimeType, createDataUrl } from '../shared/images';
-import { extractToolResultImages } from '../shared/toolResultImages';
+import { isImageMimeType, isImageMimeCategory, createDataUrl } from '../shared/images';
+import { extractToolResultImages, getToolResultImagePlaceholder } from '../shared/toolResultImages';
 
 /**
  * 扩展助手消息类型，支持 reasoning_content 字段
@@ -159,7 +159,7 @@ export class OpenAIChatMessageConverter {
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
         const results: OpenAI.Chat.ChatCompletionMessageParam[] = [];
         // 处理工具结果
-        const toolMessages = this.convertToolResultMessages(message);
+        const toolMessages = this.convertToolResultMessages(message, modelConfig?.capabilities?.imageInput === true);
         results.push(...toolMessages);
         // 处理文本和图片内容
         const userMessage = this.convertUserContentMessage(message, modelConfig);
@@ -289,7 +289,8 @@ export class OpenAIChatMessageConverter {
      * 转换工具结果消息 - 使用 OpenAI SDK 标准类型
      */
     private convertToolResultMessages(
-        message: vscode.LanguageModelChatMessage
+        message: vscode.LanguageModelChatMessage,
+        allowImages: boolean
     ): OpenAI.Chat.ChatCompletionToolMessageParam[] {
         const toolMessages: OpenAI.Chat.ChatCompletionToolMessageParam[] = [];
         const seenCallIds = new Set<string>();
@@ -301,7 +302,7 @@ export class OpenAIChatMessageConverter {
                     continue;
                 }
                 seenCallIds.add(part.callId);
-                const toolContent = this.convertToolResultContent(part.content);
+                const toolContent = this.convertToolResultContent(part.content, allowImages);
                 // 使用 OpenAI SDK 标准的 ChatCompletionToolMessageParam 类型
                 const toolMessage: OpenAI.Chat.ChatCompletionToolMessageParam = {
                     role: 'tool',
@@ -424,7 +425,7 @@ export class OpenAIChatMessageConverter {
      * 其他所有 DataPart（cache_control / stateful_marker / thinking / context_management / usage
      * 等扩展内部元数据）一律跳过，不序列化，避免污染请求体和模型上下文。
      */
-    private convertToolResultContent(content: unknown): string {
+    private convertToolResultContent(content: unknown, allowImages: boolean): string {
         if (typeof content === 'string') {
             return content;
         }
@@ -433,7 +434,9 @@ export class OpenAIChatMessageConverter {
         }
         if (content instanceof vscode.LanguageModelDataPart) {
             // 图片用占位符，其他 DataPart 全部跳过
-            return isImageMimeType(content.mimeType) ? '[Image]' : '';
+            return isImageMimeCategory(content.mimeType) ?
+                    getToolResultImagePlaceholder(content, allowImages, isImageMimeType)
+                :   '';
         }
         if (Array.isArray(content)) {
             return content
@@ -441,8 +444,11 @@ export class OpenAIChatMessageConverter {
                     if (resultPart instanceof vscode.LanguageModelTextPart) {
                         return [resultPart.value];
                     }
-                    if (resultPart instanceof vscode.LanguageModelDataPart && isImageMimeType(resultPart.mimeType)) {
-                        return ['[Image]'];
+                    if (
+                        resultPart instanceof vscode.LanguageModelDataPart &&
+                        isImageMimeCategory(resultPart.mimeType)
+                    ) {
+                        return [getToolResultImagePlaceholder(resultPart, allowImages, isImageMimeType)];
                     }
                     // 其他 DataPart（扩展内部元数据）和其他非文本 part 统一跳过
                     return [];

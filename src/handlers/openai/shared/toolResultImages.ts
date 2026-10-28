@@ -1,4 +1,5 @@
 import type * as vscode from 'vscode';
+import { IMAGE_UNAVAILABLE_PLACEHOLDER, UNSUPPORTED_IMAGE_PLACEHOLDER } from '../../imagePlaceholder';
 
 const supportedToolImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
@@ -15,7 +16,11 @@ export function extractToolResultImages(
         }
 
         const dataPart = part as { data: unknown; mimeType: unknown };
-        if (!(dataPart.data instanceof Uint8Array) || typeof dataPart.mimeType !== 'string') {
+        if (
+            !(dataPart.data instanceof Uint8Array) ||
+            dataPart.data.byteLength === 0 ||
+            typeof dataPart.mimeType !== 'string'
+        ) {
             continue;
         }
 
@@ -33,4 +38,15 @@ export function extractToolResultImages(
     }
 
     return images;
+}
+
+export function getToolResultImagePlaceholder(
+    content: vscode.LanguageModelDataPart,
+    allowImages: boolean,
+    isImageMimeType: (mimeType: string) => boolean
+): string {
+    if (!allowImages) {
+        return IMAGE_UNAVAILABLE_PLACEHOLDER;
+    }
+    return extractToolResultImages(content, isImageMimeType).length > 0 ? '[Image]' : UNSUPPORTED_IMAGE_PLACEHOLDER;
 }
