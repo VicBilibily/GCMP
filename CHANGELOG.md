@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.4] - 2026-10-28
+
+### 新增
+
+- **工具结果图片回传**：OpenAI Chat / Responses 通道支持将工具结果中的 PNG、JPEG、GIF 和 WebP 图片回传给支持图像输入的模型，并关联原工具调用；完善并行工具调用与结果的配对顺序，避免附图打断工具结果链，同时修复 Chat 模式下混合用户内容的消息顺序问题。
+
+### 修复
+
+- **无输出 WebSocket 重试**：Responses WebSocket 请求遇到首事件超时、空闲超时或无终态断线时，若尚未上报输出，可按现有自动重试开关和次数限制重新尝试；已上报输出或用户取消的请求不自动重放。
+- **WebSocket 接入点协议**：Responses WebSocket 按接入点原协议将 HTTP 映射为 WS、HTTPS 映射为 WSS，不再拒绝非回环 HTTP 接入点，改善兼容网关接入。
+
+### 变更
+
+- **网页搜索结果与调用提示**：智谱AI、Kimi、MiniMax、DeepSeek 和阶跃星辰搜索工具统一返回包含提供商、查询词、结果数量与完成状态的结构化结果，并在调用提示中展示本次查询词。
+
+---
+
+### Added
+
+- **Tool result images**: OpenAI Chat / Responses channels now send PNG, JPEG, GIF, and WebP images from tool results to models that support image input, associating them with the originating tool call. Improved parallel tool call/result pairing prevents supplemental images from interrupting the tool result sequence, and Chat mode preserves message ordering when user content is mixed with tool results.
+
+### Fixed
+
+- **WebSocket retries before output**: Responses WebSocket requests can retry after first-event timeouts, idle timeouts, or disconnections without a terminal event when no output has been reported, subject to the existing automatic retry setting and attempt limit. Requests that have reported output or been canceled by the user are not automatically replayed.
+- **WebSocket endpoint protocols**: Responses WebSocket now maps HTTP endpoints to WS and HTTPS endpoints to WSS, preserving the configured protocol. Non-loopback HTTP endpoints are no longer rejected, improving support for compatible gateways.
+
+### Changed
+
+- **Web search results and invocation messages**: Zhipu AI, Kimi, MiniMax, DeepSeek, and StepFun search tools now return a consistent structured result containing the provider, query, result count, and completion status. Invocation messages also display the current query.
+
 ## [0.29.3] - 2026-10-25
 
 ### 修复
