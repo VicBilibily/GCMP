@@ -598,7 +598,17 @@ export class OpenAIResponsePreprocessor {
                                 const remaining = processSSEEvent(eventLines);
                                 eventLines = [];
                                 if (remaining) {
-                                    controller.enqueue(encoder.encode(remaining));
+                                    for (const frame of remaining.split('\n\n')) {
+                                        const data = frame
+                                            .split('\n')
+                                            .filter(line => line.startsWith('data:'))
+                                            .map(line => line.slice(5).replace(/^ /, ''))
+                                            .join('\n');
+                                        if (data && data !== '[DONE]') {
+                                            JSON.parse(data);
+                                        }
+                                    }
+                                    controller.enqueue(encoder.encode(`${remaining}\n\n`));
                                 }
                                 reader.releaseLock();
                                 controller.close();

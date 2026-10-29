@@ -105,6 +105,11 @@ export class OpenAIResponsesStreamProcessor {
     private streamEndTime: number | undefined = undefined;
     private readonly state = new OpenAIResponsesStreamState();
     private readonly events = new OpenAIResponsesEventStream();
+    private readonly deliveredText = new Map<string, string>();
+    private readonly textItemIndices = new Map<string, number>();
+    private readonly textIndexItems = new Map<number, string>();
+    private lastTextKey: string | undefined;
+    private lastTextPosition: [number, number] | undefined;
 
     constructor(options: OpenAIResponsesStreamProcessorOptions) {
         this.modelName = options.modelName;
@@ -113,7 +118,7 @@ export class OpenAIResponsesStreamProcessor {
         this.abortController = options.abortController;
         this.streamReporter = options.streamReporter;
         this.sessionId = options.sessionId;
-        this.requireExplicitTerminal = options.requireExplicitTerminal ?? false;
+        this.requireExplicitTerminal = options.requireExplicitTerminal ?? true;
     }
 
     attach(diagnostics?: RequestDiagnostics): void {
@@ -133,20 +138,25 @@ export class OpenAIResponsesStreamProcessor {
                     this.abortController.abort();
                     return;
                 }
-                this.state.rememberOutputTextDelta(event.item_id, event.content_index);
                 const delta = event.delta;
                 if (delta && typeof delta === 'string') {
-                    this.reportOutputText(delta, event.output_index);
+                    const key = this.textKey(event.item_id, event.output_index, event.content_index);
+                    const outputIndex = event.output_index ?? this.textItemIndices.get(event.item_id);
+                    this.checkTextPosition(outputIndex, event.content_index);
+                    this.deliveredText.set(key, (this.deliveredText.get(key) ?? '') + delta);
+                    this.lastTextKey = key;
+                    this.reportOutputText(delta, outputIndex);
                 }
             })
             .on('response.output_text.done', event => {
-                // 某些网关只发送最终的 done 事件（没有增量）；去重必须按 output item/content part 粒度处理
-                if (this.state.shouldSkipOutputTextDone(event.item_id, event.content_index)) {
+                if (this.token.isCancellationRequested) {
                     return;
                 }
-                const text = event.text || '';
-                if (text) {
-                    this.reportOutputText(text, event.output_index);
+                this.reconcileText(event.text, event.item_id, event.output_index, event.content_index);
+            })
+            .on('response.content_part.done', event => {
+                if (!this.token.isCancellationRequested && event.part.type === 'output_text') {
+                    this.reconcileText(event.part.text, event.item_id, event.output_index, event.content_index);
                 }
             })
             .on('response.output_text.annotation.added', event => {
@@ -321,6 +331,9 @@ export class OpenAIResponsesStreamProcessor {
                 }
                 const item = event.item;
                 // 官方实现：output_item.added 仅处理 function_call，reasoning 在 output_item.done 中处理
+                if (item?.type === 'message') {
+                    this.textKey(item.id, event.output_index, 0);
+                }
                 if (item && item.type === 'function_call') {
                     const itemId = item.id;
                     if (!itemId && !item.call_id && event.output_index === undefined) {
@@ -363,6 +376,9 @@ export class OpenAIResponsesStreamProcessor {
                 }
                 const item = event.item;
                 // 推理项完成：与官方实现对齐，在 output_item.done 处理 reasoning
+                if (item?.type === 'message') {
+                    this.reconcileMessage(item, event.output_index);
+                }
                 // 官方对所有 reasoning 项都进入此分支，有加密内容时输出，无加密内容时为 no-op
                 if (item && item.type === 'reasoning') {
                     const reasoningItem = item as unknown as ResponseReasoningItem;
@@ -530,7 +546,7 @@ export class OpenAIResponsesStreamProcessor {
         }
         if (!this.hasFinalizedResponse) {
             if (this.requireExplicitTerminal) {
-                throw new Error('Responses WebSocket stream ended without an explicit terminal event');
+                throw new Error('Responses stream ended without an explicit terminal event');
             }
             this.flushPendingToolCalls();
             if (!this.streamReporter.hasContent) {
@@ -578,6 +594,81 @@ export class OpenAIResponsesStreamProcessor {
         this.streamReporter.reportText(text);
     }
 
+    private textKey(itemId?: string, outputIndex?: number, contentIndex = 0): string {
+        if (itemId && outputIndex !== undefined) {
+            const previous = this.textItemIndices.get(itemId);
+            const previousItem = this.textIndexItems.get(outputIndex);
+            if (
+                (previous !== undefined && previous !== outputIndex) ||
+                (previousItem !== undefined && previousItem !== itemId)
+            ) {
+                throw new Error('Responses text identity mismatch');
+            }
+            this.textItemIndices.set(itemId, outputIndex);
+            this.textIndexItems.set(outputIndex, itemId);
+            const prefix = `item:${itemId}:`;
+            for (const [oldKey, text] of previous === undefined ? this.deliveredText : []) {
+                if (!oldKey.startsWith(prefix)) continue;
+                const partIndex = oldKey.slice(prefix.length);
+                if (!/^\d+$/.test(partIndex)) continue;
+                const newKey = `index:${outputIndex}:${partIndex}`;
+                if (this.deliveredText.has(newKey)) {
+                    throw new Error('Responses text identity mismatch');
+                }
+                this.deliveredText.set(newKey, text);
+                this.deliveredText.delete(oldKey);
+                if (this.lastTextKey === oldKey) {
+                    this.lastTextKey = newKey;
+                    this.checkTextPosition(outputIndex, Number(partIndex));
+                    this.state.shouldSeparateOutputText(outputIndex);
+                }
+            }
+        }
+        const index = outputIndex ?? (itemId ? this.textItemIndices.get(itemId) : undefined);
+        if (index === undefined && !itemId) {
+            throw new Error('Responses text identity missing');
+        }
+        return index !== undefined ? `index:${index}:${contentIndex}` : `item:${itemId}:${contentIndex}`;
+    }
+
+    private reconcileText(text: string, itemId?: string, outputIndex?: number, contentIndex = 0): void {
+        const key = this.textKey(itemId, outputIndex, contentIndex);
+        const delivered = this.deliveredText.get(key) ?? '';
+        if (!text.startsWith(delivered)) {
+            throw new Error('Responses text snapshot mismatch');
+        }
+        const suffix = text.slice(delivered.length);
+        if (!suffix) return;
+        if (this.deliveredText.has(key) && this.lastTextKey !== key) {
+            throw new Error('Responses text snapshot mismatch: cannot append to an earlier content part');
+        }
+        const resolvedIndex = outputIndex ?? (itemId ? this.textItemIndices.get(itemId) : undefined);
+        this.checkTextPosition(resolvedIndex, contentIndex);
+        this.deliveredText.set(key, text);
+        this.lastTextKey = key;
+        this.reportOutputText(suffix, resolvedIndex);
+    }
+
+    private checkTextPosition(outputIndex?: number, contentIndex = 0): void {
+        if (outputIndex === undefined) return;
+        const previous = this.lastTextPosition;
+        if (previous && (outputIndex < previous[0] || (outputIndex === previous[0] && contentIndex < previous[1]))) {
+            throw new Error('Responses text snapshot mismatch: out-of-order content');
+        }
+        this.lastTextPosition = [outputIndex, contentIndex];
+    }
+
+    private reconcileMessage(
+        item: { id?: string; content?: Array<{ type: string; text?: string }> },
+        outputIndex?: number
+    ): void {
+        for (const [contentIndex, part] of (item.content ?? []).entries()) {
+            if (part.type === 'output_text' && typeof part.text === 'string') {
+                this.reconcileText(part.text, item.id, outputIndex, contentIndex);
+            }
+        }
+    }
+
     private finalizeResponse(
         response: {
             id?: string;
@@ -588,13 +679,13 @@ export class OpenAIResponsesStreamProcessor {
                 name?: string;
                 call_id?: string;
                 arguments?: string;
+                content?: Array<{ type: string; text?: string }>;
             }>;
         },
         finishReason: OpenAIResponsesFinishReason = null,
         suppressPendingTools = false
     ): void {
         this.streamEndTime = Date.now();
-        this.hasFinalizedResponse = true;
         this.finishReason = finishReason;
 
         if (response.usage) {
@@ -603,8 +694,26 @@ export class OpenAIResponsesStreamProcessor {
 
         const output = response.output;
         if (Array.isArray(output) && !suppressPendingTools) {
+            const indexedOutput = output.map((item, position) => ({
+                item,
+                outputIndex:
+                    item.type === 'message' && item.id ? (this.textItemIndices.get(item.id) ?? position) : position
+            }));
+            const messageIndices = new Set<number>();
+            for (const { outputIndex, item } of indexedOutput) {
+                if (item.type === 'message') {
+                    if (messageIndices.has(outputIndex)) {
+                        throw new Error('Responses text identity mismatch: duplicate terminal message index');
+                    }
+                    messageIndices.add(outputIndex);
+                    this.textKey(item.id, outputIndex, 0);
+                }
+            }
             this.state.beginCompletedPhase(output);
-            for (const [outputIndex, item] of output.entries()) {
+            for (const { outputIndex, item } of indexedOutput) {
+                if (item.type === 'message') {
+                    this.reconcileMessage(item, outputIndex);
+                }
                 if (item.type === 'function_call' && (item.id || item.call_id) && item.name) {
                     const callId = item.call_id || item.id!;
                     const idx = this.state.getCompletedPhaseToolCallIndex(
@@ -635,6 +744,7 @@ export class OpenAIResponsesStreamProcessor {
             this.flushPendingToolCalls();
         }
 
+        this.hasFinalizedResponse = true;
         const responseId = response.id;
         if (responseId) {
             this.streamReporter.flushAll(

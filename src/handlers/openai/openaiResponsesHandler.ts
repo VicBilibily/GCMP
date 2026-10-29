@@ -356,7 +356,7 @@ export class OpenAIResponsesHandler {
                     abortController,
                     streamReporter,
                     sessionId,
-                    requireExplicitTerminal: !!webSocketHandle
+                    requireExplicitTerminal: true
                 });
                 streamProcessor.attach(trace);
                 await streamProcessor.consume(stream, trace);

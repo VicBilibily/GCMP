@@ -80,7 +80,7 @@ function createProcessor(
         displayName: 'Test',
         token: (options.token ?? { isCancellationRequested: false }) as never,
         abortController: options.abortController ?? new AbortController(),
-        ...{ requireExplicitTerminal: options.requireExplicitTerminal },
+        ...{ requireExplicitTerminal: options.requireExplicitTerminal ?? false },
         streamReporter: streamReporter as never,
         sessionId: 'session-1'
     });
