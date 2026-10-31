@@ -52,11 +52,19 @@ export class CliBaseProvider extends GenericModelProvider {
             // 基于文件 mtime 的缓存检查：先快速判定凭证是否有变化
             // loadCredentials() 内部通过 fs.statSync + mtime 比对做缓存，
             // 文件未变 → 直接返回内存缓存（<1ms）；跨终端更新 → 自动检测并重新加载
+            const selection = CliAuthFactory.getActiveCredentialSelection(this.providerKey);
             const credentials = await CliAuthFactory.loadCredentials(this.providerKey);
             if (credentials?.access_token) {
                 // 委托各 CLI 子类判断过期（Codex=1h, Grok=5min）
                 if (!CliAuthFactory.isCredentialExpired(this.providerKey, credentials)) {
-                    await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
+                    const keyApplied = await ApiKeyManager.setApiKeyForActiveCliCredential(
+                        this.providerKey,
+                        selection,
+                        credentials.access_token
+                    );
+                    if (!keyApplied) {
+                        return [];
+                    }
                     return super.provideLanguageModelChatInformation(options, token);
                 }
                 Logger.trace(`[${this.providerKey}] token expired, trying refresh`);
@@ -74,9 +82,17 @@ export class CliBaseProvider extends GenericModelProvider {
                 return [];
             }
             try {
+                const selection = CliAuthFactory.getActiveCredentialSelection(this.providerKey);
                 const credentials = await CliAuthFactory.ensureAuthenticated(this.providerKey);
                 if (credentials) {
-                    await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
+                    const keyApplied = await ApiKeyManager.setApiKeyForActiveCliCredential(
+                        this.providerKey,
+                        selection,
+                        credentials.access_token
+                    );
+                    if (!keyApplied) {
+                        return [];
+                    }
                     Logger.info(`[${this.providerKey}] Loaded credentials from CLI`);
                 } else {
                     await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);

@@ -340,6 +340,7 @@ export class CodexProvider extends CliBaseProvider {
      * 4. 解析响应并写入缓存（代际已过期时跳过缓存提交，结果仍可返回给在途等待者）
      */
     private async refreshModels(generation: number): Promise<ModelConfig[]> {
+        const selection = CliAuthFactory.getActiveCredentialSelection('codex');
         const credentials = await CliAuthFactory.ensureAuthenticated('codex');
         if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
             throw new StaleCodexModelsError();
@@ -350,7 +351,10 @@ export class CodexProvider extends CliBaseProvider {
         }
         // 同步最新 OAuth 令牌到共享密钥存储：请求鉴权与缓存哈希均从 ApiKeyManager 读取，
         // 本次刷新出的新令牌需立即写入，避免后续请求携带已过期的旧令牌
-        await ApiKeyManager.setApiKey('codex', accessToken);
+        const keyApplied = await ApiKeyManager.setApiKeyForActiveCliCredential('codex', selection, accessToken);
+        if (!keyApplied) {
+            throw new StaleCodexModelsError();
+        }
         if (generation !== this.dynamicModelGeneration || this.refreshCancellationRequested) {
             throw new StaleCodexModelsError();
         }

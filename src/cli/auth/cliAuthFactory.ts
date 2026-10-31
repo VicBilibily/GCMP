@@ -3,12 +3,14 @@
  *  管理不同 CLI 提供商的认证实例
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { BaseCliAuth } from './baseCliAuth';
 import { CodexCliAuth } from './codexCliAuth';
 import { GrokCliAuth } from './grokCliAuth';
 import { Logger } from '../../utils/runtime/logger';
-import { OAuthCredentials } from '../type';
+import { CliCredentialSourceInfo, OAuthCredentials } from '../type';
+import { OAuthCredentialEntry, OAuthCredentialSelection, OAuthCredentialStore } from './oauthCredentialStore';
 import { CliAuthRefreshCompletedEvent, CliAuthRefreshRequestedEvent, InterInstanceBus } from '../../interInstance';
 import { LeaderElectionService } from '../../status';
 
@@ -34,12 +36,14 @@ export class CliAuthFactory {
     private static readonly LEADER_REFRESH_GRACE_POLL_INTERVAL_MS = 1_000;
 
     /**
-     * 初始化跨实例 CLI 刷新协调
+     * 初始化跨实例 CLI 刷新协调与 oauth 命名凭证存储
      */
     static initialize(context: vscode.ExtensionContext): void {
         if (this.initialized) {
             return;
         }
+
+        OAuthCredentialStore.initialize({ oauthDir: path.join(context.globalStorageUri.fsPath, 'oauth') });
 
         context.subscriptions.push(
             InterInstanceBus.subscribe('cliAuthRefreshRequested', event => {
@@ -133,6 +137,72 @@ export class CliAuthFactory {
         return await instance.ensureAuthenticated(true);
     }
 
+    /** 验证 CLI 原生凭证；可强制刷新以确认服务端仍接受凭证，不读取或切换 OAuth 活跃凭证 */
+    static async ensureCliNativeAuthenticated(cliType: string, forceRefresh = false): Promise<OAuthCredentials | null> {
+        const instance = this.getInstance(cliType);
+        if (!instance) {
+            return null;
+        }
+
+        const credentialPath = instance.getCliNativeCredentialPath();
+        const credentials = await instance.loadCredentialsFromPath(credentialPath);
+        if (!credentials?.access_token) {
+            return null;
+        }
+        if (!forceRefresh && !instance.isExpired(credentials)) {
+            return credentials;
+        }
+        if (!credentials.refresh_token) {
+            return null;
+        }
+
+        const leaderId = LeaderElectionService.getLeaderId();
+        if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
+            return await this.delegateRefreshToLeader(
+                cliType,
+                instance,
+                leaderId,
+                undefined,
+                forceRefresh,
+                'cliNative'
+            );
+        }
+
+        return await instance.ensureAuthenticatedFromPath(credentialPath, forceRefresh);
+    }
+
+    /** 确保指定命名 OAuth 凭证有效；刷新时不改变当前活跃账号 */
+    static async ensureAuthenticatedForOAuthCredential(
+        cliType: string,
+        credentialName: string,
+        forceRefresh = false
+    ): Promise<OAuthCredentials | null> {
+        const instance = this.getInstance(cliType);
+        const credentialPath = OAuthCredentialStore.getCredentialPath(cliType, credentialName);
+        if (!instance || !credentialPath) {
+            return null;
+        }
+
+        const credentials = await instance.loadCredentialsFromPath(credentialPath);
+        if (!credentials) {
+            return null;
+        }
+        const needsRefresh = forceRefresh || (instance.isExpired(credentials) && !!credentials.refresh_token);
+        if (!needsRefresh) {
+            return credentials;
+        }
+        if (!credentials.refresh_token) {
+            return null;
+        }
+
+        const leaderId = LeaderElectionService.getLeaderId();
+        if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
+            return await this.delegateRefreshToLeader(cliType, instance, leaderId, credentialName, forceRefresh);
+        }
+
+        return await instance.ensureAuthenticatedFromPath(credentialPath, forceRefresh);
+    }
+
     /**
      * 判断凭证是否已过期（只读，不触发网络刷新）
      * 由各 CLI 子类的 getExpiryBufferMs() 决定具体缓冲时间
@@ -165,6 +235,41 @@ export class CliAuthFactory {
     }
 
     /**
+     * 列出指定 CLI provider 在 oauth 文件夹中的全部命名凭证
+     */
+    static listOAuthCredentials(cliType: string): OAuthCredentialEntry[] {
+        return OAuthCredentialStore.listCredentials(cliType);
+    }
+
+    /**
+     * 获取当前生效凭证的来源信息（oauth 命名凭证 / CLI 默认目录）
+     */
+    static getCredentialSourceInfo(cliType: string): CliCredentialSourceInfo {
+        const name = OAuthCredentialStore.getActiveCredentialName(cliType);
+        return name ? { source: 'oauth', name } : { source: 'cli' };
+    }
+
+    static getActiveCredentialSelection(cliType: string): OAuthCredentialSelection {
+        return OAuthCredentialStore.getActiveCredentialSelection(cliType);
+    }
+
+    /**
+     * 设置指定 CLI provider 的活跃 oauth 凭证，并使本进程凭证缓存失效
+     */
+    static async setActiveCredential(cliType: string, name: string): Promise<OAuthCredentialSelection> {
+        const selection = await OAuthCredentialStore.setActiveCredential(cliType, name);
+        this.getInstance(cliType)?.invalidateCredentialCache();
+        return selection;
+    }
+
+    /**
+     * 获取 oauth 命名凭证文件夹路径（未初始化时为 undefined）
+     */
+    static getOAuthCredentialDir(): string | undefined {
+        return OAuthCredentialStore.getOAuthDir();
+    }
+
+    /**
      * 获取 CLI 进程环境变量（包含 provider 级代理）
      */
     static getProcessEnv(cliType: string): NodeJS.ProcessEnv {
@@ -191,7 +296,10 @@ export class CliAuthFactory {
     private static async delegateRefreshToLeader(
         cliType: string,
         instance: BaseCliAuth,
-        leaderId: string
+        leaderId: string,
+        credentialName?: string,
+        forceRefresh = true,
+        credentialSource?: 'cliNative'
     ): Promise<OAuthCredentials | null> {
         const requestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
         const waitForCompletion = this.waitForRefreshCompletion(requestId, leaderId);
@@ -202,7 +310,9 @@ export class CliAuthFactory {
             payload: {
                 requestId,
                 providerKey: cliType,
-                forceRefresh: true,
+                ...(credentialName ? { credentialName } : {}),
+                ...(credentialSource ? { credentialSource } : {}),
+                forceRefresh,
                 requestedBy: LeaderElectionService.getInstanceId()
             }
         });
@@ -212,10 +322,13 @@ export class CliAuthFactory {
             Logger.warn(`[CliAuthFactory] Leader refresh failed for ${cliType}: ${result.error ?? 'unknown error'}`);
 
             if (result.error === this.LEADER_REFRESH_TIMEOUT_ERROR) {
+                if (forceRefresh) {
+                    return null;
+                }
                 // 回退本地刷新前先重读凭证：超时≠失败，Leader 可能刚好在超时窗口后完成刷新并落盘。
                 // refresh_token 单次轮换，若持旧凭证再次刷新会导致 invalid_grant，甚至整条授权链被撤销。
                 instance.invalidateCredentialCache();
-                const reloaded = await instance.loadCredentials();
+                const reloaded = await this.loadRefreshTarget(cliType, instance, credentialName, credentialSource);
                 if (reloaded?.access_token && !instance.isExpired(reloaded)) {
                     Logger.info(
                         `[CliAuthFactory] Credentials refreshed by leader after timeout for ${cliType}, using reloaded credentials`
@@ -231,7 +344,12 @@ export class CliAuthFactory {
                 ) {
                     // Leader 仍存活：refresh_token 单次轮换，本地不能并行刷新，
                     // 轮询等待 Leader 完成刷新落盘；宽限期内 Leader 失联则转本地兜底。
-                    const graceCredentials = await this.waitForLeaderRefreshedCredentials(cliType, instance);
+                    const graceCredentials = await this.waitForLeaderRefreshedCredentials(
+                        cliType,
+                        instance,
+                        credentialName,
+                        credentialSource
+                    );
                     if (graceCredentials) {
                         return graceCredentials;
                     }
@@ -239,7 +357,13 @@ export class CliAuthFactory {
                         Logger.warn(
                             `[CliAuthFactory] Leader went offline during grace period for ${cliType}, falling back to local refresh`
                         );
-                        return await instance.ensureAuthenticated(true);
+                        return await this.ensureRefreshTarget(
+                            cliType,
+                            instance,
+                            credentialName,
+                            true,
+                            credentialSource
+                        );
                     }
                     Logger.warn(
                         `[CliAuthFactory] Leader refresh timed out for ${cliType} and no refreshed credentials after grace period, giving up`
@@ -250,19 +374,52 @@ export class CliAuthFactory {
                 Logger.warn(
                     `[CliAuthFactory] Leader refresh timed out for ${cliType} and leader appears offline, falling back to local refresh`
                 );
-                return await instance.ensureAuthenticated(true);
+                return await this.ensureRefreshTarget(cliType, instance, credentialName, true, credentialSource);
             }
 
             const currentLeaderId = LeaderElectionService.getLeaderId();
             if (!currentLeaderId || currentLeaderId === LeaderElectionService.getInstanceId()) {
-                return await instance.ensureAuthenticated(true);
+                return await this.ensureRefreshTarget(cliType, instance, credentialName, true, credentialSource);
             }
 
             return null;
         }
 
         instance.invalidateCredentialCache();
-        return await instance.loadCredentials();
+        return await this.loadRefreshTarget(cliType, instance, credentialName, credentialSource);
+    }
+
+    private static async loadRefreshTarget(
+        cliType: string,
+        instance: BaseCliAuth,
+        credentialName?: string,
+        credentialSource?: 'cliNative'
+    ): Promise<OAuthCredentials | null> {
+        if (credentialSource === 'cliNative') {
+            return await instance.loadCredentialsFromPath(instance.getCliNativeCredentialPath());
+        }
+        if (!credentialName) {
+            return await instance.loadCredentials();
+        }
+        const credentialPath = OAuthCredentialStore.getCredentialPath(cliType, credentialName);
+        return credentialPath ? await instance.loadCredentialsFromPath(credentialPath) : null;
+    }
+
+    private static async ensureRefreshTarget(
+        cliType: string,
+        instance: BaseCliAuth,
+        credentialName: string | undefined,
+        forceRefresh: boolean,
+        credentialSource?: 'cliNative'
+    ): Promise<OAuthCredentials | null> {
+        if (credentialSource === 'cliNative') {
+            return await instance.ensureAuthenticatedFromPath(instance.getCliNativeCredentialPath(), forceRefresh);
+        }
+        if (!credentialName) {
+            return await instance.ensureAuthenticated(forceRefresh);
+        }
+        const credentialPath = OAuthCredentialStore.getCredentialPath(cliType, credentialName);
+        return credentialPath ? await instance.ensureAuthenticatedFromPath(credentialPath, forceRefresh) : null;
     }
 
     private static waitForRefreshCompletion(
@@ -289,7 +446,9 @@ export class CliAuthFactory {
      */
     private static async waitForLeaderRefreshedCredentials(
         cliType: string,
-        instance: BaseCliAuth
+        instance: BaseCliAuth,
+        credentialName?: string,
+        credentialSource?: 'cliNative'
     ): Promise<OAuthCredentials | null> {
         const deadline = Date.now() + this.LEADER_REFRESH_GRACE_PERIOD_MS;
         while (Date.now() < deadline) {
@@ -299,7 +458,7 @@ export class CliAuthFactory {
                 return null;
             }
             instance.invalidateCredentialCache();
-            const credentials = await instance.loadCredentials();
+            const credentials = await this.loadRefreshTarget(cliType, instance, credentialName, credentialSource);
             if (credentials?.access_token && !instance.isExpired(credentials)) {
                 Logger.info(`[CliAuthFactory] Credentials refreshed by leader during grace period for ${cliType}`);
                 return credentials;
@@ -317,7 +476,21 @@ export class CliAuthFactory {
         }
 
         try {
-            const credentials = await instance.ensureAuthenticated(payload.forceRefresh);
+            const credentialPath =
+                payload.credentialSource === 'cliNative' ? undefined
+                : payload.credentialName ?
+                    OAuthCredentialStore.getCredentialPath(payload.providerKey, payload.credentialName)
+                :   undefined;
+            const credentials =
+                payload.credentialSource === 'cliNative' ?
+                    await instance.ensureAuthenticatedFromPath(
+                        instance.getCliNativeCredentialPath(),
+                        payload.forceRefresh
+                    )
+                : payload.credentialName ?
+                    credentialPath ? await instance.ensureAuthenticatedFromPath(credentialPath, payload.forceRefresh)
+                    :   null
+                :   await instance.ensureAuthenticated(payload.forceRefresh);
             if (!credentials?.access_token) {
                 this.publishRefreshCompleted(
                     payload.requestId,

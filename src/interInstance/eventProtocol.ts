@@ -377,8 +377,8 @@ export interface RemoteInstanceDisconnectedEvent extends InterInstanceEventBase 
 
 /**
  * CLI 认证刷新请求
- * 由非主实例发出，请求主实例刷新指定 CLI provider 的 OAuth 凭证文件。
- * 仅传递 provider 标识与请求元数据，不在跨实例事件中携带 access_token / refresh_token。
+ * 由非主实例发出，请求主实例刷新 CLI provider 的活跃 OAuth、命名 OAuth 或原生凭证文件。
+ * 仅传递 provider 标识与请求元数据，不在跨实例事件中携带 token 或文件路径。
  */
 export interface CliAuthRefreshRequestedEvent extends InterInstanceEventBase {
     type: 'cliAuthRefreshRequested';
@@ -387,6 +387,10 @@ export interface CliAuthRefreshRequestedEvent extends InterInstanceEventBase {
         requestId: string;
         /** CLI provider 标识（如 codex / grok） */
         providerKey: string;
+        /** 命名 OAuth 凭证；未提供且 credentialSource 缺省时刷新当前活跃凭证 */
+        credentialName?: string;
+        /** 指定 CLI 原生凭证文件；不提供时使用 credentialName 或当前活跃凭证 */
+        credentialSource?: 'cliNative';
         /** 是否强制刷新访问令牌（true 表示即使未过期也刷新） */
         forceRefresh: boolean;
         /** 请求来源实例 ID */

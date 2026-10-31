@@ -134,8 +134,8 @@ export class ConfigSetManagerPanel implements PanelContext {
         return this.stateHost.refreshCliProviders();
     }
 
-    async refreshCliUsage(provider: string): Promise<void> {
-        return this.usageHost.refreshCliUsage(provider);
+    async refreshCliUsage(provider: string, credentialName?: string): Promise<void> {
+        return this.usageHost.refreshCliUsage(provider, credentialName);
     }
 
     isAlive(): boolean {
@@ -224,8 +224,20 @@ export class ConfigSetManagerPanel implements PanelContext {
                 case 'removeCliCredential':
                     await this.crudHost.handleRemoveCliCredential(message.provider);
                     return;
+                case 'importCliCredential':
+                    await this.crudHost.handleImportCliCredential(message.provider);
+                    return;
+                case 'openOAuthFolder':
+                    await this.crudHost.handleOpenOAuthFolder();
+                    return;
+                case 'activateCliCredential':
+                    await this.crudHost.handleActivateCliCredential(message.provider, message.credentialName);
+                    return;
+                case 'deleteCliCredential':
+                    await this.crudHost.handleDeleteCliCredential(message.provider, message.credentialName);
+                    return;
                 case 'refreshCliUsage':
-                    await this.usageHost.refreshCliUsage(message.provider);
+                    await this.usageHost.refreshCliUsage(message.provider, message.credentialName);
                     return;
                 case 'upload':
                     await this.syncHost.handleUpload();

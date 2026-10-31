@@ -10,6 +10,7 @@ import { Logger } from '../runtime/logger';
 import { InterInstanceBus } from '../../interInstance';
 import { configProviders } from '../../providers/config';
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
+import { OAuthCredentialSelection, OAuthCredentialStore } from '../../cli/auth/oauthCredentialStore';
 import { t } from '../runtime/l10n';
 
 /**
@@ -182,27 +183,75 @@ export class ApiKeyManager {
      * 设置API密钥到安全存储
      */
     static async setApiKey(provider: string, apiKey: string, operationToken?: string): Promise<void> {
+        const action = await this.persistApiKey(provider, apiKey, operationToken);
+        if (!action) {
+            return;
+        }
+        if (action === 'delete') {
+            delete this.cachedCliAuthStatus[provider];
+        }
+        this.emitApiKeyChanged(provider, action);
+        this.publishApiKeyChanged(provider, action);
+        await this.refreshApiKeyConsumers(provider);
+    }
+
+    private static async persistApiKey(
+        provider: string,
+        apiKey: string,
+        operationToken?: string
+    ): Promise<'set' | 'delete' | undefined> {
         const secretKey = this.getSecretKey(provider);
         const currentKey = await this.context.secrets.get(secretKey);
         const normalizedApiKey = apiKey.trim();
         if (!normalizedApiKey) {
             if (currentKey === undefined) {
-                return;
+                return undefined;
             }
-            await this.deleteApiKey(provider, operationToken);
-            return;
+            await this.writeApiKey(provider, undefined, operationToken);
+            return 'delete';
         }
         if (currentKey === normalizedApiKey) {
             // 避免重复写入导致性能问题（OS keychain 写入可能超过 500ms，导致 Promise.race 超时）
-            return;
+            return undefined;
         }
         await this.writeApiKey(provider, normalizedApiKey, operationToken);
+        return 'set';
+    }
 
-        // 先完成密钥持久化，再以 best-effort 方式刷新派生状态，避免调用方落入半提交事务。
-        const action: 'set' | 'delete' = 'set';
-        this.emitApiKeyChanged(provider, action);
-        this.publishApiKeyChanged(provider, action);
-        await this.refreshApiKeyConsumers(provider);
+    static async setApiKeyForActiveCliCredential(
+        provider: string,
+        selection: OAuthCredentialSelection,
+        apiKey: string
+    ): Promise<boolean> {
+        let action: 'set' | 'delete' | undefined;
+        const applied = await OAuthCredentialStore.runIfActiveCredential(provider, selection, async () => {
+            action = await this.persistApiKey(provider, apiKey);
+        });
+        if (applied && action) {
+            if (action === 'delete') {
+                delete this.cachedCliAuthStatus[provider];
+            }
+            this.emitApiKeyChanged(provider, action);
+            this.publishApiKeyChanged(provider, action);
+            await this.refreshApiKeyConsumers(provider);
+        }
+        return applied;
+    }
+
+    static async deleteApiKeyForActiveCliCredential(
+        provider: string,
+        selection: OAuthCredentialSelection
+    ): Promise<boolean> {
+        const applied = await OAuthCredentialStore.runIfActiveCredential(provider, selection, async () => {
+            await this.writeApiKey(provider, undefined);
+            delete this.cachedCliAuthStatus[provider];
+        });
+        if (applied) {
+            this.emitApiKeyChanged(provider, 'delete');
+            this.publishApiKeyChanged(provider, 'delete');
+            await this.refreshApiKeyConsumers(provider);
+        }
+        return applied;
     }
 
     /**
@@ -327,10 +376,14 @@ export class ApiKeyManager {
             return false;
         }
 
+        const selection = OAuthCredentialStore.getActiveCredentialSelection(provider);
         const credentials = await CliAuthFactory.ensureAuthenticated(provider, true);
         const apiKey = credentials?.access_token;
         if (apiKey) {
-            await this.setApiKey(provider, apiKey);
+            const applied = await this.setApiKeyForActiveCliCredential(provider, selection, apiKey);
+            if (!applied) {
+                return false;
+            }
             this.cachedCliAuthStatus[provider] = this.fingerprintApiKey(apiKey);
             Logger.info(`[ApiKeyManager] Force refreshed ${displayName} CLI authentication`);
             return true;
@@ -354,11 +407,15 @@ export class ApiKeyManager {
      * @returns 认证是否成功
      */
     private static async handleCliAuth(provider: string, displayName: string): Promise<boolean> {
+        const selection = OAuthCredentialStore.getActiveCredentialSelection(provider);
         const credentials = await CliAuthFactory.ensureAuthenticated(provider);
         if (credentials?.access_token) {
             const apiKey = credentials.access_token;
             // Cli 访问密钥验证通过后保存到密钥存储
-            await this.setApiKey(provider, apiKey);
+            const applied = await this.setApiKeyForActiveCliCredential(provider, selection, apiKey);
+            if (!applied) {
+                return false;
+            }
 
             const fingerprint = this.fingerprintApiKey(apiKey);
             if (this.cachedCliAuthStatus[provider] !== fingerprint) {

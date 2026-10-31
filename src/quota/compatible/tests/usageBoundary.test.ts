@@ -90,6 +90,9 @@ before(async () => {
                 }
             };
         }
+        if (id.endsWith('/cliAuthFactory')) {
+            return { CliAuthFactory: { listOAuthCredentials: () => [] } };
+        }
         if (id.endsWith('/configSetStore')) {
             return {
                 ConfigSetStore: {

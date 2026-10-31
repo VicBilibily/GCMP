@@ -190,6 +190,10 @@ export interface RemoteManageSlotSnapshot {
 export interface CliUsageState {
     /** 是否正在查询 */
     loading: boolean;
+    /** 本次额度查询成功，认证凭证已被服务端接受 */
+    credentialAuthenticated?: boolean;
+    /** 服务端明确以 401/403 拒绝此凭证 */
+    authenticationRejected?: boolean;
     /** 计划类型（如 Plus / Pro） */
     planType?: string;
     /** 账户邮箱 */
@@ -202,9 +206,21 @@ export interface CliUsageState {
     error?: string;
     /** 最后更新时间 */
     lastUpdated?: string;
+    /** 最近一次认证后的 access_token 过期时间 */
+    credentialExpiryDate?: number;
 }
 
-/** CLI 认证提供商（仅展示与跳转，不从面板直接管理凭证） */
+/** 单个命名 OAuth 账号的面板状态（不包含任何令牌） */
+export interface CliOAuthCredentialOption {
+    name: string;
+    label?: string;
+    hasAccessToken: boolean;
+    expiryDate?: number;
+    isActive: boolean;
+    usage?: CliUsageState;
+}
+
+/** CLI 认证提供商与命名 OAuth 账号管理状态 */
 export interface CliProviderOption {
     provider: string;
     displayName: string;
@@ -220,6 +236,13 @@ export interface CliProviderOption {
     statusDetail?: string;
     /** 余量查询状态（仅支持余量的 CLI，如 codex） */
     usage?: CliUsageState;
+    /** oauth 文件夹中的命名账号；各自拥有独立额度状态 */
+    oauthCredentials: CliOAuthCredentialOption[];
+}
+
+/** 零值、缺失或无效时间戳表示有效期未知，不应显示为已过期。 */
+export function isCredentialExpiryDateExpired(expiryDate: number | undefined): boolean {
+    return typeof expiryDate === 'number' && Number.isFinite(expiryDate) && expiryDate > 0 && expiryDate <= Date.now();
 }
 
 /** Gist 同步状态（右上角菜单展示用） */
@@ -267,7 +290,7 @@ export type HostMessage =
     | { command: 'selectProvider'; provider: string }
     | { command: 'states'; states: ProviderState[] }
     | { command: 'cliProviders'; cliProviders: CliProviderOption[] }
-    | { command: 'cliUsage'; provider: string; usage: CliUsageState }
+    | { command: 'cliUsage'; provider: string; credentialName?: string; usage: CliUsageState }
     | { command: 'configUsages'; configUsages: ConfigUsageState[] }
     | { command: 'addResult'; ok: boolean; error?: string; note?: string }
     | { command: 'applyResult'; ok: boolean; error?: string }
@@ -319,7 +342,11 @@ export type WebViewMessage =
     | { command: 'setupCli'; provider: string }
     | { command: 'openCliTerminal'; provider: string }
     | { command: 'removeCliCredential'; provider: string }
-    | { command: 'refreshCliUsage'; provider: string }
+    | { command: 'importCliCredential'; provider: string }
+    | { command: 'openOAuthFolder'; provider: string }
+    | { command: 'activateCliCredential'; provider: string; credentialName: string }
+    | { command: 'deleteCliCredential'; provider: string; credentialName: string }
+    | { command: 'refreshCliUsage'; provider: string; credentialName?: string }
     | { command: 'upload' }
     | { command: 'uploadSelected'; selections: SlotItemSelection[] }
     | { command: 'download' }
@@ -406,8 +433,18 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
         case 'setupCli':
         case 'openCliTerminal':
         case 'removeCliCredential':
-        case 'refreshCliUsage':
+        case 'importCliCredential':
+        case 'openOAuthFolder':
             return isValidString(msg.provider) ? (msg as unknown as WebViewMessage) : undefined;
+        case 'refreshCliUsage':
+            return isValidString(msg.provider) && isOptionalString(msg.credentialName) ?
+                    (msg as unknown as WebViewMessage)
+                :   undefined;
+        case 'activateCliCredential':
+        case 'deleteCliCredential':
+            return isValidString(msg.provider) && isValidString(msg.credentialName) ?
+                    (msg as unknown as WebViewMessage)
+                :   undefined;
         case 'refreshConfigUsage':
         case 'apply':
         case 'remove':
@@ -500,7 +537,7 @@ export interface PanelContext {
     /** 异步刷新 CLI 提供商状态并下发 */
     refreshCliProviders(): Promise<void>;
     /** 刷新指定 CLI 提供商的余量并下发 */
-    refreshCliUsage(provider: string): Promise<void>;
+    refreshCliUsage(provider: string, credentialName?: string): Promise<void>;
     /** 面板是否仍存活（webview 未被销毁） */
     isAlive(): boolean;
 }

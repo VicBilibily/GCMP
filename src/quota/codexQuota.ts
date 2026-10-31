@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Codex (ChatGPT) 余量查询共享模块
  *  状态栏与配置面板 CLI 详情区共用：查询、解析、百分比总览、窗口表格
  *--------------------------------------------------------------------------------------------*/
@@ -13,6 +13,7 @@ import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import { t } from '../utils/runtime/l10n';
 import type { QuotaTable } from './types';
+import { isCliAuthorizationRejectedStatus } from './types';
 import { ConfigManager } from '../utils/config/configManager';
 import { formatCompactCountdown, formatLocaleDateTime, formatQuotaDateForSlot } from './format';
 import { hashRequestApiKey } from './requestBalance';
@@ -146,12 +147,14 @@ export function getResetDate(window: RateLimitWindow | undefined): Date | undefi
  * 查询 Codex (ChatGPT) 余量
  * 走 CliAuthFactory 静态入口，多窗口下由 Leader 单点刷新凭证
  */
-export async function queryCodexUsage(): Promise<{
+export async function queryCodexUsage(credentialName?: string): Promise<{
     success: boolean;
     data?: ChatGPTStatusData;
     error?: string;
     requestBalanceKeyHash?: string;
     queriedAt?: number;
+    credentialExpiryDate?: number;
+    authenticationRejected?: boolean;
 }> {
     try {
         const codexAuth = CliAuthFactory.getInstance('codex') as CodexCliAuth | null;
@@ -165,7 +168,10 @@ export async function queryCodexUsage(): Promise<{
             };
         }
 
-        const credentials = await CliAuthFactory.ensureAuthenticated('codex');
+        const credentials =
+            credentialName ?
+                await CliAuthFactory.ensureAuthenticatedForOAuthCredential('codex', credentialName)
+            :   await CliAuthFactory.ensureAuthenticated('codex');
         if (!credentials || !credentials.access_token) {
             return {
                 success: false,
@@ -173,7 +179,9 @@ export async function queryCodexUsage(): Promise<{
             };
         }
 
-        const accountId = await codexAuth.getAccountId();
+        const accountId =
+            (credentials as { account_id?: string }).account_id ??
+            (credentialName ? null : await codexAuth.getAccountId());
         if (!accountId) {
             return { success: false, error: t('Unable to get the ChatGPT account ID.', '无法获取 ChatGPT 账户 ID') };
         }
@@ -209,17 +217,6 @@ export async function queryCodexUsage(): Promise<{
             clearTimeout(timeoutId);
         }
 
-        let parsedResponse: ChatGPTUsageResponse;
-        try {
-            parsedResponse = JSON.parse(responseText);
-        } catch (parseError) {
-            Logger.error(`[CodexUsageQuery] Failed to parse response JSON: ${parseError}`);
-            return {
-                success: false,
-                error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
-            };
-        }
-
         if (!response.ok) {
             let errorMessage = `HTTP ${response.status}`;
             if (responseText) {
@@ -233,7 +230,22 @@ export async function queryCodexUsage(): Promise<{
                 }
             }
             Logger.error(`[CodexUsageQuery] Usage query failed: ${errorMessage}`);
-            return { success: false, error: t('Query failed: {0}', '查询失败: {0}', errorMessage) };
+            return {
+                success: false,
+                error: t('Query failed: {0}', '查询失败: {0}', errorMessage),
+                ...(isCliAuthorizationRejectedStatus(response.status) ? { authenticationRejected: true } : {})
+            };
+        }
+
+        let parsedResponse: ChatGPTUsageResponse;
+        try {
+            parsedResponse = JSON.parse(responseText);
+        } catch (parseError) {
+            Logger.error(`[CodexUsageQuery] Failed to parse response JSON: ${parseError}`);
+            return {
+                success: false,
+                error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
+            };
         }
 
         const primaryWindow = parsedResponse.rate_limit?.primary_window;
@@ -264,6 +276,7 @@ export async function queryCodexUsage(): Promise<{
             success: true,
             requestBalanceKeyHash: hashRequestApiKey(credentials.access_token),
             queriedAt: Date.now(),
+            credentialExpiryDate: credentials.expiry_date,
             data: {
                 userId: parsedResponse.user_id,
                 accountId: parsedResponse.account_id,

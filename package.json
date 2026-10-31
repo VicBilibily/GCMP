@@ -305,6 +305,16 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.cli.importCredential",
+                "title": "%command.cli.importCredential%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.cli.selectCredential",
+                "title": "%command.cli.selectCredential%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.metadata.refresh",
                 "title": "%command.metadata.refresh%",
                 "category": "GCMP"

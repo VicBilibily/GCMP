@@ -201,6 +201,8 @@ Agentic models from the LongCat API platform, accessed via Anthropic SDK mode.
 
 > ⚠️ **Risk Warning**: The following providers access APIs by simulating OAuth authentication of official CLI tools. **This may violate third-party terms of service and carries the risk of account bans.** Use only if you are fully informed and voluntarily accept the risks.
 
+> 📁 **Multiple credentials**: place multiple credential files in the `oauth/` folder of the extension's global storage, named `<provider>-<name>.json` (e.g. `codex-work.json`, `grok-main.json`), in the format `{ "type": "codex", "access_token": "...", "refresh_token": "...", "expiry_date": ... }`. Files are attributed to a provider by the first `-` prefix only; the rest is treated as an opaque credential name without structural validation, so manually placed files may use any name. The oauth folder takes priority — the CLI default credential is used only when no oauth credential exists for that provider. Use **GCMP: Import CLI OAuth Credential** to migrate the CLI's signed-in credential into a named copy (the CLI itself will need to sign in again): the name is derived from the account identity (codex: `<account-hash>-<email>-<plan>`, grok: `<email>`), so re-importing the same account updates the existing file. Use **GCMP: Select CLI OAuth Credential** to switch the active credential.
+
 ### [**Codex CLI**](https://chatgpt.com/codex) - OpenAI Codex
 
 OpenAI's official coding assistant Codex CLI tool. Supports authentication via the `codex` CLI (requires local installation).

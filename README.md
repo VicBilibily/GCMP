@@ -201,6 +201,8 @@ LongCat API 开放平台的 Agentic 模型，采用 Anthropic SDK 模式接入�
 
 > ⚠️ **风险警告**：以下提供商通过模拟官方 CLI 工具的 OAuth 身份验证方式来实现对应的 API 访问，**可能涉嫌滥用第三方服务条款，存在被官方检测封禁账号的风险**。请仅在确保知情并自愿承担风险的前提下使用。
 
+> 📁 **多凭证支持**：可在插件全局目录的 `oauth/` 文件夹中按 `<provider>-<凭证名>.json` 命名放置多份凭证（如 `codex-work.json`、`grok-main.json`），格式为 `{ "type": "codex", "access_token": "...", "refresh_token": "...", "expiry_date": ... }`。文件仅以第一个 `-` 前缀识别 provider，其余部分作为凭证名、不做结构校验，手工放置可自由命名。oauth 文件夹优先——存在对应渠道凭证时即使用；没有时才回退 CLI 默认目录凭证。也可通过命令 **GCMP: 导入 CLI OAuth 凭证** 将 CLI 已登录凭证迁移为命名副本（迁移后 CLI 本体需重新登录）：凭证名按账号身份自动派生（codex 为 `<账号哈希>-<邮箱>-<计划>`，grok 为 `<邮箱>`），同一账号重复导入即覆盖更新。通过 **GCMP: 选择 CLI OAuth 凭证** 切换活跃凭证。
+
 ### [**Codex CLI**](https://chatgpt.com/codex) - OpenAI Codex
 
 OpenAI 官方编程助手 Codex 的命令行工具，支持通过 `codex` CLI 进行身份验证（需要本地安装 `codex` CLI）。

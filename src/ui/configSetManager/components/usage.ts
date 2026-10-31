@@ -8,8 +8,8 @@ import type {
     ConfigUsageState,
     SlotState,
     ConfigSetRow,
-    CliProviderOption,
-    CliUsageState
+    CliUsageState,
+    CliProviderOption
 } from '../types';
 import { el, t, state, getConfigMetricType, postToVSCode, clearMessage } from './state';
 
@@ -107,8 +107,18 @@ export function mergeConfigUsageState(
  * 用 previous 的数据填充，避免刷新时已有数据闪掉。
  */
 export function mergeCliUsageState(previous: CliUsageState | undefined, next: CliUsageState): CliUsageState {
-    if (!previous || !next.loading) {
+    if (!previous) {
         return next;
+    }
+    if (!next.loading) {
+        if (
+            next.credentialAuthenticated ||
+            next.authenticationRejected !== undefined ||
+            !previous.authenticationRejected
+        ) {
+            return next;
+        }
+        return { ...next, authenticationRejected: true };
     }
     const onlyLoading =
         next.summary === undefined &&
@@ -116,7 +126,10 @@ export function mergeCliUsageState(previous: CliUsageState | undefined, next: Cl
         next.planType === undefined &&
         next.email === undefined &&
         next.error === undefined &&
-        next.lastUpdated === undefined;
+        next.lastUpdated === undefined &&
+        next.credentialExpiryDate === undefined &&
+        next.credentialAuthenticated === undefined &&
+        next.authenticationRejected === undefined;
     if (!onlyLoading) {
         return next;
     }
@@ -126,8 +139,27 @@ export function mergeCliUsageState(previous: CliUsageState | undefined, next: Cl
         table: previous.table,
         planType: previous.planType,
         email: previous.email,
-        lastUpdated: previous.lastUpdated
+        lastUpdated: previous.lastUpdated,
+        credentialExpiryDate: previous.credentialExpiryDate,
+        credentialAuthenticated: previous.credentialAuthenticated,
+        authenticationRejected: previous.authenticationRejected
     };
+}
+
+export function applyDefaultCliUsage(
+    provider: CliProviderOption,
+    usage: CliUsageState,
+    validStatusDetail: string,
+    rejectedStatusDetail: string
+): void {
+    provider.usage = mergeCliUsageState(provider.usage, usage);
+    if (usage.credentialAuthenticated) {
+        provider.isAuthenticated = true;
+        provider.statusDetail = validStatusDetail;
+    } else if (usage.authenticationRejected) {
+        provider.isAuthenticated = false;
+        provider.statusDetail = rejectedStatusDetail;
+    }
 }
 
 // ============= Slot 用量卡片 =============
@@ -211,8 +243,7 @@ export function renderConfigUsage(slotState: SlotState, row: ConfigSetRow, usage
 
 // ============= CLI 余量区块 =============
 
-export function renderCliUsage(cli: CliProviderOption): HTMLElement {
-    const usage = cli.usage!;
+export function renderCliUsage(provider: string, usage: CliUsageState, credentialName?: string): HTMLElement {
     const panel = el('div', 'csm-slot-usage csm-config-card-usage');
 
     const head = el('div', 'csm-slot-usage-head');
@@ -231,7 +262,7 @@ export function renderCliUsage(cli: CliProviderOption): HTMLElement {
     refreshBtn.disabled = state.busy || usage.loading;
     refreshBtn.addEventListener('click', () => {
         clearMessage();
-        postToVSCode({ command: 'refreshCliUsage', provider: cli.provider });
+        postToVSCode({ command: 'refreshCliUsage', provider, ...(credentialName ? { credentialName } : {}) });
     });
     actions.appendChild(refreshBtn);
     head.appendChild(actions);

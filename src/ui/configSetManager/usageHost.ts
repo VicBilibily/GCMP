@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
 import { ConfigSetStore } from '../../utils/config/configSetStore';
 import { listSlots } from '../../utils/config/configSetCommands';
 import { getKeyDisplayName } from '../../sync/gistSyncService';
@@ -20,7 +21,7 @@ import {
     resolveQuotaSite,
     formatQuotaLastUpdated
 } from '../../quota/providerQuota';
-import type { PanelContext, ConfigUsageState } from './types';
+import type { PanelContext, CliUsageState, ConfigUsageState } from './types';
 import type { QuotaQueryResult } from '../../quota/types';
 import { BalanceQueryManager } from '../../quota/compatible/balanceQueryManager';
 
@@ -48,6 +49,7 @@ export class UsageHost {
     private providerUsageLoadSeq = 0;
     private configUsageTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
     private configUsageRequestSeq = new Map<string, number>();
+    private cliUsageRequestSeq = new Map<string, number>();
 
     constructor(private readonly ctx: PanelContext) {}
 
@@ -59,88 +61,124 @@ export class UsageHost {
         }
         this.configUsageTimeouts.clear();
         this.configUsageRequestSeq.clear();
+        this.cliUsageRequestSeq.clear();
     }
 
     // ============= CLI 余量 =============
 
-    async refreshCliUsage(provider: string): Promise<void> {
+    async refreshCliUsage(provider: string, credentialName?: string): Promise<void> {
         if (!CLI_USAGE_PROVIDERS.has(provider)) {
             return;
         }
-        this.ctx.post({ command: 'cliUsage', provider, usage: { loading: true } });
+        const oauthCredentials = CliAuthFactory.listOAuthCredentials(provider);
+        const credentialNames =
+            credentialName ? [credentialName]
+            : oauthCredentials.length > 0 ? oauthCredentials.map(entry => entry.name)
+            : [undefined];
+        await Promise.all(credentialNames.map(name => this.refreshCliUsageForCredential(provider, name)));
+    }
+
+    private async refreshCliUsageForCredential(provider: string, credentialName?: string): Promise<void> {
+        const requestKey = `${provider}:${credentialName ?? ''}`;
+        const requestSeq = (this.cliUsageRequestSeq.get(requestKey) ?? 0) + 1;
+        this.cliUsageRequestSeq.set(requestKey, requestSeq);
+        this.postCliUsage(provider, credentialName, { loading: true });
         try {
             if (provider === 'codex') {
-                await this.refreshCodexUsage(provider);
-            } else if (provider === 'grok') {
-                await this.refreshGrokUsage(provider);
+                await this.refreshCodexUsage(provider, credentialName, requestSeq);
+            } else {
+                await this.refreshGrokUsage(provider, credentialName, requestSeq);
             }
         } catch (error) {
-            if (!this.ctx.isAlive()) {
+            if (!this.isCurrentCliUsageRequest(requestKey, requestSeq)) {
                 return;
             }
             const errorMessage = error instanceof Error ? error.message : String(error);
-            this.ctx.post({ command: 'cliUsage', provider, usage: { loading: false, error: errorMessage } });
+            this.postCliUsage(provider, credentialName, { loading: false, error: errorMessage });
         }
     }
 
-    private async refreshCodexUsage(provider: string): Promise<void> {
-        const result = await queryCodexUsage();
+    private async refreshCodexUsage(
+        provider: string,
+        credentialName: string | undefined,
+        requestSeq: number
+    ): Promise<void> {
+        const result = await queryCodexUsage(credentialName);
         if (!this.ctx.isAlive()) {
             return;
         }
+        if (!this.isCurrentCliUsageRequest(`${provider}:${credentialName ?? ''}`, requestSeq)) {
+            return;
+        }
         if (!result.success || !result.data) {
-            this.ctx.post({
-                command: 'cliUsage',
-                provider,
-                usage: { loading: false, error: result.error }
+            this.postCliUsage(provider, credentialName, {
+                loading: false,
+                error: result.error,
+                ...(result.authenticationRejected ? { authenticationRejected: true } : {})
             });
             return;
         }
         const data = result.data;
         const table = buildCodexUsageTable(data);
-        this.ctx.post({
-            command: 'cliUsage',
-            provider,
-            usage: {
-                loading: false,
-                planType: formatChatGPTPlanType(data.planType),
-                email: data.email,
-                summary: buildCodexUsageSummary(data),
-                table: { columns: table.columns, rows: table.rows },
-                lastUpdated: data.lastUpdated
-            }
+        this.postCliUsage(provider, credentialName, {
+            loading: false,
+            credentialAuthenticated: true,
+            planType: formatChatGPTPlanType(data.planType),
+            email: data.email,
+            summary: buildCodexUsageSummary(data),
+            table: { columns: table.columns, rows: table.rows },
+            lastUpdated: data.lastUpdated,
+            credentialExpiryDate: result.credentialExpiryDate
         });
     }
 
-    private async refreshGrokUsage(provider: string): Promise<void> {
+    private async refreshGrokUsage(
+        provider: string,
+        credentialName: string | undefined,
+        requestSeq: number
+    ): Promise<void> {
         const lastUpdated = new Date().toLocaleString(
             vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
         );
-        const result = await queryGrokUsage(lastUpdated);
+        const result = await queryGrokUsage(lastUpdated, credentialName);
         if (!this.ctx.isAlive()) {
             return;
         }
+        if (!this.isCurrentCliUsageRequest(`${provider}:${credentialName ?? ''}`, requestSeq)) {
+            return;
+        }
         if (!result.success || !result.data) {
-            this.ctx.post({
-                command: 'cliUsage',
-                provider,
-                usage: { loading: false, error: result.error }
+            this.postCliUsage(provider, credentialName, {
+                loading: false,
+                error: result.error,
+                ...(result.authenticationRejected ? { authenticationRejected: true } : {})
             });
             return;
         }
         const data = result.data;
         const table = buildGrokUsageTable(data);
+        this.postCliUsage(provider, credentialName, {
+            loading: false,
+            credentialAuthenticated: true,
+            planType: data.usage.subscriptionTier,
+            summary: buildGrokUsageSummary(data),
+            table: { columns: table.columns, rows: table.rows },
+            lastUpdated: data.lastUpdated,
+            credentialExpiryDate: result.credentialExpiryDate
+        });
+    }
+
+    private postCliUsage(provider: string, credentialName: string | undefined, usage: CliUsageState): void {
         this.ctx.post({
             command: 'cliUsage',
             provider,
-            usage: {
-                loading: false,
-                planType: data.usage.subscriptionTier,
-                summary: buildGrokUsageSummary(data),
-                table: { columns: table.columns, rows: table.rows },
-                lastUpdated: data.lastUpdated
-            }
+            ...(credentialName ? { credentialName } : {}),
+            usage
         });
+    }
+
+    private isCurrentCliUsageRequest(requestKey: string, requestSeq: number): boolean {
+        return this.ctx.isAlive() && this.cliUsageRequestSeq.get(requestKey) === requestSeq;
     }
 
     // ============= Provider 用量（per-slot） =============

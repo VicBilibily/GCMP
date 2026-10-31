@@ -13,6 +13,17 @@ export interface OAuthCredentials {
 }
 
 /**
+ * CLI 凭证来源信息
+ * 标识当前生效的凭证来自 oauth 文件夹命名凭证还是 CLI 默认目录
+ */
+export interface CliCredentialSourceInfo {
+    /** 来源：oauth 文件夹命名凭证 / CLI 默认目录 */
+    source: 'oauth' | 'cli';
+    /** oauth 凭证名（source 为 'oauth' 时存在） */
+    name?: string;
+}
+
+/**
  * CLI 认证配置
  */
 export interface CliAuthConfig {

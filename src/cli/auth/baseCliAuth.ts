@@ -6,11 +6,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { createHash } from 'crypto';
 import { execSync } from 'child_process';
 import { Logger } from '../../utils/runtime/logger';
 import { ConfigManager } from '../../utils/config/configManager';
 import { isNoProxyValue } from '../../utils/net/proxyAgent';
 import { CliAuthConfig, OAuthCredentials } from '../type';
+import { OAuthCredentialStore } from './oauthCredentialStore';
+import { writeJsonFileAtomically } from './jsonFileIO';
 
 const proxyEnvKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy'] as const;
 
@@ -19,8 +22,9 @@ const proxyEnvKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 
  * 提供通用的认证功能，具体提供商实现继承此类
  */
 export abstract class BaseCliAuth {
-    private cachedCredentials: { data: OAuthCredentials; timestamp: number } | null = null;
-    private refreshPromise: Promise<OAuthCredentials> | null = null;
+    private cachedCredentials: { data: OAuthCredentials; timestamp: number; path: string } | null = null;
+    private readonly credentialPaths = new WeakMap<OAuthCredentials, string>();
+    private readonly refreshPromises = new Map<string, Promise<OAuthCredentials>>();
 
     constructor(protected config: CliAuthConfig) {}
 
@@ -34,9 +38,15 @@ export abstract class BaseCliAuth {
 
     /**
      * 加载 CLI OAuth 凭证
+     * 路径按优先级解析：oauth 文件夹活跃凭证 > CLI 默认目录；
+     * 缓存绑定解析路径，切换活跃凭证后自动重载
      */
     async loadCredentials(): Promise<OAuthCredentials | null> {
-        const credentialPath = this.resolvePath(this.config.credentialPathPattern);
+        return await this.loadCredentialsFromPath(this.resolveCredentialFilePath());
+    }
+
+    /** 按指定文件路径加载凭证；由工厂仅对已识别的命名凭证路径调用 */
+    async loadCredentialsFromPath(credentialPath: string): Promise<OAuthCredentials | null> {
         try {
             if (!fs.existsSync(credentialPath)) {
                 Logger.trace(`[${this.config.name}] Credential file does not exist: ${credentialPath}`);
@@ -44,23 +54,54 @@ export abstract class BaseCliAuth {
             }
 
             const stat = fs.statSync(credentialPath);
-            if (this.cachedCredentials && this.cachedCredentials.timestamp >= stat.mtimeMs) {
+            if (
+                this.cachedCredentials &&
+                this.cachedCredentials.path === credentialPath &&
+                this.cachedCredentials.timestamp >= stat.mtimeMs
+            ) {
                 return this.cachedCredentials.data;
             }
 
-            const content = fs.readFileSync(credentialPath, 'utf-8');
-            const credentials = JSON.parse(content) as OAuthCredentials;
-            // 允许子类在加载凭证后进行额外处理
-            const processedCredentials = await this.afterLoadCredentials(credentials);
+            const processedCredentials = await this.readCredentialsFile(credentialPath);
             Logger.info(`[${this.config.name}] Credentials loaded`);
 
+            this.credentialPaths.set(processedCredentials, credentialPath);
             this.cachedCredentials = {
                 data: processedCredentials,
-                timestamp: stat.mtimeMs
+                timestamp: stat.mtimeMs,
+                path: credentialPath
             };
             return processedCredentials;
         } catch (error) {
             Logger.error(`[${this.config.name}] Failed to load credentials:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * 读取并解析凭证文件（不含缓存），子类经 afterLoadCredentials 归一化
+     */
+    protected async readCredentialsFile(credentialPath: string): Promise<OAuthCredentials> {
+        const content = fs.readFileSync(credentialPath, 'utf-8');
+        const credentials = JSON.parse(content) as OAuthCredentials;
+        // 允许子类在加载凭证后进行额外处理
+        return await this.afterLoadCredentials(credentials);
+    }
+
+    /**
+     * 读取 CLI 默认目录凭证（导入迁移用），不受 oauth 文件夹影响
+     */
+    async loadCliNativeCredentials(): Promise<OAuthCredentials | null> {
+        const cliPath = this.getCliNativeCredentialPath();
+        try {
+            if (!fs.existsSync(cliPath)) {
+                return null;
+            }
+            const credentials = await this.readCredentialsFile(cliPath);
+            this.credentialPaths.set(credentials, cliPath);
+            return credentials;
+        } catch (error) {
+            Logger.error(`[${this.config.name}] Failed to load CLI native credentials:`, error);
             return null;
         }
     }
@@ -94,49 +135,111 @@ export abstract class BaseCliAuth {
         return credentials;
     }
 
+    /** 按指定凭证路径确保认证，不因活跃账号变化而改查其他账号 */
+    async ensureAuthenticatedFromPath(credentialPath: string, forceRefresh = false): Promise<OAuthCredentials | null> {
+        const credentials = await this.loadCredentialsFromPath(credentialPath);
+        if (!credentials) {
+            return null;
+        }
+
+        const needsRefresh = forceRefresh || this.isExpired(credentials);
+        if (needsRefresh && credentials.refresh_token) {
+            return await this.refreshCredentials(credentials, forceRefresh, false);
+        }
+        if (forceRefresh && !credentials.refresh_token) {
+            return null;
+        }
+        return credentials;
+    }
+
     /**
      * 刷新访问令牌（当前进程内单飞）
      * @param credentials 可选的已知凭证；缺省时从文件加载
      * @param forceRefresh 强制走网络刷新，跳过写前双检
      */
-    async refreshCredentials(credentials?: OAuthCredentials, forceRefresh = false): Promise<OAuthCredentials> {
+    async refreshCredentials(
+        credentials?: OAuthCredentials,
+        forceRefresh = false,
+        followActiveCredential = true
+    ): Promise<OAuthCredentials> {
         const currentCredentials = credentials ?? (await this.loadCredentials());
         if (!currentCredentials?.refresh_token) {
             throw new Error(`${this.config.name} credentials are missing refresh_token and cannot refresh`);
         }
 
-        if (this.refreshPromise) {
-            return this.refreshPromise;
-        }
-
-        const refreshPromise = (async () => {
-            // 写前双检：跨窗口并发时另一窗口可能已完成刷新并落盘，此时直接复用文件里的新 token，
-            // 避免用旧 refresh_token 重复 POST（服务端轮换/重放防护可能使整族凭证失效）
-            let effectiveCredentials = currentCredentials;
-            if (!forceRefresh) {
+        const credentialPath = this.credentialPaths.get(currentCredentials) ?? this.resolveCredentialFilePath();
+        this.credentialPaths.set(currentCredentials, credentialPath);
+        const inFlightRefresh = this.refreshPromises.get(credentialPath);
+        let refreshPromise = inFlightRefresh;
+        if (!refreshPromise) {
+            refreshPromise = (async () => {
+                // 写前双检：跨窗口并发时另一窗口可能已完成刷新并落盘，此时直接复用文件里的新 token，
+                // 避免用旧 refresh_token 重复 POST（服务端轮换/重放防护可能使整族凭证失效）
+                let effectiveCredentials = currentCredentials;
+                if (!forceRefresh) {
+                    this.invalidateCredentialCache();
+                    const latest =
+                        fs.existsSync(credentialPath) ? await this.readCredentialsFile(credentialPath) : null;
+                    if (latest) {
+                        this.credentialPaths.set(latest, credentialPath);
+                    }
+                    if (latest && !this.isExpired(latest)) {
+                        return latest;
+                    }
+                    if (latest?.refresh_token) {
+                        effectiveCredentials = latest;
+                    }
+                }
+                const refreshedCredentials = await this.refreshAccessToken(effectiveCredentials, credentialPath);
+                this.credentialPaths.set(refreshedCredentials, credentialPath);
                 this.invalidateCredentialCache();
-                const latest = await this.loadCredentials();
-                if (latest && !this.isExpired(latest)) {
-                    return latest;
+                if (!fs.existsSync(credentialPath)) {
+                    if (this.isOAuthCredentialPath(credentialPath)) {
+                        throw new Error('OAuth credential was deleted during token refresh');
+                    }
+                    return refreshedCredentials;
                 }
-                if (latest?.refresh_token) {
-                    effectiveCredentials = latest;
-                }
-            }
-            const refreshedCredentials = await this.refreshAccessToken(effectiveCredentials);
-            this.invalidateCredentialCache();
-            const reloadedCredentials = await this.loadCredentials();
-            return reloadedCredentials ?? refreshedCredentials;
-        })();
 
-        this.refreshPromise = refreshPromise;
+                const stat = fs.statSync(credentialPath);
+                const reloadedCredentials = await this.readCredentialsFile(credentialPath);
+                this.credentialPaths.set(reloadedCredentials, credentialPath);
+                this.cachedCredentials = { data: reloadedCredentials, timestamp: stat.mtimeMs, path: credentialPath };
+                return reloadedCredentials;
+            })();
+            this.refreshPromises.set(credentialPath, refreshPromise);
+        }
+
         try {
-            return await refreshPromise;
+            const refreshedCredentials = await refreshPromise;
+            return await this.followActiveCredentialAfterRefresh(
+                refreshedCredentials,
+                credentialPath,
+                followActiveCredential
+            );
         } finally {
-            if (this.refreshPromise === refreshPromise) {
-                this.refreshPromise = null;
+            if (this.refreshPromises.get(credentialPath) === refreshPromise) {
+                this.refreshPromises.delete(credentialPath);
             }
         }
+    }
+
+    private async followActiveCredentialAfterRefresh(
+        refreshedCredentials: OAuthCredentials,
+        credentialPath: string,
+        followActiveCredential: boolean
+    ): Promise<OAuthCredentials> {
+        if (!followActiveCredential || this.resolveCredentialFilePath() === credentialPath) {
+            return refreshedCredentials;
+        }
+
+        const activeCredentials = await this.loadCredentials();
+        if (!activeCredentials) {
+            throw new Error('Active credential changed during token refresh and could not be loaded');
+        }
+        if (activeCredentials.refresh_token && this.isExpired(activeCredentials)) {
+            return await this.refreshCredentials(activeCredentials);
+        }
+        return activeCredentials;
     }
 
     /**
@@ -165,7 +268,10 @@ export abstract class BaseCliAuth {
     /**
      * 刷新访问令牌（由子类实现）
      */
-    protected abstract refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials>;
+    protected abstract refreshAccessToken(
+        credentials: OAuthCredentials,
+        credentialPath: string
+    ): Promise<OAuthCredentials>;
 
     /**
      * 加载凭证后的额外处理（由子类可选实现）
@@ -239,10 +345,83 @@ export abstract class BaseCliAuth {
     }
 
     /**
-     * 获取凭证文件的完整路径
+     * 获取当前生效凭证文件的完整路径（oauth 文件夹优先，其次 CLI 默认目录）
      */
     getCredentialPath(): string {
+        return this.resolveCredentialFilePath();
+    }
+
+    /**
+     * 获取 CLI 默认目录的凭证文件路径（不受 oauth 文件夹影响）
+     */
+    getCliNativeCredentialPath(): string {
         return this.resolvePath(this.config.credentialPathPattern);
+    }
+
+    /**
+     * 当前是否使用 oauth 文件夹中的命名凭证
+     */
+    isOAuthCredentialActive(): boolean {
+        return (
+            !BaseCliAuth.credentialPathOverride &&
+            OAuthCredentialStore.resolveActiveCredentialPath(this.config.providerKey) !== undefined
+        );
+    }
+
+    /** 判断路径是否为当前 provider 在 oauth 文件夹下的命名凭证文件 */
+    protected isOAuthCredentialPath(credentialPath: string): boolean {
+        const oauthDir = OAuthCredentialStore.getOAuthDir();
+        if (!oauthDir) {
+            return false;
+        }
+        const resolvedPath = path.resolve(credentialPath);
+        const fileName = path.basename(resolvedPath);
+        return (
+            path.dirname(resolvedPath) === path.resolve(oauthDir) &&
+            fileName.startsWith(`${this.config.providerKey}-`) &&
+            fileName.endsWith('.json')
+        );
+    }
+
+    /**
+     * 构建用于导入 oauth 文件夹的归一化凭证记录，子类可追加扩展字段（如 account_id）
+     */
+    toOAuthStoreRecord(credentials: OAuthCredentials): Record<string, unknown> {
+        return {
+            type: this.config.providerKey,
+            access_token: credentials.access_token,
+            refresh_token: credentials.refresh_token,
+            expiry_date: credentials.expiry_date
+        };
+    }
+
+    /**
+     * 依据凭证中的账号身份派生 oauth 文件夹凭证名（同 CLIProxyAPI 的命名方式）。
+     * 子类按 provider 的身份字段（email、账户 ID 等）覆写；
+     * 默认以令牌哈希兜底，保证同一凭证重复导入得到相同的名字（同名覆盖即更新）。
+     */
+    suggestCredentialName(credentials: OAuthCredentials): string {
+        const digestSource = credentials.refresh_token || credentials.access_token || '';
+        const hash = createHash('sha256').update(digestSource).digest('hex').slice(0, 8);
+        return `account-${hash}`;
+    }
+
+    /** 清理凭证名片段：不允许的字符替换为 _，并截断到 maxLength */
+    protected sanitizeCredentialSegment(raw: string, maxLength: number): string {
+        return raw.replace(/[^A-Za-z0-9._@-]/g, '_').slice(0, maxLength);
+    }
+
+    /**
+     * 导入迁移后移除 CLI 默认目录中的 OAuth 凭证。
+     * 默认实现删除整个凭证文件；子类可按文件格式选择性删除，保留无关字段。
+     */
+    async removeCliNativeCredential(): Promise<void> {
+        const cliPath = this.getCliNativeCredentialPath();
+        if (fs.existsSync(cliPath)) {
+            fs.unlinkSync(cliPath);
+            Logger.info(`[${this.config.name}] CLI native credential removed: ${cliPath}`);
+        }
+        this.invalidateCredentialCache();
     }
 
     /**
@@ -261,6 +440,21 @@ export abstract class BaseCliAuth {
     }
 
     /**
+     * 解析当前生效的凭证文件路径：
+     * 1. 测试注入的固定路径；2. oauth 文件夹活跃凭证；3. CLI 默认目录
+     */
+    protected resolveCredentialFilePath(): string {
+        if (BaseCliAuth.credentialPathOverride) {
+            return BaseCliAuth.credentialPathOverride;
+        }
+        const oauthPath = OAuthCredentialStore.resolveActiveCredentialPath(this.config.providerKey);
+        if (oauthPath) {
+            return oauthPath;
+        }
+        return this.resolvePath(this.config.credentialPathPattern);
+    }
+
+    /**
      * 解析路径模式，支持 ~ 展开
      */
     protected resolvePath(pattern: string): string {
@@ -274,75 +468,84 @@ export abstract class BaseCliAuth {
     }
 
     /**
-     * 保存凭证到文件（差分更新，保留文件中已有的其他字段）
+     * 保存凭证到当前生效文件（差分更新，保留文件中已有的其他字段）。
+     * oauth 文件夹命名凭证使用归一化平铺格式，子类原生格式分支前应先判断 isOAuthCredentialActive。
      */
-    protected async saveCredentials(credentials: Partial<OAuthCredentials>): Promise<void> {
-        const credentialPath = this.resolvePath(this.config.credentialPathPattern);
-
-        // 读取现有凭证文件，保留已有字段
-        let existingData: Record<string, unknown> = {};
-        if (fs.existsSync(credentialPath)) {
-            try {
-                const content = fs.readFileSync(credentialPath, 'utf-8');
-                existingData = JSON.parse(content);
-            } catch (error) {
-                Logger.warn(
-                    `[${this.config.name}] Failed to read existing credential file, it will be overwritten:`,
-                    error
-                );
+    protected async saveCredentials(
+        credentials: Partial<OAuthCredentials> & Record<string, unknown>,
+        credentialPath = this.resolveCredentialFilePath(),
+        expectedCredentials?: OAuthCredentials
+    ): Promise<void> {
+        const save = async (): Promise<void> => {
+            // 读取现有凭证文件，保留已有字段
+            let existingData: Record<string, unknown> = {};
+            if (fs.existsSync(credentialPath)) {
+                try {
+                    const content = fs.readFileSync(credentialPath, 'utf-8');
+                    existingData = JSON.parse(content);
+                } catch (error) {
+                    Logger.warn(
+                        `[${this.config.name}] Failed to read existing credential file, it will be overwritten:`,
+                        error
+                    );
+                }
             }
-        }
 
-        // 过滤掉 null/undefined 的值，只保留有效值
-        const validCredentials: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(credentials)) {
-            if (value !== null && value !== undefined) {
-                validCredentials[key] = value;
+            // 过滤掉 null/undefined 的值，只保留有效值
+            const validCredentials: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(credentials)) {
+                if (value !== null && value !== undefined) {
+                    validCredentials[key] = value;
+                }
             }
-        }
 
-        // 合并新凭证和现有数据
-        const mergedData = { ...existingData, ...validCredentials };
-        // 确保目录存在
-        const dir = path.dirname(credentialPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+            // 合并新凭证和现有数据
+            const mergedData = { ...existingData, ...validCredentials };
+            // 确保目录存在
+            const dir = path.dirname(credentialPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            await this.writeJsonFileAtomically(credentialPath, mergedData);
+        };
+
+        if (this.isOAuthCredentialPath(credentialPath)) {
+            await OAuthCredentialStore.withCredentialFileLock(credentialPath, async () => {
+                if (!fs.existsSync(credentialPath)) {
+                    throw new Error('OAuth credential was deleted before refreshed credentials could be saved');
+                }
+                if (expectedCredentials) {
+                    const currentCredentials = await this.readCredentialsFile(credentialPath);
+                    const versionKeys = [
+                        'access_token',
+                        'refresh_token',
+                        'expiry_date',
+                        'account_id',
+                        'email',
+                        'plan_type',
+                        'oidc_client_id',
+                        'user_id',
+                        'team_id'
+                    ] as const;
+                    const currentValues = currentCredentials as OAuthCredentials & Record<string, unknown>;
+                    const expectedValues = expectedCredentials as OAuthCredentials & Record<string, unknown>;
+                    const changed = versionKeys.some(key => currentValues[key] !== expectedValues[key]);
+                    if (changed) {
+                        throw new Error('OAuth credential changed while refreshed credentials were in flight');
+                    }
+                }
+                await save();
+            });
+            return;
         }
-        await this.writeJsonFileAtomically(credentialPath, mergedData);
+        await save();
     }
 
     /**
-     * 原子写入 JSON 文件，避免半写入导致凭证损坏
+     * 原子写入 JSON 文件（委托共享实现），成功后使凭证缓存失效
      */
     protected async writeJsonFileAtomically(filePath: string, data: unknown): Promise<void> {
-        const tempPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}.tmp`;
-
-        try {
-            fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
-            // Windows 上目标文件被其他进程短暂占用时 renameSync 会报 EPERM/EBUSY/EACCES，线性退避重试
-            const retryable = new Set(['EPERM', 'EBUSY', 'EACCES', 'EEXIST']);
-            for (let attempt = 0; ; attempt++) {
-                try {
-                    fs.renameSync(tempPath, filePath);
-                    break;
-                } catch (error) {
-                    const code = (error as NodeJS.ErrnoException)?.code;
-                    if (!retryable.has(code ?? '') || attempt >= 4) {
-                        throw error;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 30 * (attempt + 1)));
-                }
-            }
-            this.invalidateCredentialCache();
-        } catch (error) {
-            try {
-                if (fs.existsSync(tempPath)) {
-                    fs.unlinkSync(tempPath);
-                }
-            } catch {
-                // ignore cleanup failures
-            }
-            throw error;
-        }
+        await writeJsonFileAtomically(filePath, data);
+        this.invalidateCredentialCache();
     }
 }

@@ -3,7 +3,14 @@
  *  renderDetail / renderCliDetail / renderCliAccountCard / renderSlotSection
  *--------------------------------------------------------------------------------------------*/
 
-import type { ProviderState, SlotState, ProviderOption, CliProviderOption } from '../types';
+import {
+    isCredentialExpiryDateExpired,
+    type ProviderState,
+    type SlotState,
+    type ProviderOption,
+    type CliOAuthCredentialOption,
+    type CliProviderOption
+} from '../types';
 import { el, t, state, findProviderState, findOption, clearMessage, postToVSCode } from './state';
 import { renderCliUsage } from './usage';
 import { renderSlotCards, renderAddForm } from './cards';
@@ -58,9 +65,54 @@ export function renderCliDetail(detail: HTMLElement, provider: string): HTMLElem
     head.appendChild(titleWrap);
     detail.appendChild(head);
 
-    // 卡片列表：每个账号一张卡（与普通 provider 一致，支持多账号）
+    const guide = el('div', 'csm-config-card-note csm-cli-guide');
+    guide.appendChild(
+        el(
+            'p',
+            'csm-cli-desc',
+            t(
+                'Sign in to another CLI account, then import it as a named OAuth account. Saved accounts stay separate; checking quota does not change the active account.',
+                '如需添加账号，先在 CLI 中登录该账号，再导入为独立 OAuth 账号。已保存账号互不覆盖；查询额度不会切换当前活跃账号。'
+            )
+        )
+    );
+    const guideActions = el('div', 'csm-config-card-footer');
+    const terminalBtn = el('button', 'csm-btn csm-btn-sm', t('Open CLI Terminal', '打开 CLI 终端'));
+    terminalBtn.type = 'button';
+    terminalBtn.disabled = state.busy || !cli.isCliInstalled;
+    terminalBtn.addEventListener('click', () => {
+        postToVSCode({ command: 'openCliTerminal', provider: cli.provider });
+    });
+    guideActions.appendChild(terminalBtn);
+
+    const importBtn = el('button', 'csm-btn csm-btn-primary csm-btn-sm', t('Import CLI Account', '导入 CLI 账号'));
+    importBtn.type = 'button';
+    importBtn.disabled = state.busy;
+    importBtn.addEventListener('click', () => {
+        state.busy = true;
+        render();
+        postToVSCode({ command: 'importCliCredential', provider: cli.provider });
+    });
+    guideActions.appendChild(importBtn);
+
+    const folderBtn = el('button', 'csm-btn csm-btn-sm', t('Open OAuth Folder', '打开 OAuth 文件夹'));
+    folderBtn.type = 'button';
+    folderBtn.addEventListener('click', () => {
+        postToVSCode({ command: 'openOAuthFolder', provider: cli.provider });
+    });
+    guideActions.appendChild(folderBtn);
+    guide.appendChild(guideActions);
+    detail.appendChild(guide);
+
+    // 每个命名 OAuth 账号独立展示；无命名账号时显示 CLI 默认凭证。
     const list = el('div', 'csm-card-list');
-    list.appendChild(renderCliAccountCard(cli));
+    if (cli.oauthCredentials.length > 0) {
+        for (const account of cli.oauthCredentials) {
+            list.appendChild(renderCliAccountCard(cli, account));
+        }
+    } else {
+        list.appendChild(renderCliAccountCard(cli));
+    }
     detail.appendChild(list);
 
     return detail;
@@ -68,28 +120,40 @@ export function renderCliDetail(detail: HTMLElement, provider: string): HTMLElem
 
 // ============= 单个 CLI 账号卡片 =============
 
-function renderCliAccountCard(cli: CliProviderOption): HTMLElement {
+function renderCliAccountCard(cli: CliProviderOption, account?: CliOAuthCredentialOption): HTMLElement {
     const card = el('article', 'csm-config-card');
+    const accountExpired = isCredentialExpiryDateExpired(account?.expiryDate);
+    const hasAccessToken = account?.hasAccessToken ?? cli.isAuthenticated;
+    const authenticationRejected = account?.usage?.authenticationRejected === true;
+    const isAuthenticated =
+        account ? hasAccessToken && !accountExpired && !authenticationRejected : cli.isAuthenticated;
 
     // 头部：账号标识 + 认证状态徽标
     const cardHead = el('div', 'csm-config-card-head');
     const cardTitleWrap = el('div', 'csm-config-card-titlewrap');
     const cardTitleText =
-        cli.loading ? t('Checking', '检查中')
-        : cli.isAuthenticated ? (cli.usage?.email ?? cli.usage?.planType ?? t('Default', '默认'))
+        account ? account.label || account.name
+        : cli.loading ? t('Checking', '检查中')
+        : cli.isAuthenticated ? (cli.usage?.email ?? cli.usage?.planType ?? t('CLI Default', 'CLI 默认'))
         : t('Not signed in', '未登录');
     cardTitleWrap.appendChild(el('span', 'csm-config-card-title', cardTitleText));
     cardHead.appendChild(cardTitleWrap);
+    if (account?.isActive) {
+        cardHead.appendChild(el('span', 'csm-cli-status-ok', t('Active', '活跃')));
+    }
     cardHead.appendChild(
         el(
             'span',
             `csm-cli-status-${
-                cli.loading ? 'loading'
-                : cli.isAuthenticated ? 'ok'
+                cli.loading && !account ? 'loading'
+                : isAuthenticated ? 'ok'
                 : 'warn'
             }`,
-            cli.loading ? t('Checking', '检查中')
-            : cli.isAuthenticated ? t('Authenticated', '已认证')
+            cli.loading && !account ? t('Checking', '检查中')
+            : account && !hasAccessToken ? t('Missing token', '缺少令牌')
+            : authenticationRejected ? t('Authorization rejected', '授权被拒绝')
+            : accountExpired ? t('Expired', '已过期')
+            : isAuthenticated ? t('Authenticated', '已认证')
             : t('Not authenticated', '未认证')
         )
     );
@@ -120,90 +184,55 @@ function renderCliAccountCard(cli: CliProviderOption): HTMLElement {
     statusItem.appendChild(
         el(
             'span',
-            cli.loading ? 'csm-cli-status-loading'
-            : cli.isAuthenticated ? 'csm-cli-status-ok'
+            cli.loading && !account ? 'csm-cli-status-loading'
+            : isAuthenticated ? 'csm-cli-status-ok'
             : 'csm-cli-status-warn',
-            cli.loading ?
-                t('Checking CLI status...', '正在检查 CLI 状态...')
-            :   (cli.statusDetail ?? (cli.isAuthenticated ? t('Valid', '有效') : t('Not authenticated', '未认证')))
+            cli.loading && !account ? t('Checking CLI status...', '正在检查 CLI 状态...')
+            : account && !hasAccessToken ? t('Missing access_token', '缺少 access_token')
+            : authenticationRejected ? t('Authorization rejected; sign in again', '授权被拒绝，请重新登录')
+            : accountExpired ? t('Expired; refresh on use', '已过期；使用时尝试刷新')
+            : account ? t('Valid OAuth account', 'OAuth 账号有效')
+            : (cli.statusDetail ?? (cli.isAuthenticated ? t('Valid', '有效') : t('Not authenticated', '未认证')))
         )
     );
     cardBody.appendChild(statusItem);
 
     // 余量（与普通 provider 一致，在卡片 body 内跨整行）
-    if (cli.usage) {
-        cardBody.appendChild(renderCliUsage(cli));
+    if (account?.usage) {
+        cardBody.appendChild(renderCliUsage(cli.provider, account.usage, account.name));
+    } else if (!account && cli.usage) {
+        cardBody.appendChild(renderCliUsage(cli.provider, cli.usage));
     }
 
     card.appendChild(cardBody);
 
-    // 说明与引导步骤（跨整行）
-    const noteWrap = el('div', 'csm-config-card-note');
-    const descText =
-        cli.loading ?
-            t(
-                'CLI status is loading in the background. You can continue using the rest of the panel now.',
-                'CLI 状态正在后台加载中，你现在可以先继续使用其余配置面板。'
-            )
-        : cli.isCliInstalled ?
-            cli.isAuthenticated ?
-                t(
-                    'This provider uses CLI OAuth authentication. Token refresh is handled automatically. Click below to force a refresh.',
-                    '此提供商使用 CLI OAuth 认证，令牌自动刷新。点击下方按钮可强制刷新。'
-                )
-            :   t(
-                    'This provider uses CLI OAuth authentication. Please sign in via the CLI first, then click below to import credentials.',
-                    '此提供商使用 CLI OAuth 认证。请先通过 CLI 登录，再点击下方按钮导入凭证。'
-                )
-        :   t(
-                'This provider requires a CLI tool that is not installed. Please install "{0}" first.',
-                '此提供商需要安装 CLI 工具 "{0}"，请先安装。',
-                cli.cliCommand
-            );
-    noteWrap.appendChild(el('p', 'csm-cli-desc', descText));
-
-    if (!cli.loading && cli.isCliInstalled && !cli.isAuthenticated) {
-        const steps = el('div', 'csm-cli-steps');
-
-        const loginStep = el('div', 'csm-cli-step');
-        loginStep.appendChild(el('span', 'csm-cli-step-index', '1'));
-        loginStep.appendChild(
-            el(
-                'span',
-                'csm-cli-step-text',
-                t(
-                    'Open a terminal and complete the provider CLI sign-in flow.',
-                    '先打开终端，完成该提供商 CLI 的登录流程。'
-                )
-            )
-        );
-        steps.appendChild(loginStep);
-
-        const importStep = el('div', 'csm-cli-step');
-        importStep.appendChild(el('span', 'csm-cli-step-index', '2'));
-        importStep.appendChild(
-            el(
-                'span',
-                'csm-cli-step-text',
-                t(
-                    'After sign-in finishes, import the logged-in credentials into GCMP.',
-                    '登录完成后，再把已登录凭证导入到 GCMP。'
-                )
-            )
-        );
-        steps.appendChild(importStep);
-
-        noteWrap.appendChild(steps);
-    }
-    cardBody.appendChild(noteWrap);
-
     // 底部：操作按钮
     const footer = el('div', 'csm-config-card-footer');
-    if (cli.loading) {
+    if (account) {
+        const activeBtn = el(
+            'button',
+            account.isActive ? 'csm-btn csm-btn-sm' : 'csm-btn csm-btn-primary csm-btn-sm',
+            account.isActive ? t('Active Account', '当前账号') : t('Use Account', '设为活跃')
+        );
+        activeBtn.type = 'button';
+        activeBtn.disabled = state.busy || account.isActive || !account.hasAccessToken;
+        activeBtn.addEventListener('click', () => {
+            postToVSCode({ command: 'activateCliCredential', provider: cli.provider, credentialName: account.name });
+        });
+        footer.appendChild(activeBtn);
+
+        const deleteBtn = el('button', 'csm-btn csm-btn-danger csm-btn-sm', t('Delete Account', '删除账号'));
+        deleteBtn.type = 'button';
+        deleteBtn.disabled = state.busy;
+        deleteBtn.addEventListener('click', () => {
+            postToVSCode({ command: 'deleteCliCredential', provider: cli.provider, credentialName: account.name });
+        });
+        footer.appendChild(deleteBtn);
+    } else if (cli.loading) {
         const checkingBtn = el('button', 'csm-btn csm-btn-sm', t('Checking...', '检查中...'));
         checkingBtn.disabled = true;
         footer.appendChild(checkingBtn);
-    } else if (cli.isAuthenticated) {
+    } else if (!account && !cli.loading && cli.isAuthenticated) {
         const removeBtn = el('button', 'csm-btn csm-btn-sm csm-btn-danger', t('Remove Auth', '移除认证'));
         removeBtn.disabled = state.busy;
         removeBtn.addEventListener('click', () => {
@@ -213,7 +242,9 @@ function renderCliAccountCard(cli: CliProviderOption): HTMLElement {
             });
         });
         footer.appendChild(removeBtn);
+    }
 
+    if (!account && !cli.loading) {
         const refreshBtn = el('button', 'csm-btn csm-btn-primary csm-btn-sm', t('Refresh Auth', '刷新认证'));
         refreshBtn.disabled = state.busy;
         refreshBtn.addEventListener('click', () => {
@@ -223,33 +254,10 @@ function renderCliAccountCard(cli: CliProviderOption): HTMLElement {
             postToVSCode({ command: 'setupCli', provider: cli.provider });
         });
         footer.appendChild(refreshBtn);
-    } else {
-        const loginBtn = el('button', 'csm-btn csm-btn-primary csm-btn-sm', t('Open Terminal & Login', '打开终端登录'));
-        loginBtn.disabled = state.busy || !cli.isCliInstalled;
-        loginBtn.addEventListener('click', () => {
-            clearMessage();
-            showMessage(
-                'info',
-                t(
-                    'Terminal opened. Finish CLI sign-in, then click "Import Logged-in Credentials".',
-                    '终端已打开，请先完成 CLI 登录，再点击"导入已登录凭证"。'
-                )
-            );
-            postToVSCode({ command: 'openCliTerminal', provider: cli.provider });
-        });
-        footer.appendChild(loginBtn);
-
-        const importBtn = el('button', 'csm-btn csm-btn-sm', t('Import Logged-in Credentials', '导入已登录凭证'));
-        importBtn.disabled = state.busy || !cli.isCliInstalled;
-        importBtn.addEventListener('click', () => {
-            clearMessage();
-            state.busy = true;
-            render();
-            postToVSCode({ command: 'setupCli', provider: cli.provider });
-        });
-        footer.appendChild(importBtn);
     }
-    card.appendChild(footer);
+    if (footer.childElementCount > 0) {
+        card.appendChild(footer);
+    }
 
     return card;
 }
@@ -388,15 +396,12 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
 // ============= 外部依赖（由 app.ts 注入） =============
 
 let render: () => void = () => {};
-let showMessage: (kind: 'info' | 'warning' | 'error' | '', text?: string) => void = () => {};
 let renderCliRemoveDialog: (displayName: string, onConfirm: () => void) => void = () => {};
 
 export function initDetail(deps: {
     render: () => void;
-    showMessage: (kind: 'info' | 'warning' | 'error' | '', text?: string) => void;
     renderCliRemoveDialog: (displayName: string, onConfirm: () => void) => void;
 }): void {
     render = deps.render;
-    showMessage = deps.showMessage;
     renderCliRemoveDialog = deps.renderCliRemoveDialog;
 }

@@ -17,7 +17,8 @@ export function buildCliProviderPlaceholders(): CliProviderOption[] {
         loading: true,
         isAuthenticated: false,
         cliCommand: cli.id,
-        isCliInstalled: false
+        isCliInstalled: false,
+        oauthCredentials: []
     }));
 }
 
@@ -30,10 +31,23 @@ export async function buildCliProviders(): Promise<CliProviderOption[]> {
             const instance = CliAuthFactory.getInstance(cli.id);
             const isCliInstalled = instance ? await instance.isCliInstalled() : false;
             const credentials = await CliAuthFactory.loadCredentials(cli.id);
+            const activeCredentialName = CliAuthFactory.getCredentialSourceInfo(cli.id).name;
+            const oauthCredentials = CliAuthFactory.listOAuthCredentials(cli.id).map(entry => ({
+                name: entry.name,
+                label: entry.label,
+                hasAccessToken: entry.hasAccessToken,
+                expiryDate: entry.expiryDate,
+                isActive: entry.name === activeCredentialName
+            }));
             let isAuthenticated = false;
             let statusDetail: string | undefined;
             if (!credentials) {
                 statusDetail = t('No credentials found. Run CLI sign-in first.', '未找到凭证，请先运行 CLI 登录。');
+            } else if (!credentials.access_token?.trim()) {
+                statusDetail = t(
+                    'Credentials are missing an access token. Sign in again.',
+                    '凭证缺少 access token，请重新登录。'
+                );
             } else if (CliAuthFactory.isCredentialExpired(cli.id, credentials)) {
                 statusDetail = t('Credentials expired. Click refresh to renew.', '凭证已过期，点击刷新以续期。');
             } else {
@@ -47,7 +61,8 @@ export async function buildCliProviders(): Promise<CliProviderOption[]> {
                 isAuthenticated,
                 cliCommand: cli.id,
                 isCliInstalled,
-                statusDetail
+                statusDetail,
+                oauthCredentials
             });
         } catch (error) {
             Logger.warn(`[ConfigSetManager] Failed to load CLI status for ${cli.id}:`, error);
@@ -58,6 +73,7 @@ export async function buildCliProviders(): Promise<CliProviderOption[]> {
                 isAuthenticated: false,
                 cliCommand: cli.id,
                 isCliInstalled: false,
+                oauthCredentials: [],
                 statusDetail: t('Unable to check status. Retry refresh later.', '暂时无法检查状态，请稍后重试刷新。')
             });
         }

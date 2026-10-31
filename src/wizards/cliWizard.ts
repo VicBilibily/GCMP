@@ -14,6 +14,14 @@ interface CliCredentialStatus {
     hasCredentials: boolean;
     expiresAt?: number;
     isExpired?: boolean;
+    /** 当前生效凭证来源：oauth 文件夹命名凭证 / CLI 默认目录 */
+    source?: 'oauth' | 'cli';
+    /** oauth 凭证名（source 为 oauth 时存在） */
+    credentialName?: string;
+    /** CLI 默认目录是否存在可导入的凭证 */
+    hasCliNativeCredential?: boolean;
+    /** oauth 文件夹中的凭证数量 */
+    oauthCredentialCount?: number;
 }
 
 export class CliWizard {
@@ -42,6 +50,23 @@ export class CliWizard {
                     action: 'refresh'
                 }
             ];
+            if (credentialStatus.hasCliNativeCredential) {
+                items.push({
+                    label: t('$(import) Import CLI credential', '$(import) 导入 CLI 凭证'),
+                    detail: t(
+                        'Migrate the CLI credential into the oauth folder as a named credential',
+                        '将 CLI 凭证迁移为 oauth 文件夹中的命名凭证'
+                    ),
+                    action: 'import'
+                });
+            }
+            if ((credentialStatus.oauthCredentialCount ?? 0) > 0) {
+                items.push({
+                    label: t('$(files) Select active credential', '$(files) 选择活跃凭证'),
+                    detail: t('Choose among named credentials in the oauth folder', '在 oauth 文件夹的命名凭证中选择'),
+                    action: 'select'
+                });
+            }
             if (credentialStatus.hasCredentials) {
                 items.push({
                     label: t('$(trash) Remove OAuth credentials', '$(trash) 移除 OAuth 认证凭证'),
@@ -72,6 +97,12 @@ export class CliWizard {
                 case 'remove':
                     await this.handleRemoveCredential(provider, displayName);
                     break;
+                case 'import':
+                    await vscode.commands.executeCommand('gcmp.cli.importCredential', provider);
+                    break;
+                case 'select':
+                    await vscode.commands.executeCommand('gcmp.cli.selectCredential', provider);
+                    break;
             }
         } catch (error) {
             Logger.error(
@@ -81,30 +112,48 @@ export class CliWizard {
     }
 
     /**
-     * 获取 CLI 凭证状态（是否存在、是否过期）
+     * 获取 CLI 凭证状态（是否存在、是否过期、来源与可导入状态）
      */
     private static async getCredentialStatus(providerKey: string): Promise<CliCredentialStatus> {
+        const sourceInfo = CliAuthFactory.getCredentialSourceInfo(providerKey);
+        const oauthCredentialCount = CliAuthFactory.listOAuthCredentials(providerKey).length;
+        const nativeCredentials = await CliAuthFactory.getInstance(providerKey)?.loadCliNativeCredentials();
+        const hasCliNativeCredential = !!nativeCredentials?.access_token;
+
         const credentials = await CliAuthFactory.loadCredentials(providerKey);
         if (!credentials) {
-            return { hasCredentials: false };
+            return { hasCredentials: false, source: sourceInfo.source, hasCliNativeCredential, oauthCredentialCount };
         }
 
+        const base: CliCredentialStatus = {
+            hasCredentials: true,
+            source: sourceInfo.source,
+            credentialName: sourceInfo.name,
+            hasCliNativeCredential,
+            oauthCredentialCount
+        };
         const expiresAt = credentials.expiry_date;
         if (!expiresAt || Number.isNaN(expiresAt)) {
-            return { hasCredentials: true };
+            return base;
         }
 
-        return { hasCredentials: true, expiresAt, isExpired: expiresAt <= Date.now() };
+        return { ...base, expiresAt, isExpired: expiresAt <= Date.now() };
     }
 
     private static formatCredentialStatus(status: CliCredentialStatus): string {
         if (!status.hasCredentials) {
             return t('Not signed in', '未登录');
         }
+        const origin =
+            status.source === 'oauth' && status.credentialName ?
+                t('oauth: {0}', 'oauth：{0}', status.credentialName)
+            :   t('CLI default', 'CLI 默认');
         if (status.expiresAt === undefined) {
-            return t('Signed in (expiration unknown)', '已登录（有效期未知）');
+            return t('Signed in (expiration unknown, {0})', '已登录（有效期未知，{0}）', origin);
         }
-        return status.isExpired ? t('Signed in (expired)', '已登录（已过期）') : t('Signed in', '已登录');
+        return status.isExpired ?
+                t('Signed in (expired, {0})', '已登录（已过期，{0}）', origin)
+            :   t('Signed in ({0})', '已登录（{0}）', origin);
     }
 
     /**

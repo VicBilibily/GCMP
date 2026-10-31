@@ -17,7 +17,7 @@ import {
     clearMessage,
     postToVSCode
 } from './components/state';
-import { mergeConfigUsageState, mergeCliUsageState } from './components/usage';
+import { applyDefaultCliUsage, mergeConfigUsageState, mergeCliUsageState } from './components/usage';
 import { initCards } from './components/cards';
 import {
     initDialogs,
@@ -39,7 +39,7 @@ import { renderHeader, syncGistMenuPopover } from './components/header';
 initCards({ render, renderDeleteDialog, renderDeactivateDialog });
 initDialogs({ render });
 initSidebar({ render });
-initDetail({ render, showMessage, renderCliRemoveDialog });
+initDetail({ render, renderCliRemoveDialog });
 
 // ============= 渲染 =============
 
@@ -142,14 +142,39 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             }
             return;
         }
-        case 'cliProviders':
+        case 'cliProviders': {
+            const previousProviders = state.cliProviders;
+            for (const provider of msg.cliProviders) {
+                const previous = previousProviders.find(entry => entry.provider === provider.provider);
+                provider.usage = previous?.usage;
+                for (const account of provider.oauthCredentials) {
+                    account.usage = previous?.oauthCredentials.find(entry => entry.name === account.name)?.usage;
+                }
+            }
             state.cliProviders = msg.cliProviders;
             render();
+            requestUsageForSelection();
             return;
+        }
         case 'cliUsage': {
             const target = state.cliProviders.find(c => c.provider === msg.provider);
             if (target) {
-                target.usage = mergeCliUsageState(target.usage, msg.usage);
+                if (msg.credentialName) {
+                    const account = target.oauthCredentials.find(entry => entry.name === msg.credentialName);
+                    if (account) {
+                        account.usage = mergeCliUsageState(account.usage, msg.usage);
+                        if (msg.usage.credentialExpiryDate !== undefined) {
+                            account.expiryDate = msg.usage.credentialExpiryDate;
+                        }
+                    }
+                } else {
+                    applyDefaultCliUsage(
+                        target,
+                        msg.usage,
+                        t('Valid', '有效'),
+                        t('Authorization rejected. Sign in again.', '授权被拒绝，请重新登录。')
+                    );
+                }
             }
             render();
             return;

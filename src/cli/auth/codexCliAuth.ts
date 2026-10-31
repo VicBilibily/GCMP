@@ -6,17 +6,22 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { BaseCliAuth } from './baseCliAuth';
 import { Logger } from '../../utils/runtime/logger';
 import type { CliAuthConfig, OAuthCredentials } from '../type';
 
 /**
  * Codex OAuth 凭证扩展接口
- * 包含 ChatGPT 账户 ID（用于 API 请求头 ChatGPT-Account-Id）
+ * 包含 ChatGPT 账户 ID（用于 API 请求头 ChatGPT-Account-Id）与账号身份信息
  */
 interface CodexOAuthCredentials extends OAuthCredentials {
     /** ChatGPT 账户 ID */
     account_id?: string;
+    /** 账号邮箱（从 id_token 提取，用于凭证命名与展示） */
+    email?: string;
+    /** 订阅计划类型，如 free / plus / pro / team（从 id_token 提取） */
+    plan_type?: string;
 }
 
 /** OpenAI Codex OAuth 客户端 ID */
@@ -41,15 +46,26 @@ export class CodexCliAuth extends BaseCliAuth {
     }
 
     /**
-     * 保存凭证到文件（保持 Codex CLI 官方嵌套格式）
+     * 保存凭证到文件
+     * oauth 文件夹命名凭证写归一化平铺格式；CLI 默认目录保持 Codex CLI 官方嵌套格式
      */
-    protected async saveCredentials(credentials: {
-        access_token?: string;
-        refresh_token?: string;
-        id_token?: string;
-        account_id?: string;
-    }): Promise<void> {
-        const credentialPath = this.resolvePath(this.config.credentialPathPattern);
+    protected async saveCredentials(
+        credentials: {
+            access_token?: string;
+            refresh_token?: string;
+            id_token?: string;
+            account_id?: string;
+            email?: string;
+            plan_type?: string;
+            expiry_date?: number;
+        },
+        credentialPath = this.resolveCredentialFilePath(),
+        expectedCredentials?: OAuthCredentials
+    ): Promise<void> {
+        if (this.isOAuthCredentialPath(credentialPath)) {
+            await super.saveCredentials({ ...credentials }, credentialPath, expectedCredentials);
+            return;
+        }
 
         // 读取现有凭证文件
         let existingData: {
@@ -109,7 +125,10 @@ export class CodexCliAuth extends BaseCliAuth {
     /**
      * 刷新 Codex CLI 访问令牌（OAuth 2.0 refresh_token）
      */
-    protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
+    protected async refreshAccessToken(
+        credentials: OAuthCredentials,
+        credentialPath: string
+    ): Promise<OAuthCredentials> {
         if (!credentials.refresh_token) {
             throw new Error('Codex CLI OAuth credentials are missing refresh_token and cannot refresh the token');
         }
@@ -168,24 +187,74 @@ export class CodexCliAuth extends BaseCliAuth {
         const expiryDate =
             expiresIn > 0 ? Date.now() + expiresIn * 1000 : credentials.expiry_date || Date.now() + 23 * 60 * 60 * 1000;
 
-        const accountId = this.extractAccountIdFromIdToken(responseData.id_token);
+        const previousCredentials = credentials as CodexOAuthCredentials;
+        const idTokenClaims = this.extractIdTokenClaims(responseData.id_token);
+        // 身份字段优先取刷新响应的新 id_token，缺失时保留原值（避免刷新丢失账号身份）
+        const email = idTokenClaims?.email ?? previousCredentials.email;
+        const planType = idTokenClaims?.planType ?? previousCredentials.plan_type;
         const newCredentials: CodexOAuthCredentials = {
             access_token: accessToken,
             refresh_token: refreshToken,
             expiry_date: expiryDate,
-            account_id: accountId
+            account_id: idTokenClaims?.accountId ?? previousCredentials.account_id,
+            ...(email ? { email } : {}),
+            ...(planType ? { plan_type: planType } : {})
         };
 
         // 保存刷新后的凭证
-        await this.saveCredentials({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-            id_token: responseData.id_token,
-            account_id: accountId
-        });
+        await this.saveCredentials(
+            {
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                id_token: responseData.id_token,
+                account_id: newCredentials.account_id,
+                ...(newCredentials.email ? { email: newCredentials.email } : {}),
+                ...(newCredentials.plan_type ? { plan_type: newCredentials.plan_type } : {}),
+                expiry_date: expiryDate
+            },
+            credentialPath,
+            credentials
+        );
 
         Logger.info('[Codex] Token refresh succeeded');
         return newCredentials;
+    }
+
+    /**
+     * 构建 oauth 文件夹归一化凭证记录：附带 ChatGPT 账户 ID 与账号身份信息
+     */
+    override toOAuthStoreRecord(credentials: OAuthCredentials): Record<string, unknown> {
+        const record = super.toOAuthStoreRecord(credentials);
+        const extended = credentials as CodexOAuthCredentials;
+        for (const key of ['account_id', 'email', 'plan_type'] as const) {
+            const value = extended[key];
+            if (typeof value === 'string' && value) {
+                record[key] = value;
+            }
+        }
+        return record;
+    }
+
+    /**
+     * 导入迁移后移除 CLI 默认目录中的 OAuth 凭证：
+     * 仅删除 tokens 与 last_refresh，保留 OPENAI_API_KEY 等无关字段；无剩余字段时删除整文件
+     */
+    override async removeCliNativeCredential(): Promise<void> {
+        const cliPath = this.getCliNativeCredentialPath();
+        if (!fs.existsSync(cliPath)) {
+            return;
+        }
+        const content = fs.readFileSync(cliPath, 'utf-8');
+        const data = JSON.parse(content) as Record<string, unknown>;
+        delete data.tokens;
+        delete data.last_refresh;
+        if (Object.keys(data).length === 0) {
+            fs.unlinkSync(cliPath);
+        } else {
+            await this.writeJsonFileAtomically(cliPath, data);
+        }
+        this.invalidateCredentialCache();
+        Logger.info(`[${this.config.name}] CLI native OAuth tokens removed: ${cliPath}`);
     }
 
     /**
@@ -216,11 +285,14 @@ export class CodexCliAuth extends BaseCliAuth {
         // 如果存在 tokens 对象，提取其中的字段
         if (rawData.tokens) {
             const tokens = rawData.tokens;
+            const idTokenClaims = this.extractIdTokenClaims(tokens.id_token);
             const result: CodexOAuthCredentials = {
                 access_token: tokens.access_token || '',
                 refresh_token: tokens.refresh_token || '',
                 expiry_date: 0,
-                account_id: tokens.account_id || this.extractAccountIdFromIdToken(tokens.id_token)
+                account_id: tokens.account_id || idTokenClaims?.accountId,
+                ...(idTokenClaims?.email ? { email: idTokenClaims.email } : {}),
+                ...(idTokenClaims?.planType ? { plan_type: idTokenClaims.planType } : {})
             };
 
             // 尝试从 access_token (JWT) 中解析过期时间
@@ -269,9 +341,11 @@ export class CodexCliAuth extends BaseCliAuth {
     }
 
     /**
-     * 从 id_token (JWT) 中提取 ChatGPT account_id
+     * 从 id_token (JWT) 中提取账号身份信息：ChatGPT account_id、邮箱与订阅计划类型
      */
-    private extractAccountIdFromIdToken(idToken: unknown): string | undefined {
+    private extractIdTokenClaims(
+        idToken: unknown
+    ): { accountId?: string; email?: string; planType?: string } | undefined {
         if (typeof idToken !== 'string' || !idToken) {
             return undefined;
         }
@@ -282,6 +356,7 @@ export class CodexCliAuth extends BaseCliAuth {
             }
             // 解码 JWT payload（第二部分）
             const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as {
+                email?: string;
                 chatgpt_account_id?: string;
                 'https://api.openai.com/auth'?: {
                     chatgpt_account_id?: string;
@@ -291,22 +366,65 @@ export class CodexCliAuth extends BaseCliAuth {
             };
             // 优先使用 https://api.openai.com/auth 命名空间下的 chatgpt_account_id
             const authData = payload['https://api.openai.com/auth'];
+            let accountId: string | undefined;
             if (typeof authData?.chatgpt_account_id === 'string' && authData.chatgpt_account_id) {
-                return authData.chatgpt_account_id;
-            }
-            // 兼容直接放在顶层的 chatgpt_account_id
-            if (typeof payload.chatgpt_account_id === 'string' && payload.chatgpt_account_id) {
-                return payload.chatgpt_account_id;
-            }
-            if (Array.isArray(payload.organizations) && payload.organizations.length > 0) {
+                accountId = authData.chatgpt_account_id;
+            } else if (typeof payload.chatgpt_account_id === 'string' && payload.chatgpt_account_id) {
+                // 兼容直接放在顶层的 chatgpt_account_id
+                accountId = payload.chatgpt_account_id;
+            } else if (Array.isArray(payload.organizations) && payload.organizations.length > 0) {
                 const firstOrg = payload.organizations[0];
                 if (typeof firstOrg?.id === 'string' && firstOrg.id) {
-                    return firstOrg.id;
+                    accountId = firstOrg.id;
                 }
             }
+            const email = typeof payload.email === 'string' && payload.email ? payload.email : undefined;
+            const planType =
+                typeof authData?.chatgpt_plan_type === 'string' && authData.chatgpt_plan_type ?
+                    authData.chatgpt_plan_type
+                :   undefined;
+            return { accountId, email, planType };
         } catch {
             Logger.debug('[Codex] Failed to parse id_token');
         }
         return undefined;
+    }
+
+    /**
+     * 依据账号身份派生凭证名（同 CLIProxyAPI 的 codex 命名）：
+     * <sha256(account_id)前8位>-<email>-<plan>，缺失段逐层省略；
+     * 邮箱与 account_id 均不可用时回退基类的令牌哈希命名
+     */
+    override suggestCredentialName(credentials: OAuthCredentials): string {
+        const extended = credentials as CodexOAuthCredentials;
+        const accountId = extended.account_id?.trim() ?? '';
+        const email = extended.email?.trim() ?? '';
+        if (!accountId && !email) {
+            return super.suggestCredentialName(credentials);
+        }
+        const hashPart = accountId ? createHash('sha256').update(accountId).digest('hex').slice(0, 8) : '';
+        const planPart = this.normalizePlanTypeForName(extended.plan_type);
+        const emailPart = this.sanitizeCredentialSegment(email, 64);
+        let name = [hashPart, emailPart, planPart].filter(Boolean).join('-');
+        if (name.length > 64 && emailPart) {
+            // 超长时截断 email 段，保留账号哈希与计划后缀
+            const fixedLength = name.length - emailPart.length;
+            const emailBudget = Math.max(1, 64 - fixedLength);
+            name = [hashPart, emailPart.slice(0, emailBudget), planPart].filter(Boolean).join('-');
+        }
+        return name.slice(0, 64);
+    }
+
+    /** 归一化计划类型用于凭证名（同 CLIProxyAPI：按非字母数字分段、转小写后以 - 连接） */
+    private normalizePlanTypeForName(planType: string | undefined): string {
+        const trimmed = planType?.trim() ?? '';
+        if (!trimmed) {
+            return '';
+        }
+        return trimmed
+            .split(/[^A-Za-z0-9]+/)
+            .filter(part => part.length > 0)
+            .map(part => part.toLowerCase())
+            .join('-');
     }
 }

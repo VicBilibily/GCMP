@@ -32,3 +32,8 @@ export interface QuotaQueryResult {
     /** 最后更新时间（已格式化） */
     lastUpdated: string;
 }
+
+/** 只有服务端明确的授权拒绝才将 CLI 凭证状态标记为失效。 */
+export function isCliAuthorizationRejectedStatus(status: number): boolean {
+    return status === 401 || status === 403;
+}

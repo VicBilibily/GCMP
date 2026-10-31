@@ -39,13 +39,19 @@ export class GrokCliAuth extends BaseCliAuth {
         super(config);
     }
 
-    protected async saveCredentials(credentials: {
-        access_token?: string;
-        refresh_token?: string;
-        expiry_date?: number;
-        oidc_client_id?: string;
-    }): Promise<void> {
-        const credentialPath = this.resolvePath(this.config.credentialPathPattern);
+    /**
+     * 保存凭证到文件
+     * oauth 文件夹命名凭证写归一化平铺格式；CLI 默认目录保持 Grok 按域名::clientId 为 key 的字典格式
+     */
+    protected async saveCredentials(
+        credentials: Partial<GrokOAuthCredentials>,
+        credentialPath = this.resolveCredentialFilePath(),
+        expectedCredentials?: OAuthCredentials
+    ): Promise<void> {
+        if (this.isOAuthCredentialPath(credentialPath)) {
+            await super.saveCredentials({ ...credentials }, credentialPath, expectedCredentials);
+            return;
+        }
         const { data, recordKey, record } = this.readAuthFile();
         const canonicalKey = `https://auth.x.ai::${this.config.clientId}`;
         // 仅当 recordKey 明确在 https://auth.x.ai:: 命名空间下时才沿用，否则强制使用 canonical key
@@ -84,7 +90,10 @@ export class GrokCliAuth extends BaseCliAuth {
         return 5 * 60 * 1000;
     }
 
-    protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
+    protected async refreshAccessToken(
+        credentials: OAuthCredentials,
+        credentialPath: string
+    ): Promise<OAuthCredentials> {
         if (!credentials.refresh_token) {
             throw new Error('Grok Build OAuth credentials are missing refresh_token and cannot refresh the token');
         }
@@ -154,12 +163,16 @@ export class GrokCliAuth extends BaseCliAuth {
             clientId
         });
 
-        await this.saveCredentials(newCredentials);
+        await this.saveCredentials(newCredentials, credentialPath, credentials);
         Logger.info('[Grok Build] Token refresh succeeded');
         return newCredentials;
     }
 
     protected async afterLoadCredentials(credentials: OAuthCredentials): Promise<OAuthCredentials> {
+        // oauth 文件夹归一化平铺格式：根级即 access_token，无需按 CLI 原生字典格式提取
+        if (typeof credentials.access_token === 'string' && credentials.access_token) {
+            return credentials;
+        }
         const rawData = credentials as unknown as Record<string, GrokAuthRecord>;
         const { recordKey, record } = this.findPreferredGrokRecord(rawData);
 
@@ -185,8 +198,61 @@ export class GrokCliAuth extends BaseCliAuth {
         } as GrokOAuthCredentials;
     }
 
+    /**
+     * 构建 oauth 文件夹归一化凭证记录：附带 xAI 扩展身份字段
+     */
+    override toOAuthStoreRecord(credentials: OAuthCredentials): Record<string, unknown> {
+        const record = super.toOAuthStoreRecord(credentials);
+        const extended = credentials as GrokOAuthCredentials;
+        for (const key of ['oidc_client_id', 'user_id', 'email', 'team_id'] as const) {
+            const value = extended[key];
+            if (typeof value === 'string' && value) {
+                record[key] = value;
+            }
+        }
+        return record;
+    }
+
+    /**
+     * 依据账号身份派生凭证名（同 CLIProxyAPI 的 xai 命名）：
+     * 优先 email，其次 user_id，均不可用时回退基类的令牌哈希命名
+     */
+    override suggestCredentialName(credentials: OAuthCredentials): string {
+        const extended = credentials as GrokOAuthCredentials;
+        const identity = extended.email?.trim() || extended.user_id?.trim() || '';
+        if (!identity) {
+            return super.suggestCredentialName(credentials);
+        }
+        return this.sanitizeCredentialSegment(identity, 64);
+    }
+
+    /**
+     * 导入迁移后移除 CLI 默认目录中的 OAuth 凭证：
+     * 仅删除当前使用的认证记录，保留文件内其他记录；无剩余记录时删除整文件
+     */
+    override async removeCliNativeCredential(): Promise<void> {
+        const cliPath = this.getCliNativeCredentialPath();
+        if (!fs.existsSync(cliPath)) {
+            return;
+        }
+        const content = fs.readFileSync(cliPath, 'utf-8');
+        const data = JSON.parse(content) as Record<string, GrokAuthRecord>;
+        const { recordKey } = this.findPreferredGrokRecord(data);
+        if (recordKey) {
+            delete data[recordKey];
+        }
+        if (Object.keys(data).length === 0) {
+            fs.unlinkSync(cliPath);
+        } else {
+            await this.writeJsonFileAtomically(cliPath, data);
+        }
+        this.recordKey = undefined;
+        this.invalidateCredentialCache();
+        Logger.info(`[${this.config.name}] CLI native OAuth record removed: ${cliPath}`);
+    }
+
     private readAuthFile(): { data: Record<string, GrokAuthRecord>; recordKey?: string; record: GrokAuthRecord } {
-        const credentialPath = this.resolvePath(this.config.credentialPathPattern);
+        const credentialPath = this.getCliNativeCredentialPath();
         let data: Record<string, GrokAuthRecord> = {};
 
         if (fs.existsSync(credentialPath)) {

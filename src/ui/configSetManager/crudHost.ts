@@ -22,6 +22,7 @@ import {
     siteLabel
 } from '../../utils/config/configSetCommands';
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
+import { OAuthCredentialStore } from '../../cli/auth/oauthCredentialStore';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import { ApiKeyFailoverManager } from '../../utils/config/failover/apiKeyFailoverManager';
@@ -62,6 +63,20 @@ export class CrudHost {
                     '操作已生效，但配置面板刷新失败。请重新打开面板确认最新状态。'
                 )
             );
+        }
+    }
+
+    private async clearRuntimeCliApiKey(
+        provider: string,
+        reason: string,
+        selection: ReturnType<typeof CliAuthFactory.getActiveCredentialSelection>
+    ): Promise<'cleared' | 'stale' | 'failed'> {
+        try {
+            const deleted = await ApiKeyManager.deleteApiKeyForActiveCliCredential(provider, selection);
+            return deleted ? 'cleared' : 'stale';
+        } catch (error) {
+            Logger.error(`[ConfigSet] Failed to clear stale API key ${reason}:`, error);
+            return 'failed';
         }
     }
 
@@ -652,6 +667,7 @@ export class CrudHost {
         }
 
         // 先尝试加载已有凭证（首次认证可能已有 CLI 登录但未导入）
+        const selection = CliAuthFactory.getActiveCredentialSelection(provider);
         let credentials = await CliAuthFactory.loadCredentials(provider);
         if (!credentials || CliAuthFactory.isCredentialExpired(provider, credentials)) {
             // 凭证缺失或已过期，触发刷新流程（含跨实例协调）
@@ -659,8 +675,21 @@ export class CrudHost {
         }
 
         if (credentials?.access_token) {
-            await ApiKeyManager.setApiKey(provider, credentials.access_token);
-            vscode.window.showInformationMessage(t('{0} authenticated successfully.', '{0} 认证成功。', cli.name));
+            const keyApplied = await ApiKeyManager.setApiKeyForActiveCliCredential(
+                provider,
+                selection,
+                credentials.access_token
+            );
+            if (!keyApplied) {
+                vscode.window.showInformationMessage(
+                    t(
+                        'The active account changed in another window. The stale API key update was skipped.',
+                        '活跃账号已在另一窗口切换，已跳过过期的 API Key 更新。'
+                    )
+                );
+            } else {
+                vscode.window.showInformationMessage(t('{0} authenticated successfully.', '{0} 认证成功。', cli.name));
+            }
         } else {
             vscode.window.showErrorMessage(
                 t(
@@ -672,10 +701,218 @@ export class CrudHost {
         }
 
         await this.ctx.refreshCliProviders();
-        // 认证是用户主动发起的强动作：成功后顺带刷新该 CLI 的余量（如 codex 限频窗口），
-        // 避免用户停留在详情区时余量仍是旧值，需手动点刷新或切出切入。
-        void this.ctx.refreshCliUsage(provider);
+        // WebView 收到更新后的账号列表后，会为当前显示的 CLI provider 刷新余量。
         this.ctx.post({ command: 'syncStatus', busy: false });
+    }
+
+    async handleImportCliCredential(provider: string): Promise<void> {
+        if (!CliAuthFactory.getSupportedCliTypes().some(cli => cli.id === provider)) {
+            return;
+        }
+        try {
+            await vscode.commands.executeCommand('gcmp.cli.importCredential', provider);
+        } catch (error) {
+            Logger.error(`[ConfigSet] Failed to import ${provider} CLI credential:`, error);
+            vscode.window.showErrorMessage(
+                t('Failed to start the CLI credential import flow.', '无法启动 CLI 凭证导入流程。')
+            );
+        } finally {
+            await this.ctx.refreshCliProviders();
+            this.ctx.post({ command: 'syncStatus', busy: false });
+        }
+    }
+
+    async handleOpenOAuthFolder(): Promise<void> {
+        const oauthDir = CliAuthFactory.getOAuthCredentialDir();
+        if (!oauthDir) {
+            vscode.window.showErrorMessage(t('OAuth credential storage is not available.', 'OAuth 凭证目录不可用。'));
+            return;
+        }
+        try {
+            await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(oauthDir));
+        } catch (error) {
+            Logger.error('[ConfigSet] Failed to open oauth credential folder:', error);
+            vscode.window.showErrorMessage(t('Failed to open the oauth folder.', '无法打开 oauth 文件夹。'));
+        }
+    }
+
+    async handleActivateCliCredential(provider: string, credentialName: string): Promise<void> {
+        let activeSelectionChanged = false;
+        let runtimeKeyClearFailed = false;
+        let activationSelection: ReturnType<typeof CliAuthFactory.getActiveCredentialSelection> | undefined;
+        this.ctx.post({ command: 'syncStatus', busy: true });
+        try {
+            const credential = CliAuthFactory.listOAuthCredentials(provider).find(
+                entry => entry.name === credentialName && entry.hasAccessToken
+            );
+            if (!credential) {
+                throw new Error(
+                    t('The selected credential is missing an access token.', '所选凭证缺少 access_token。')
+                );
+            }
+
+            activationSelection = await CliAuthFactory.setActiveCredential(provider, credentialName);
+            activeSelectionChanged = true;
+            const credentials = await CliAuthFactory.ensureAuthenticated(provider);
+            if (!credentials?.access_token) {
+                throw new Error(t('The selected credential could not be authenticated.', '所选凭证无法完成认证。'));
+            }
+            const keyApplied = await ApiKeyManager.setApiKeyForActiveCliCredential(
+                provider,
+                activationSelection,
+                credentials.access_token
+            );
+            if (!keyApplied) {
+                vscode.window.showInformationMessage(
+                    t(
+                        'The active account changed in another window. The stale API key update was skipped.',
+                        '活跃账号已在另一窗口切换，已跳过过期的 API Key 更新。'
+                    )
+                );
+                return;
+            }
+            vscode.window.showInformationMessage(
+                t('Now using OAuth account "{0}".', '当前已切换为 OAuth 账号「{0}」。', credentialName)
+            );
+        } catch (error) {
+            if (activeSelectionChanged) {
+                runtimeKeyClearFailed =
+                    (await this.clearRuntimeCliApiKey(
+                        provider,
+                        `after activating ${provider}`,
+                        activationSelection!
+                    )) === 'failed';
+            }
+            Logger.error(`[ConfigSet] Failed to activate ${provider} OAuth credential ${credentialName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(
+                runtimeKeyClearFailed ?
+                    t(
+                        '{0} The previous runtime API key could not be confirmed as cleared and may still be used.',
+                        '{0} 无法确认此前的运行时 API Key 已清除，请求仍可能使用该 Key。',
+                        errorMessage
+                    )
+                :   errorMessage
+            );
+        } finally {
+            await this.ctx.refreshCliProviders();
+            this.ctx.post({ command: 'syncStatus', busy: false });
+        }
+    }
+
+    async handleDeleteCliCredential(provider: string, credentialName: string): Promise<void> {
+        let wasActive = false;
+        let credentialDeleteCompleted = false;
+        let partialDeleteDetected = false;
+        let activeCredentialDeleted = false;
+        let runtimeKeyClearStatus: 'cleared' | 'stale' | 'failed' = 'stale';
+        let synchronizationSelection: ReturnType<typeof CliAuthFactory.getActiveCredentialSelection> | undefined;
+        const credential = CliAuthFactory.listOAuthCredentials(provider).find(entry => entry.name === credentialName);
+        if (!credential) {
+            vscode.window.showErrorMessage(t('OAuth credential not found.', '未找到 OAuth 凭证。'));
+            return;
+        }
+        const confirmLabel = t('Delete account', '删除账号');
+        const confirmed = await vscode.window.showWarningMessage(
+            t(
+                'Delete OAuth account "{0}"? This removes its credential file and cannot be undone.',
+                '确认删除 OAuth 账号「{0}」？这会移除凭证文件且无法撤销。',
+                credential.label || credentialName
+            ),
+            { modal: true },
+            confirmLabel
+        );
+        if (confirmed !== confirmLabel) {
+            return;
+        }
+
+        this.ctx.post({ command: 'syncStatus', busy: true });
+        try {
+            const deletion = await OAuthCredentialStore.deleteCredentialFileWithStatus(provider, credentialName);
+            if (!deletion.deleted) {
+                throw new Error(t('OAuth credential not found.', '未找到 OAuth 凭证。'));
+            }
+            wasActive = deletion.wasActive;
+            credentialDeleteCompleted = true;
+
+            if (wasActive) {
+                activeCredentialDeleted = true;
+                synchronizationSelection = CliAuthFactory.getActiveCredentialSelection(provider);
+                const nextCredentials = await CliAuthFactory.ensureAuthenticated(provider);
+                let keyApplied: boolean;
+                if (nextCredentials?.access_token) {
+                    keyApplied = await ApiKeyManager.setApiKeyForActiveCliCredential(
+                        provider,
+                        synchronizationSelection,
+                        nextCredentials.access_token
+                    );
+                } else {
+                    keyApplied = await ApiKeyManager.deleteApiKeyForActiveCliCredential(
+                        provider,
+                        synchronizationSelection
+                    );
+                }
+                if (!keyApplied) {
+                    vscode.window.showInformationMessage(
+                        t(
+                            'OAuth account deleted. The active account changed in another window, so its API key was left untouched.',
+                            'OAuth 账号已删除。活跃账号已在另一窗口切换，因此未改动其 API Key。'
+                        )
+                    );
+                    return;
+                }
+            }
+            vscode.window.showInformationMessage(t('OAuth account deleted.', 'OAuth 账号已删除。'));
+        } catch (error) {
+            const deletionError = error as Error & { credentialDeleted?: boolean; wasActive?: boolean };
+            if (deletionError.credentialDeleted) {
+                wasActive = deletionError.wasActive === true;
+                activeCredentialDeleted = wasActive;
+                partialDeleteDetected = wasActive && !credentialDeleteCompleted;
+            }
+            if (activeCredentialDeleted) {
+                synchronizationSelection ??= CliAuthFactory.getActiveCredentialSelection(provider);
+                runtimeKeyClearStatus = await this.clearRuntimeCliApiKey(
+                    provider,
+                    `after deleting ${provider} OAuth account`,
+                    synchronizationSelection
+                );
+            }
+            Logger.error(`[ConfigSet] Failed to delete ${provider} OAuth credential ${credentialName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const keyRecoveryMessage =
+                runtimeKeyClearStatus === 'failed' ?
+                    t(
+                        'The previous runtime API key could not be confirmed as cleared and may still be used.',
+                        '无法确认此前的运行时 API Key 已清除，请求仍可能使用该 Key。'
+                    )
+                : runtimeKeyClearStatus === 'stale' ?
+                    t(
+                        'The active account changed in another window, so its runtime API key was left untouched.',
+                        '活跃账号已在另一窗口切换，因此未改动其运行时 API Key。'
+                    )
+                :   t('The previous runtime API key was cleared.', '此前的运行时 API Key 已清除。');
+            vscode.window.showErrorMessage(
+                partialDeleteDetected ?
+                    t(
+                        '{0} The credential file was removed, but the delete operation did not fully complete. {1}',
+                        '{0} 凭证文件已删除，但删除操作未完整完成。{1}',
+                        errorMessage,
+                        keyRecoveryMessage
+                    )
+                : activeCredentialDeleted ?
+                    t(
+                        '{0} The account was deleted, but follow-up authentication or API key synchronization failed. {1}',
+                        '{0} 账号已删除，但后续认证或 API Key 同步失败。{1}',
+                        errorMessage,
+                        keyRecoveryMessage
+                    )
+                :   errorMessage
+            );
+        } finally {
+            await this.ctx.refreshCliProviders();
+            this.ctx.post({ command: 'syncStatus', busy: false });
+        }
     }
 
     async handleOpenCliTerminal(provider: string): Promise<void> {

@@ -48,6 +48,8 @@
     "command.configSet.manage": "Manage API Keys",
     "command.tokenUsage.showDetails": "View Today's Token Usage Details",
     "command.cli.auth": "CLI Authentication Management",
+    "command.cli.importCredential": "Import CLI OAuth Credential",
+    "command.cli.selectCredential": "Select CLI OAuth Credential",
     "command.metadata.refresh": "Refresh Remote Metadata",
     "command.instance.resignLeader": "Manually Resign Leader Instance",
     "command.commit.generateMessage": "Generate Commit Message",

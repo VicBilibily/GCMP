@@ -10,6 +10,7 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { t } from '../utils/runtime/l10n';
 import type { QuotaTable } from './types';
+import { isCliAuthorizationRejectedStatus } from './types';
 import { parseGrokBillingUsage, resolveGrokBillingBaseUrl } from './parsers/grokUsageParser';
 import type { GrokBillingParseResult, GrokUsageLimit } from './parsers/grokUsageParser';
 import { formatCompactCountdown, formatQuotaDateForSlot } from './format';
@@ -26,24 +27,35 @@ export interface GrokStatusData {
 interface GrokCredentials {
     access_token: string;
     user_id?: string;
+    expiry_date?: number;
 }
 
-type BillingRequestResult = { kind: 'parsed'; result: GrokBillingParseResult } | { kind: 'error'; error: string };
+type BillingRequestResult =
+    | { kind: 'parsed'; result: GrokBillingParseResult }
+    | { kind: 'error'; error: string; authenticationRejected?: boolean };
 
 /**
  * 查询 Grok 订阅余量
  * 先走 credits 端点取周配额；不可用时回退到 billing 端点取月度配额。
  * @param lastUpdated 已格式化的本地时间字符串（由调用方生成，避免依赖 vscode.env.language）
  */
-export async function queryGrokUsage(lastUpdated: string): Promise<{
+export async function queryGrokUsage(
+    lastUpdated: string,
+    credentialName?: string
+): Promise<{
     success: boolean;
     data?: GrokStatusData;
     error?: string;
     requestBalanceKeyHash?: string;
     queriedAt?: number;
+    credentialExpiryDate?: number;
+    authenticationRejected?: boolean;
 }> {
     try {
-        const credentials = (await CliAuthFactory.ensureAuthenticated('grok')) as GrokCredentials | null;
+        const credentials = (
+            credentialName ?
+                await CliAuthFactory.ensureAuthenticatedForOAuthCredential('grok', credentialName)
+            :   await CliAuthFactory.ensureAuthenticated('grok')) as GrokCredentials | null;
         if (!credentials?.access_token) {
             return {
                 success: false,
@@ -57,7 +69,11 @@ export async function queryGrokUsage(lastUpdated: string): Promise<{
         StatusLogger.debug('[GrokUsageQuery] Starting Grok usage query...');
         const creditsResult = await requestBillingUsage(credentials, '?format=credits', 'credits');
         if (creditsResult.kind === 'error') {
-            return { success: false, error: creditsResult.error };
+            return {
+                success: false,
+                error: creditsResult.error,
+                ...(creditsResult.authenticationRejected ? { authenticationRejected: true } : {})
+            };
         }
 
         let parsedResult = creditsResult.result;
@@ -65,7 +81,11 @@ export async function queryGrokUsage(lastUpdated: string): Promise<{
         if (parsedResult.kind === 'unavailable') {
             const monthlyResult = await requestBillingUsage(credentials, '', 'billing');
             if (monthlyResult.kind === 'error') {
-                return { success: false, error: monthlyResult.error };
+                return {
+                    success: false,
+                    error: monthlyResult.error,
+                    ...(monthlyResult.authenticationRejected ? { authenticationRejected: true } : {})
+                };
             }
             parsedResult = monthlyResult.result;
         }
@@ -91,6 +111,7 @@ export async function queryGrokUsage(lastUpdated: string): Promise<{
             success: true,
             requestBalanceKeyHash: hashRequestApiKey(credentials.access_token),
             queriedAt: Date.now(),
+            credentialExpiryDate: credentials.expiry_date,
             data: {
                 usage,
                 lastUpdated
@@ -144,7 +165,11 @@ async function requestBillingUsage(
                 response.status === 401 || response.status === 403 ?
                     t('Grok CLI authorization was rejected. Sign in again.', 'Grok CLI 授权被拒绝，请重新登录')
                 :   t('Grok usage query failed with HTTP {0}.', 'Grok 用量查询失败，HTTP {0}', response.status);
-            return { kind: 'error', error: authorizationMessage };
+            return {
+                kind: 'error',
+                error: authorizationMessage,
+                ...(isCliAuthorizationRejectedStatus(response.status) ? { authenticationRejected: true } : {})
+            };
         }
 
         let payload: unknown;

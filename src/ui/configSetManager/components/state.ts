@@ -153,7 +153,11 @@ export function requestUsageForSelection(): void {
     }
     // CLI 提供商：按需查询余量（切换进入时触发，不预加载）
     if (provider.startsWith('cli:')) {
-        postToVSCode({ command: 'refreshCliUsage', provider: provider.slice(4) });
+        const cli = state.cliProviders.find(entry => `cli:${entry.provider}` === provider);
+        if (!cli || cli.loading) {
+            return;
+        }
+        postToVSCode({ command: 'refreshCliUsage', provider: cli.provider });
         return;
     }
     postToVSCode({ command: 'loadProviderUsage', provider });
