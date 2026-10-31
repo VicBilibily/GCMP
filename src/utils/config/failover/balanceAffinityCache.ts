@@ -21,14 +21,14 @@ export class BalanceAffinityCache {
 
     constructor(private readonly now: () => number = () => Date.now()) {}
 
-    get(slot: string, balanceKey: string): string | undefined {
+    get(slot: string, balanceKey: string, generation?: number): string | undefined {
         this.prune();
-        return this.entries.get(JSON.stringify([slot, balanceKey]))?.credentialId;
+        return this.entries.get(this.getKey(slot, balanceKey, generation))?.credentialId;
     }
 
-    remember(slot: string, balanceKey: string, credentialId: string): void {
+    remember(slot: string, balanceKey: string, credentialId: string, generation?: number): void {
         this.prune();
-        const key = JSON.stringify([slot, balanceKey]);
+        const key = this.getKey(slot, balanceKey, generation);
         this.entries.delete(key);
         this.entries.set(key, { slot, credentialId, expiresAt: this.now() + ENTRY_TTL_MS });
         if (this.entries.size > MAX_ENTRIES) {
@@ -58,5 +58,11 @@ export class BalanceAffinityCache {
                 this.entries.delete(key);
             }
         }
+    }
+
+    private getKey(slot: string, balanceKey: string, generation?: number): string {
+        return generation === undefined ?
+                JSON.stringify([slot, balanceKey])
+            :   JSON.stringify([slot, balanceKey, generation]);
     }
 }

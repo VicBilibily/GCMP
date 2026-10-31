@@ -910,7 +910,7 @@ suite('balance initial assignment cancellation', () => {
 
     for (const sdkMode of ['openai', 'openai-responses'] as const) {
         for (const phase of ['pre-cancel', 'waiting', 'secret'] as const) {
-            test(`${sdkMode}: ${phase} cancellation refunds the grant without dispatching or retrying`, async () => {
+            test(`${sdkMode}: ${phase} cancellation refunds only an acquired grant without dispatching or retrying`, async () => {
                 const tracked = cancellation();
                 const handle: RateLimitHandle = {
                     grantId: randomUUID(),
@@ -958,8 +958,11 @@ suite('balance initial assignment cancellation', () => {
                 assert.ok(result.state === 'rejected' && result.error instanceof vscode.CancellationError);
                 assert.equal(wireCount, 0);
                 assert.equal(parts.length, 0);
-                assert.equal(observed.grants, 1);
-                assert.deepEqual(refunds, [[handle, handle.costs]]);
+                assert.equal(observed.grants, phase === 'pre-cancel' ? 0 : 1);
+                assert.deepEqual(refunds, phase === 'pre-cancel' ? [] : [[handle, handle.costs]]);
+                if (phase === 'pre-cancel') {
+                    assert.equal(requests.length, 0);
+                }
                 assertClean(tracked);
                 if (phase === 'waiting') {
                     ApiKeyFailoverManager.resolveBalanceAssignment(assignment());

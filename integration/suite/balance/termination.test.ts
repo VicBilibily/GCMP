@@ -317,7 +317,9 @@ suite('request termination and coordination cancellation', () => {
                 ]) {
                     test(`cross-protocol termination: ${sdkMode}, ${transport}, ${mode}, ${ending}`, async () => {
                         await ConfigSetStore.setSwitchMode(slot, mode);
-                        const healthy = ending.startsWith('healthy-') || ending.startsWith('compat-');
+                        const healthy =
+                            ending.startsWith('healthy-') || (sdkMode === 'anthropic' && ending.startsWith('compat-'));
+                        const unterminatedText = sdkMode === 'openai-responses' && ending === 'compat-text';
                         const encode = <T extends { type: string }>(event: T): string =>
                             `${sdkMode === 'anthropic' ? `event: ${event.type}\n` : ''}data: ${JSON.stringify(event)}\n\n`;
                         const responseBody = (kind: string): string => {
@@ -560,7 +562,10 @@ suite('request termination and coordination cancellation', () => {
                                 .filter(part => part instanceof vscode.LanguageModelTextPart)
                                 .map(part => part.value);
                             const tools = parts.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-                            assertClean(observed.grants, healthy || mode === 'off' || ending === 'cancelled' ? 1 : 4);
+                            assertClean(
+                                observed.grants,
+                                healthy || mode === 'off' || ending === 'cancelled' || unterminatedText ? 1 : 4
+                            );
                             if (ending === 'cancelled') {
                                 assert.ok(failure instanceof vscode.CancellationError);
                                 assert.deepEqual(statuses, ['cancelled']);
@@ -574,10 +579,13 @@ suite('request termination and coordination cancellation', () => {
                                     tools.map(part => part.input),
                                     ending.endsWith('tool') ? [{ path: 'report.txt' }] : []
                                 );
-                            } else if (mode === 'off') {
+                            } else if (mode === 'off' || unterminatedText) {
                                 assert.ok(failure instanceof Error, 'EOF without output or a terminal event must fail');
-                                assert.deepEqual(statuses, []);
-                                assert.deepEqual(text, []);
+                                if (sdkMode === 'openai-responses' && ending.startsWith('compat-')) {
+                                    assert.match(failure.message, /without an explicit terminal event/);
+                                }
+                                assert.deepEqual(statuses, unterminatedText ? ['failed'] : []);
+                                assert.deepEqual(text, unterminatedText ? ['complete'] : []);
                                 assert.deepEqual(tools, []);
                             } else {
                                 assert.equal(failure, undefined);
@@ -722,25 +730,34 @@ suite('request termination and coordination cancellation', () => {
                                 failure = error;
                             }
                             const calls = parts.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-                            assertClean(observed.grants, 1);
-                            assert.equal(cancellation.token.isCancellationRequested, cancelAt !== 'none');
-                            assert.deepEqual(
-                                calls.map(part => part.callId),
-                                cancelAt === 'tool' ? ['call-0'] : ['call-0', 'call-1']
-                            );
-                            assert.deepEqual(
-                                calls.map(part => part.input),
-                                cancelAt === 'tool' ?
-                                    [{ path: 'report-0.txt' }]
-                                :   [{ path: 'report-0.txt' }, { path: 'report-1.txt' }]
-                            );
-                            assert.deepEqual(statuses, [cancelAt === 'none' ? 'completed' : 'cancelled']);
-                            assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
-                            if (cancelAt === 'none') {
-                                assert.equal(failure, undefined);
+                            if (ending === 'eof') {
+                                assertClean(observed.grants, mode === 'off' ? 1 : 7);
+                                assert.ok(failure instanceof Error);
+                                assert.match(failure.message, /without an explicit terminal event/);
+                                assert.equal(cancellation.token.isCancellationRequested, false);
+                                assert.equal(parts.length, 0);
+                                assert.deepEqual(statuses, []);
                             } else {
-                                assert.ok(failure instanceof vscode.CancellationError);
+                                assertClean(observed.grants, 1);
+                                assert.equal(cancellation.token.isCancellationRequested, cancelAt !== 'none');
+                                assert.deepEqual(
+                                    calls.map(part => part.callId),
+                                    cancelAt === 'tool' ? ['call-0'] : ['call-0', 'call-1']
+                                );
+                                assert.deepEqual(
+                                    calls.map(part => part.input),
+                                    cancelAt === 'tool' ?
+                                        [{ path: 'report-0.txt' }]
+                                    :   [{ path: 'report-0.txt' }, { path: 'report-1.txt' }]
+                                );
+                                assert.deepEqual(statuses, [cancelAt === 'none' ? 'completed' : 'cancelled']);
+                                if (cancelAt === 'none') {
+                                    assert.equal(failure, undefined);
+                                } else {
+                                    assert.ok(failure instanceof vscode.CancellationError);
+                                }
                             }
+                            assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
                         } finally {
                             if (server) {
                                 server.closeAllConnections();

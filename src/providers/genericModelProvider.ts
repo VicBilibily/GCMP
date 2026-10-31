@@ -151,6 +151,18 @@ interface PreparedTrackedRequestContext extends EstimatedRequestTokens, RequestT
     sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai';
 }
 
+export interface ManagedCredentialAttempt {
+    mode: 'failover' | 'balance';
+    apiKey: string;
+    identity: string;
+    name?: string;
+    handleFailure(
+        error: unknown,
+        attemptedIdentities: ReadonlySet<string>,
+        balanceKey: string
+    ): Promise<{ handled: boolean; shouldRetry: boolean }>;
+}
+
 /**
  * 通用模型提供商类
  * 基于配置文件动态创建提供商实现
@@ -178,6 +190,24 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     /** 应用用户 providerOverrides 生成生效配置；子类可覆盖以在覆盖前注入基线（如 Codex 远程元数据） */
     protected applyProviderConfigOverrides(config: ProviderConfig): ProviderConfig {
         return ConfigManager.applyProviderOverrides(this.providerKey, config);
+    }
+
+    protected getManagedCredentialCandidateCount(_provider: string): number {
+        return 0;
+    }
+
+    protected getManagedCredentialRoutingGeneration(_provider: string): number | undefined {
+        return undefined;
+    }
+
+    protected captureManagedCredentialAttempt(
+        _provider: string,
+        _balanceKey: string,
+        _token: CancellationToken,
+        _preferredCredentialId?: string,
+        _preferredRoutingGeneration?: number
+    ): Promise<ManagedCredentialAttempt | undefined> | undefined {
+        return undefined;
     }
 
     constructor(
@@ -898,9 +928,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const initialSwitchMode = ConfigSetStore.getSwitchMode(effectiveProviderKey);
         const initialSwitchModeGeneration = ApiKeyFailoverManager.getSwitchModeGeneration(effectiveProviderKey);
         const failoverCandidateCount = ApiKeyFailoverManager.getCandidateCountUpperBound(effectiveProviderKey);
+        const managedCredentialCandidateCount = this.getManagedCredentialCandidateCount(effectiveProviderKey);
         const failoverRetryBudget =
-            failoverCandidateCount >= 2 && configuredRetryConfig.enabled && configuredRetryConfig.maxAttempts !== 0 ?
-                API_KEY_FAILOVER_ERROR_THRESHOLD * failoverCandidateCount
+            configuredRetryConfig.enabled && configuredRetryConfig.maxAttempts !== 0 ?
+                Math.max(
+                    failoverCandidateCount >= 2 ? API_KEY_FAILOVER_ERROR_THRESHOLD * failoverCandidateCount : 0,
+                    managedCredentialCandidateCount >= 2 ? managedCredentialCandidateCount - 1 : 0
+                )
             :   0;
         const retryConfig = {
             ...configuredRetryConfig,
@@ -953,6 +987,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const telemetryTurn = (options as RuntimeProvideLanguageModelChatResponseOptions).modelOptions?._telemetryTurn;
         const canRecoverAffinity =
             behavior.legacyTurnAffinity && balanceKey === getBalanceTurnKey(sessionId, telemetryTurn);
+        const managedCredentialRoutingGeneration = this.getManagedCredentialRoutingGeneration(effectiveProviderKey);
         let turnStartIndex = -1;
         if (behavior.legacyTurnAffinity) {
             for (let index = messages.length - 1; index >= 0; index--) {
@@ -999,7 +1034,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     sdkMode === 'openai-sse' ? 'openai'
                     : sdkMode === 'gemini-sse' ? 'gemini'
                     : sdkMode,
-                balanceKey
+                balanceKey,
+                routingGeneration: managedCredentialRoutingGeneration
             });
             break;
         }
@@ -1009,7 +1045,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             !hasCurrentMarker &&
             ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance'
         ) {
-            preferredBalanceCredentialId = BalanceAffinityCache.instance.get(effectiveProviderKey, balanceKey);
+            preferredBalanceCredentialId = BalanceAffinityCache.instance.get(
+                effectiveProviderKey,
+                balanceKey,
+                managedCredentialRoutingGeneration
+            );
         }
 
         messages = await recoverToolResultImages(messages, modelConfig.capabilities?.imageInput === true, token);
@@ -1129,22 +1169,35 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         }
                     );
                     let failoverAttempt: ApiKeyFailoverAttempt | undefined;
+                    let managedCredentialAttempt: ManagedCredentialAttempt | undefined;
                     let balanceFallback: BalanceFallbackSnapshot | undefined;
                     try {
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
                         }
                         const captureOperationToken = ConfigSetStore.getApplyOperationToken(effectiveProviderKey);
-                        failoverAttempt = await ApiKeyFailoverManager.captureAttempt(
+                        const managedCredentialCapture = this.captureManagedCredentialAttempt(
                             effectiveProviderKey,
                             balanceKey,
-                            balanceAllocationRequestId,
-                            preferredBalanceCredentialId,
                             token,
-                            snapshot => {
-                                balanceFallback = snapshot;
-                            }
+                            preferredBalanceCredentialId,
+                            managedCredentialRoutingGeneration
                         );
+                        if (managedCredentialCapture) {
+                            managedCredentialAttempt = await managedCredentialCapture;
+                        }
+                        if (!managedCredentialAttempt) {
+                            failoverAttempt = await ApiKeyFailoverManager.captureAttempt(
+                                effectiveProviderKey,
+                                balanceKey,
+                                balanceAllocationRequestId,
+                                preferredBalanceCredentialId,
+                                token,
+                                snapshot => {
+                                    balanceFallback = snapshot;
+                                }
+                            );
+                        }
                         const nextBalanceLeaseId = failoverAttempt?.balanceLeaseId;
                         if (balanceLeaseId && balanceLeaseId !== nextBalanceLeaseId) {
                             ApiKeyFailoverManager.releaseBalanceLease(balanceLeaseId);
@@ -1156,11 +1209,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         if (nextBalanceLeaseId && failoverAttempt) {
                             ApiKeyFailoverManager.startBalanceLeaseHeartbeat(failoverAttempt, effectiveProviderKey);
                         }
-                        if (
-                            failoverAttempt?.identity !== failoverFailureIdentity ||
-                            failoverAttempt?.mode !== failoverFailureMode
-                        ) {
-                            if (failoverAttempt?.mode !== failoverFailureMode) {
+                        const attemptIdentity = failoverAttempt?.identity ?? managedCredentialAttempt?.identity;
+                        const attemptMode = failoverAttempt?.mode ?? managedCredentialAttempt?.mode;
+                        if (attemptIdentity !== failoverFailureIdentity || attemptMode !== failoverFailureMode) {
+                            if (attemptMode !== failoverFailureMode) {
                                 attemptedFailoverIdentities.clear();
                                 initialFailoverConfigId = undefined;
                                 returnedToInitial = false;
@@ -1171,8 +1223,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 failoverFailureRequestId = crypto.randomUUID();
                             }
                             failoverFailureCount = 0;
-                            failoverFailureIdentity = failoverAttempt?.identity;
-                            failoverFailureMode = failoverAttempt?.mode;
+                            failoverFailureIdentity = attemptIdentity;
+                            failoverFailureMode = attemptMode;
                         }
                         initialFailoverConfigId ??= failoverAttempt?.activeId;
                         if (
@@ -1200,7 +1252,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             ...(sdkMode === 'openai-responses' ? { provider: effectiveProviderKey } : {}),
                             baseUrl: this.resolveRequestBaseUrl(baseModelConfig, requestSite)
                         };
-                        if (failoverAttempt) {
+                        if (managedCredentialAttempt) {
+                            ApiKeyManager.bindRequestApiKey(attemptModelConfig, managedCredentialAttempt.apiKey);
+                        } else if (failoverAttempt) {
                             ApiKeyManager.bindRequestApiKey(attemptModelConfig, failoverAttempt.apiKey);
                         }
                         balanceAffinity = undefined;
@@ -1210,8 +1264,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 balanceKey,
                                 credentialId: failoverAttempt.identity
                             };
+                        } else if (managedCredentialAttempt?.mode === 'balance') {
+                            balanceAffinity = {
+                                slot: effectiveProviderKey,
+                                balanceKey,
+                                credentialId: managedCredentialAttempt.identity,
+                                ...(managedCredentialRoutingGeneration !== undefined ?
+                                    { routingGeneration: managedCredentialRoutingGeneration }
+                                :   {})
+                            };
                         } else if (
                             !failoverAttempt &&
+                            !managedCredentialAttempt &&
                             ConfigSetStore.getSwitchMode(effectiveProviderKey) === 'balance'
                         ) {
                             const apiKey = balanceFallback?.apiKey;
@@ -1229,7 +1293,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         }
                         preferredBalanceCredentialId = balanceAffinity?.credentialId;
                         const requestApiKeyNames =
-                            requestId && !failoverAttempt ?
+                            requestId && !failoverAttempt && !managedCredentialAttempt ?
                                 await captureRequestApiKeyNames(effectiveProviderKey, requestSite, token)
                             :   undefined;
                         const handleRequestDispatched = (attemptStartedAt: number) => {
@@ -1243,7 +1307,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 attemptStartedAt,
                                 apiKeyHash,
                                 apiKeyHash ?
-                                    (failoverAttempt?.apiKeyName ?? requestApiKeyNames?.get(apiKeyHash))
+                                    (failoverAttempt?.apiKeyName ??
+                                        managedCredentialAttempt?.name ??
+                                        requestApiKeyNames?.get(apiKeyHash))
                                 :   undefined
                             );
                             if (requestId) {
@@ -1253,7 +1319,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         if (token.isCancellationRequested) {
                             throw new vscode.CancellationError();
                         }
-                        if (!failoverAttempt && !balanceAffinity) {
+                        if (!failoverAttempt && !managedCredentialAttempt && !balanceAffinity) {
                             const mode = ConfigSetStore.getSwitchMode(effectiveProviderKey);
                             const modeGeneration = ApiKeyFailoverManager.getSwitchModeGeneration(effectiveProviderKey);
                             const operationToken = ConfigSetStore.getApplyOperationToken(effectiveProviderKey);
@@ -1338,7 +1404,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             BalanceAffinityCache.instance.remember(
                                 effectiveProviderKey,
                                 balanceKey,
-                                balanceAffinity.credentialId
+                                balanceAffinity.credentialId,
+                                managedCredentialRoutingGeneration
                             );
                         }
                         const requestApiKey = await ApiKeyManager.getApiKeyForRequest(
@@ -1537,7 +1604,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             throw error;
                         }
                         const hasRetryBudget = retryConfig.maxAttempts === -1 || retryAttempt < retryConfig.maxAttempts;
-                        if (failoverAttempt) {
+                        if (managedCredentialAttempt) {
+                            if (retryConfig.enabled && hasRetryBudget) {
+                                attemptedFailoverIdentities.add(managedCredentialAttempt.identity);
+                                const decision = await managedCredentialAttempt.handleFailure(
+                                    error,
+                                    attemptedFailoverIdentities,
+                                    balanceKey
+                                );
+                                if (decision.handled) {
+                                    failoverRetryDecisions.set(error, decision.shouldRetry);
+                                }
+                            }
+                        } else if (failoverAttempt) {
                             failoverFailureCount += 1;
                             const decision = await ApiKeyFailoverManager.handleFailure(
                                 effectiveProviderKey,

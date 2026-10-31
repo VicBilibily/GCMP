@@ -63,6 +63,19 @@ test('compatible marker affinity restores a fingerprint, never a credential secr
     assert.equal(getMarkerBalanceCredential(marker, expected), 'a'.repeat(64));
 });
 
+test('routing generation invalidates stale marker affinity while preserving generation-zero markers', () => {
+    assert.equal(getMarkerBalanceCredential(marker, { ...expected, routingGeneration: 0 }), 'a'.repeat(64));
+    assert.equal(getMarkerBalanceCredential(marker, { ...expected, routingGeneration: 1 }), undefined);
+
+    const versionedMarker = {
+        ...marker,
+        balanceAffinity: { ...marker.balanceAffinity, routingGeneration: 3 }
+    };
+    assert.equal(getMarkerBalanceCredential(versionedMarker, { ...expected, routingGeneration: 3 }), 'a'.repeat(64));
+    assert.equal(getMarkerBalanceCredential(versionedMarker, { ...expected, routingGeneration: 4 }), undefined);
+    assert.equal(getMarkerBalanceCredential(versionedMarker, expected), undefined);
+});
+
 for (const field of ['extension', 'sessionId', 'subSessionId', 'provider', 'modelId', 'sdkMode'] as const) {
     test(`affinity rejects a marker with a different ${field}`, () => {
         assert.equal(getMarkerBalanceCredential({ ...marker, [field]: 'other' }, expected), undefined);

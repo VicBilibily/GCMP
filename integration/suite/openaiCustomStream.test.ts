@@ -340,7 +340,7 @@ suite('OpenAI custom SSE lifecycle', () => {
                     });
                     assert.equal(reads, cancelAt === 'before' ? 0 : 1);
                     assert.equal(requests, 0);
-                    assert.equal(observed.grants, 1);
+                    assert.equal(observed.grants, cancelAt === 'before' ? 0 : 1);
                     assert.equal(source.subscriptions, source.disposals);
                 } finally {
                     ConfigManager.createProxyAwareFetch = originalFetch;

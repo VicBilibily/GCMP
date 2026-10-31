@@ -39,6 +39,7 @@ export function getMarkerBalanceCredential(
         modelId: string;
         sdkMode: string;
         balanceKey: string;
+        routingGeneration?: number;
     }
 ): string | undefined {
     try {
@@ -49,7 +50,9 @@ export function getMarkerBalanceCredential(
                 value => typeof value === 'string' && value.length > 0
             ) ||
             (expected.subSessionId !== undefined &&
-                (typeof expected.subSessionId !== 'string' || !expected.subSessionId))
+                (typeof expected.subSessionId !== 'string' || !expected.subSessionId)) ||
+            (expected.routingGeneration !== undefined &&
+                (!Number.isSafeInteger(expected.routingGeneration) || expected.routingGeneration < 0))
         ) {
             return undefined;
         }
@@ -64,6 +67,13 @@ export function getMarkerBalanceCredential(
             !isRecord(affinity) ||
             affinity.slot !== expected.provider ||
             affinity.balanceKey !== expected.balanceKey ||
+            (expected.routingGeneration !== undefined &&
+                (affinity.routingGeneration ?? 0) !== expected.routingGeneration) ||
+            (expected.routingGeneration === undefined && affinity.routingGeneration !== undefined) ||
+            (affinity.routingGeneration !== undefined &&
+                (typeof affinity.routingGeneration !== 'number' ||
+                    !Number.isSafeInteger(affinity.routingGeneration) ||
+                    affinity.routingGeneration < 0)) ||
             typeof affinity.credentialId !== 'string' ||
             !/^[a-f0-9]{64}$/.test(affinity.credentialId)
         ) {

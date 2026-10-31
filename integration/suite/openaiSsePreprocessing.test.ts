@@ -251,24 +251,20 @@ suite('OpenAI SDK SSE preprocessing', () => {
                 }, SyntaxError);
             });
 
-            test(`does not finalize an incomplete event at EOF: ${media}, ${JSON.stringify(eol)}`, async () => {
-                const payload = multilineFrame(
-                    JSON.stringify(
-                        { type: 'response.completed', response: { id: 'incomplete', object: 'response', output: [] } },
-                        null,
-                        2
-                    ),
-                    eol
-                ).slice(0, -eol.length);
+            test(`accepts complete JSON without a final event delimiter: ${media}, ${JSON.stringify(eol)}`, async () => {
+                const completed = {
+                    type: 'response.completed',
+                    response: { id: 'eof-completed', object: 'response', output: [] }
+                };
+                const payload = multilineFrame(JSON.stringify(completed, null, 2), eol).slice(0, -eol.length);
                 const response = await createPreprocessor().preprocessSSEResponse(
                     createResponse(createChunkedBody(payload, 1), media)
                 );
-                let events = 0;
+                const events: unknown[] = [];
                 for await (const parsed of Stream.fromSSEResponse(response, new AbortController())) {
-                    assert.ok(parsed);
-                    events++;
+                    events.push(parsed);
                 }
-                assert.equal(events, 0);
+                assert.deepEqual(events, [completed]);
             });
         }
 

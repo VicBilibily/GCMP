@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -9,6 +9,7 @@ import test from 'node:test';
 import type { OAuthCredentials } from '../type';
 
 const require = createRequire(import.meta.url);
+const fsBuiltin = require('node:fs') as { readFileSync: (...args: unknown[]) => unknown };
 const NodeModule = require('node:module') as {
     prototype: { require: (id: string) => unknown };
 };
@@ -141,15 +142,131 @@ test('OAuthCredentialStore 命名凭证管理', async t => {
 
         await OAuthCredentialStore.setActiveCredential('codex', 'beta');
         assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'beta');
+        const selectionBeforeRestart = OAuthCredentialStore.getActiveCredentialSelection('codex');
 
         // 模拟另一窗口：重置内存状态后从 active.json 恢复
         OAuthCredentialStore.resetForTests();
         OAuthCredentialStore.initialize({ oauthDir });
         assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'beta');
+        assert.deepEqual(OAuthCredentialStore.getActiveCredentialSelection('codex'), selectionBeforeRestart);
 
         // 指定项已不存在：回退到排序后的第一份
         await OAuthCredentialStore.setActiveCredential('codex', 'ghost');
         assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'alpha');
+    });
+
+    await t.test('路由模式和账号权重持久化，删除账号时清除权重', async () => {
+        const routingDir = path.join(rootDir, 'routing-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: routingDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'alpha', { access_token: 'a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'beta', { access_token: 'b' });
+
+        assert.deepEqual(OAuthCredentialStore.getRoutingSettings('codex'), { mode: 'off', weights: {}, generation: 0 });
+        assert.equal(OAuthCredentialStore.getCredentialWeight('codex', 'alpha'), 1);
+        await assert.rejects(OAuthCredentialStore.setCredentialWeight('codex', 'alpha', 101), /weight/i);
+        await OAuthCredentialStore.setCredentialWeight('codex', 'alpha', 0);
+        await OAuthCredentialStore.setRoutingMode('codex', 'balance');
+        assert.deepEqual(OAuthCredentialStore.getRoutingSettings('codex'), {
+            mode: 'balance',
+            weights: { alpha: 0 },
+            generation: 2
+        });
+
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: routingDir });
+        assert.deepEqual(OAuthCredentialStore.getRoutingSettings('codex'), {
+            mode: 'balance',
+            weights: { alpha: 0 },
+            generation: 2
+        });
+        await OAuthCredentialStore.deleteCredentialFile('codex', 'alpha');
+        assert.deepEqual(OAuthCredentialStore.getRoutingSettings('codex'), {
+            mode: 'balance',
+            weights: {},
+            generation: 3
+        });
+    });
+
+    await t.test('路由权重支持手工凭证名且安全处理原型键', async () => {
+        const manualNameDir = path.join(rootDir, 'routing-manual-name-oauth');
+        fs.mkdirSync(manualNameDir, { recursive: true });
+        fs.writeFileSync(path.join(manualNameDir, 'codex-manual account.json'), JSON.stringify({ access_token: 'a' }));
+        fs.writeFileSync(path.join(manualNameDir, 'codex-__proto__.json'), JSON.stringify({ access_token: 'b' }));
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: manualNameDir });
+
+        await OAuthCredentialStore.setCredentialWeight('codex', 'manual account', 0);
+        await OAuthCredentialStore.setCredentialWeight('codex', '__proto__', 0);
+
+        const settings = OAuthCredentialStore.getRoutingSettings('codex');
+        assert.equal(Object.getPrototypeOf(settings.weights), Object.prototype);
+        assert.equal(Object.hasOwn(settings.weights, 'manual account'), true);
+        assert.equal(Object.hasOwn(settings.weights, '__proto__'), true);
+        assert.equal(OAuthCredentialStore.getCredentialWeight('codex', 'manual account'), 0);
+        assert.equal(OAuthCredentialStore.getCredentialWeight('codex', '__proto__'), 0);
+
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: manualNameDir });
+        assert.equal(OAuthCredentialStore.getCredentialWeight('codex', 'manual account'), 0);
+        assert.equal(OAuthCredentialStore.getCredentialWeight('codex', '__proto__'), 0);
+    });
+
+    await t.test('路由设置读取其他窗口更新的文件内容', async () => {
+        const routingDir = path.join(rootDir, 'routing-window-sync-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: routingDir });
+        assert.equal(OAuthCredentialStore.getRoutingSettings('codex').mode, 'off');
+
+        fs.mkdirSync(routingDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(routingDir, 'routing.json'),
+            JSON.stringify({ providers: { codex: { mode: 'balance', weights: { alpha: 4 }, generation: 7 } } })
+        );
+
+        assert.deepEqual(OAuthCredentialStore.getRoutingSettings('codex'), {
+            mode: 'balance',
+            weights: { alpha: 4 },
+            generation: 7
+        });
+        assert.equal(OAuthCredentialStore.getCredentialWeight('codex', 'alpha'), 4);
+    });
+
+    await t.test('并发设置路由模式和权重时保持 failover 资格不变量', async () => {
+        const concurrentRoutingDir = path.join(rootDir, 'concurrent-routing-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: concurrentRoutingDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'alpha', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'beta', { access_token: 'token-b' });
+
+        const results = await Promise.allSettled([
+            OAuthCredentialStore.setRoutingMode('codex', 'failover'),
+            OAuthCredentialStore.setCredentialWeight('codex', 'alpha', 0)
+        ]);
+        assert.equal(results.filter(result => result.status === 'rejected').length, 1);
+
+        const settings = OAuthCredentialStore.getRoutingSettings('codex');
+        const eligibleCount = OAuthCredentialStore.listCredentials('codex').filter(
+            entry => entry.hasAccessToken && (settings.weights[entry.name] ?? 1) > 0
+        ).length;
+        assert.ok(settings.mode === 'off' || eligibleCount >= 2);
+    });
+
+    await t.test('删除账号后 failover 不再满足最少账号数时关闭路由', async () => {
+        const failoverDir = path.join(rootDir, 'routing-failover-delete-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: failoverDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'alpha', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'beta', { access_token: 'token-b' });
+        await OAuthCredentialStore.setRoutingMode('codex', 'failover');
+
+        await OAuthCredentialStore.deleteCredentialFile('codex', 'beta');
+
+        assert.deepEqual(OAuthCredentialStore.getRoutingSettings('codex'), {
+            mode: 'off',
+            weights: {},
+            generation: 2
+        });
     });
 
     await t.test('保存与删除凭证文件', async () => {
@@ -263,6 +380,182 @@ test('OAuthCredentialStore 命名凭证管理', async t => {
             false
         );
         assert.deepEqual([...order], ['key', 'selection']);
+    });
+
+    await t.test('条件切换拒绝覆盖已经变化的活跃选择', async () => {
+        const conditionalDir = path.join(rootDir, 'conditional-selection-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: conditionalDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'a', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'b', { access_token: 'token-b' });
+        await OAuthCredentialStore.setActiveCredential('codex', 'a');
+        const staleSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+
+        await OAuthCredentialStore.setActiveCredential('codex', 'b');
+        assert.equal(await OAuthCredentialStore.setActiveCredentialIfCurrent('codex', staleSelection, 'a'), undefined);
+        assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'b');
+    });
+
+    await t.test('其他 provider 的选择变化不使当前 provider 的 generation 失效', async () => {
+        const providerIsolationDir = path.join(rootDir, 'provider-isolation-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: providerIsolationDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'a', { access_token: 'codex-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'b', { access_token: 'codex-b' });
+        await OAuthCredentialStore.saveCredentialFile('grok', 'a', { access_token: 'grok-a' });
+        await OAuthCredentialStore.saveCredentialFile('grok', 'b', { access_token: 'grok-b' });
+        await OAuthCredentialStore.setActiveCredential('codex', 'a');
+        await OAuthCredentialStore.setActiveCredential('grok', 'a');
+        const codexSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+
+        const selectionPath = path.join(providerIsolationDir, 'active.json');
+        const activeSelection = JSON.parse(fs.readFileSync(selectionPath, 'utf-8')) as Record<string, unknown>;
+        const generations = JSON.parse(String(activeSelection.__gcmp_active_selection_generations_v1__)) as Record<
+            string,
+            number
+        >;
+        activeSelection.grok = 'b';
+        generations.grok = (generations.grok ?? 0) + 1;
+        activeSelection.__gcmp_active_selection_generations_v1__ = JSON.stringify(generations);
+        fs.writeFileSync(selectionPath, JSON.stringify(activeSelection));
+
+        assert.deepEqual(OAuthCredentialStore.getActiveCredentialSelection('codex'), codexSelection);
+        let actionRan = false;
+        assert.equal(
+            await OAuthCredentialStore.runIfActiveCredential('codex', codexSelection, async () => {
+                actionRan = true;
+            }),
+            true
+        );
+        assert.equal(actionRan, true);
+    });
+
+    await t.test('条件切换拒绝已经删除的目标账号', async () => {
+        const deletedTargetDir = path.join(rootDir, 'conditional-deleted-target-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: deletedTargetDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'a', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'b', { access_token: 'token-b' });
+        await OAuthCredentialStore.setActiveCredential('codex', 'a');
+        const expectedSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+        await OAuthCredentialStore.deleteCredentialFile('codex', 'b');
+
+        assert.equal(
+            await OAuthCredentialStore.setActiveCredentialIfCurrent('codex', expectedSelection, 'b'),
+            undefined
+        );
+        assert.deepEqual(OAuthCredentialStore.getActiveCredentialSelection('codex'), expectedSelection);
+    });
+
+    await t.test('条件切换拒绝跨窗口切换后回到同一账号的旧快照', async () => {
+        const abaDir = path.join(rootDir, 'selection-aba-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: abaDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'a', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'b', { access_token: 'token-b' });
+        await OAuthCredentialStore.setActiveCredential('codex', 'a');
+        const staleSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+
+        const selectionPath = path.join(abaDir, 'active.json');
+        const externalState = JSON.parse(fs.readFileSync(selectionPath, 'utf-8')) as Record<string, unknown>;
+        const generations = JSON.parse(String(externalState.__gcmp_active_selection_generations_v1__)) as Record<
+            string,
+            number
+        >;
+        externalState.codex = 'b';
+        generations.codex += 1;
+        externalState.codex = 'a';
+        generations.codex += 1;
+        externalState.__gcmp_active_selection_generations_v1__ = JSON.stringify(generations);
+        fs.writeFileSync(selectionPath, JSON.stringify(externalState));
+
+        assert.deepEqual(OAuthCredentialStore.getActiveCredentialSelection('codex'), {
+            name: 'a',
+            generation: staleSelection.generation + 2
+        });
+        assert.equal(await OAuthCredentialStore.setActiveCredentialIfCurrent('codex', staleSelection, 'b'), undefined);
+        assert.equal(await OAuthCredentialStore.runIfActiveCredential('codex', staleSelection, async () => {}), false);
+        assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'a');
+    });
+
+    await t.test('旧版平铺读写保留选择并使旧 ABA 快照失效', async () => {
+        const compatibilityDir = path.join(rootDir, 'legacy-active-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: compatibilityDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'a', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'b', { access_token: 'token-b' });
+        await OAuthCredentialStore.setActiveCredential('codex', 'a');
+        const staleSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+        const selectionPath = path.join(compatibilityDir, 'active.json');
+
+        const legacyWriteSelection = async (name: string) => {
+            const parsed = JSON.parse(fs.readFileSync(selectionPath, 'utf-8')) as Record<string, unknown>;
+            const legacyState = Object.fromEntries(
+                Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+            );
+            legacyState.codex = name;
+            const tempPath = `${selectionPath}.${name}.${Date.now()}.tmp`;
+            fs.writeFileSync(tempPath, JSON.stringify(legacyState));
+            fs.renameSync(tempPath, selectionPath);
+        };
+
+        await legacyWriteSelection('b');
+        await legacyWriteSelection('a');
+
+        const currentSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+        assert.equal(currentSelection.name, 'a');
+        assert.ok(currentSelection.generation > staleSelection.generation);
+        assert.equal(await OAuthCredentialStore.setActiveCredentialIfCurrent('codex', staleSelection, 'b'), undefined);
+        assert.equal(await OAuthCredentialStore.runIfActiveCredential('codex', staleSelection, async () => {}), false);
+        assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'a');
+    });
+
+    await t.test('active.json 内容和 revision 使用同一文件版本', async () => {
+        const raceDir = path.join(rootDir, 'selection-read-race-oauth');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: raceDir });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'a', { access_token: 'token-a' });
+        await OAuthCredentialStore.saveCredentialFile('codex', 'b', { access_token: 'token-b' });
+        await OAuthCredentialStore.setActiveCredential('codex', 'a');
+        OAuthCredentialStore.resetForTests();
+        OAuthCredentialStore.initialize({ oauthDir: raceDir });
+
+        const selectionPath = path.join(raceDir, 'active.json');
+        const originalReadFileSync = fsBuiltin.readFileSync;
+        let externalWritesCompleted = false;
+        fsBuiltin.readFileSync = (...args: unknown[]) => {
+            const content = originalReadFileSync(...args);
+            if (!externalWritesCompleted && (args[0] === selectionPath || typeof args[0] === 'number')) {
+                externalWritesCompleted = true;
+                for (const name of ['b', 'a']) {
+                    const current = JSON.parse(fs.readFileSync(selectionPath, 'utf-8')) as Record<string, unknown>;
+                    const legacyState = Object.fromEntries(
+                        Object.entries(current).filter(
+                            (entry): entry is [string, string] => typeof entry[1] === 'string'
+                        )
+                    );
+                    legacyState.codex = name;
+                    const tempPath = `${selectionPath}.${name}.tmp`;
+                    fs.writeFileSync(tempPath, JSON.stringify(legacyState));
+                    fs.renameSync(tempPath, selectionPath);
+                }
+            }
+            return content;
+        };
+        syncBuiltinESMExports();
+        try {
+            const staleSelection = OAuthCredentialStore.getActiveCredentialSelection('codex');
+            assert.equal(externalWritesCompleted, true);
+            assert.equal(staleSelection.name, 'a');
+            assert.equal(
+                await OAuthCredentialStore.setActiveCredentialIfCurrent('codex', staleSelection, 'b'),
+                undefined
+            );
+            assert.equal(OAuthCredentialStore.getActiveCredentialName('codex'), 'a');
+        } finally {
+            fsBuiltin.readFileSync = originalReadFileSync;
+            syncBuiltinESMExports();
+        }
     });
 
     await t.test('CodexCliAuth 使用 oauth 凭证并保持平铺格式保存', async () => {
@@ -560,9 +853,14 @@ test('OAuthCredentialStore 命名凭证管理', async t => {
             string,
             unknown
         >;
-        assert.equal(activeSelection.codex, 'codex-account');
-        assert.equal(activeSelection.grok, 'grok-account');
-        assert.deepEqual(Object.keys(activeSelection).sort(), ['codex', 'grok']);
+        assert.deepEqual(
+            { codex: activeSelection.codex, grok: activeSelection.grok },
+            { codex: 'codex-account', grok: 'grok-account' }
+        );
+        assert.deepEqual(JSON.parse(String(activeSelection.__gcmp_active_selection_generations_v1__)), {
+            codex: 1,
+            grok: 1
+        });
     });
 
     await t.test('活跃选择锁可回收死进程留下的锁目录', async () => {
@@ -587,7 +885,7 @@ test('OAuthCredentialStore 命名凭证管理', async t => {
             unknown
         >;
         assert.equal(activeSelection.codex, 'recovered');
-        assert.deepEqual(Object.keys(activeSelection), ['codex']);
+        assert.deepEqual(JSON.parse(String(activeSelection.__gcmp_active_selection_generations_v1__)), { codex: 1 });
         assert.equal(fs.existsSync(lockDir), false);
         assert.equal(fs.existsSync(`${lockDir}.reclaim`), false);
     });

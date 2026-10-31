@@ -104,6 +104,10 @@ export function renderCliDetail(detail: HTMLElement, provider: string): HTMLElem
     guide.appendChild(guideActions);
     detail.appendChild(guide);
 
+    if (cli.oauthCredentials.length > 0) {
+        detail.appendChild(renderCliRoutingControls(cli));
+    }
+
     // 每个命名 OAuth 账号独立展示；无命名账号时显示 CLI 默认凭证。
     const list = el('div', 'csm-card-list');
     if (cli.oauthCredentials.length > 0) {
@@ -116,6 +120,62 @@ export function renderCliDetail(detail: HTMLElement, provider: string): HTMLElem
     detail.appendChild(list);
 
     return detail;
+}
+
+function renderCliRoutingControls(cli: CliProviderOption): HTMLElement {
+    const section = el('div', 'csm-cli-routing');
+    section.appendChild(el('div', 'csm-config-meta-label', t('Account routing', '账号路由')));
+    const tabs = el('div', 'csm-switch-tabs');
+    const enabledCount = cli.oauthCredentials.filter(
+        account => account.hasAccessToken && (account.balanceWeight ?? 1) > 0
+    ).length;
+    const modes: Array<{ mode: CliProviderOption['switchMode']; label: string; title: string }> = [
+        {
+            mode: 'off',
+            label: t('Off', '关闭'),
+            title: t('Use the active OAuth account.', '仅使用当前活跃 OAuth 账号。')
+        },
+        {
+            mode: 'failover',
+            label: t('Failover', '故障转移'),
+            title: t(
+                'On account authorization or quota rejection, activate the next eligible account and retry.',
+                '账号授权被拒绝或明确额度耗尽时，切换到下一个可用账号并重试。'
+            )
+        },
+        {
+            mode: 'balance',
+            label: t('Balance', '负载均衡'),
+            title: t(
+                'Assign accounts by session and weight. Account rejection moves only that session.',
+                '按会话和权重分配账号；账号被拒绝时只迁移当前会话。'
+            )
+        }
+    ];
+    for (const { mode, label, title } of modes) {
+        const tab = el('button', `csm-switch-tab${cli.switchMode === mode ? ' csm-switch-tab-active' : ''}`, label);
+        const unavailable = (mode === 'failover' && enabledCount < 2) || (mode === 'balance' && enabledCount < 1);
+        tab.type = 'button';
+        tab.title =
+            unavailable ?
+                mode === 'failover' ?
+                    t('Enable two usable accounts first.', '请先启用两个可用账号。')
+                :   t('Enable one usable account first.', '请先启用一个可用账号。')
+            :   title;
+        tab.disabled = state.busy || unavailable;
+        tab.setAttribute('aria-pressed', cli.switchMode === mode ? 'true' : 'false');
+        tab.addEventListener('click', () => {
+            if (mode === cli.switchMode) {
+                return;
+            }
+            state.busy = true;
+            render();
+            postToVSCode({ command: 'setCliOAuthSwitchMode', provider: cli.provider, mode });
+        });
+        tabs.appendChild(tab);
+    }
+    section.appendChild(tabs);
+    return section;
 }
 
 // ============= 单个 CLI 账号卡片 =============
@@ -196,6 +256,39 @@ function renderCliAccountCard(cli: CliProviderOption, account?: CliOAuthCredenti
         )
     );
     cardBody.appendChild(statusItem);
+
+    if (account) {
+        const weightItem = el('label', 'csm-config-meta-item csm-cli-routing-weight-item');
+        weightItem.appendChild(el('div', 'csm-config-meta-label', t('Routing weight', '路由权重')));
+        const weightInput = el('input', 'csm-cli-routing-weight');
+        weightInput.type = 'number';
+        weightInput.min = '0';
+        weightInput.max = '100';
+        weightInput.step = '1';
+        weightInput.value = String(account.balanceWeight ?? 1);
+        weightInput.disabled = state.busy;
+        weightInput.setAttribute('aria-label', t('Routing weight for {0}', '{0} 的路由权重', account.name));
+        weightInput.addEventListener('change', () => {
+            const weight = Number(weightInput.value);
+            if (!Number.isInteger(weight) || weight < 0 || weight > 100) {
+                weightInput.value = String(account.balanceWeight ?? 1);
+                return;
+            }
+            if (weight === (account.balanceWeight ?? 1)) {
+                return;
+            }
+            state.busy = true;
+            render();
+            postToVSCode({
+                command: 'setCliOAuthWeight',
+                provider: cli.provider,
+                credentialName: account.name,
+                weight
+            });
+        });
+        weightItem.appendChild(weightInput);
+        cardBody.appendChild(weightItem);
+    }
 
     // 余量（与普通 provider 一致，在卡片 body 内跨整行）
     if (account?.usage) {

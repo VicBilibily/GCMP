@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 import * as vscode from 'vscode';
 
 import { InterInstanceBus, type ApiKeyFailoverRequestedEvent } from '../../src/interInstance';
-import { GenericModelProvider } from '../../src/providers/genericModelProvider';
+import { GenericModelProvider, type ManagedCredentialAttempt } from '../../src/providers/genericModelProvider';
 import { OpenAIHandler } from '../../src/handlers/openai/openaiHandler';
 import { RateLimiter, type RateLimitHandle } from '../../src/rateLimit/rateLimiter';
 import { LeaderElectionService } from '../../src/status/leaderElectionService';
@@ -70,7 +70,9 @@ interface TestProvider {
         effectiveProviderKey?: string,
         requestStartTime?: number,
         totalInputTokens?: number,
-        onAttemptStarted?: (requestMetricStartTime: number) => void
+        onAttemptStarted?: (requestMetricStartTime: number) => void,
+        onThrottled?: () => void,
+        balanceKey?: string
     ) => Promise<void>;
     getRequestRetryConfig: () => { enabled: boolean; maxAttempts: number; initialDelayMs: number; maxDelayMs: number };
     openaiCustomHandler: TestHandler;
@@ -690,6 +692,85 @@ suite('genericModelProvider retry gating', () => {
         assert.deepEqual(outputs, ['recovered']);
         assert.equal(ConfigSetStore.getActiveId(slot), 'b');
         assert.equal(await ApiKeyManager.getApiKey(slot), 'key-b');
+    });
+
+    test('managed OAuth attempts bind tokens per request and retry after an account rejection', async () => {
+        const context = createFailoverContext();
+        ApiKeyManager.initialize(context);
+        ConfigSetStore.initialize(context);
+        const slot = 'test-managed-oauth';
+        await ApiKeyManager.setApiKey(slot, 'legacy-key');
+        const usedKeys: string[] = [];
+        const handledFailures: string[] = [];
+        const provider = createTestProvider({
+            async handleRequest(_model, config, _messages, _options, progress) {
+                const apiKey = await ApiKeyManager.getApiKeyForRequest(slot, config);
+                usedKeys.push(apiKey ?? '');
+                if (apiKey === 'token-a') {
+                    throw Object.assign(new Error('account rejected'), { status: 401 });
+                }
+                progress.report(new vscode.LanguageModelTextPart('recovered'));
+            }
+        });
+        let nextCredential = 0;
+        let candidateCountCalls = 0;
+        class ManagedTestProvider extends GenericModelProvider {
+            protected override getManagedCredentialCandidateCount(_provider: string): number {
+                candidateCountCalls++;
+                return 2;
+            }
+
+            protected override async captureManagedCredentialAttempt(
+                _provider: string,
+                _balanceKey: string,
+                _token: vscode.CancellationToken
+            ): Promise<ManagedCredentialAttempt | undefined> {
+                const name = nextCredential++ === 0 ? 'account-a' : 'account-b';
+                return {
+                    mode: 'failover',
+                    apiKey: `token-${name.endsWith('a') ? 'a' : 'b'}`,
+                    identity: `oauth:${name}`,
+                    name,
+                    handleFailure: async (_error, attemptedIdentities, balanceKey) => {
+                        handledFailures.push(`${[...attemptedIdentities].join(',')}:${balanceKey}`);
+                        return { handled: true, shouldRetry: attemptedIdentities.size < 2 };
+                    }
+                };
+            }
+        }
+        Object.setPrototypeOf(provider, ManagedTestProvider.prototype);
+        provider.getRequestRetryConfig = () => ({ enabled: true, maxAttempts: 1, initialDelayMs: 0, maxDelayMs: 0 });
+        const outputs: string[] = [];
+        const cancellation = new vscode.CancellationTokenSource();
+        try {
+            await provider.executeModelRequest(
+                model,
+                { ...modelConfig, provider: slot },
+                [],
+                {
+                    modelOptions: { requestKind: 'main-agent' }
+                } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                createProgress(outputs),
+                '',
+                'session-managed-oauth',
+                cancellation.token,
+                slot,
+                Date.now(),
+                0,
+                undefined,
+                undefined,
+                'session-managed-oauth'
+            );
+
+            assert.deepEqual(usedKeys, ['token-a', 'token-b']);
+            assert.deepEqual(handledFailures, ['oauth:account-a:session-managed-oauth']);
+            assert.equal(candidateCountCalls, 1, 'the retry budget should read managed credential candidates');
+            assert.equal(nextCredential, 2, 'each retry should capture a managed OAuth credential');
+            assert.deepEqual(outputs, ['recovered']);
+            assert.equal(await ApiKeyManager.getApiKey(slot), 'legacy-key');
+        } finally {
+            cancellation.dispose();
+        }
     });
 
     test('zero-weight failover skips a disabled middle credential on retries while preserving a dispatched snapshot', async () => {

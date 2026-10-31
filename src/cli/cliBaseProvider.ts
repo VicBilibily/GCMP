@@ -16,11 +16,21 @@ import {
 import { ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { Logger } from '../utils/runtime/logger';
-import { GenericModelProvider } from '../providers/genericModelProvider';
+import { GenericModelProvider, type ManagedCredentialAttempt } from '../providers/genericModelProvider';
 import { CliWizard } from '../wizards/cliWizard';
 import { CliAuthFactory } from './auth/cliAuthFactory';
+import { OAuthCredentialRouter } from './auth/oauthCredentialRouter';
+import { OAuthCredentialStore } from './auth/oauthCredentialStore';
 import { StatusBarManager } from '../status';
 import { t } from '../utils/runtime/l10n';
+import { BalanceAffinityCache } from '../utils/config/failover/balanceAffinityCache';
+
+const oauthCredentialRouter = new OAuthCredentialRouter({
+    store: OAuthCredentialStore,
+    authenticator: CliAuthFactory,
+    apiKeySync: ApiKeyManager,
+    balanceAffinity: BalanceAffinityCache.instance
+});
 
 /**
  * CLI 认证专用模型提供商类
@@ -30,6 +40,55 @@ import { t } from '../utils/runtime/l10n';
 export class CliBaseProvider extends GenericModelProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
+    }
+
+    protected override getManagedCredentialCandidateCount(provider: string): number {
+        return provider === this.providerKey ? oauthCredentialRouter.getCandidateCount(provider) : 0;
+    }
+
+    protected override getManagedCredentialRoutingGeneration(provider: string): number | undefined {
+        if (provider !== this.providerKey) {
+            return undefined;
+        }
+        const settings = OAuthCredentialStore.getRoutingSettings(provider);
+        return settings.mode === 'off' ? undefined : settings.generation;
+    }
+
+    protected override captureManagedCredentialAttempt(
+        provider: string,
+        balanceKey: string,
+        token: CancellationToken,
+        preferredCredentialId?: string,
+        preferredRoutingGeneration?: number
+    ): Promise<ManagedCredentialAttempt | undefined> | undefined {
+        if (
+            provider !== this.providerKey ||
+            token.isCancellationRequested ||
+            OAuthCredentialStore.getRoutingSettings(provider).mode === 'off'
+        ) {
+            return undefined;
+        }
+        return oauthCredentialRouter
+            .captureAttempt(provider, balanceKey, preferredCredentialId, preferredRoutingGeneration)
+            .then(routeAttempt => {
+                if (!routeAttempt || token.isCancellationRequested) {
+                    return undefined;
+                }
+                return {
+                    mode: routeAttempt.mode,
+                    apiKey: routeAttempt.apiKey,
+                    identity: routeAttempt.identity,
+                    name: routeAttempt.credentialName,
+                    handleFailure: async (error, attemptedIdentities, currentBalanceKey) =>
+                        await oauthCredentialRouter.handleFailure(
+                            provider,
+                            routeAttempt,
+                            error,
+                            attemptedIdentities,
+                            currentBalanceKey
+                        )
+                };
+            });
     }
 
     /**

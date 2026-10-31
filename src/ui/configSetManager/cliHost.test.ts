@@ -35,6 +35,14 @@ test('CLI provider status requires a non-empty access token', async t => {
                         }
                     };
                 }
+                if (/oauthCredentialStore(?:\.ts)?$/.test(id)) {
+                    return {
+                        OAuthCredentialStore: {
+                            getRoutingSettings: () => ({ mode: 'off', weights: {} }),
+                            getCredentialWeight: () => 1
+                        }
+                    };
+                }
                 if (/logger(?:\.ts)?$/.test(id)) {
                     return { Logger: { warn: () => undefined } };
                 }
@@ -107,6 +115,7 @@ test('CLI provider status requires a non-empty access token', async t => {
             for (const provider of providers) {
                 assert.equal(provider.loading, false);
                 assert.equal(provider.isCliInstalled, true);
+                assert.equal(provider.switchMode, 'off');
                 assert.equal(provider.isAuthenticated, scenario.isAuthenticated, provider.provider);
                 assert.match(provider.statusDetail ?? '', scenario.status, provider.provider);
             }

@@ -26,6 +26,7 @@ import { OAuthCredentialStore } from '../../cli/auth/oauthCredentialStore';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import { ApiKeyFailoverManager } from '../../utils/config/failover/apiKeyFailoverManager';
+import { BalanceAffinityCache } from '../../utils/config/failover/balanceAffinityCache';
 import { collectManagedSlots } from './stateHost';
 import type { ActiveConfigItemSnapshot, ActiveKeyAction, ActiveSlotSnapshot, PanelContext } from './types';
 
@@ -733,6 +734,86 @@ export class CrudHost {
         } catch (error) {
             Logger.error('[ConfigSet] Failed to open oauth credential folder:', error);
             vscode.window.showErrorMessage(t('Failed to open the oauth folder.', '无法打开 oauth 文件夹。'));
+        }
+    }
+
+    async handleSetCliOAuthSwitchMode(provider: string, mode: 'off' | 'failover' | 'balance'): Promise<void> {
+        if (!CliAuthFactory.getSupportedCliTypes().some(cli => cli.id === provider)) {
+            return;
+        }
+        this.ctx.post({ command: 'syncStatus', busy: true });
+        try {
+            const routingSettings = OAuthCredentialStore.getRoutingSettings(provider);
+            const eligibleCount = OAuthCredentialStore.listCredentials(provider).filter(
+                entry =>
+                    entry.hasAccessToken &&
+                    (Object.hasOwn(routingSettings.weights, entry.name) ?
+                        (routingSettings.weights[entry.name] ?? 1)
+                    :   1) > 0
+            ).length;
+            if ((mode === 'failover' && eligibleCount < 2) || (mode === 'balance' && eligibleCount < 1)) {
+                throw new Error(
+                    mode === 'failover' ?
+                        t(
+                            'Failover requires at least two OAuth accounts with access tokens and positive weights.',
+                            '故障转移至少需要两个含 access_token 且权重大于 0 的 OAuth 账号。'
+                        )
+                    :   t(
+                            'Load balancing requires at least one OAuth account with an access token and positive weight.',
+                            '负载均衡至少需要一个含 access_token 且权重大于 0 的 OAuth 账号。'
+                        )
+                );
+            }
+            await OAuthCredentialStore.setRoutingMode(provider, mode);
+            BalanceAffinityCache.instance.clear(provider);
+        } catch (error) {
+            Logger.error(`[ConfigSet] Failed to set ${provider} OAuth routing mode:`, error);
+            vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+        } finally {
+            try {
+                await this.ctx.refreshCliProviders();
+            } catch (error) {
+                Logger.warn(`[ConfigSet] Failed to refresh ${provider} OAuth routing state:`, error);
+            }
+            this.ctx.post({ command: 'syncStatus', busy: false });
+        }
+    }
+
+    async handleSetCliOAuthWeight(provider: string, credentialName: string, weight: number): Promise<void> {
+        if (!CliAuthFactory.getSupportedCliTypes().some(cli => cli.id === provider)) {
+            return;
+        }
+        this.ctx.post({ command: 'syncStatus', busy: true });
+        try {
+            const settings = OAuthCredentialStore.getRoutingSettings(provider);
+            const mode = settings.mode;
+            const eligibleCount = OAuthCredentialStore.listCredentials(provider).filter(entry => {
+                const currentWeight =
+                    entry.name === credentialName ? weight
+                    : Object.hasOwn(settings.weights, entry.name) ? (settings.weights[entry.name] ?? 1)
+                    : 1;
+                return entry.hasAccessToken && currentWeight > 0;
+            }).length;
+            if ((mode === 'failover' && eligibleCount < 2) || (mode === 'balance' && eligibleCount < 1)) {
+                throw new Error(
+                    t(
+                        'This weight would leave the selected routing mode without enough eligible OAuth accounts.',
+                        '此权重会导致当前路由模式没有足够的可用 OAuth 账号。'
+                    )
+                );
+            }
+            await OAuthCredentialStore.setCredentialWeight(provider, credentialName, weight);
+            BalanceAffinityCache.instance.clear(provider);
+        } catch (error) {
+            Logger.error(`[ConfigSet] Failed to set ${provider}/${credentialName} OAuth weight:`, error);
+            vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+        } finally {
+            try {
+                await this.ctx.refreshCliProviders();
+            } catch (error) {
+                Logger.warn(`[ConfigSet] Failed to refresh ${provider} OAuth account state:`, error);
+            }
+            this.ctx.post({ command: 'syncStatus', busy: false });
         }
     }
 

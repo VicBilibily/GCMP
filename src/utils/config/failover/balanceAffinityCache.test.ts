@@ -42,6 +42,13 @@ test('replacement credentials overwrite the old binding', () => {
     assert.equal(cache.get('slot', 'turn'), 'replacement');
 });
 
+test('routing generations isolate affinity entries across extension hosts', () => {
+    const cache = new BalanceAffinityCache();
+    cache.remember('slot', 'turn', 'credential-old', 4);
+    assert.equal(cache.get('slot', 'turn', 4), 'credential-old');
+    assert.equal(cache.get('slot', 'turn', 5), undefined);
+});
+
 test('inactive bindings expire after the recovery lifetime', () => {
     let now = 0;
     const cache = new BalanceAffinityCache(() => now);

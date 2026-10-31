@@ -121,6 +121,33 @@
     color: var(--vscode-button-foreground);
 }
 
+.csm-cli-routing {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin: 0 0 10px;
+}
+
+.csm-cli-routing-weight-item {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.csm-cli-routing-weight {
+    box-sizing: border-box;
+    width: 76px;
+    min-height: 24px;
+    padding: 2px 6px;
+    color: var(--vscode-input-foreground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+    border-radius: 3px;
+}
+
 .csm-slot-tag-main,
 .csm-slot-tag-variant {
     flex: none;

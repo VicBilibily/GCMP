@@ -5,6 +5,7 @@
  *---------------------------------------------------------------------------------------------*/
 
 import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
+import { OAuthCredentialStore } from '../../cli/auth/oauthCredentialStore';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import type { CliProviderOption } from './types';
@@ -18,6 +19,7 @@ export function buildCliProviderPlaceholders(): CliProviderOption[] {
         isAuthenticated: false,
         cliCommand: cli.id,
         isCliInstalled: false,
+        switchMode: OAuthCredentialStore.getRoutingSettings(cli.id).mode,
         oauthCredentials: []
     }));
 }
@@ -32,12 +34,15 @@ export async function buildCliProviders(): Promise<CliProviderOption[]> {
             const isCliInstalled = instance ? await instance.isCliInstalled() : false;
             const credentials = await CliAuthFactory.loadCredentials(cli.id);
             const activeCredentialName = CliAuthFactory.getCredentialSourceInfo(cli.id).name;
+            const routingSettings = OAuthCredentialStore.getRoutingSettings(cli.id);
             const oauthCredentials = CliAuthFactory.listOAuthCredentials(cli.id).map(entry => ({
                 name: entry.name,
                 label: entry.label,
                 hasAccessToken: entry.hasAccessToken,
                 expiryDate: entry.expiryDate,
-                isActive: entry.name === activeCredentialName
+                isActive: entry.name === activeCredentialName,
+                balanceWeight:
+                    Object.hasOwn(routingSettings.weights, entry.name) ? (routingSettings.weights[entry.name] ?? 1) : 1
             }));
             let isAuthenticated = false;
             let statusDetail: string | undefined;
@@ -62,6 +67,7 @@ export async function buildCliProviders(): Promise<CliProviderOption[]> {
                 cliCommand: cli.id,
                 isCliInstalled,
                 statusDetail,
+                switchMode: routingSettings.mode,
                 oauthCredentials
             });
         } catch (error) {
@@ -73,6 +79,7 @@ export async function buildCliProviders(): Promise<CliProviderOption[]> {
                 isAuthenticated: false,
                 cliCommand: cli.id,
                 isCliInstalled: false,
+                switchMode: OAuthCredentialStore.getRoutingSettings(cli.id).mode,
                 oauthCredentials: [],
                 statusDetail: t('Unable to check status. Retry refresh later.', '暂时无法检查状态，请稍后重试刷新。')
             });

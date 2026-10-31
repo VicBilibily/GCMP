@@ -19,6 +19,7 @@ test('default CLI usage success marks authentication valid without changing stat
         isAuthenticated: false,
         cliCommand: 'codex',
         isCliInstalled: true,
+        switchMode: 'off',
         statusDetail: 'Credentials expired.',
         oauthCredentials: []
     };
@@ -107,6 +108,28 @@ test('validates CLI OAuth account management and usage messages', () => {
     );
     assert.equal(
         sanitizeWebViewMessage({ command: 'refreshCliUsage', provider: 'codex', credentialName: 42 }),
+        undefined
+    );
+    assert.deepEqual(sanitizeWebViewMessage({ command: 'setCliOAuthSwitchMode', provider: 'codex', mode: 'balance' }), {
+        command: 'setCliOAuthSwitchMode',
+        provider: 'codex',
+        mode: 'balance'
+    });
+    assert.equal(
+        sanitizeWebViewMessage({ command: 'setCliOAuthSwitchMode', provider: 'codex', mode: 'unknown' }),
+        undefined
+    );
+    assert.deepEqual(
+        sanitizeWebViewMessage({ command: 'setCliOAuthWeight', provider: 'codex', credentialName: 'work', weight: 0 }),
+        { command: 'setCliOAuthWeight', provider: 'codex', credentialName: 'work', weight: 0 }
+    );
+    assert.equal(
+        sanitizeWebViewMessage({
+            command: 'setCliOAuthWeight',
+            provider: 'codex',
+            credentialName: 'work',
+            weight: 101
+        }),
         undefined
     );
 });

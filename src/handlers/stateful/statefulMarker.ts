@@ -58,6 +58,7 @@ export interface StatefulMarkerContainer {
         slot: string;
         balanceKey: string;
         credentialId: string;
+        routingGeneration?: number;
     };
     /** 响应ID，模型返回响应标识 */
     responseId: string;

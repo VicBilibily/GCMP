@@ -217,6 +217,7 @@ export interface CliOAuthCredentialOption {
     hasAccessToken: boolean;
     expiryDate?: number;
     isActive: boolean;
+    balanceWeight?: number;
     usage?: CliUsageState;
 }
 
@@ -234,6 +235,8 @@ export interface CliProviderOption {
     isCliInstalled: boolean;
     /** 认证状态详情（过期/缺失/有效） */
     statusDetail?: string;
+    /** 命名 OAuth 账号自动路由模式 */
+    switchMode: ConfigSetSwitchMode;
     /** 余量查询状态（仅支持余量的 CLI，如 codex） */
     usage?: CliUsageState;
     /** oauth 文件夹中的命名账号；各自拥有独立额度状态 */
@@ -346,6 +349,8 @@ export type WebViewMessage =
     | { command: 'openOAuthFolder'; provider: string }
     | { command: 'activateCliCredential'; provider: string; credentialName: string }
     | { command: 'deleteCliCredential'; provider: string; credentialName: string }
+    | { command: 'setCliOAuthSwitchMode'; provider: string; mode: ConfigSetSwitchMode }
+    | { command: 'setCliOAuthWeight'; provider: string; credentialName: string; weight: number }
     | { command: 'refreshCliUsage'; provider: string; credentialName?: string }
     | { command: 'upload' }
     | { command: 'uploadSelected'; selections: SlotItemSelection[] }
@@ -443,6 +448,22 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
         case 'activateCliCredential':
         case 'deleteCliCredential':
             return isValidString(msg.provider) && isValidString(msg.credentialName) ?
+                    (msg as unknown as WebViewMessage)
+                :   undefined;
+        case 'setCliOAuthSwitchMode':
+            return (
+                    isValidString(msg.provider) &&
+                        (msg.mode === 'off' || msg.mode === 'failover' || msg.mode === 'balance')
+                ) ?
+                    (msg as unknown as WebViewMessage)
+                :   undefined;
+        case 'setCliOAuthWeight':
+            return (
+                    isValidString(msg.provider) &&
+                        isValidString(msg.credentialName) &&
+                        typeof msg.weight === 'number' &&
+                        isValidBalanceWeight(msg.weight)
+                ) ?
                     (msg as unknown as WebViewMessage)
                 :   undefined;
         case 'refreshConfigUsage':

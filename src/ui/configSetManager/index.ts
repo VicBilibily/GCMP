@@ -236,6 +236,16 @@ export class ConfigSetManagerPanel implements PanelContext {
                 case 'deleteCliCredential':
                     await this.crudHost.handleDeleteCliCredential(message.provider, message.credentialName);
                     return;
+                case 'setCliOAuthSwitchMode':
+                    await this.crudHost.handleSetCliOAuthSwitchMode(message.provider, message.mode);
+                    return;
+                case 'setCliOAuthWeight':
+                    await this.crudHost.handleSetCliOAuthWeight(
+                        message.provider,
+                        message.credentialName,
+                        message.weight
+                    );
+                    return;
                 case 'refreshCliUsage':
                     await this.usageHost.refreshCliUsage(message.provider, message.credentialName);
                     return;

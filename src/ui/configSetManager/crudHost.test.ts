@@ -15,6 +15,8 @@ test('CLI OAuth account changes do not retain a stale runtime API key', async t 
     let activateCredentialAtDelete: string | undefined;
     let activeSelectionGeneration = 0;
     let remainingCredentials = new Set(['old', 'next']);
+    let oauthRoutingMode: 'off' | 'failover' | 'balance' = 'off';
+    let oauthRoutingWeights = new Map<string, number>();
     let runtimeApiKey: string | undefined = 'old-token';
     let authenticateActiveCredential: () => Promise<{ access_token: string } | null> = async () => ({
         access_token: 'next-token'
@@ -123,6 +125,22 @@ test('CLI OAuth account changes do not retain a stale runtime API key', async t 
         },
         '../../cli/auth/oauthCredentialStore': {
             OAuthCredentialStore: {
+                getRoutingSettings: () => ({
+                    mode: oauthRoutingMode,
+                    weights: Object.fromEntries(oauthRoutingWeights)
+                }),
+                getCredentialWeight: (_provider: string, name: string) => oauthRoutingWeights.get(name) ?? 1,
+                listCredentials: () => [...remainingCredentials].map(name => ({ name, hasAccessToken: true })),
+                setRoutingMode: async (_provider: string, mode: 'off' | 'failover' | 'balance') => {
+                    oauthRoutingMode = mode;
+                },
+                setCredentialWeight: async (_provider: string, name: string, weight: number) => {
+                    if (weight === 1) {
+                        oauthRoutingWeights.delete(name);
+                    } else {
+                        oauthRoutingWeights.set(name, weight);
+                    }
+                },
                 deleteCredentialFileWithStatus: async (_provider: string, name: string) => {
                     if (activateCredentialAtDelete) {
                         activeCredentialName = activateCredentialAtDelete;
@@ -151,6 +169,7 @@ test('CLI OAuth account changes do not retain a stale runtime API key', async t 
                 english.replace(/\{(\d+)\}/g, (_match, index: string) => args[Number(index)] ?? _match)
         },
         '../../utils/config/failover/apiKeyFailoverManager': { ApiKeyFailoverManager: {} },
+        '../../utils/config/failover/balanceAffinityCache': { BalanceAffinityCache: { instance: { clear() {} } } },
         './stateHost': { collectManagedSlots: () => [] }
     };
 
@@ -181,6 +200,8 @@ test('CLI OAuth account changes do not retain a stale runtime API key', async t 
         failAfterCredentialFileDelete = false;
         activateCredentialAtDelete = undefined;
         remainingCredentials = new Set(['old', 'next']);
+        oauthRoutingMode = 'off';
+        oauthRoutingWeights = new Map();
         authenticateActiveCredential = async () => ({ access_token: 'next-token' });
         notifyAuthenticationStarted = undefined;
         runtimeApiKey = 'old-token';
@@ -197,6 +218,23 @@ test('CLI OAuth account changes do not retain a stale runtime API key', async t 
         assert.equal(runtimeApiKey, undefined);
         assert.deepEqual(deletedKeys, ['codex']);
         assert.match(messages.at(-1) ?? '', /secret storage unavailable/);
+    });
+
+    await t.test('routing mode and weight changes preserve the minimum eligible account count', async () => {
+        reset();
+
+        await host.handleSetCliOAuthSwitchMode('codex', 'balance');
+        assert.equal(oauthRoutingMode, 'balance');
+
+        await host.handleSetCliOAuthWeight('codex', 'old', 0);
+        assert.equal(oauthRoutingWeights.get('old'), 0);
+        await host.handleSetCliOAuthWeight('codex', 'next', 0);
+        assert.equal(oauthRoutingWeights.get('next'), undefined);
+        assert.match(messages.at(-1) ?? '', /without enough eligible OAuth accounts/i);
+
+        await host.handleSetCliOAuthSwitchMode('codex', 'failover');
+        assert.equal(oauthRoutingMode, 'balance');
+        assert.match(messages.at(-1) ?? '', /at least two OAuth accounts/i);
     });
 
     await t.test('failed replacement after deleting the active account clears the previous key', async () => {
