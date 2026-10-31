@@ -494,6 +494,7 @@ GCMP provides a **Compatible Provider** for OpenAI Chat Completions / Responses,
 | **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=UV5BVMCVJF) |             | Account balance |
 | **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)                | 10% off     | API Key balance |
 | **openrouter**  | [**OpenRouter**](https://openrouter.ai/)                      |             | Account balance |
+| **requesty**    | [**Requesty**](https://requesty.ai/)                          |             |                 |
 | **siliconflow** | [**SiliconFlow**](https://cloud.siliconflow.cn/i/tQkcsZbJ)    |             | Account balance |
 
 **Configuration example**:
