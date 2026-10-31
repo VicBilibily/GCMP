@@ -289,6 +289,11 @@ export abstract class BaseStatusBarItem<T> {
     /** 主缓存未更新时，子类仍可同步独立的附加缓存。 */
     protected onCachePolled(): void {}
 
+    /** 生成查询失败提示；子类可附加独立于主状态数据的补充信息。 */
+    protected getApiQueryErrorTooltip(error: string): vscode.MarkdownString | string {
+        return t('Failed to fetch: {0}', '获取失败: {0}', error);
+    }
+
     // ==================== 公共方法 ====================
 
     /**
@@ -575,9 +580,7 @@ export abstract class BaseStatusBarItem<T> {
 
             if (this.statusBarItem) {
                 this.statusBarItem.text = `${this.config.icon} ERR`;
-                this.statusBarItem.tooltip = t(
-                    'Failed to fetch: {0}',
-                    '获取失败: {0}',
+                this.statusBarItem.tooltip = this.getApiQueryErrorTooltip(
                     error instanceof Error ? error.message : t('Unknown error', '未知错误')
                 );
             }
@@ -683,7 +686,7 @@ export abstract class BaseStatusBarItem<T> {
                 // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
                 if (isManualRefresh && this.statusBarItem) {
                     this.statusBarItem.text = `${this.config.icon} ERR`;
-                    this.statusBarItem.tooltip = t('Failed to fetch: {0}', '获取失败: {0}', errorMsg);
+                    this.statusBarItem.tooltip = this.getApiQueryErrorTooltip(errorMsg);
                     this.statusBarErrorDisplayed = true;
                 }
 
@@ -698,9 +701,7 @@ export abstract class BaseStatusBarItem<T> {
             // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
             if (isManualRefresh && this.statusBarItem) {
                 this.statusBarItem.text = `${this.config.icon} ERR`;
-                this.statusBarItem.tooltip = t(
-                    'Failed to fetch: {0}',
-                    '获取失败: {0}',
+                this.statusBarItem.tooltip = this.getApiQueryErrorTooltip(
                     error instanceof Error ? error.message : t('Unknown error', '未知错误')
                 );
                 this.statusBarErrorDisplayed = true;
@@ -871,8 +872,8 @@ export abstract class BaseStatusBarItem<T> {
                 this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
             }
 
-            this.updateStatusBarUI(cachedData.data);
             this.onStatusUpdatedFromEvent(cachedData.data, cachedData.requestBalanceKeyHash, cachedData.timestamp);
+            this.updateStatusBarUI(cachedData.data);
 
             StatusLogger.debug(
                 `[${this.config.logPrefix}] Updated status from inter-instance event (${((Date.now() - cachedData.timestamp) / 1000).toFixed(1)}s ago)`

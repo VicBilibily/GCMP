@@ -185,7 +185,7 @@ export function renderQuotaTable(table: QuotaTable): string {
  */
 export function renderMultiKeySections<TRaw>(
     status: MultiKeyStatusData<TRaw>,
-    adapter: QuotaStatusAdapter<TRaw>,
+    adapter: Pick<QuotaStatusAdapter<TRaw>, 'summary'>,
     labels: MultiKeySectionLabels
 ): string {
     if (status.entries.length <= 1) {

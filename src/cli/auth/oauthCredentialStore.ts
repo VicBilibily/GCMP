@@ -9,6 +9,7 @@
  *    导入时按账号身份自动命名（同 CLIProxyAPI），手工放置可自由命名，不做结构校验
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../../utils/runtime/logger';
@@ -50,6 +51,8 @@ export interface OAuthCredentialEntry {
     label?: string;
     /** 文件内 expiry_date（毫秒时间戳） */
     expiryDate?: number;
+    /** access_token 的 SHA-256 指纹，不包含 token 明文 */
+    accessTokenHash?: string;
     /** 是否含非空 access_token */
     hasAccessToken: boolean;
 }
@@ -194,6 +197,7 @@ export class OAuthCredentialStore {
                     ...summary,
                     label: info.label,
                     expiryDate: info.expiryDate,
+                    accessTokenHash: info.accessTokenHash,
                     hasAccessToken: info.hasAccessToken
                 };
             })
@@ -501,6 +505,7 @@ export class OAuthCredentialStore {
     private static readCredentialInfo(filePath: string): {
         label?: string;
         expiryDate?: number;
+        accessTokenHash?: string;
         hasAccessToken: boolean;
     } {
         try {
@@ -510,6 +515,9 @@ export class OAuthCredentialStore {
                 ...(typeof data.label === 'string' && data.label ? { label: data.label } : {}),
                 ...(typeof data.expiry_date === 'number' && Number.isFinite(data.expiry_date) ?
                     { expiryDate: data.expiry_date }
+                :   {}),
+                ...(typeof data.access_token === 'string' && data.access_token.length > 0 ?
+                    { accessTokenHash: createHash('sha256').update(data.access_token).digest('hex') }
                 :   {}),
                 hasAccessToken: typeof data.access_token === 'string' && data.access_token.length > 0
             };

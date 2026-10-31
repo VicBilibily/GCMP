@@ -110,6 +110,7 @@ test('OAuthCredentialStore 命名凭证管理', async t => {
         const byName = new Map(codexEntries.map(entry => [entry.name, entry]));
         assert.equal(byName.get('alpha')?.label, '主账号');
         assert.equal(byName.get('alpha')?.hasAccessToken, true);
+        assert.equal(byName.get('beta')?.accessTokenHash, createHash('sha256').update('beta-token').digest('hex'));
         assert.ok(byName.get('beta')?.expiryDate);
         assert.equal(byName.get('broken')?.hasAccessToken, false); // 解析失败仍列出并标记
 
