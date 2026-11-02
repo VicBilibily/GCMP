@@ -235,19 +235,23 @@
             }
         },
         {
-            "id": "deepseek-v4-flash-token-plan",
-            "name": "DeepSeek-V4-Flash (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "id": "deepseek-v4.1-flash-1017-token-plan",
+            "name": "DeepSeek-V4.1-Flash-1017 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。2026-10-17 快照版本，原生多模态视觉理解，支持忙时/闲时分时段计费。",
             "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "deepseek-v4-flash",
-            "reasoningEffort": ["high", "max", "none"],
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "deepseek-v4.1-flash-1017",
+            "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.138, 0.275, 0.028], "RMB": [1, 2, 0.2] }
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "USD": [0.141, 0.565, 0.014], "RMB": [1, 4, 0.1] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [0.283, 1.131, 0.028], "RMB": [2, 8, 0.2] } }]
+            }
         },
         {
             "id": "deepseek-v4-flash-0731-token-plan",
@@ -577,6 +581,25 @@
             }
         },
         {
+            "id": "deepseek-v4.1-flash-1017-token-plan-personal",
+            "name": "DeepSeek-V4.1-Flash-1017 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。2026-10-17 快照版本，原生多模态视觉理解，支持忙时/闲时分时段计费。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "deepseek-v4.1-flash-1017",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "USD": [0.141, 0.565, 0.014], "RMB": [1, 4, 0.1] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [0.283, 1.131, 0.028], "RMB": [2, 8, 0.2] } }]
+            }
+        },
+        {
             "id": "deepseek-v4-flash-0731-token-plan-personal",
             "name": "DeepSeek-V4-Flash-0731 (TokenPlan)",
             "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。2026-07-31 快照版本，暂不支持 Responses API，支持忙时/闲时分时段计费。",
@@ -768,19 +791,6 @@
         },
 
         {
-            "id": "deepseek-v4-flash",
-            "name": "DeepSeek-V4-Flash",
-            "tooltip": "DeepSeek-V4 快速模式。高效轻量化MoE模型，总参284B，激活13B，原生支持百万超长上下文能力。推理速度快、延迟低、调用成本低廉，综合能力均衡，主打高并发、轻量化任务，适合日常对话、内容创作、基础 RAG、批量文案处理等普惠刚需场景。",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.138, 0.275, 0.028], "RMB": [1, 2, 0.2] }
-        },
-        {
             "id": "deepseek-v4-flash-0731",
             "name": "DeepSeek-V4-Flash-0731",
             "tooltip": "DeepSeek-V4-Flash 2026-07-31 快照版本。高效轻量化MoE模型，总参284B，激活13B，原生支持百万超长上下文能力。推理速度快、延迟低、调用成本低廉，综合能力均衡，主打高并发、轻量化任务，适合日常对话、内容创作、基础 RAG、批量文案处理等普惠刚需场景。支持忙时/闲时分时段计费。",
@@ -829,6 +839,23 @@
             "id": "deepseek-v4.1-flash",
             "name": "DeepSeek-V4.1-Flash",
             "tooltip": "DeepSeek 全新架构系列的轻量旗舰模型，552B 总参数 MoE，采用 Causal Encoder-Decoder 非对称架构（输入激活 8B、输出激活 16B），原生支持多模态视觉理解，多项基准超越 DeepSeek-V4-Pro。KV Cache 压缩至上一代 HBM 的 1/4，支持 1M 上下文与 384K 最大输出。支持忙时/闲时分时段计费。",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "USD": [0.141, 0.565, 0.014], "RMB": [1, 4, 0.1] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [0.283, 1.131, 0.028], "RMB": [2, 8, 0.2] } }]
+            }
+        },
+        {
+            "id": "deepseek-v4.1-flash-1017",
+            "name": "DeepSeek-V4.1-Flash-1017",
+            "tooltip": "DeepSeek-V4.1-Flash 2026-10-17 快照版本。DeepSeek 全新架构系列的轻量旗舰模型，552B 总参数 MoE，采用 Causal Encoder-Decoder 非对称架构（输入激活 8B、输出激活 16B），原生支持多模态视觉理解，多项基准超越 DeepSeek-V4-Pro。支持忙时/闲时分时段计费。",
             "sdkMode": "openai-responses",
             "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
             "reasoningEffort": ["high", "max", "low", "none"],
