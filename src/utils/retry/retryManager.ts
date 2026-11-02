@@ -280,7 +280,7 @@ export class RetryManager {
     }
 
     /**
-     * 判断是否为可重试的服务端错误（5xx：502 / 503 / 504）
+     * 判断是否为可重试的服务端错误（HTTP 500-599）
      * 这类错误通常表示服务端临时过载或不可用，短暂退避后重试有望成功。
      * 优先基于 HTTP status 判断；当 handler 丢失 status 时，回退到消息文案匹配常见过载提示。
      * @param error 错误对象
@@ -293,7 +293,8 @@ export class RetryManager {
         if (hasPermanentErrorSignal(error as unknown as Record<string, unknown>)) {
             return false;
         }
-        const isRetriableStatus = (code?: number): boolean => code === 502 || code === 503 || code === 504;
+        const isRetriableStatus = (code?: number): boolean =>
+            typeof code === 'number' && Number.isInteger(code) && code >= 500 && code < 600;
         if (isRetriableStatus(error.status as number) || isRetriableStatus(error.statusCode as number)) {
             return true;
         }

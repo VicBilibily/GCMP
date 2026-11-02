@@ -841,7 +841,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 判断请求错误是否允许重试
-     * 包括：429/529 限流错误、5xx 服务端错误（502/503/504）、网络连接中断错误（如 terminated）
+     * 包括：429/529 限流错误、5xx 服务端错误、网络连接中断错误（如 terminated）
      */
     protected shouldRetryRequest(error: RetryableError): boolean {
         // Compatible 网关透传的单账号套餐限额（usage_limit_reached 等）经重试切换路由即可恢复，

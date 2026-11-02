@@ -31,6 +31,104 @@ function loadRetryManager() {
     return managerModule;
 }
 
+for (const status of [500, 501, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 527, 529, 530, 598, 599]) {
+    test(`server classification recognizes HTTP ${status} without a matching message`, async () => {
+        const { RetryManager } = await loadRetryManager();
+        assert.equal(RetryManager.isServerError(Object.assign(new Error('upstream failed'), { status })), true);
+        assert.equal(
+            RetryManager.isServerError(Object.assign(new Error('upstream failed'), { statusCode: status })),
+            true
+        );
+    });
+}
+
+test('server classification rejects statuses outside the integer 5xx range', async () => {
+    const { RetryManager } = await loadRetryManager();
+    for (const status of [200, 400, 401, 403, 408, 429, 499, 600, 524.5, NaN, Infinity, -Infinity]) {
+        assert.equal(RetryManager.isServerError(Object.assign(new Error('upstream failed'), { status })), false);
+        assert.equal(
+            RetryManager.isServerError(Object.assign(new Error('upstream failed'), { statusCode: status })),
+            false
+        );
+    }
+});
+
+test('server classification retains permanent error vetoes for HTTP 524', async () => {
+    const { RetryManager } = await loadRetryManager();
+    for (const details of [
+        { message: 'Request exceeds the maximum context length limit of this model' },
+        { error: { type: 'usage_limit_reached' } },
+        { cause: { code: 'insufficient_credits' } }
+    ]) {
+        assert.equal(
+            RetryManager.isServerError(Object.assign(new Error('upstream failed'), { status: 524 }, details)),
+            false
+        );
+    }
+});
+
+test('HTTP 524 retries within the configured budget and can recover', async () => {
+    const { RetryManager } = await loadRetryManager();
+    const manager = new RetryManager({ maxAttempts: 1, initialDelayMs: 0, maxDelayMs: 0 });
+    let attempts = 0;
+    const result = await manager.executeWithRetry(
+        async () => {
+            attempts++;
+            if (attempts === 1) {
+                throw Object.assign(new Error('upstream failed'), { status: 524 });
+            }
+            return 'recovered';
+        },
+        RetryManager.isServerError,
+        'test'
+    );
+    assert.equal(result, 'recovered');
+    assert.equal(attempts, 2);
+});
+
+test('HTTP 524 retry exhaustion preserves the last error', async () => {
+    const { RetryManager } = await loadRetryManager();
+    const manager = new RetryManager({ maxAttempts: 1, initialDelayMs: 0, maxDelayMs: 0 });
+    const error = Object.assign(new Error('upstream failed'), { status: 524 });
+    let attempts = 0;
+    await assert.rejects(
+        manager.executeWithRetry(
+            async () => {
+                attempts++;
+                throw error;
+            },
+            RetryManager.isServerError,
+            'test'
+        ),
+        caught => caught === error
+    );
+    assert.equal(attempts, 2);
+});
+
+test('HTTP 524 respects disabled retries and a zero retry budget', async () => {
+    const { RetryManager } = await loadRetryManager();
+    const error = Object.assign(new Error('upstream failed'), { status: 524 });
+    for (const config of [
+        { enabled: false, maxAttempts: 3 },
+        { enabled: true, maxAttempts: 0 }
+    ]) {
+        let attempts = 0;
+        const manager = new RetryManager({ ...config, initialDelayMs: 0 });
+        await assert.rejects(
+            manager.executeWithRetry(
+                async () => {
+                    attempts++;
+                    throw error;
+                },
+                RetryManager.isServerError,
+                'test'
+            ),
+            caught => caught === error
+        );
+        assert.equal(attempts, 1);
+    }
+});
+
 for (const code of [
     'UND_ERR_SOCKET',
     'UND_ERR_CONNECT_TIMEOUT',

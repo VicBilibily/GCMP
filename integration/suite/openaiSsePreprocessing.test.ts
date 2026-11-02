@@ -270,6 +270,94 @@ suite('OpenAI SDK SSE preprocessing', () => {
                 }
                 assert.equal(events, 0);
             });
+
+            for (const prefix of ['heartbeat', 'partial-event']) {
+                for (const width of [1, 4096]) {
+                    for (const consumer of ['stream', 'sdk']) {
+                        test(`preserves bare JSON error at EOF: ${media}, ${JSON.stringify(eol)}, ${prefix}, ${width}, ${consumer}`, async () => {
+                            const upstreamError = JSON.stringify({
+                                error: { message: 'original upstream failure', code: 'usage_limit_reached' }
+                            });
+                            const partialChunk = {
+                                id: 'partial-before-error',
+                                object: 'chat.completion.chunk',
+                                created: 0,
+                                model: 'test',
+                                choices: [
+                                    {
+                                        index: 0,
+                                        delta: { role: 'assistant', content: 'partial' },
+                                        finish_reason: null
+                                    }
+                                ]
+                            };
+                            const payload =
+                                (prefix === 'heartbeat' ?
+                                    `: heartbeat${eol}${eol}`
+                                :   multilineFrame(JSON.stringify(partialChunk), eol)) + upstreamError;
+                            const response = createResponse(createChunkedBody(payload, width), media);
+                            const preprocessor = createPreprocessor();
+                            const chunks: OpenAI.Chat.Completions.ChatCompletionChunk[] = [];
+                            await assert.rejects(
+                                async () => {
+                                    if (consumer === 'sdk') {
+                                        const client = new OpenAI({
+                                            apiKey: 'test',
+                                            maxRetries: 0,
+                                            fetch: () => preprocessor.preprocessSSEResponse(response)
+                                        });
+                                        const stream = client.chat.completions.stream({
+                                            model: 'test',
+                                            messages: [{ role: 'user', content: 'test' }]
+                                        });
+                                        stream.on('chunk', chunk => chunks.push(chunk));
+                                        await stream.done();
+                                    } else {
+                                        const processed = await preprocessor.preprocessSSEResponse(response);
+                                        for await (const chunk of Stream.fromSSEResponse<OpenAI.Chat.Completions.ChatCompletionChunk>(
+                                            processed,
+                                            new AbortController()
+                                        )) {
+                                            chunks.push(chunk);
+                                        }
+                                    }
+                                },
+                                error => {
+                                    assert.ok(error instanceof Error);
+                                    assert.equal(error.message, upstreamError);
+                                    return true;
+                                }
+                            );
+                            assert.equal(chunks.length, prefix === 'partial-event' ? 1 : 0);
+                            assert.equal(response.body?.locked, false);
+                        });
+                    }
+                }
+            }
+
+            for (const ending of ['line', 'json']) {
+                test(`preserves complete events before unfinished EOF: ${media}, ${JSON.stringify(eol)}, ${ending}`, async () => {
+                    const completed = {
+                        type: 'response.completed',
+                        response: { id: 'complete', object: 'response', output: [] }
+                    };
+                    const unfinished = `data: ${JSON.stringify({
+                        type: 'response.completed',
+                        response: { id: 'unfinished', object: 'response', output: [] }
+                    })}`;
+                    const payload =
+                        multilineFrame(JSON.stringify(completed), eol) +
+                        (ending === 'line' ? unfinished + eol : unfinished.slice(0, -1));
+                    const response = await createPreprocessor().preprocessSSEResponse(
+                        createResponse(createChunkedBody(payload, 1), media)
+                    );
+                    const events: unknown[] = [];
+                    for await (const parsed of Stream.fromSSEResponse(response, new AbortController())) {
+                        events.push(parsed);
+                    }
+                    assert.deepEqual(events, [completed]);
+                });
+            }
         }
 
         for (const ending of [

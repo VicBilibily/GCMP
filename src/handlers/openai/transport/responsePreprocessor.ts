@@ -584,32 +584,12 @@ export class OpenAIResponsePreprocessor {
                                 if (isMalformedJsonStream) {
                                     throw new Error(malformedJsonStreamBuffer.trim() || lineBuffer.trim());
                                 }
-                                // 流结束时，处理缓冲区剩余的内容
-                                if (lineBuffer.trim().length > 0) {
-                                    Logger.trace(
-                                        `Stream ended, processing remaining buffered content: ${lineBuffer.length} chars`
-                                    );
-                                    const normalized =
-                                        lineBuffer.startsWith('data:') ? lineBuffer : processSSELine(lineBuffer);
-                                    if (normalized) {
-                                        eventLines.push(normalized);
-                                    }
+                                const remainingLine = lineBuffer.trimStart();
+                                if (remainingLine.startsWith('{') || remainingLine.startsWith('[')) {
+                                    processSSELine(lineBuffer);
                                 }
-                                const remaining = processSSEEvent(eventLines);
+                                lineBuffer = '';
                                 eventLines = [];
-                                if (remaining) {
-                                    for (const frame of remaining.split('\n\n')) {
-                                        const data = frame
-                                            .split('\n')
-                                            .filter(line => line.startsWith('data:'))
-                                            .map(line => line.slice(5).replace(/^ /, ''))
-                                            .join('\n');
-                                        if (data && data !== '[DONE]') {
-                                            JSON.parse(data);
-                                        }
-                                    }
-                                    controller.enqueue(encoder.encode(`${remaining}\n\n`));
-                                }
                                 reader.releaseLock();
                                 controller.close();
                                 return;
