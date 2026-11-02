@@ -47,6 +47,112 @@ interface StreamTestAccess {
 }
 
 suite('OpenAI custom SSE lifecycle', () => {
+    for (const scenario of [
+        'complete',
+        'eof',
+        'error',
+        'cancel',
+        'complete-usage-only',
+        'eof-usage-only',
+        'error-usage-only'
+    ]) {
+        for (const width of [1, 4096]) {
+            test(`public custom preserves received usage: ${scenario}, ${width}`, async () => {
+                const ending = scenario.split('-')[0];
+                const withText = !scenario.endsWith('usage-only');
+                const source = new vscode.CancellationTokenSource();
+                const originalGet = ApiKeyManager.getApiKeyForRequest;
+                const originalFetch = ConfigManager.fetchWithProxy;
+                const originalUpdate = TokenUsagesManager.instance.updateActualTokens;
+                const updates: Parameters<typeof originalUpdate>[0][] = [];
+                const usage = { prompt_tokens: 21, completion_tokens: 13, total_tokens: 34 };
+                const bytes = new TextEncoder().encode(
+                    `data: ${JSON.stringify({ choices: [{ index: 0, delta: withText ? { content: 'part' } : {}, finish_reason: ending === 'complete' ? 'stop' : null }], usage })}\n\n` +
+                        (ending === 'error' ? 'data: {"error":{"message":"usage test upstream error"}}\n\n' : '')
+                );
+                let offset = 0;
+                const body = new ReadableStream<Uint8Array>(
+                    {
+                        pull(controller) {
+                            if (offset < bytes.length) {
+                                controller.enqueue(bytes.subarray(offset, offset + width));
+                                offset += width;
+                            } else {
+                                controller.close();
+                            }
+                        }
+                    },
+                    { highWaterMark: 0 }
+                );
+                ApiKeyManager.getApiKeyForRequest = async () => 'test';
+                ConfigManager.fetchWithProxy = async () =>
+                    new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+                TokenUsagesManager.instance.updateActualTokens = update => {
+                    updates.push(update);
+                };
+                const provider = {
+                    provider: 'test',
+                    providerConfig: { displayName: 'Test', baseUrl: 'https://example.test' }
+                } as unknown as GenericModelProvider;
+                const builder = {
+                    buildChatCompletionParams: () => ({ model: 'test', messages: [], stream: true })
+                } as unknown as ConstructorParameters<typeof OpenAICustomHandler>[1];
+                const handler = new OpenAICustomHandler(provider, builder);
+                const text: string[] = [];
+                try {
+                    const request = handler.handleRequest(
+                        { id: 'test', name: 'Test' } as vscode.LanguageModelChatInformation,
+                        { id: 'test' } as ModelConfig,
+                        [],
+                        {} as vscode.ProvideLanguageModelChatResponseOptions,
+                        {
+                            report(part) {
+                                if (part instanceof vscode.LanguageModelTextPart) {
+                                    text.push(part.value);
+                                    if (ending === 'cancel') {
+                                        source.cancel();
+                                    }
+                                }
+                            }
+                        },
+                        'usage-request',
+                        'usage-session',
+                        source.token
+                    );
+                    if (ending === 'complete') {
+                        await request;
+                    } else {
+                        await assert.rejects(request, error => {
+                            assert.ok(error instanceof Error);
+                            assert.equal(error instanceof vscode.CancellationError, ending === 'cancel');
+                            if (ending === 'eof') {
+                                assert.match(error.message, /missing finish_reason/);
+                            } else if (ending === 'error') {
+                                assert.match(error.message, /usage test upstream error/);
+                            }
+                            return true;
+                        });
+                    }
+                    assert.deepEqual(text, withText ? ['part'] : []);
+                    assert.equal(body.locked, false);
+                    assert.equal(updates.length, 1);
+                    assert.equal(
+                        updates[0].status,
+                        ending === 'complete' ? 'completed'
+                        : ending === 'cancel' ? 'cancelled'
+                        : 'failed'
+                    );
+                    assert.deepEqual(updates[0].rawUsage, usage);
+                } finally {
+                    ApiKeyManager.getApiKeyForRequest = originalGet;
+                    ConfigManager.fetchWithProxy = originalFetch;
+                    TokenUsagesManager.instance.updateActualTokens = originalUpdate;
+                    source.dispose();
+                }
+            });
+        }
+    }
+
     for (const eol of ['\n', '\r\n', '\r']) {
         for (const width of [1, 7, 4096]) {
             for (const media of ['text/event-stream', 'absent', 'text/plain']) {
@@ -66,7 +172,7 @@ suite('OpenAI custom SSE lifecycle', () => {
                     const bytes = new TextEncoder().encode(
                         [
                             '\uFEFF: heartbeat',
-                            'data: invalid-json',
+                            ': heartbeat without data',
                             '',
                             'id: 1',
                             'event: message',
@@ -181,6 +287,83 @@ suite('OpenAI custom SSE lifecycle', () => {
         }
     }
 
+    for (const eol of ['\n', '\r\n', '\r']) {
+        for (const width of [1, 4096]) {
+            for (const ending of ['malformed-event', 'bare-after-partial', 'bare-after-finish']) {
+                test(`SSE rejects corrupt data: ${JSON.stringify(eol)}, ${width}, ${ending}`, async () => {
+                    const parts: vscode.LanguageModelResponsePart2[] = [];
+                    const source = new vscode.CancellationTokenSource();
+                    const reporter = new StreamReporter({
+                        modelName: 'test',
+                        modelId: 'test',
+                        provider: 'test',
+                        sdkMode: 'openai',
+                        progress: { report: part => parts.push(part) }
+                    });
+                    const handler = Object.create(OpenAICustomHandler.prototype) as StreamTestAccess;
+                    const originalUpdate = TokenUsagesManager.instance.updateActualTokens;
+                    const updates: Parameters<typeof originalUpdate>[0][] = [];
+                    TokenUsagesManager.instance.updateActualTokens = update => {
+                        updates.push(update);
+                    };
+                    const encode = (value: unknown) => `data: ${JSON.stringify(value)}${eol}${eol}`;
+                    const upstreamError = {
+                        error: { message: 'original upstream error', code: 'usage_limit_reached' }
+                    };
+                    const partial = encode({
+                        choices: [{ index: 0, delta: { content: 'partial' }, finish_reason: null }]
+                    });
+                    const finish = encode({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+                    const payload =
+                        partial +
+                        (ending === 'malformed-event' ?
+                            `data: {invalid-json${eol}${eol}` + finish
+                        :   (ending === 'bare-after-finish' ? finish : '') + JSON.stringify(upstreamError, null, 2));
+                    const bytes = new TextEncoder().encode(payload);
+                    let offset = 0;
+                    const body = new ReadableStream<Uint8Array>(
+                        {
+                            pull(controller) {
+                                if (offset < bytes.length) {
+                                    controller.enqueue(bytes.subarray(offset, offset + width));
+                                    offset += width;
+                                } else {
+                                    controller.close();
+                                }
+                            }
+                        },
+                        { highWaterMark: 0 }
+                    );
+                    try {
+                        await assert.rejects(
+                            handler.processStream({ name: 'test' }, body, reporter, '', source.token, undefined),
+                            error => {
+                                assert.ok(error instanceof Error);
+                                if (ending === 'malformed-event') {
+                                    assert.ok(error instanceof SyntaxError);
+                                } else {
+                                    assert.match(error.message, /original upstream error/);
+                                    assert.equal((error as { code?: string }).code, 'usage_limit_reached');
+                                }
+                                return true;
+                            }
+                        );
+                        assert.equal(body.locked, false);
+                        assert.equal(updates.length, 0);
+                        assert.deepEqual(
+                            parts.filter(part => part instanceof vscode.LanguageModelTextPart).map(part => part.value),
+                            ['partial']
+                        );
+                    } finally {
+                        TokenUsagesManager.instance.updateActualTokens = originalUpdate;
+                        source.dispose();
+                        reporter.finishMetrics();
+                    }
+                });
+            }
+        }
+    }
+
     for (const ending of [
         'done-only',
         'usage-only',
@@ -281,7 +464,15 @@ suite('OpenAI custom SSE lifecycle', () => {
                         assert.deepEqual(updates[0].rawUsage, usage);
                     }
                 } else {
-                    await assert.rejects(result, /without sending any choices|missing finish_reason/);
+                    await assert.rejects(result, error => {
+                        assert.ok(error instanceof Error);
+                        if (ending === 'malformed-only') {
+                            assert.ok(error instanceof SyntaxError);
+                        } else {
+                            assert.match(error.message, /without sending any choices|missing finish_reason/);
+                        }
+                        return true;
+                    });
                     reporter.flushAll(null);
                     assert.deepEqual(updates, []);
                 }
@@ -470,7 +661,7 @@ suite('OpenAI custom SSE lifecycle', () => {
                         prefix === 'comment' ? ': heartbeat\n\n'
                         : prefix === 'bom' ? '\uFEFF \r\n'
                         : prefix === 'fields' ? 'id: event-1\nevent: message\nretry: 1000\n'
-                        : prefix === 'limit' ? ' '.repeat(512) + '\n{}\n'
+                        : prefix === 'limit' ? ' '.repeat(512) + '\n: after padding\n'
                         : '';
                     const bytes = new TextEncoder().encode(
                         leading +
@@ -528,7 +719,7 @@ suite('OpenAI custom SSE lifecycle', () => {
         }
     }
 
-    for (const ending of ['cancel-eof', 'cancel-chunk', 'error-frame', 'reader-error', 'success']) {
+    for (const ending of ['cancel-eof', 'cancel-chunk', 'error-frame', 'reader-error', 'malformed-event', 'success']) {
         test(`工具缓存完成与异常处理：${ending}`, async () => {
             const calls: vscode.LanguageModelToolCallPart[] = [];
             const source = new vscode.CancellationTokenSource();
@@ -584,8 +775,12 @@ suite('OpenAI custom SSE lifecycle', () => {
                         }
                         if (ending === 'error-frame') {
                             controller.enqueue(encode({ error: { message: 'upstream failed' } }));
-                        } else if (ending === 'success' || ending === 'cancel-chunk') {
-                            controller.enqueue(new TextEncoder().encode('data: invalid-json\n\n'));
+                        } else if (ending === 'success' || ending === 'cancel-chunk' || ending === 'malformed-event') {
+                            controller.enqueue(
+                                new TextEncoder().encode(
+                                    ending === 'malformed-event' ? 'data: invalid-json\n\n' : ': heartbeat\n\n'
+                                )
+                            );
                             controller.enqueue(
                                 encode({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })
                             );
@@ -608,6 +803,8 @@ suite('OpenAI custom SSE lifecycle', () => {
                         assert.ok(error instanceof Error);
                         if (ending.startsWith('cancel-')) {
                             assert.ok(error instanceof vscode.CancellationError);
+                        } else if (ending === 'malformed-event') {
+                            assert.ok(error instanceof SyntaxError);
                         } else {
                             assert.equal(error.message, ending === 'error-frame' ? 'upstream failed' : 'reader failed');
                         }

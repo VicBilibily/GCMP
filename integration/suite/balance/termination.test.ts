@@ -61,6 +61,7 @@ suite('request termination and coordination cancellation', () => {
     let cancellation: ReturnType<typeof trackedCancellation>;
     let wireKeys: string[];
     let statuses: Parameters<typeof originalUpdate>[0]['status'][];
+    let usageUpdates: Parameters<typeof originalUpdate>[0][];
     let term: string;
 
     setup(async () => {
@@ -71,6 +72,7 @@ suite('request termination and coordination cancellation', () => {
         cancellation = trackedCancellation();
         wireKeys = [];
         statuses = [];
+        usageUpdates = [];
         term = `request-termination:${randomUUID()}`;
         Object.assign(LeaderElectionService, {
             isInitialized: () => true,
@@ -89,6 +91,7 @@ suite('request termination and coordination cancellation', () => {
         });
         TokenUsagesManager.instance.updateActualTokens = update => {
             statuses.push(update.status);
+            usageUpdates.push(update);
         };
         ApiKeyManager.initialize(context);
         ConfigSetStore.initialize(context);
@@ -300,6 +303,150 @@ suite('request termination and coordination cancellation', () => {
         }
     }
 
+    for (const sdkMode of ['anthropic', 'openai-sse'] as const) {
+        for (const mode of ['off', 'balance', 'failover'] as const) {
+            for (const withUsage of [false, true]) {
+                for (const ending of ['eof', 'error']) {
+                    test(`usage-only retry gating: ${sdkMode}, ${mode}, usage=${withUsage}, ${ending}`, async () => {
+                        await ConfigSetStore.setSwitchMode(slot, mode);
+                        const encode = <T extends { type: string }>(event: T): string =>
+                            `${sdkMode === 'anthropic' ? `event: ${event.type}\n` : ''}data: ${JSON.stringify(event)}\n\n`;
+                        const usage = { prompt_tokens: 21, completion_tokens: 13, total_tokens: 34 };
+                        const payload =
+                            sdkMode === 'anthropic' ?
+                                encode({
+                                    type: 'message_start',
+                                    message: {
+                                        id: 'msg-usage-only',
+                                        ...(withUsage ? { usage: { input_tokens: 21, output_tokens: 0 } } : {})
+                                    }
+                                }) +
+                                encode({
+                                    type: 'message_delta',
+                                    delta: { stop_reason: 'end_turn' },
+                                    ...(withUsage ? { usage: { output_tokens: 13 } } : {})
+                                })
+                            :   encode({
+                                    type: 'chat.completion.chunk',
+                                    choices: [{ index: 0, delta: {}, finish_reason: null }],
+                                    ...(withUsage ? { usage } : {})
+                                });
+                        const errorFrame = encode({
+                            type: 'error',
+                            error: { type: 'overloaded_error', message: 'service unavailable' }
+                        });
+                        const recovered =
+                            sdkMode === 'anthropic' ?
+                                [
+                                    { type: 'message_start', message: { id: 'msg-recovered' } },
+                                    {
+                                        type: 'content_block_start',
+                                        index: 0,
+                                        content_block: { type: 'text', text: '' }
+                                    },
+                                    {
+                                        type: 'content_block_delta',
+                                        index: 0,
+                                        delta: { type: 'text_delta', text: 'recovered' }
+                                    },
+                                    { type: 'content_block_stop', index: 0 },
+                                    {
+                                        type: 'message_delta',
+                                        delta: { stop_reason: 'end_turn' },
+                                        usage: { input_tokens: 1, output_tokens: 1 }
+                                    },
+                                    { type: 'message_stop' }
+                                ]
+                                    .map(encode)
+                                    .join('')
+                            :   await successResponse('openai').text();
+                        ConfigManager.createProxyAwareFetch = () => async (input, init) => {
+                            const request = new Request(input, init);
+                            const key =
+                                request.headers.get('authorization')?.replace(/^Bearer /, '') ??
+                                request.headers.get('x-api-key') ??
+                                '';
+                            assert.ok(['key-a', 'key-b'].includes(key));
+                            wireKeys.push(key);
+                            const text =
+                                mode !== 'off' && key !== wireKeys[0] ?
+                                    recovered
+                                :   payload + (ending === 'error' ? errorFrame : '');
+                            return new Response(text, { headers: { 'content-type': 'text/event-stream' } });
+                        };
+                        const parts: vscode.LanguageModelResponsePart[] = [];
+                        const observed = { grants: 0 };
+                        const request = RetryProvider.run(
+                            sdkMode,
+                            defaultRetry,
+                            observed,
+                            cancellation.token,
+                            parts,
+                            randomUUID()
+                        );
+                        if (withUsage || mode === 'off') {
+                            await assert.rejects(request, error => {
+                                assert.ok(error instanceof Error);
+                                assert.match(
+                                    error.message,
+                                    ending === 'error' ? /service unavailable/
+                                    : sdkMode === 'anthropic' ? /message_stop/
+                                    : /missing finish_reason/
+                                );
+                                return true;
+                            });
+                        } else {
+                            await request;
+                        }
+                        const expectedRequests = withUsage || (mode === 'off' && ending === 'eof') ? 1 : 4;
+                        assertClean(observed.grants, expectedRequests);
+                        assert.deepEqual(
+                            statuses,
+                            withUsage ? ['failed']
+                            : mode === 'off' ? []
+                            : ['completed']
+                        );
+                        assert.deepEqual(
+                            parts.filter(part => part instanceof vscode.LanguageModelTextPart).map(part => part.value),
+                            withUsage || mode === 'off' ? [] : ['recovered']
+                        );
+                        assert.equal(parts.filter(part => part instanceof vscode.LanguageModelToolCallPart).length, 0);
+                        if (withUsage) {
+                            const rawUsage = usageUpdates[0].rawUsage as {
+                                input_tokens?: number;
+                                output_tokens?: number;
+                                prompt_tokens?: number;
+                                completion_tokens?: number;
+                            };
+                            assert.equal(rawUsage.input_tokens ?? rawUsage.prompt_tokens, 21);
+                            assert.equal(rawUsage.output_tokens ?? rawUsage.completion_tokens, 13);
+                            assert.equal(
+                                parts.filter(
+                                    part =>
+                                        part instanceof vscode.LanguageModelDataPart &&
+                                        part.mimeType === CustomDataPartMimeTypes.Usage
+                                ).length,
+                                1
+                            );
+                        } else if (mode !== 'off') {
+                            assert.deepEqual(wireKeys, [
+                                wireKeys[0],
+                                wireKeys[0],
+                                wireKeys[0],
+                                wireKeys[0] === 'key-a' ? 'key-b' : 'key-a'
+                            ]);
+                        } else {
+                            assert.deepEqual(
+                                wireKeys,
+                                Array.from({ length: expectedRequests }, () => 'key-a')
+                            );
+                        }
+                    });
+                }
+            }
+        }
+    }
+
     for (const sdkMode of ['openai-responses', 'anthropic'] as const) {
         for (const transport of ['memory', 'http']) {
             for (const mode of ['off', 'balance', 'failover'] as const) {
@@ -313,14 +460,21 @@ suite('request termination and coordination cancellation', () => {
                     'healthy-tool',
                     'compat-text',
                     'compat-tool',
-                    'cancelled'
+                    'cancelled',
+                    ...(sdkMode === 'anthropic' ? ['created-only-no-usage', 'pending-tool-no-usage'] : [])
                 ]) {
                     test(`cross-protocol termination: ${sdkMode}, ${transport}, ${mode}, ${ending}`, async () => {
                         await ConfigSetStore.setSwitchMode(slot, mode);
-                        const healthy = ending.startsWith('healthy-') || ending.startsWith('compat-');
+                        const healthy = ending.startsWith('healthy-');
+                        const partial =
+                            ending.startsWith('compat-') && (sdkMode === 'anthropic' || ending === 'compat-text');
+                        const partialUsage =
+                            sdkMode === 'anthropic' && (ending === 'created-only' || ending === 'pending-tool');
                         const encode = <T extends { type: string }>(event: T): string =>
                             `${sdkMode === 'anthropic' ? `event: ${event.type}\n` : ''}data: ${JSON.stringify(event)}\n\n`;
                         const responseBody = (kind: string): string => {
+                            const withoutUsage = kind.endsWith('-no-usage');
+                            kind = kind.replace(/-no-usage$/, '');
                             const text = kind === 'recovered' ? 'recovered' : 'complete';
                             const tool = kind.endsWith('tool');
                             const pending = kind === 'pending-tool';
@@ -336,7 +490,7 @@ suite('request termination and coordination cancellation', () => {
                                             content: [],
                                             stop_reason: null,
                                             stop_sequence: null,
-                                            usage: { input_tokens: 1, output_tokens: 0 }
+                                            ...(withoutUsage ? {} : { usage: { input_tokens: 1, output_tokens: 0 } })
                                         }
                                     })
                                 ];
@@ -560,7 +714,10 @@ suite('request termination and coordination cancellation', () => {
                                 .filter(part => part instanceof vscode.LanguageModelTextPart)
                                 .map(part => part.value);
                             const tools = parts.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-                            assertClean(observed.grants, healthy || mode === 'off' || ending === 'cancelled' ? 1 : 4);
+                            assertClean(
+                                observed.grants,
+                                healthy || partial || partialUsage || mode === 'off' || ending === 'cancelled' ? 1 : 4
+                            );
                             if (ending === 'cancelled') {
                                 assert.ok(failure instanceof vscode.CancellationError);
                                 assert.deepEqual(statuses, ['cancelled']);
@@ -574,6 +731,24 @@ suite('request termination and coordination cancellation', () => {
                                     tools.map(part => part.input),
                                     ending.endsWith('tool') ? [{ path: 'report.txt' }] : []
                                 );
+                            } else if (partial || partialUsage) {
+                                assert.ok(
+                                    failure instanceof Error,
+                                    'partial output or usage without terminal event must fail'
+                                );
+                                assert.match(
+                                    failure.message,
+                                    sdkMode === 'anthropic' ? /message_stop/ : /explicit terminal event/
+                                );
+                                assert.deepEqual(statuses, ['failed']);
+                                assert.deepEqual(text, ending === 'compat-text' ? ['complete'] : []);
+                                assert.deepEqual(
+                                    tools.map(part => part.input),
+                                    ending === 'compat-tool' ? [{ path: 'report.txt' }] : []
+                                );
+                                if (partialUsage) {
+                                    assert.deepEqual(usageUpdates[0].rawUsage, { input_tokens: 1, output_tokens: 0 });
+                                }
                             } else if (mode === 'off') {
                                 assert.ok(failure instanceof Error, 'EOF without output or a terminal event must fail');
                                 assert.deepEqual(statuses, []);
@@ -722,21 +897,53 @@ suite('request termination and coordination cancellation', () => {
                                 failure = error;
                             }
                             const calls = parts.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-                            assertClean(observed.grants, 1);
-                            assert.equal(cancellation.token.isCancellationRequested, cancelAt !== 'none');
+                            assertClean(observed.grants, ending === 'terminal' || mode === 'off' ? 1 : 7);
+                            assert.equal(
+                                cancellation.token.isCancellationRequested,
+                                ending === 'terminal' && cancelAt !== 'none'
+                            );
                             assert.deepEqual(
                                 calls.map(part => part.callId),
-                                cancelAt === 'tool' ? ['call-0'] : ['call-0', 'call-1']
+                                ending === 'terminal' ?
+                                    cancelAt === 'tool' ?
+                                        ['call-0']
+                                    :   ['call-0', 'call-1']
+                                :   []
                             );
                             assert.deepEqual(
                                 calls.map(part => part.input),
-                                cancelAt === 'tool' ?
-                                    [{ path: 'report-0.txt' }]
-                                :   [{ path: 'report-0.txt' }, { path: 'report-1.txt' }]
+                                ending === 'terminal' ?
+                                    cancelAt === 'tool' ?
+                                        [{ path: 'report-0.txt' }]
+                                    :   [{ path: 'report-0.txt' }, { path: 'report-1.txt' }]
+                                :   []
                             );
-                            assert.deepEqual(statuses, [cancelAt === 'none' ? 'completed' : 'cancelled']);
+                            assert.deepEqual(
+                                statuses,
+                                ending === 'terminal' ? [cancelAt === 'none' ? 'completed' : 'cancelled'] : []
+                            );
                             assert.equal(await ApiKeyManager.getApiKey(slot), 'key-a');
-                            if (cancelAt === 'none') {
+                            if (ending === 'eof') {
+                                assert.ok(failure instanceof Error);
+                                assert.match(failure.message, /explicit terminal event/);
+                                assert.equal(
+                                    parts.filter(
+                                        part =>
+                                            part instanceof vscode.LanguageModelDataPart &&
+                                            part.mimeType === CustomDataPartMimeTypes.StatefulMarker
+                                    ).length,
+                                    0
+                                );
+                                if (mode !== 'off') {
+                                    assert.deepEqual(wireKeys, [
+                                        wireKeys[0],
+                                        wireKeys[0],
+                                        wireKeys[0],
+                                        ...Array<string>(3).fill(wireKeys[0] === 'key-a' ? 'key-b' : 'key-a'),
+                                        'key-a'
+                                    ]);
+                                }
+                            } else if (cancelAt === 'none') {
                                 assert.equal(failure, undefined);
                             } else {
                                 assert.ok(failure instanceof vscode.CancellationError);

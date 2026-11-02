@@ -308,9 +308,10 @@ export interface GeminiStreamPayload {
     isSse: boolean;
 }
 
-/** 增量解析 SSE、JSON Lines、完整 JSON 或数组，并在 EOF 刷出残留。 */
+/** 增量解析 SSE、JSON Lines、完整 JSON 或数组；EOF 仅保留 JSON 残留。 */
 export class GeminiStreamParser {
     private buffer = '';
+    private skipLineFeed = false;
     private readonly dataLines: string[] = [];
     private mode: 'unknown' | 'sse' | 'json' = 'unknown';
 
@@ -342,7 +343,7 @@ export class GeminiStreamParser {
             this.mode = 'json';
             return true;
         }
-        const lines = this.buffer.split('\n');
+        const lines = this.buffer.split(/\r\n|\r|\n/);
         const completeLineCount = atEof ? lines.length : lines.length - 1;
         for (let index = 0; index < completeLineCount; index++) {
             const line = lines[index].replace(/\r$/, '').trimStart();
@@ -367,18 +368,42 @@ export class GeminiStreamParser {
 
     private drainSse(atEof: boolean): GeminiStreamPayload[] {
         const payloads: GeminiStreamPayload[] = [];
+        if (this.skipLineFeed && this.buffer.length > 0) {
+            if (this.buffer.startsWith('\n')) {
+                this.buffer = this.buffer.slice(1);
+            }
+            this.skipLineFeed = false;
+        }
         let lineBreakIndex: number;
-        while ((lineBreakIndex = this.buffer.indexOf('\n')) >= 0) {
-            const line = this.buffer.slice(0, lineBreakIndex).replace(/\r$/, '');
+        while ((lineBreakIndex = this.buffer.search(/[\r\n]/)) >= 0) {
+            const line = this.buffer.slice(0, lineBreakIndex);
+            const trimmedLine = line.trimStart();
+            if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
+                this.mode = 'json';
+                this.dataLines.length = 0;
+                return [...payloads, ...this.drainJson(atEof)];
+            }
+            const isCarriageReturn = this.buffer[lineBreakIndex] === '\r';
             this.buffer = this.buffer.slice(lineBreakIndex + 1);
+            if (isCarriageReturn) {
+                if (this.buffer.startsWith('\n')) {
+                    this.buffer = this.buffer.slice(1);
+                } else if (this.buffer.length === 0) {
+                    this.skipLineFeed = true;
+                }
+            }
             this.processSseLine(line, payloads);
         }
-        if (atEof && this.buffer.length > 0) {
-            this.processSseLine(this.buffer.replace(/\r$/, ''), payloads);
-            this.buffer = '';
-        }
         if (atEof) {
-            this.flushSseEvent(payloads);
+            const remaining = this.buffer.trimStart();
+            if (remaining.startsWith('{') || remaining.startsWith('[')) {
+                this.mode = 'json';
+                this.dataLines.length = 0;
+                return [...payloads, ...this.drainJson(true)];
+            }
+            this.buffer = '';
+            this.dataLines.length = 0;
+            this.skipLineFeed = false;
         }
         return payloads;
     }
@@ -401,11 +426,6 @@ export class GeminiStreamParser {
                 this.dataLines.push(value);
             }
             return;
-        }
-
-        const trimmed = line.trimStart();
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-            payloads.push({ data: trimmed, isSse: false });
         }
     }
 

@@ -71,39 +71,169 @@ for (const ending of ['', '\n', '\n\n']) {
             new Response(raw, { headers: { 'content-type': 'text/event-stream' } })
         );
         const events = [];
-        for await (const event of Stream.fromSSEResponse(response, new AbortController())) events.push(event);
-        assert.equal(events.length, 1);
+        for await (const event of Stream.fromSSEResponse(response, new AbortController())) {
+            events.push(event);
+        }
+        assert.equal(events.length, ending === '\n\n' ? 1 : 0);
+        if (ending !== '\n\n') {
+            await assert.rejects(consume(events), /terminal/i);
+        }
     });
 }
-test('integrity: incomplete JSON is rejected', async () => {
+test('integrity: incomplete JSON at EOF is discarded and cannot complete the response', async () => {
     const [, { OpenAIResponsePreprocessor }] = await modules;
     const response = await new OpenAIResponsePreprocessor(() => 'test').preprocessSSEResponse(
         new Response('data: {"type":', { headers: { 'content-type': 'text/event-stream' } })
     );
-    await assert.rejects(async () => {
-        const events = [];
-        for await (const event of Stream.fromSSEResponse(response, new AbortController())) events.push(event);
-        return events;
-    }, SyntaxError);
+    const events = [];
+    for await (const event of Stream.fromSSEResponse(response, new AbortController())) {
+        events.push(event);
+    }
+    assert.equal(events.length, 0);
+    await assert.rejects(consume(events), /terminal/i);
 });
+for (const endpoint of ['/responses', '/responses?route=test', '/responses/', '/custom-stream', '/chat/completions']) {
+    for (const width of [1, 4096]) {
+        test(`integrity: missing media type preserves upstream error for ${endpoint}, width ${width}`, async () => {
+            const [, { OpenAIResponsePreprocessor }] = await modules;
+            const upstreamError = JSON.stringify({
+                error: { message: 'original upstream error', code: 'usage_limit_reached' }
+            });
+            const bytes = new TextEncoder().encode(`: heartbeat\n\n${upstreamError}`);
+            let offset = 0;
+            const body = new ReadableStream<Uint8Array>(
+                {
+                    pull(controller) {
+                        if (offset < bytes.length) {
+                            controller.enqueue(bytes.subarray(offset, offset + width));
+                            offset += width;
+                        } else {
+                            controller.close();
+                        }
+                    }
+                },
+                { highWaterMark: 0 }
+            );
+            const response = new Response(body);
+            Object.defineProperty(response, 'url', { value: `https://example.test/v1${endpoint}` });
+            const processed = await new OpenAIResponsePreprocessor(() => 'test').preprocessSSEResponse(response);
+            await assert.rejects(
+                async () => {
+                    for await (const event of Stream.fromSSEResponse(processed, new AbortController())) {
+                        assert.fail(`unexpected event: ${JSON.stringify(event)}`);
+                    }
+                },
+                error => error instanceof Error && error.message === upstreamError
+            );
+            assert.equal(body.locked, false);
+        });
+    }
+}
+for (const media of [undefined, 'text/event-stream']) {
+    for (const newline of ['\n', '\r\n', '\r']) {
+        for (const width of [1, 4096]) {
+            for (const prefix of ['heartbeat', 'partial']) {
+                test(`integrity: multiline upstream error: ${media ?? 'absent'}, ${JSON.stringify(newline)}, ${width}, ${prefix}`, async () => {
+                    const [, { OpenAIResponsePreprocessor }] = await modules;
+                    const upstreamError = {
+                        error: { message: 'original upstream error', code: 'usage_limit_reached' }
+                    };
+                    const leading = prefix === 'heartbeat' ? ': heartbeat' : `data: ${JSON.stringify(delta('part'))}`;
+                    const bytes = new TextEncoder().encode(
+                        `${leading}${newline}${newline}${JSON.stringify(upstreamError, null, 2).replace(/\n/g, newline)}`
+                    );
+                    let offset = 0;
+                    const body = new ReadableStream<Uint8Array>(
+                        {
+                            pull(controller) {
+                                if (offset < bytes.length) {
+                                    controller.enqueue(bytes.subarray(offset, offset + width));
+                                    offset += width;
+                                } else {
+                                    controller.close();
+                                }
+                            }
+                        },
+                        { highWaterMark: 0 }
+                    );
+                    const response = await new OpenAIResponsePreprocessor(() => 'test').preprocessSSEResponse(
+                        new Response(body, { headers: media ? { 'content-type': media } : {} })
+                    );
+                    const events: unknown[] = [];
+                    await assert.rejects(
+                        async () => {
+                            for await (const event of Stream.fromSSEResponse(response, new AbortController())) {
+                                events.push(event);
+                            }
+                        },
+                        error => {
+                            assert.ok(error instanceof Error);
+                            assert.deepEqual(JSON.parse(error.message), upstreamError);
+                            return true;
+                        }
+                    );
+                    assert.equal(body.locked, false);
+                    assert.equal(
+                        events.filter(event => (event as { type?: string }).type === 'response.output_text.delta')
+                            .length,
+                        prefix === 'partial' ? 1 : 0
+                    );
+                });
+            }
+        }
+    }
+}
+for (const message of ['\u9650\u989d\u8017\u5c3d-original', '\ud83c\udf0d-original']) {
+    for (const width of [1, 2, 3, 4096]) {
+        test(`integrity: JSON prefix probing preserves UTF-8: ${message}, ${width}`, async () => {
+            const [, { OpenAIResponsePreprocessor }] = await modules;
+            const bytes = new TextEncoder().encode(JSON.stringify({ error: { message, code: 'usage_limit_reached' } }));
+            const firstCharacter = bytes.indexOf(new TextEncoder().encode(message)[0]);
+            const split = Math.min(firstCharacter + width, bytes.length);
+            const body = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(bytes.subarray(0, split));
+                    if (split < bytes.length) {
+                        controller.enqueue(bytes.subarray(split));
+                    }
+                    controller.close();
+                }
+            });
+            const response = await new OpenAIResponsePreprocessor(() => 'test').preprocessSSEResponse(
+                new Response(body)
+            );
+            await assert.rejects(response.text(), error => {
+                assert.ok(error instanceof Error);
+                assert.ok(error.message.includes(message));
+                return true;
+            });
+            assert.equal(body.locked, false);
+        });
+    }
+}
 for (const newline of ['\n', '\r\n', '\r']) {
     test(`integrity: bytewise UTF-8 and ${JSON.stringify(newline)} framing`, async () => {
         const [, { OpenAIResponsePreprocessor }] = await modules;
         const text = '\u4f60\u597d\ud83c\udf0d';
-        const raw = `data: ${JSON.stringify(delta(text.slice(0, 1)))}${newline}${newline}data: ${JSON.stringify(completed(text))}`;
+        const raw = `data: ${JSON.stringify(delta(text.slice(0, 1)))}${newline}${newline}data: ${JSON.stringify(completed(text))}${newline}${newline}`;
         const bytes = new TextEncoder().encode(raw);
         let offset = 0;
         const body = new ReadableStream<Uint8Array>({
             pull(controller) {
-                if (offset < bytes.length) controller.enqueue(bytes.slice(offset, ++offset));
-                else controller.close();
+                if (offset < bytes.length) {
+                    controller.enqueue(bytes.slice(offset, ++offset));
+                } else {
+                    controller.close();
+                }
             }
         });
         const response = await new OpenAIResponsePreprocessor(() => 'test').preprocessSSEResponse(
             new Response(body, { headers: { 'content-type': 'text/event-stream' } })
         );
         const events = [];
-        for await (const event of Stream.fromSSEResponse(response, new AbortController())) events.push(event);
+        for await (const event of Stream.fromSSEResponse(response, new AbortController())) {
+            events.push(event);
+        }
         assert.equal(await consume(events), text);
     });
 }

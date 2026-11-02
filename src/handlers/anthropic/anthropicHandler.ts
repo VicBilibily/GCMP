@@ -37,6 +37,7 @@ import type {
     ProviderConfig
 } from '../../types/sharedTypes';
 import { OpenAIHandler } from '../openai/openaiHandler';
+import { runStreamCleanup } from '../openai/shared/streamCleanup';
 import { StreamReporter } from '../streamReporter';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import * as liveMetrics from '../liveMetrics';
@@ -234,6 +235,8 @@ export class AnthropicHandler {
         let requestMetricStartTime = requestStartTime;
         let partialStreamStartTime: number | undefined;
         let partialStreamEndTime: number | undefined;
+        let partialUsage: Anthropic.Messages.Usage | undefined;
+        let requestFailed = false;
 
         try {
             const client = await this.createAnthropicClient(modelConfig, sessionId);
@@ -369,7 +372,9 @@ export class AnthropicHandler {
             const stream = await client.messages.create(createParams, anthropicStreamOptions);
 
             // 使用完整的流处理函数
-            const result = await this.handleAnthropicStream(stream, streamReporter, token);
+            const result = await this.handleAnthropicStream(stream, streamReporter, token, usage => {
+                partialUsage = usage;
+            });
             partialStreamStartTime = result?.streamStartTime;
             partialStreamEndTime = result?.streamEndTime;
 
@@ -414,35 +419,52 @@ export class AnthropicHandler {
                 });
             }
         } catch (error) {
+            requestFailed = true;
             if (token.isCancellationRequested || isCancellationError(error)) {
                 Logger.info(`[${model.name}] Request was cancelled by the user`);
                 // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
                 if (requestId) {
-                    TokenUsagesManager.instance.updateActualTokens({
-                        requestId,
-                        sessionId,
-                        status: 'cancelled',
-                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                        wasThrottled,
-                        streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
-                        streamEndTime: partialStreamEndTime ?? Date.now()
-                    });
+                    runStreamCleanup(
+                        [
+                            () =>
+                                TokenUsagesManager.instance.updateActualTokens({
+                                    requestId,
+                                    sessionId,
+                                    rawUsage: partialUsage,
+                                    status: 'cancelled',
+                                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                    wasThrottled,
+                                    streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
+                                    streamEndTime: partialStreamEndTime ?? Date.now()
+                                })
+                        ],
+                        true
+                    );
                 }
                 throw new vscode.CancellationError();
             }
 
-            if (requestId && reporter?.hasContent && !hasFinalStatusRecorded(error)) {
-                reporter.flushAll(null);
-                TokenUsagesManager.instance.updateActualTokens({
-                    requestId,
-                    sessionId,
-                    status: 'failed',
-                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
-                    wasThrottled,
-                    streamStartTime: partialStreamStartTime ?? reporter.getMetricStreamStartTime(),
-                    streamEndTime: partialStreamEndTime ?? Date.now()
-                });
-                markFinalStatusRecorded(error);
+            if (requestId && reporter && (reporter.hasContent || partialUsage) && !hasFinalStatusRecorded(error)) {
+                runStreamCleanup(
+                    [
+                        () => reporter?.reportUsage(partialUsage),
+                        () => reporter?.flushAll(null, undefined, partialUsage),
+                        () => {
+                            TokenUsagesManager.instance.updateActualTokens({
+                                requestId,
+                                sessionId,
+                                rawUsage: partialUsage,
+                                status: 'failed',
+                                ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                                wasThrottled,
+                                streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
+                                streamEndTime: partialStreamEndTime ?? Date.now()
+                            });
+                            markFinalStatusRecorded(error);
+                        }
+                    ],
+                    true
+                );
             }
 
             Logger.error(`[${model.name}] Anthropic SDK error:`, error);
@@ -464,8 +486,7 @@ export class AnthropicHandler {
             // progress.report(new vscode.LanguageModelTextPart(errorMessage));
             throw error;
         } finally {
-            reporter?.finishMetrics();
-            cancellationListener.dispose();
+            runStreamCleanup([() => reporter?.finishMetrics(), () => cancellationListener.dispose()], requestFailed);
         }
     }
 
@@ -477,7 +498,8 @@ export class AnthropicHandler {
     private async handleAnthropicStream(
         stream: AsyncIterable<Anthropic.Messages.MessageStreamEvent>,
         reporter: StreamReporter,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        onUsage?: (usage: Anthropic.Messages.Usage) => void
     ): Promise<{
         usage?: Anthropic.Messages.Usage;
         responseId?: string;
@@ -489,6 +511,7 @@ export class AnthropicHandler {
             { toolId: string; name: string; jsonInput: string; initialInput: unknown }
         >();
         const completedToolIndices = new Set<number>();
+        const openBlockIndices = new Set<number>();
         let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
         const completedServerToolCalls = new Map<string, { toolId?: string; name?: string; jsonInput?: string }>();
         let usage: Anthropic.Messages.Usage | undefined;
@@ -500,7 +523,7 @@ export class AnthropicHandler {
         Logger.debug('Starting Anthropic stream response processing');
 
         try {
-            for await (const chunk of stream) {
+            streamLoop: for await (const chunk of stream) {
                 // 心跳：触发实时指标更新（不固定首流延迟）
                 reporter.heartbeat();
 
@@ -523,6 +546,7 @@ export class AnthropicHandler {
                         // 收集初始使用统计
                         if (chunk.message.usage) {
                             usage = chunk.message.usage;
+                            onUsage?.(usage);
                         }
                         // 获取响应消息ID：message_start.message.id
                         if (!responseId && chunk.message.id) {
@@ -534,6 +558,7 @@ export class AnthropicHandler {
                     }
 
                     case 'content_block_start':
+                        openBlockIndices.add(chunk.index);
                         // 内容块开始
                         if (chunk.content_block.type === 'tool_use') {
                             if (pendingToolCall) {
@@ -626,6 +651,7 @@ export class AnthropicHandler {
                         break;
 
                     case 'content_block_stop':
+                        openBlockIndices.delete(chunk.index);
                         // 内容块停止（兜底处理）
                         if (pendingToolCall) {
                             completedToolIndices.add(chunk.index);
@@ -666,19 +692,32 @@ export class AnthropicHandler {
                             } else {
                                 // 合并 MessageDeltaUsage 增量到当前 Usage
                                 usage = {
-                                    ...Object.assign(usage || {}, chunk.usage),
+                                    ...usage,
+                                    ...chunk.usage,
                                     input_tokens: chunk.usage.input_tokens ?? usage.input_tokens,
                                     output_tokens: chunk.usage.output_tokens ?? usage.output_tokens,
                                     cache_read_input_tokens:
                                         chunk.usage.cache_read_input_tokens ?? usage.cache_read_input_tokens,
                                     cache_creation_input_tokens:
-                                        chunk.usage.cache_creation_input_tokens ?? usage.cache_creation_input_tokens
+                                        chunk.usage.cache_creation_input_tokens ?? usage.cache_creation_input_tokens,
+                                    ...(usage.server_tool_use ?
+                                        { server_tool_use: chunk.usage.server_tool_use ?? usage.server_tool_use }
+                                    :   {})
                                 } as Anthropic.Messages.Usage;
                             }
+                            onUsage?.(usage);
                         }
                         break;
 
                     case 'message_stop': {
+                        if (openBlockIndices.size > 0) {
+                            throw new Error(
+                                t(
+                                    'Anthropic stream ended with unfinished content blocks',
+                                    'Anthropic 流结束时仍有未完成的内容块'
+                                )
+                            );
+                        }
                         streamEndTime = Date.now();
                         // 即便没有 responseId，也输出 StatefulMarker（仅携带 sessionId），usage 写入 marker.usage
                         reporter.flushAll(
@@ -687,7 +726,7 @@ export class AnthropicHandler {
                             usage
                         );
                         Logger.trace('Message stream completed');
-                        break;
+                        break streamLoop;
                     }
 
                     default:
@@ -710,14 +749,11 @@ export class AnthropicHandler {
             throw new vscode.CancellationError();
         }
 
-        if (streamEndTime === undefined && !reporter.hasContent) {
+        if (streamEndTime === undefined) {
             throw new Error(
-                t('Anthropic stream ended without receiving any output', 'Anthropic 流在收到任何内容前提前结束')
+                t('Anthropic stream ended without message_stop', 'Anthropic 流在收到 message_stop 前提前结束')
             );
         }
-
-        // 记录流处理的结束时间
-        streamEndTime ??= Date.now();
 
         // 补齐流开始时间：兼容网关可能未发送 message_start
         streamStartTime ??= reporter.getMetricStreamStartTime();

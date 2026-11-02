@@ -154,6 +154,7 @@ export class OpenAICustomHandler {
         let reporter: StreamReporter | undefined;
         let requestMetricStartTime = requestStartTime;
         let partialStreamStartTime: number | undefined;
+        let partialUsage: ExtendedCompletionUsage | undefined;
 
         try {
             if (token.isCancellationRequested) {
@@ -280,7 +281,10 @@ export class OpenAICustomHandler {
                 (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier,
                 wasThrottled,
                 contentType === 'text/event-stream' ? undefined : response,
-                trace
+                trace,
+                usage => {
+                    partialUsage = usage;
+                }
             );
             partialStreamStartTime = reporter.getMetricStreamStartTime();
 
@@ -298,6 +302,7 @@ export class OpenAICustomHandler {
                             TokenUsagesManager.instance.updateActualTokens({
                                 requestId: requestId || '',
                                 sessionId: reporter?.getSessionId(),
+                                rawUsage: partialUsage,
                                 status: 'cancelled',
                                 ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
                                 wasThrottled,
@@ -309,16 +314,18 @@ export class OpenAICustomHandler {
                 );
                 throw new vscode.CancellationError();
             }
-            if (requestId && reporter?.hasContent) {
+            if (requestId && reporter && (reporter.hasContent || partialUsage)) {
                 if (!hasFinalStatusRecorded(error)) {
                     runStreamCleanup(
                         [
                             () => reporter?.discardToolCalls(),
-                            () => reporter?.flushAll(null),
+                            () => reporter?.reportUsage(partialUsage),
+                            () => reporter?.flushAll(null, undefined, partialUsage),
                             () => {
                                 TokenUsagesManager.instance.updateActualTokens({
                                     requestId: requestId || '',
                                     sessionId: reporter?.getSessionId(),
+                                    rawUsage: partialUsage,
                                     status: 'failed',
                                     ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
                                     wasThrottled,
@@ -398,7 +405,8 @@ export class OpenAICustomHandler {
         requestServiceTier?: string,
         wasThrottled = false,
         responseToProbe?: Response,
-        diagnostics?: RequestDiagnostics
+        diagnostics?: RequestDiagnostics,
+        onUsage?: (usage: ExtendedCompletionUsage) => void
     ): Promise<void> {
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -462,9 +470,16 @@ export class OpenAICustomHandler {
                 const lines = buffer.split(/\r\n|\r|\n/);
                 buffer = lines.pop() || '';
 
-                for (const line of lines) {
+                for (const [lineIndex, line] of lines.entries()) {
                     if (token.isCancellationRequested) {
                         throw new vscode.CancellationError();
+                    }
+                    const trimmedLine = line.trimStart();
+                    if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
+                        buffer = [...lines.slice(lineIndex), buffer].join('\n');
+                        responseKind = 'json';
+                        eventData = [];
+                        break;
                     }
                     if (line === 'data' || line.startsWith('data:')) {
                         const value = line.slice(5);
@@ -490,7 +505,7 @@ export class OpenAICustomHandler {
                             chunk = JSON.parse(data) as typeof chunk;
                         } catch (error) {
                             Logger.error(`[${model.name}] Failed to parse JSON: ${data}`, error);
-                            continue;
+                            throw error;
                         }
                         if (!chunk || typeof chunk !== 'object') {
                             continue;
@@ -526,6 +541,7 @@ export class OpenAICustomHandler {
                         // 检查是否是包含 usage 信息的最终 chunk
                         if (chunk.usage) {
                             finalUsage = chunk.usage;
+                            onUsage?.(finalUsage);
                         }
 
                         // 处理正常的 choices
@@ -582,8 +598,10 @@ export class OpenAICustomHandler {
             if (token.isCancellationRequested) {
                 throw new vscode.CancellationError();
             }
-            if (responseKind === 'json' && responseToProbe) {
-                throw this.createResponseError(responseToProbe, buffer + decoder.decode());
+            buffer += decoder.decode();
+            const remaining = buffer.trimStart();
+            if (responseKind === 'json' || remaining.startsWith('{') || remaining.startsWith('[')) {
+                throw this.createResponseError(responseToProbe ?? new Response(null), buffer);
             }
             if (completedChoices.size === 0) {
                 throw new Error('request ended without sending any choices');
@@ -598,6 +616,7 @@ export class OpenAICustomHandler {
             reporter.discardToolCalls();
             throw error;
         } finally {
+            void reader.cancel().catch(() => {});
             reader.releaseLock();
         }
 

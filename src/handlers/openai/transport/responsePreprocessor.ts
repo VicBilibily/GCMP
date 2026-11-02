@@ -187,7 +187,7 @@ export class OpenAIResponsePreprocessor {
         if (contentType && contentType.includes('application/json') && response.body) {
             return this.createErrorResponse(response, await response.text());
         }
-        if (response?.url?.endsWith('/responses') && !contentType && response.body) {
+        if (!contentType && response.body) {
             // 缺少 Content-Type 时先探测前缀，避免将正常 SSE 整体缓冲。
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -221,7 +221,9 @@ export class OpenAIResponsePreprocessor {
                         break;
                     }
                 }
-                sniffedText += decoder.decode();
+                if (streamEndedDuringProbe) {
+                    sniffedText += decoder.decode();
+                }
             } finally {
                 reader.releaseLock();
             }
@@ -571,6 +573,19 @@ export class OpenAIResponsePreprocessor {
                                             return;
                                         }
                                     } else {
+                                        const trimmedLine = line.trimStart();
+                                        if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
+                                            isMalformedJsonStream = true;
+                                            malformedJsonStreamBuffer = [
+                                                ...pendingLines.slice(pendingLineIndex - 1),
+                                                lineBuffer
+                                            ].join('\n');
+                                            pendingLines = [];
+                                            pendingLineIndex = 0;
+                                            lineBuffer = '';
+                                            eventLines = [];
+                                            break;
+                                        }
                                         const normalized = line.startsWith('data:') ? line : processSSELine(line);
                                         if (normalized) {
                                             eventLines.push(normalized);
@@ -581,9 +596,12 @@ export class OpenAIResponsePreprocessor {
 
                             const { done, value } = await reader.read();
                             if (done) {
+                                const remainingText = decoder.decode();
                                 if (isMalformedJsonStream) {
+                                    malformedJsonStreamBuffer += remainingText;
                                     throw new Error(malformedJsonStreamBuffer.trim() || lineBuffer.trim());
                                 }
+                                lineBuffer += remainingText;
                                 const remainingLine = lineBuffer.trimStart();
                                 if (remainingLine.startsWith('{') || remainingLine.startsWith('[')) {
                                     processSSELine(lineBuffer);
@@ -645,6 +663,7 @@ export class OpenAIResponsePreprocessor {
                             // 确保错误能够被正确传播
                             controller.error(error);
                         }
+                        void reader.cancel(error).catch(() => undefined);
                         reader.releaseLock();
                     }
                 },

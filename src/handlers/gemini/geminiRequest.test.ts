@@ -419,7 +419,75 @@ test('buildGeminiRequest requires one of the declared tools in Required mode', (
     });
 });
 
-test('GeminiStreamParser aggregates multiline SSE data and flushes EOF data', () => {
+for (const eol of ['\n', '\r\n', '\r']) {
+    for (const width of [1, 7, 4096]) {
+        test(`GeminiStreamParser dispatches complete events before EOF: ${JSON.stringify(eol)}, ${width}`, () => {
+            const parser = new GeminiStreamParser();
+            const payload = [
+                ': heartbeat',
+                '',
+                'data: {',
+                'data: "text":"中文"}',
+                '',
+                'data: {"finishReason":"STOP"}',
+                '',
+                ''
+            ].join(eol);
+            const events = [];
+            for (let offset = 0; offset < payload.length; offset += width) {
+                events.push(...parser.push(payload.slice(offset, offset + width)));
+            }
+            assert.deepEqual(events, [
+                { data: '{\n"text":"中文"}', isSse: true },
+                { data: '{"finishReason":"STOP"}', isSse: true }
+            ]);
+            assert.deepEqual(parser.finish(), []);
+        });
+        for (const ending of ['', eol]) {
+            test(`GeminiStreamParser discards unfinished SSE at EOF: ${JSON.stringify(eol)}, ${width}, ${JSON.stringify(ending)}`, () => {
+                const parser = new GeminiStreamParser();
+                const complete = '{"text":"partial"}';
+                const payload = `data: ${complete}${eol}${eol}data: {"finishReason":"STOP"}${ending}`;
+                const events = [];
+                for (let offset = 0; offset < payload.length; offset += width) {
+                    events.push(...parser.push(payload.slice(offset, offset + width)));
+                }
+                assert.deepEqual([...events, ...parser.finish()], [{ data: complete, isSse: true }]);
+            });
+        }
+    }
+}
+
+for (const eol of ['\n', '\r\n', '\r']) {
+    for (const width of [1, 4096]) {
+        for (const indent of [undefined, 2]) {
+            for (const prefix of ['heartbeat', 'partial']) {
+                test(`GeminiStreamParser preserves bare JSON errors: ${JSON.stringify(eol)}, ${width}, ${indent ?? 0}, ${prefix}`, () => {
+                    const parser = new GeminiStreamParser();
+                    const partial = { candidates: [{ content: { parts: [{ text: 'part' }] } }] };
+                    const upstreamError = {
+                        error: { message: 'original upstream error', code: 429, status: 'RESOURCE_EXHAUSTED' }
+                    };
+                    const leading = prefix === 'heartbeat' ? ': heartbeat' : `data: ${JSON.stringify(partial)}`;
+                    const payload = `${leading}${eol}${eol}${JSON.stringify(upstreamError, null, indent).replace(/\n/g, eol)}`;
+                    const events = [];
+                    for (let offset = 0; offset < payload.length; offset += width) {
+                        events.push(...parser.push(payload.slice(offset, offset + width)));
+                    }
+                    events.push(...parser.finish());
+                    assert.deepEqual(
+                        events.map(event => JSON.parse(event.data)),
+                        prefix === 'partial' ? [partial, upstreamError] : [upstreamError]
+                    );
+                    assert.equal(events.at(-1)?.isSse, false);
+                    assert.deepEqual(parser.finish(), []);
+                });
+            }
+        }
+    }
+}
+
+test('GeminiStreamParser aggregates multiline SSE data and flushes EOF JSON data', () => {
     const parser = new GeminiStreamParser();
     assert.deepEqual(parser.push('event: message\ndata: {"candidates":[\n'), []);
     assert.deepEqual(parser.push('data: {"index":0}]}\n\n{"usageMetadata":{}}'), [
