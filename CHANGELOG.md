@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.6] - 2026-11-02
+
+### 修复
+
+- **Responses 流完整性**：HTTP 与 WebSocket 请求统一要求明确终态；对账流式正文增量与完成快照，检测缺失、矛盾及乱序内容，避免静默丢失或重复输出。
+- **SSE 错误与分帧处理**：改进 OpenAI 兼容及 Gemini 流对缺失 Content-Type、不同换行格式和上游 JSON 错误响应的处理；流式请求失败或取消时保留已收到的用量，清理异常不覆盖原始错误。
+- **服务端错误重试**：将可重试的 HTTP 服务端错误范围扩展至 500–599，同时继续排除已识别的永久性配额、余额和账单错误。 [#456](https://github.com/VicBilibily/GCMP/issues/456)
+
+---
+
+### Fixed
+
+- **Responses stream integrity**: HTTP and WebSocket requests now consistently require an explicit terminal event. Streamed text deltas are reconciled with completion snapshots, and missing, contradictory, or out-of-order content is rejected instead of being silently lost or duplicated.
+- **SSE errors and framing**: Improved handling of missing Content-Type headers, line-ending variants, and upstream JSON error responses in OpenAI-compatible and Gemini streams. Streaming failures and cancellations retain usage received so far, and cleanup errors no longer mask the original failure.
+- **Server-error retries**: Expanded retryable HTTP server errors to the full 500–599 range while continuing to exclude recognized permanent quota, balance, and billing errors. [#456](https://github.com/VicBilibily/GCMP/issues/456)
+
 ## [0.29.5] - 2026-10-28
 
 ### 修复
