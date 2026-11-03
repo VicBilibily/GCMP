@@ -183,20 +183,16 @@
             "cline-pass/glm-5.2",
             "cline-pass/kimi-k2.6",
             "cline-pass/kimi-k2.7-code",
-            "cline-pass/deepseek-v4-flash"
+            "cline-pass/deepseek-v4-flash",
+            "cline-pass/mimo-v2.5",
+            "cline-pass/mimo-v2.5-pro"
         ],
         "defaults": {
             "sdkMode": "openai-sse"
         },
         "models": {
-            "cline-pass/deepseek-v4-pro": {
-                "overrides": {
-                    "tokenPricing": {
-                        "pricing": [0.66, 1.98, 0.022],
-                        "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
-                    }
-                }
-            },
+            "cline-pass/deepseek-v4.1-flash-1017": { "overrides": { "reasoningFormat": "nested" } },
+            "cline-pass/kimi-k3.1-pro": { "overrides": { "reasoningFormat": "nested" } },
             // ClinePass 是仓库内唯一使用 nested 推理请求格式的提供方（其余提供方均为 flat 缺省），
             // 故新增推理模型一律按该约定钉住 reasoningFormat
             "cline-pass/mimo-v2.6-flash": { "overrides": { "reasoningFormat": "nested" } },
