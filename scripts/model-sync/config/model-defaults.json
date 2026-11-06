@@ -255,11 +255,17 @@
             "variantOf": "muse-spark-1.3",
             "name": "Muse-Spark-1.3-Contributor"
         },
-        // Spark Open / Wonder 仅在 commandcode 上架；commandcode 网关仅 chat 端点，
-        // Responses 专有字段由来源 modelRules 剔除
+        // Spark Open / Wonder 的 commandcode 条目回退为 chat 模式，Responses 专有字段由来源 modelRules 剔除
         "muse-spark-open": {
             "variantOf": "muse-spark-1.3",
-            "name": "Muse-Spark-Open"
+            "name": "Muse-Spark-Open",
+            "reasoningEffort": ["xhigh", "high", "medium", "low"],
+            "reasoningDefault": "xhigh",
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": { "effort": "xhigh", "summary": "auto" }
+            }
         },
         "muse-wonder-1.0": {
             "name": "Muse-Wonder-1.0",
@@ -453,6 +459,10 @@
             "template": ["text", "think"],
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000
+        },
+        "hy4": {
+            "name": "Hy4",
+            "template": ["1m", "vision", "think"]
         },
         "hy4-preview": {
             "name": "Hy4-Preview",

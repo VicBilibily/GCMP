@@ -146,6 +146,19 @@
             "tokenPricing": [0.6, 2.5, 0.3]
         },
         {
+            "id": "kimi-k3.1-pro",
+            "name": "Kimi-K3.1-Pro (Hyper)",
+            "tooltip": "Charm Hyper — Kimi-K3.1-Pro。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2.2, 11, 0.22]
+        },
+        {
             "id": "kimi-k3",
             "name": "Kimi-K3 (Hyper)",
             "tooltip": "Charm Hyper - Kimi-K3。",
@@ -268,6 +281,25 @@
             "thinkingFormat": "effort-none",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [2.0, 6.0, 0.25]
+        },
+        {
+            "id": "muse-spark-open",
+            "name": "Muse-Spark-Open (Hyper)",
+            "tooltip": "Charm Hyper — Muse-Spark-Open。",
+            "sdkMode": "openai-responses",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["xhigh", "high", "medium", "low"],
+            "reasoningDefault": "xhigh",
+            "thinkingFormat": "effort-only",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.4, 4.65, 0.17],
+            "extraBody": {
+                "store": false,
+                "include": ["reasoning.encrypted_content"],
+                "reasoning": { "effort": "xhigh", "summary": "auto" }
+            }
         }
     ]
 }

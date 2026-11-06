@@ -350,6 +350,21 @@
             "tokenPricing": [0.834, 2.501, 0.042]
         },
         {
+            "id": "hy4-go",
+            "name": "Hy4 (Go)",
+            "model": "hy4",
+            "baseUrl": "https://opencode.ai/inference/go/openai/v1",
+            "tooltip": "OpenCode Go 套餐 — Hy4。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "thinkingFormat": "object",
+            "tokenPricing": [0.834, 2.501, 0.042]
+        },
+        {
             "id": "hy3-go",
             "name": "Hy3 (Go)",
             "model": "hy3",
