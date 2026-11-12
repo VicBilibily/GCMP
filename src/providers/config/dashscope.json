@@ -76,6 +76,22 @@
         },
 
         {
+            "id": "qwen4-max-preview-token-plan",
+            "name": "Qwen4-Max-Preview (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 专属接入点（OpenAI Responses API 兼容协议）。预览期至北京时间 2026-11-25 24:00，结束后下线。",
+            "provider": "dashscope-token",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen4-max-preview",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh",
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "qwen3.8-max-token-plan",
             "name": "Qwen3.8-Max (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。",
