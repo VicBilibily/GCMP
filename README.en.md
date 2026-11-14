@@ -5,6 +5,13 @@ English | **[中文](README.md)**
 [![CI](https://github.com/VicBilibily/GCMP/actions/workflows/ci.yml/badge.svg)](https://github.com/VicBilibily/GCMP/actions)
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
+> [!IMPORTANT]
+> **Maintenance Mode and EOL**: VS Code has moved to the Copilot harness. The [VS Code 1.146 announcement](https://code.visualstudio.com/updates/v1_146#_copilot-harness-and-deprecation-of-the-local-harness) deprecates the Local harness and schedules its removal for **February 2027**.
+>
+> GCMP therefore enters maintenance mode effective immediately: **no new features will be added**. Only basic maintenance will continue until the Local harness is removed, when GCMP reaches end of life (EOL).
+
+> **Future direction**: From the perspective of this project's usage and maintenance needs, there is not yet a smooth, compatible migration path from the existing Local-mode ecosystem to the Copilot harness. The user experience differs significantly, and functionality is fragmented between the two modes. GCMP will therefore **not pursue further Copilot harness adaptation**. The plan is to move to **DeepSeek Harness**.
+
 Integrates leading Chinese AI model providers into GitHub Copilot Chat, giving developers richer, more locally-tuned AI coding assistant options.
 Currently supports **ZhipuAI**, **MiniMax**, **MoonshotAI**, **DeepSeek**, **Alibaba Cloud DashScope**, **Volcengine**, **Tencent Cloud**, **Xiaomi MiMo**, **Baidu Qianfan**, **StepFun**, **Ant Ling**, **XunFei Astron**, and **LongCat** as native providers.
 The **Compatible Provider** also supports third-party services implementing OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, or Gemini GenerateContent APIs. OpenAI Responses models can optionally use experimental WebSocket transport; HTTP streaming remains the default.
@@ -30,7 +37,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 VS Code uses background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP does not override defaults owned by VS Code or other extensions. When utility models are not fully configured and the main-agent fallback is not enabled, startup guidance offers manual configuration of `chat.utilityModel` and `chat.utilitySmallModel`, or sets `chat.byokUtilityModelDefault` to `mainAgent` after you confirm. GCMP features such as commit message generation and vision analysis still require their own model selections.
 
-Copilot Harness is not yet fully supported. Startup guidance recommends switching to the default Local Agent only when no related global chat preference has been set; an explicit enabled or disabled setting suppresses the prompt. You can still select the mode in Auxiliary Preferences. Settings are saved globally only after confirmation, without changing workspace settings. Existing chats may require starting a new chat and selecting Local Agent again.
+GCMP will not pursue further Copilot harness adaptation. Until the Local harness is removed, select Local Agent to continue using GCMP. Startup guidance recommends switching to Local Agent only when no related global chat preference has been set; an explicit enabled or disabled setting suppresses the prompt. You can still select the mode in Auxiliary Preferences. Settings are saved globally only after confirmation, without changing workspace settings. Existing chats may require starting a new chat and selecting Local Agent again.
 
 > 💡 **Quick configuration entry**: hover the Token-usage icon in the status bar and click the `Set auxiliary preferences` link at the bottom of the daily-statistics popup to open a visual panel for unified configuration of all the models below. You can also run `GCMP: Set Auxiliary Preferences` from the command palette.
 
