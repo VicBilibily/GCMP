@@ -228,6 +228,68 @@
                     "context": "all_turns"
                 }
             }
+        },
+        {
+            "id": "gpt-6.2-sol",
+            "name": "GPT-6.2 Sol (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "ChatGPT 提供的 GPT-6.2 日常工作模型，适合代码编辑、写作与智能体工作流；Ultrafast 付费超额用量的 3 倍优惠价截至 2027-02-28（太平洋时间），之后为 6 倍",
+            "contextSize": [400000, 600000, 1000000],
+            "maxInputTokens": 922000,
+            "maxOutputTokens": 128000,
+            "webSearchTool": true,
+            "useInstructions": true,
+            "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
+            "serviceTier": ["default", "priority", "ultrafast"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [2, 10, 0.1],
+                "tiers": [
+                    { "serviceTier": "ultrafast", "pricing": [6, 30, 0.3] },
+                    { "serviceTier": "priority", "pricing": [4, 20, 0.2] }
+                ]
+            },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "text": { "verbosity": "low" },
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto",
+                    "context": "all_turns"
+                }
+            }
+        },
+        {
+            "id": "gpt-6.2-astra",
+            "name": "GPT-6.2 Astra (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "ChatGPT 提供的 GPT-6.2 旗舰模型，面向复杂项目、软件开发、电脑操作与文档工作；Ultrafast 付费超额用量的 3 倍优惠价截至 2027-02-28（太平洋时间），之后为 6 倍",
+            "contextSize": [400000, 600000, 1000000],
+            "maxInputTokens": 922000,
+            "maxOutputTokens": 128000,
+            "webSearchTool": true,
+            "useInstructions": true,
+            "reasoningEffort": ["low", "medium", "high", "xhigh", "max"],
+            "serviceTier": ["default", "priority", "ultrafast"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [8, 40, 0.4],
+                "tiers": [
+                    { "serviceTier": "ultrafast", "pricing": [24, 120, 1.2] },
+                    { "serviceTier": "priority", "pricing": [16, 80, 0.8] }
+                ]
+            },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "text": { "verbosity": "low" },
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto",
+                    "context": "all_turns"
+                }
+            }
         }
     ]
 }
