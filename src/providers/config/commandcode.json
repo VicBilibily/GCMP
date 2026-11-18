@@ -4,6 +4,19 @@
     "apiKeyTemplate": "user_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "deepseek-v4.1-flash-ultrafast",
+            "name": "DeepSeek-V4.1-Flash-Ultrafast (CmdC)",
+            "model": "deepseek/deepseek-v4.1-flash-ultrafast",
+            "tooltip": "CommandCode GOAT Plan — DeepSeek-V4.1-Flash-Ultrafast。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2.4, 9.6, 0.048]
+        },
+        {
             "id": "deepseek-v4.1-flash-fast",
             "name": "DeepSeek-V4.1-Flash-Fast (CmdC)",
             "model": "deepseek/deepseek-v4.1-flash-fast",
@@ -725,6 +738,54 @@
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.16, 0.64, 0.02]
+        },
+        {
+            "id": "tencent/hy4-flash",
+            "name": "Hy4-Flash (CmdC)",
+            "tooltip": "CommandCode GOAT Plan — Hy4-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.07, 0.281, 0.003]
+        },
+        {
+            "id": "tencent/hy4",
+            "name": "Hy4 (CmdC)",
+            "tooltip": "CommandCode GOAT Plan — Hy4。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "muse-ember",
+            "name": "Muse-Ember (CmdC)",
+            "model": "meta/muse-ember",
+            "tooltip": "CommandCode GOAT Plan — Muse-Ember。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.1, 0.5, 0.004]
+        },
+        {
+            "id": "qwen-4-max",
+            "name": "Qwen4-Max (CmdC)",
+            "model": "Qwen/Qwen4-Max",
+            "tooltip": "CommandCode GOAT Plan — Qwen4-Max。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "reasoningEffort": ["xhigh", "high", "low"],
+            "tokenPricing": [1.5, 4.5, 0.075, 1.875]
         }
     ]
 }

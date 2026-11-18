@@ -76,20 +76,21 @@
         },
 
         {
-            "id": "qwen4-max-preview-token-plan",
-            "name": "Qwen4-Max-Preview (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。预览期至北京时间 2026-11-25 24:00，结束后下线。",
+            "id": "qwen4-max-token-plan",
+            "name": "Qwen4-Max (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。Qwen4-Max 为通义千问新一代旗舰多模态模型，支持文本、图片与视频理解及深度思考。",
             "provider": "dashscope-token",
             "sdkMode": "openai-responses",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
-            "model": "qwen4-max-preview",
+            "model": "qwen4-max",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["xhigh", "medium", "low", "none"],
-            "reasoningDefault": "xhigh",
+            "reasoningEffort": ["xhigh", "high", "low"],
+            "reasoningDefault": "high",
             "webSearchTool": true,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [1.5, 4.5, 0.075, 1.875], "RMB": [10, 30, 0.5, 12.5] }
         },
         {
             "id": "qwen3.8-max-token-plan",
@@ -424,20 +425,21 @@
         },
 
         {
-            "id": "qwen4-max-preview-token-plan-personal",
-            "name": "Qwen4-Max-Preview (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。预览期至北京时间 2026-11-25 24:00，结束后下线。",
+            "id": "qwen4-max-token-plan-personal",
+            "name": "Qwen4-Max (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。Qwen4-Max 为通义千问新一代旗舰多模态模型，支持文本、图片与视频理解及深度思考。",
             "provider": "dashscope-token-personal",
             "sdkMode": "openai-responses",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
-            "model": "qwen4-max-preview",
+            "model": "qwen4-max",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["xhigh", "medium", "low", "none"],
-            "reasoningDefault": "xhigh",
+            "reasoningEffort": ["xhigh", "high", "low"],
+            "reasoningDefault": "high",
             "webSearchTool": true,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [1.5, 4.5, 0.075, 1.875], "RMB": [10, 30, 0.5, 12.5] }
         },
         {
             "id": "qwen3.8-max-token-plan-personal",
@@ -665,6 +667,21 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
 
+        {
+            "id": "qwen4-max",
+            "name": "Qwen4-Max",
+            "tooltip": "通义千问新一代旗舰多模态模型，融合文本生成、图片与视频理解及深度思考，适用于编程开发、办公、前端设计与复杂智能体任务。支持联网搜索、工具调用与结构化输出，1M 上下文。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "reasoningEffort": ["xhigh", "high", "low"],
+            "reasoningDefault": "high",
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [1.5, 4.5, 0.075, 1.875], "RMB": [10, 30, 0.5, 12.5] }
+        },
         {
             "id": "qwen3.8-max",
             "name": "Qwen3.8-Max",

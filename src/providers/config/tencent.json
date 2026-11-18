@@ -34,6 +34,21 @@
             "tokenPricing": { "USD": [0.834, 2.501, 0.042], "RMB": [6, 18, 0.3] }
         },
         {
+            "id": "hy4-flash-token-plan",
+            "name": "Hy4-Flash (TokenPlan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hy4-Flash。224B（64B Engram）/12B 激活，支持多模态与 1M 上下文，性价比高、解码速度超 150 tps。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hy4-flash",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.07, 0.281, 0.003], "RMB": [0.5, 2, 0.02] }
+        },
+        {
             "id": "deepseek/deepseek-flash-token-plan",
             "name": "DeepSeek-V4.1-Flash-1017 原厂直供 (TokenPlan)",
             "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4.1-Flash-1017 原厂直供。",
@@ -98,6 +113,21 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [0.834, 2.501, 0.042], "RMB": [6, 18, 0.3] }
+        },
+        {
+            "id": "hy4-flash-tokenhub",
+            "name": "Hy4-Flash (TokenHub)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Hy4-Flash，支持深度思考、Function Calling 与图片理解。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "hy4-flash",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.07, 0.281, 0.003], "RMB": [0.5, 2, 0.02] }
         },
         {
             "id": "hy3-tokenhub",
@@ -290,6 +320,21 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [0.834, 2.501, 0.042], "RMB": [6, 18, 0.3] }
+        },
+        {
+            "id": "hy4-flash-token-enterprise",
+            "name": "Hy4-Flash (Token Plan Enterprise)",
+            "tooltip": "腾讯云 Token Plan 企业版中的 Hy4-Flash，适合编程辅助、Agent 工作流与文档图表理解等高频任务。",
+            "provider": "tencent-token-enterprise",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
+            "model": "hy4-flash",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.07, 0.281, 0.003], "RMB": [0.5, 2, 0.02] }
         },
         {
             "id": "glm-5.3-token-enterprise",

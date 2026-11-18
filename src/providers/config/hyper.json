@@ -4,6 +4,19 @@
     "apiKeyTemplate": "sk-hyper-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "models": [
         {
+            "id": "deepseek-v4.1-flash-1017-economy",
+            "name": "DeepSeek-V4.1-Flash-1017-Economy (Hyper)",
+            "tooltip": "Charm Hyper — DeepSeek-V4.1-Flash-1017-Economy。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.2, 0.6, 0.01]
+        },
+        {
             "id": "deepseek-v4.1-flash-1017",
             "name": "DeepSeek-V4.1-Flash-1017 (Hyper)",
             "tooltip": "Charm Hyper — DeepSeek-V4.1-Flash-1017。",
@@ -14,31 +27,6 @@
             "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.33, 1.31, 0.03]
-        },
-        {
-            "id": "deepseek-v4.1-flash",
-            "name": "DeepSeek-V4.1-Flash (Hyper)",
-            "tooltip": "Charm Hyper — DeepSeek-V4.1-Flash。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "low"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.33, 1.31, 0.03]
-        },
-        {
-            "id": "deepseek-v4-flash-0731",
-            "name": "DeepSeek-V4-Flash-0731 (Hyper)",
-            "tooltip": "Charm Hyper — DeepSeek-V4-Flash-0731。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "low"],
-            "thinkingFormat": "effort-none",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.44, 1.32, 0.044]
         },
         {
             "id": "deepseek-v4-pro-0813",
@@ -61,18 +49,6 @@
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.098, 0.334, 0.049]
-        },
-        {
-            "id": "glm-5.2",
-            "name": "GLM-5.2 (Hyper)",
-            "tooltip": "Charm Hyper — GLM-5.2。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["xhigh", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.52432, 4.79072, 0.152432]
         },
         {
             "id": "glm-5.3",
@@ -124,28 +100,6 @@
             "tokenPricing": [1.0888, 4.40964, 0.185096]
         },
         {
-            "id": "kimi-k2.7-code",
-            "name": "Kimi-K2.7-Code (Hyper)",
-            "tooltip": "Charm Hyper — Kimi-K2.7-Code。",
-            "sdkMode": "openai-sse",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "extraBody": { "enabled_thinking": true },
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [1.03436, 4.3552, 0.206872]
-        },
-        {
-            "id": "kimi-k2-thinking",
-            "name": "Kimi-K2-Thinking (Hyper)",
-            "tooltip": "Charm Hyper — Kimi-K2-Thinking。",
-            "sdkMode": "openai-sse",
-            "maxInputTokens": 236000,
-            "maxOutputTokens": 20000,
-            "extraBody": { "enabled_thinking": true },
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.5, 0.3]
-        },
-        {
             "id": "kimi-k3.1-pro",
             "name": "Kimi-K3.1-Pro (Hyper)",
             "tooltip": "Charm Hyper — Kimi-K3.1-Pro。",
@@ -171,16 +125,6 @@
             "tokenPricing": [3.2664, 16.332, 0.32664, 0]
         },
         {
-            "id": "minimax-m2.7",
-            "name": "MiniMax-M2.7 (Hyper)",
-            "tooltip": "Charm Hyper — MiniMax-M2.7。",
-            "sdkMode": "openai-sse",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.484, 1.852, 0.242]
-        },
-        {
             "id": "minimax-m3",
             "name": "MiniMax-M3 (Hyper)",
             "tooltip": "Charm Hyper — MiniMax-M3。",
@@ -191,45 +135,6 @@
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.32664, 1.30656, 0.064239]
-        },
-        {
-            "id": "qwen3.7-flash",
-            "name": "Qwen3.7-Flash (Hyper)",
-            "tooltip": "Charm Hyper - Qwen3.7-Flash。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["none", "minimal", "low", "medium", "high"],
-            "thinkingFormat": "effort-none",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.2, 0.8, 0.04]
-        },
-        {
-            "id": "qwen3.7-max",
-            "name": "Qwen3.7-Max (Hyper)",
-            "tooltip": "Charm Hyper — Qwen3.7-Max。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["none", "minimal", "low", "medium", "high"],
-            "thinkingFormat": "effort-none",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [2.5, 7.5, 0.5]
-        },
-        {
-            "id": "qwen3.7-plus",
-            "name": "Qwen3.7-Plus (Hyper)",
-            "tooltip": "Charm Hyper — Qwen3.7-Plus。",
-            "sdkMode": "openai-sse",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["none", "minimal", "low", "medium", "high"],
-            "thinkingFormat": "effort-none",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [1.2, 4.8, 0.24]
         },
         {
             "id": "qwen3.8-2.4t-a95b",
@@ -281,6 +186,19 @@
             "thinkingFormat": "effort-none",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [2.0, 6.0, 0.25]
+        },
+        {
+            "id": "qwen4-max",
+            "name": "Qwen4-Max (Hyper)",
+            "tooltip": "Charm Hyper — Qwen4-Max。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["none", "minimal", "low", "medium", "high"],
+            "reasoningDefault": "medium",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.5, 4.5, 0.075]
         },
         {
             "id": "muse-spark-open",

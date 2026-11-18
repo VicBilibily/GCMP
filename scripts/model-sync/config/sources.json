@@ -10,8 +10,8 @@
         "excludedModelIdPrefixes": ["prism"],
         "defaults": { "sdkMode": "openai-sse" },
         "models": {
-            "deepseek-v4.1-flash": { "ref": "deepseek/deepseek-v4.1-flash" },
             "deepseek-v4.1-flash-1017": { "ref": "deepseek/deepseek-v4.1-flash-1017" },
+            "deepseek-v4.1-flash-1017-economy": { "ref": "deepseek/deepseek-v4.1-flash-1017" },
             "glm-5.3": {
                 // 远端误报 vision:true（智谱官方及其余来源均为 false），钉住待上游修正后移除
                 "overrides": {
@@ -54,7 +54,7 @@
             },
             {
                 // MiniMax / Qwen 系列官方走 Anthropic 兼容端点
-                "idPrefixes": ["minimax-", "qwen3."],
+                "idPrefixes": ["minimax-", "qwen3.", "qwen4"],
                 "overrides": {
                     "baseUrl": "https://opencode.ai/inference/go/anthropic",
                     "sdkMode": "anthropic"
@@ -157,7 +157,14 @@
             },
             "moonshotai/Kimi-K3.1-Pro": { "ref": "moonshotai/kimi-k3.1-pro", "localId": "kimi-k3.1-pro" },
             "ornith/ornith-1.5-122b": { "localId": "ornith-1.5-122b" },
-            "mistral/mistral-large-4": { "localId": "mistral-large-4" }
+            "mistral/mistral-large-4": { "localId": "mistral-large-4" },
+            // 远端清单不含价格与能力，价格按 commandcode 模型页（美元/百万 token）
+            "deepseek/deepseek-v4.1-flash-ultrafast": {
+                "ref": "deepseek/deepseek-v4.1-flash",
+                "localId": "deepseek-v4.1-flash-ultrafast"
+            },
+            "Qwen/Qwen4-Max": { "ref": "qwen/qwen4-max", "localId": "qwen-4-max" },
+            "meta/muse-ember": { "localId": "muse-ember" }
         }
     },
     // ClinePass：成员与规格均取自 models.dev 的 cline-pass 目录（端点与 provider baseUrl 不同源，用 localBaseUrl 归属）；

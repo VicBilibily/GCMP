@@ -458,6 +458,21 @@
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [1, 2.7, 0.1]
+        },
+        {
+            "id": "qwen4-max-go",
+            "name": "Qwen4-Max (Go)",
+            "model": "qwen4-max",
+            "baseUrl": "https://opencode.ai/inference/go/anthropic",
+            "tooltip": "OpenCode Go 套餐 — Qwen4-Max。",
+            "sdkMode": "anthropic",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "reasoningEffort": ["xhigh", "high", "low"],
+            "reasoningDefault": "xhigh",
+            "tokenPricing": [1.5, 4.5, 0.075, 1.875]
         }
     ]
 }

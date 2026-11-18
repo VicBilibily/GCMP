@@ -280,6 +280,11 @@
         "muse-wonder-1.0": {
             "name": "Muse-Wonder-1.0",
             "template": ["1m", "vision"]
+        },
+        // Muse Ember：多模态对话/Agent 模型，官方未公开档位表，故不声明 reasoningEffort
+        "muse-ember": {
+            "name": "Muse-Ember",
+            "template": ["1m", "vision"]
         }
     },
     "minimax": {
@@ -380,6 +385,10 @@
             "name": "Qwen3.8-2.4T-A95B",
             "template": ["1m", "text"]
         },
+        "qwen4-max": {
+            "name": "Qwen4-Max",
+            "template": ["1m", "vision"]
+        },
         "qwen3-coder-480b-a35b-instruct-int4-mixed-ar": {
             "name": "Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR",
             "template": "text",
@@ -477,6 +486,10 @@
         "hy4-preview": {
             "name": "Hy4-Preview",
             "template": ["1m", "text", "think"]
+        },
+        "hy4-flash": {
+            "name": "Hy4-Flash",
+            "template": ["1m", "vision", "think"]
         }
     },
     "meituan": {
