@@ -538,6 +538,9 @@ export function sanitizeProviderModels(
         if (typeof input.useInstructions === 'boolean') {
             model.useInstructions = input.useInstructions;
         }
+        if (typeof input.useRoleDeveloper === 'boolean') {
+            model.useRoleDeveloper = input.useRoleDeveloper;
+        }
         if (typeof input.cacheTtl === 'string' && CACHE_TTLS.has(input.cacheTtl)) {
             model.cacheTtl = input.cacheTtl as ModelConfig['cacheTtl'];
         }
@@ -560,6 +563,9 @@ export function sanitizeProviderModels(
             }
             if (model.provider === undefined && builtinModel.provider !== undefined) {
                 model.provider = builtinModel.provider;
+            }
+            if (model.useRoleDeveloper === undefined && builtinModel.useRoleDeveloper !== undefined) {
+                model.useRoleDeveloper = builtinModel.useRoleDeveloper;
             }
         }
 

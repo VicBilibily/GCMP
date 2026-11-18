@@ -94,6 +94,148 @@ async function* eventsFrom(events: unknown[]) {
     }
 }
 
+for (const terminal of ['response.completed', 'response.incomplete']) {
+    test(`reasoning 移除诊断：${terminal} 汇总原因且不改变输出或 usage`, async context => {
+        const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+        const { Logger } = await import('../../utils/runtime/logger');
+        const warnings: unknown[][] = [];
+        context.mock.method(Logger, 'warn', (...args: unknown[]) => warnings.push(args));
+        const { processor, reported, flushed } = createProcessor(OpenAIResponsesStreamProcessor);
+        const usage = { input_tokens: 100, input_tokens_details: { cached_tokens: 80 }, output_tokens: 5 };
+
+        await processor.consume(
+            eventsFrom([
+                { type: 'response.output_text.delta', item_id: 'message-1', content_index: 0, delta: 'answer' },
+                {
+                    type: terminal,
+                    response: {
+                        id: 'response-1',
+                        usage,
+                        ...(terminal === 'response.incomplete' ?
+                            { incomplete_details: { reason: 'max_output_tokens' } }
+                        :   {}),
+                        input_transformations: [
+                            { type: 'reasoning', action: 'removed', reason: 'prefix_mismatch', id: 'private-id' },
+                            { type: 'reasoning', action: 'removed', reason: 'prefix_mismatch' },
+                            { type: 'reasoning', action: 'removed', reason: 'end_user_mismatch' },
+                            { type: 'reasoning', action: 'kept', reason: 'prefix_mismatch' },
+                            { type: 'message', action: 'removed', reason: 'prefix_mismatch' }
+                        ]
+                    }
+                }
+            ]) as never
+        );
+
+        assert.deepEqual(
+            warnings.filter(([message]) => String(message).includes('reasoning removals')),
+            [
+                [
+                    'test-model Responses API reasoning removals',
+                    { total: 3, reasons: { prefix_mismatch: 2, end_user_mismatch: 1 } }
+                ]
+            ]
+        );
+        assert.deepEqual(reported, ['answer']);
+        assert.equal(processor.getFinalUsage(), usage);
+        assert.equal(processor.isResponseFinalized(), true);
+        assert.equal(flushed.length, 1);
+        assert.equal(flushed[0].usage, usage);
+    });
+}
+
+test('reasoning 移除诊断：已知原因独立计数，未知原因不泄漏原始数据', async context => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { Logger } = await import('../../utils/runtime/logger');
+    const warnings: unknown[][] = [];
+    context.mock.method(Logger, 'warn', (...args: unknown[]) => warnings.push(args));
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor);
+
+    await processor.consume(
+        eventsFrom([
+            {
+                type: 'response.completed',
+                response: {
+                    id: 'response-1',
+                    input_transformations: [
+                        { type: 'reasoning', action: 'removed', reason: 'model_mismatch', id: 'private-item' },
+                        { type: 'reasoning', action: 'removed', reason: 'organization_mismatch' },
+                        { type: 'reasoning', action: 'removed', reason: 'private-unknown-reason' },
+                        { type: 'reasoning', action: 'removed', reason: { text: 'private-reason-object' } },
+                        { type: 'reasoning', action: 'removed', encrypted_content: 'private-ciphertext' }
+                    ]
+                }
+            }
+        ]) as never
+    );
+
+    assert.deepEqual(warnings, [
+        [
+            'test-model Responses API reasoning removals',
+            { total: 5, reasons: { model_mismatch: 1, organization_mismatch: 1, unknown: 3 } }
+        ]
+    ]);
+    assert.doesNotMatch(JSON.stringify(warnings), /private-/);
+    assert.equal(processor.isResponseFinalized(), true);
+});
+
+test('reasoning 移除诊断：正常 turn_boundary 仅写调试日志', async context => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { Logger } = await import('../../utils/runtime/logger');
+    const warnings: unknown[][] = [];
+    const debugLogs: unknown[][] = [];
+    context.mock.method(Logger, 'warn', (...args: unknown[]) => warnings.push(args));
+    context.mock.method(Logger, 'debug', (...args: unknown[]) => debugLogs.push(args));
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor);
+
+    await processor.consume(
+        eventsFrom([
+            {
+                type: 'response.completed',
+                response: {
+                    id: 'response-1',
+                    input_transformations: [{ type: 'reasoning', action: 'removed', reason: 'turn_boundary' }]
+                }
+            }
+        ]) as never
+    );
+
+    assert.deepEqual(warnings, []);
+    assert.deepEqual(
+        debugLogs.filter(([message]) => String(message).includes('reasoning removals')),
+        [['test-model Responses API reasoning removals', { total: 1, reasons: { turn_boundary: 1 } }]]
+    );
+});
+
+test('reasoning 移除诊断：缺失或畸形字段不影响正常完成且不产生警告', async context => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { Logger } = await import('../../utils/runtime/logger');
+    const warnings: unknown[][] = [];
+    context.mock.method(Logger, 'warn', (...args: unknown[]) => warnings.push(args));
+    const invalidValues: unknown[] = [
+        undefined,
+        null,
+        'not-an-array',
+        42,
+        {},
+        [],
+        [null, false, 42, 'invalid', [], {}, { type: 'reasoning' }, { type: 'message', action: 'removed' }]
+    ];
+    for (const inputTransformations of invalidValues) {
+        const { processor, flushed } = createProcessor(OpenAIResponsesStreamProcessor);
+        await processor.consume(
+            eventsFrom([
+                {
+                    type: 'response.completed',
+                    response: { id: 'response-1', input_transformations: inputTransformations }
+                }
+            ]) as never
+        );
+        assert.equal(processor.isResponseFinalized(), true);
+        assert.equal(flushed.length, 1);
+    }
+    assert.deepEqual(warnings, []);
+});
+
 for (const strict of [false, true]) {
     test(`WS-LOOP-12: partial output without terminal, strict=${strict}`, async () => {
         const { OpenAIResponsesStreamProcessor } = await getProcessorModule();

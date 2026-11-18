@@ -12,6 +12,8 @@ export default defineConfig(
             'website',
             'out',
             'dist',
+            'logs/',
+            'discuss/temp/',
             'extensions/gcmp-fim-nes/dist',
             'node_modules',
             '**/*.d.ts',

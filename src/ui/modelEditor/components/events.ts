@@ -215,6 +215,9 @@ export function bindEvents(state: EditorState, actions: Actions): void {
     const useInstructionsContainer = document
         .getElementById('useInstructions')
         ?.closest('.form-group') as HTMLElement | null;
+    const useRoleDeveloperContainer = document
+        .getElementById('useRoleDeveloper')
+        ?.closest('.form-group') as HTMLElement | null;
     const webSearchToolContainer = document
         .getElementById('webSearchTool')
         ?.closest('.form-group') as HTMLElement | null;
@@ -231,6 +234,9 @@ export function bindEvents(state: EditorState, actions: Actions): void {
             const nativeToolsEffective = sdkMode === 'anthropic' || sdkMode === 'openai-responses';
 
             useInstructionsContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
+            if (useRoleDeveloperContainer) {
+                useRoleDeveloperContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
+            }
             if (useWebSocketContainer) {
                 useWebSocketContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
             }

@@ -298,6 +298,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         :   [];
     const serviceTier = normalizeCompatibleServiceTiers(serviceTierValues) || [];
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
+    const useRoleDeveloperEl = document.getElementById('useRoleDeveloper') as HTMLInputElement | null;
     const useWebSocketEl = document.getElementById('useWebSocket') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
@@ -305,6 +306,8 @@ export function collectFormData(state: EditorState): ModelFormData | null {
 
     const useInstructions =
         sdkMode === 'openai-responses' ? (useInstructionsEl?.checked ?? false) : (state.model.useInstructions ?? false);
+    const useRoleDeveloper =
+        sdkMode === 'openai-responses' ? (useRoleDeveloperEl?.checked ?? false) : state.model.useRoleDeveloper;
     const webSearchTool =
         sdkMode === 'anthropic' || sdkMode === 'openai-responses' ?
             (webSearchToolEl?.checked ?? false)
@@ -353,6 +356,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         imageInput,
         serviceTier,
         useInstructions,
+        useRoleDeveloper,
         useWebSocket: sdkMode === 'openai-responses' ? (useWebSocketEl?.checked ?? false) : undefined,
         cacheTtl: state.model.cacheTtl,
         webSearchTool,

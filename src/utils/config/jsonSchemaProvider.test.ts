@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { before, test } from 'node:test';
 import type { ValidateFunction } from 'ajv';
@@ -29,6 +30,10 @@ const provider: ProviderConfig = {
     })) as ProviderConfig['models']
 };
 let validate: ValidateFunction;
+let validateProviderConfig: ValidateFunction;
+const codex = JSON.parse(
+    readFileSync(new URL('../../providers/config/codex.json', import.meta.url), 'utf8')
+) as ProviderConfig;
 
 before(async () => {
     const originalRequire = NodeModule.prototype.require;
@@ -68,6 +73,11 @@ before(async () => {
     try {
         const { JsonSchemaProvider } = await import('./jsonSchemaProvider');
         validate = new Ajv({ strict: false, validateFormats: false }).compile(JsonSchemaProvider.getSettingsSchema());
+        validateProviderConfig = new Ajv({ strict: false, validateFormats: false }).compile(
+            JSON.parse(
+                readFileSync(new URL('../../../.vscode/providerConfig.schema.json', import.meta.url), 'utf8')
+            ) as JSONSchema7
+        );
     } finally {
         NodeModule.prototype.require = originalRequire;
     }
@@ -138,3 +148,57 @@ for (const sdkMode of [undefined, 'openai-responses']) {
         );
     });
 }
+
+for (const useRoleDeveloper of [true, false, undefined, 'true', null, 1]) {
+    const expected = useRoleDeveloper === undefined || typeof useRoleDeveloper === 'boolean';
+    test(`static provider Schema validates useRoleDeveloper=${JSON.stringify(useRoleDeveloper)}`, () => {
+        assert.equal(
+            validateProviderConfig({
+                ...codex,
+                models: [{ ...codex.models![0], useRoleDeveloper }]
+            }),
+            expected,
+            JSON.stringify(validateProviderConfig.errors)
+        );
+        if (!expected) {
+            assert.ok(validateProviderConfig.errors?.some(error => error.instancePath.endsWith('/useRoleDeveloper')));
+        }
+    });
+    test(`provider Schema validates useRoleDeveloper=${JSON.stringify(useRoleDeveloper)}`, () => {
+        assert.equal(
+            validate({
+                'gcmp.providerOverrides': { fixture: { models: [{ id: 'responses-model', useRoleDeveloper }] } }
+            }),
+            expected,
+            JSON.stringify(validate.errors)
+        );
+    });
+    test(`compatible Schema validates useRoleDeveloper=${JSON.stringify(useRoleDeveloper)}`, () => {
+        assert.equal(
+            validate({
+                'gcmp.compatibleModels': [
+                    {
+                        id: 'developer-model',
+                        name: 'Developer model',
+                        provider: 'openai',
+                        sdkMode: 'openai-responses',
+                        maxInputTokens: 1024,
+                        maxOutputTokens: 512,
+                        capabilities: { toolCalling: true, imageInput: false },
+                        useRoleDeveloper
+                    }
+                ]
+            }),
+            expected,
+            JSON.stringify(validate.errors)
+        );
+    });
+}
+
+test('Codex presets explicitly enable developer messages only for GPT-6.2', () => {
+    assert.equal(validateProviderConfig(codex), true, JSON.stringify(validateProviderConfig.errors));
+    assert.deepEqual(
+        codex.models?.filter(model => model.useRoleDeveloper).map(model => model.id),
+        ['gpt-6.2-sol', 'gpt-6.2-astra']
+    );
+});

@@ -156,6 +156,7 @@ test('WS-LOOP-01: sanitizeProviderModels preserves normal fields but cannot enab
                 customHeader: { 'X-Org': 'abc', 'user-agent': 'custom/1.0' },
                 extraBody: { store: false, reasoning: { effort: 'high' } },
                 useInstructions: true,
+                useRoleDeveloper: true,
                 useWebSocket: true,
                 cacheTtl: '1h',
                 webSearchTool: { maxUses: 3, allowedDomains: ['example.com'] },
@@ -178,11 +179,25 @@ test('WS-LOOP-01: sanitizeProviderModels preserves normal fields but cannot enab
     assert.deepEqual(model?.customHeader, { 'X-Org': 'abc', 'user-agent': 'custom/1.0' });
     assert.deepEqual(model?.extraBody, { store: false, reasoning: { effort: 'high' } });
     assert.equal(model?.useInstructions, true);
+    assert.equal(model?.useRoleDeveloper, true);
     assert.equal(model?.useWebSocket, undefined);
     assert.equal(model?.cacheTtl, '1h');
     assert.deepEqual(model?.webSearchTool, { maxUses: 3, allowedDomains: ['example.com'] });
     assert.deepEqual(model?.nativeTools, [{ type: 'web_search', maxUses: 2 }]);
 });
+
+for (const useRoleDeveloper of [true, false, undefined, null, 'true', 1]) {
+    test(`sanitizeProviderModels validates useRoleDeveloper=${useRoleDeveloper}`, () => {
+        const result = sanitizeProviderModels({
+            models: [{ id: 'gpt-6.2-sol', name: 'GPT', maxInputTokens: 1000, maxOutputTokens: 100, useRoleDeveloper }]
+        });
+        assert.equal(result?.models.length, 1);
+        assert.equal(
+            result?.models[0].useRoleDeveloper,
+            typeof useRoleDeveloper === 'boolean' ? useRoleDeveloper : undefined
+        );
+    });
+}
 
 test('sanitizeProviderModels strips forbidden and proto-pollution fields with audit', () => {
     // __proto__ 只有经 JSON.parse 才会成为自有属性（对象字面量写法会静默改写原型），与真实载荷一致
@@ -579,6 +594,33 @@ function builtinModel(id: string, overrides: Record<string, unknown> = {}) {
         capabilities: { toolCalling: false, imageInput: false },
         ...overrides
     } as const;
+}
+
+for (const { label, remoteFlags, expected } of [
+    { label: 'inherits a missing flag', remoteFlags: {}, expected: true },
+    { label: 'ignores a non-boolean flag', remoteFlags: { useRoleDeveloper: 'false' }, expected: true },
+    { label: 'keeps explicit false', remoteFlags: { useRoleDeveloper: false }, expected: false },
+    { label: 'keeps explicit true', remoteFlags: { useRoleDeveloper: true }, expected: true }
+]) {
+    test(`sanitizeProviderModels ${label} for a matching builtin developer setting`, () => {
+        const builtin = [{ ...builtinModel('gpt-6.2-sol'), useRoleDeveloper: true }];
+        const remote = { ...builtinModel('gpt-6.2-sol'), name: 'Remote Sol', useInstructions: true };
+        const result = sanitizeProviderModels(
+            {
+                models: [
+                    { ...remote, ...remoteFlags },
+                    { ...remote, id: 'remote-only-model' }
+                ]
+            },
+            builtin
+        );
+
+        assert.equal(result?.models[0].useRoleDeveloper, expected);
+        assert.equal(result?.models[0].name, 'Remote Sol');
+        assert.equal(result?.models[0].useInstructions, true);
+        assert.equal(result?.models[1].useRoleDeveloper, undefined);
+        assert.equal(builtin[0].useRoleDeveloper, true);
+    });
 }
 
 test('sanitizeProviderModels merges with builtin: remote wins on duplicate id, builtin rest as fallback', () => {

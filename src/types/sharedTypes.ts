@@ -163,11 +163,13 @@ export interface ModelConfig {
      */
     extraBody?: Record<string, unknown>;
     /**
-     * 是否在 Responses API 中使用 instructions 参数（可选）
+     * 是否在 Responses API 中启用系统指令传递（可选）
      *  - 默认值为 false，表示使用 用户消息 传递 系统消息 指令
-     *  - 当设置为 true 时，使用 instructions 参数传递系统指令
+     *  - 当设置为 true 时，使用 instructions 参数；useRoleDeveloper=true 时优先使用 developer 消息
      */
     useInstructions?: boolean;
+    /** 使用首条 developer 消息传递系统指令，优先于 useInstructions；仅 openai-responses 生效 */
+    useRoleDeveloper?: boolean;
     useWebSocket?: boolean;
     /**
      * Anthropic 提示缓存 TTL（可选，仅 sdkMode=anthropic 生效）
@@ -483,8 +485,10 @@ export interface ModelOverride {
      * 如果提供，将在API请求中合并到请求体中
      */
     extraBody?: Record<string, unknown>;
-    /** 是否在 Responses API 中使用 instructions 参数（仅 sdkMode=openai-responses 生效） */
+    /** 使用 Responses instructions 参数传递系统指令；useRoleDeveloper=true 时不生效 */
     useInstructions?: boolean;
+    /** 使用首条 developer 消息传递系统指令，优先于 useInstructions；仅 openai-responses 生效 */
+    useRoleDeveloper?: ModelConfig['useRoleDeveloper'];
     useWebSocket?: ModelConfig['useWebSocket'];
     /** Anthropic 提示缓存 TTL（仅 sdkMode=anthropic 生效）；省略保持默认 5m */
     cacheTtl?: ModelConfig['cacheTtl'];

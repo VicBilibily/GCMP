@@ -21,6 +21,14 @@ export type ResponsesProcessorEvent = ResponseStreamEvent | ResponsesCancelledEv
 type SDKResponsesStream = ReturnType<OpenAI['responses']['stream']>;
 type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem;
 
+const reasoningRemovalReasons = new Set([
+    'prefix_mismatch',
+    'end_user_mismatch',
+    'organization_mismatch',
+    'model_mismatch',
+    'turn_boundary'
+]);
+
 /**
  * 本地 Responses 事件分发器：仅复用 SDK ResponseStream 的事件注册签名。
  * SDK ResponseStream 的快照累积器在 response.failed 先于 response.created 到达时
@@ -608,9 +616,13 @@ export class OpenAIResponsesStreamProcessor {
             this.textIndexItems.set(outputIndex, itemId);
             const prefix = `item:${itemId}:`;
             for (const [oldKey, text] of previous === undefined ? this.deliveredText : []) {
-                if (!oldKey.startsWith(prefix)) continue;
+                if (!oldKey.startsWith(prefix)) {
+                    continue;
+                }
                 const partIndex = oldKey.slice(prefix.length);
-                if (!/^\d+$/.test(partIndex)) continue;
+                if (!/^\d+$/.test(partIndex)) {
+                    continue;
+                }
                 const newKey = `index:${outputIndex}:${partIndex}`;
                 if (this.deliveredText.has(newKey)) {
                     throw new Error('Responses text identity mismatch');
@@ -638,7 +650,9 @@ export class OpenAIResponsesStreamProcessor {
             throw new Error('Responses text snapshot mismatch');
         }
         const suffix = text.slice(delivered.length);
-        if (!suffix) return;
+        if (!suffix) {
+            return;
+        }
         if (this.deliveredText.has(key) && this.lastTextKey !== key) {
             throw new Error('Responses text snapshot mismatch: cannot append to an earlier content part');
         }
@@ -650,7 +664,9 @@ export class OpenAIResponsesStreamProcessor {
     }
 
     private checkTextPosition(outputIndex?: number, contentIndex = 0): void {
-        if (outputIndex === undefined) return;
+        if (outputIndex === undefined) {
+            return;
+        }
         const previous = this.lastTextPosition;
         if (previous && (outputIndex < previous[0] || (outputIndex === previous[0] && contentIndex < previous[1]))) {
             throw new Error('Responses text snapshot mismatch: out-of-order content');
@@ -673,6 +689,7 @@ export class OpenAIResponsesStreamProcessor {
         response: {
             id?: string;
             usage?: unknown;
+            input_transformations?: unknown;
             output?: Array<{
                 type?: string;
                 id?: string;
@@ -691,6 +708,7 @@ export class OpenAIResponsesStreamProcessor {
         if (response.usage) {
             this.finalUsage = response.usage as GenericUsageData;
         }
+        this.logReasoningRemovals(response.input_transformations);
 
         const output = response.output;
         if (Array.isArray(output) && !suppressPendingTools) {
@@ -760,6 +778,37 @@ export class OpenAIResponsesStreamProcessor {
             );
         } else {
             this.streamReporter.flushAll(finishReason, undefined, this.finalUsage);
+        }
+    }
+
+    private logReasoningRemovals(transformations: unknown): void {
+        if (!Array.isArray(transformations)) {
+            return;
+        }
+        const reasons = new Map<string, number>();
+        let total = 0;
+        for (const transformation of transformations as unknown[]) {
+            if (typeof transformation !== 'object' || transformation === null || Array.isArray(transformation)) {
+                continue;
+            }
+            const item = transformation as Record<string, unknown>;
+            if (item.type !== 'reasoning' || item.action !== 'removed') {
+                continue;
+            }
+            const reason =
+                typeof item.reason === 'string' && reasoningRemovalReasons.has(item.reason) ? item.reason : 'unknown';
+            reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+            total++;
+        }
+        if (total === 0) {
+            return;
+        }
+        const message = `${this.modelName} Responses API reasoning removals`;
+        const details = { total, reasons: Object.fromEntries(reasons) };
+        if (reasons.size === 1 && reasons.has('turn_boundary')) {
+            Logger.debug(message, details);
+        } else {
+            Logger.warn(message, details);
         }
     }
 

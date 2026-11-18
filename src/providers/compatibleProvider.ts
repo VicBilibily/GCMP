@@ -135,6 +135,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.extraBody && { extraBody: model.extraBody }),
                     ...(model.proxy !== undefined && { proxy: model.proxy }),
                     ...(model.useInstructions !== undefined && { useInstructions: model.useInstructions }),
+                    ...(model.useRoleDeveloper !== undefined && { useRoleDeveloper: model.useRoleDeveloper }),
                     ...(model.useWebSocket !== undefined && { useWebSocket: model.useWebSocket }),
                     ...(model.cacheTtl && { cacheTtl: model.cacheTtl }),
                     ...(model.webSearchTool !== undefined && { webSearchTool: model.webSearchTool }),

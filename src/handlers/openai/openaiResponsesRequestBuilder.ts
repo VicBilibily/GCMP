@@ -57,21 +57,27 @@ export function applyResponsesSystemMessage(params: {
     responsesMessages: ResponseInputItem[];
     systemMessage: string;
     useInstructions?: boolean;
+    useRoleDeveloper?: boolean;
 }): void {
-    const { requestBody, responsesMessages, systemMessage, useInstructions } = params;
+    const { requestBody, responsesMessages, systemMessage, useInstructions, useRoleDeveloper } = params;
     if (!systemMessage) {
         return;
     }
 
-    if (useInstructions === true) {
+    const useDeveloperMessage = useRoleDeveloper === true;
+    if (useInstructions === true && !useDeveloperMessage) {
         requestBody.instructions = systemMessage;
         return;
     }
 
-    requestBody.instructions = undefined;
+    if (useDeveloperMessage) {
+        delete requestBody.instructions;
+    } else {
+        requestBody.instructions = undefined;
+    }
     responsesMessages.unshift({
         type: 'message' as const,
-        role: 'user' as const,
+        role: useDeveloperMessage ? 'developer' : 'user',
         content: [{ type: 'input_text' as const, text: systemMessage }]
     } as unknown as ResponseInputItem);
 }
@@ -113,14 +119,15 @@ export class OpenAIResponsesRequestBuilder {
             requestBody,
             responsesMessages,
             systemMessage,
-            useInstructions: modelConfig.useInstructions
+            useInstructions: modelConfig.useInstructions,
+            useRoleDeveloper: modelConfig.useRoleDeveloper
         });
         if (systemMessage) {
-            Logger.debug(
-                modelConfig.useInstructions === true ?
-                    `${this.displayName} Responses API: passing system message via instructions`
-                :   `${this.displayName} Responses API: passing system instructions via a user message in input`
-            );
+            const placement =
+                modelConfig.useRoleDeveloper === true ? 'a developer message in input'
+                : modelConfig.useInstructions === true ? 'instructions'
+                : 'a user message in input';
+            Logger.debug(`${this.displayName} Responses API: passing system message via ${placement}`);
         }
         this.applyDeclaredTools(requestBody, options);
         if (!requestKind || !isSubRequest(requestKind, getScopedRequestClassification(options))) {

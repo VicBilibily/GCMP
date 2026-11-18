@@ -169,6 +169,142 @@ test('useInstructions=true 时通过 instructions 传递 system message', async 
     assert.equal(input.length, 1);
 });
 
+for (const requestModel of ['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.2-sol-2026-11-18', 'gpt-6.1-sol', 'o1']) {
+    for (const useInstructions of [true, false, undefined]) {
+        test(`${requestModel} useRoleDeveloper=true 优先于 useInstructions=${useInstructions}`, async () => {
+            const { applyResponsesSystemMessage } = await getBuilderModule();
+            const requestBody: Record<string, unknown> = { model: requestModel, instructions: 'stale' };
+            const question = { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'question' }] };
+            const input = [question];
+
+            applyResponsesSystemMessage({
+                requestBody,
+                responsesMessages: input as never,
+                systemMessage: 'system rules',
+                useInstructions,
+                useRoleDeveloper: true
+            });
+
+            assert.equal(Object.hasOwn(requestBody, 'instructions'), false);
+            assert.equal(input.length, 2);
+            assert.deepEqual(input[0], {
+                type: 'message',
+                role: 'developer',
+                content: [{ type: 'input_text', text: 'system rules' }]
+            });
+            assert.equal(input[1], question);
+        });
+    }
+}
+
+for (const requestModel of ['gpt-6.2-sol', 'gpt-6.1-sol', 'gpt-6.20-sol', 'gpt-6.3-sol', 'glm-5.3']) {
+    for (const useRoleDeveloper of [false, undefined]) {
+        test(`${requestModel} useRoleDeveloper=${useRoleDeveloper} 保留顶层 instructions`, async () => {
+            const { applyResponsesSystemMessage } = await getBuilderModule();
+            const requestBody: Record<string, unknown> = { model: requestModel };
+            const input: never[] = [];
+
+            applyResponsesSystemMessage({
+                requestBody,
+                responsesMessages: input,
+                systemMessage: 'system rules',
+                useInstructions: true,
+                useRoleDeveloper
+            });
+
+            assert.equal(requestBody.instructions, 'system rules');
+            assert.deepEqual(input, []);
+        });
+    }
+}
+
+for (const useInstructions of [false, undefined]) {
+    for (const useRoleDeveloper of [false, undefined]) {
+        test(`6.2 useInstructions=${useInstructions}, useRoleDeveloper=${useRoleDeveloper} 保留 user 消息`, async () => {
+            const { applyResponsesSystemMessage } = await getBuilderModule();
+            const requestBody: Record<string, unknown> = { model: 'gpt-6.2-sol' };
+            const input: unknown[] = [];
+
+            applyResponsesSystemMessage({
+                requestBody,
+                responsesMessages: input as never,
+                systemMessage: 'system rules',
+                useInstructions,
+                useRoleDeveloper
+            });
+
+            assert.equal(requestBody.instructions, undefined);
+            assert.deepEqual(input, [
+                { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'system rules' }] }
+            ]);
+        });
+    }
+}
+
+test('6.2 空系统指令不新增消息，也不移除已有当次 instructions', async () => {
+    const { applyResponsesSystemMessage } = await getBuilderModule();
+    const requestBody: Record<string, unknown> = { model: 'gpt-6.2-sol', instructions: 'turn guidance' };
+    const input: never[] = [];
+
+    applyResponsesSystemMessage({
+        requestBody,
+        responsesMessages: input,
+        systemMessage: '',
+        useInstructions: true,
+        useRoleDeveloper: true
+    });
+
+    assert.equal(requestBody.instructions, 'turn guidance');
+    assert.deepEqual(input, []);
+});
+
+for (const requestModel of ['gpt-6.2-sol', 'gpt-6.1-sol']) {
+    for (const instructions of [undefined, 'turn guidance', null]) {
+        test(`${requestModel} 完整构造按显式开关前置 developer，保留当次 instructions=${instructions}`, async () => {
+            const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+            const question = { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'question' }] };
+            const sourceMessages = Object.freeze([question]);
+            const builder = new OpenAIResponsesRequestBuilder(
+                'Codex',
+                {
+                    convertMessagesToOpenAIResponses: () => ({
+                        systemMessage: 'stable rules',
+                        messages: [...sourceMessages]
+                    }),
+                    convertToolsToResponses: () => []
+                } as never,
+                'codex'
+            );
+            const extraBody = Object.freeze(instructions === undefined ? {} : { instructions });
+            const { requestBody } = builder.build({
+                model: { id: 'display-alias', name: 'Model' } as never,
+                modelConfig: {
+                    id: 'display-alias',
+                    model: requestModel,
+                    sdkMode: 'openai-responses',
+                    useInstructions: true,
+                    useRoleDeveloper: true,
+                    extraBody
+                } as never,
+                messages: [],
+                options: {} as never,
+                sessionId: 'session-123'
+            });
+
+            assert.equal(requestBody.model, requestModel);
+            assert.equal(requestBody.instructions, typeof instructions === 'string' ? instructions : undefined);
+            assert.equal(Object.hasOwn(requestBody, 'instructions'), typeof instructions === 'string');
+            assert.equal(requestBody.prompt_cache_key, 'session-123');
+            assert.deepEqual(requestBody.input, [
+                { type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'stable rules' }] },
+                question
+            ]);
+            assert.deepEqual(sourceMessages, [question]);
+            assert.deepEqual(extraBody, instructions === undefined ? {} : { instructions });
+        });
+    }
+}
+
 test('useInstructions=false 时将 system message 注入首条 user input', async () => {
     const { applyResponsesSystemMessage } = await getBuilderModule();
     const requestBody: Record<string, unknown> = { instructions: 'stale' };

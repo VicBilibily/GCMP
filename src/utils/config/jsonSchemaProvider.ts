@@ -78,8 +78,15 @@ export class JsonSchemaProvider {
 
     private static getUseInstructionsDescription(): string {
         return t(
-            'Whether to use the instructions parameter in the Responses API (optional)\n- false: pass system messages via user messages (default)\n- true: pass system messages via the instructions parameter',
-            '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息'
+            'Whether to use the instructions parameter in the Responses API (optional)\n- false: pass system messages via user messages (default)\n- true: pass system messages via the instructions parameter\n- useRoleDeveloper=true takes precedence',
+            '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息\n- useRoleDeveloper=true 时优先使用 developer 消息'
+        );
+    }
+
+    private static getUseRoleDeveloperDescription(): string {
+        return t(
+            'Pass system instructions as the first developer message in input (openai-responses only). Takes precedence over useInstructions. Default: false; when disabled, useInstructions controls placement. The model must support the developer role.',
+            '将系统指令作为 input 的首条 developer 消息传递（仅 openai-responses 生效），优先于 useInstructions。默认 false；关闭时由 useInstructions 控制传递方式。模型须支持 developer 角色。'
         );
     }
 
@@ -1077,6 +1084,11 @@ export class JsonSchemaProvider {
                                 description: this.getUseInstructionsDescription(),
                                 default: false
                             },
+                            useRoleDeveloper: {
+                                type: 'boolean',
+                                description: this.getUseRoleDeveloperDescription(),
+                                default: false
+                            },
                             useWebSocket: {
                                 type: 'boolean',
                                 description: t('Use WebSocket (experimental)', '使用 WebSocket（实验性）'),
@@ -1345,6 +1357,11 @@ export class JsonSchemaProvider {
                                             type: 'boolean',
                                             description: this.getUseInstructionsDescription(),
                                             default: false
+                                        },
+                                        useRoleDeveloper: {
+                                            type: 'boolean',
+                                            description: this.getUseRoleDeveloperDescription(),
+                                            default: false
                                         }
                                     }
                                 },
@@ -1355,6 +1372,12 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'useInstructions is only effective for openai-responses mode',
                                                 'useInstructions 仅对 openai-responses 模式生效'
+                                            )
+                                        },
+                                        useRoleDeveloper: {
+                                            deprecationMessage: t(
+                                                'useRoleDeveloper is only effective for openai-responses mode',
+                                                'useRoleDeveloper 仅对 openai-responses 模式生效'
                                             )
                                         }
                                     }
@@ -1843,6 +1866,11 @@ export class JsonSchemaProvider {
                                 description: this.getUseInstructionsDescription(),
                                 default: false
                             },
+                            useRoleDeveloper: {
+                                type: 'boolean',
+                                description: this.getUseRoleDeveloperDescription(),
+                                default: false
+                            },
                             useWebSocket: {
                                 type: 'boolean',
                                 description: t('Use WebSocket (experimental)', '使用 WebSocket（实验性）'),
@@ -2048,6 +2076,11 @@ export class JsonSchemaProvider {
                                             type: 'boolean',
                                             description: this.getUseInstructionsDescription(),
                                             default: false
+                                        },
+                                        useRoleDeveloper: {
+                                            type: 'boolean',
+                                            description: this.getUseRoleDeveloperDescription(),
+                                            default: false
                                         }
                                     }
                                 },
@@ -2058,6 +2091,12 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'useInstructions is only effective for openai-responses mode',
                                                 'useInstructions 仅对 openai-responses 模式生效'
+                                            )
+                                        },
+                                        useRoleDeveloper: {
+                                            deprecationMessage: t(
+                                                'useRoleDeveloper is only effective for openai-responses mode',
+                                                'useRoleDeveloper 仅对 openai-responses 模式生效'
                                             )
                                         }
                                     }

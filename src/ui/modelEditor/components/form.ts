@@ -253,8 +253,18 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             'useInstructions',
             model.useInstructions,
             t(
-                'When SDK mode is openai-responses, use the instructions parameter for system messages (default uses user messages).',
-                '当 SDK 模式为 openai-responses 时，使用 instructions 参数传递系统消息（默认使用用户消息传递）。'
+                'Only applies when Use Role Developer is unchecked. Check this option to send system instructions in top-level instructions, or leave it unchecked to send them as the first user message.',
+                '仅在「使用 Developer 角色」未勾选时生效。勾选此项，系统指令放在顶层 instructions；不勾选此项，则放在首条 user 消息。'
+            )
+        ),
+        createCheckboxFormGroup(
+            'useRoleDeveloper',
+            t('Use Role Developer (openai-responses only)', '使用 Developer 角色（仅 openai-responses 有效）'),
+            'useRoleDeveloper',
+            model.useRoleDeveloper,
+            t(
+                'When checked, sends system instructions as the first developer message in input, regardless of the Use instructions parameter setting. The model must support the developer role.',
+                '勾选此项后，系统指令放在 input 的首条 developer 消息，不受「使用 instructions 参数」选项影响。模型须支持 developer 角色。'
             )
         ),
         createCheckboxFormGroup(

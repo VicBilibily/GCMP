@@ -66,6 +66,7 @@ const state: EditorState = {
         imageInput: false,
         serviceTier: [],
         useInstructions: undefined,
+        useRoleDeveloper: undefined,
         useWebSocket: undefined,
         cacheTtl: '',
         webSearchTool: undefined,

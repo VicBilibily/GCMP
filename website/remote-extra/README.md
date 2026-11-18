@@ -28,7 +28,7 @@
 
 必填字段:`id`、`name`、`maxInputTokens`、`maxOutputTokens`(与内置模型配置一致)。
 
-可选字段(客户端白名单内):`tooltip`、`version`、`sdkMode`、`model`、`family`、`thinking`、`thinkingFormat`、`reasoningFormat`、`reasoningEffort`、`reasoningDefault`、`contextSize`、`serviceTier`、`tokenPricing`、`limit`、`customHeader`、`extraBody`、`useInstructions`、`cacheTtl`、`webSearchTool`、`nativeTools`，以及满足下述可信路由约束的`baseUrl`、`endpoint`、`provider`。
+可选字段(客户端白名单内):`tooltip`、`version`、`sdkMode`、`model`、`family`、`thinking`、`thinkingFormat`、`reasoningFormat`、`reasoningEffort`、`reasoningDefault`、`contextSize`、`serviceTier`、`tokenPricing`、`limit`、`customHeader`、`extraBody`、`useInstructions`、`useRoleDeveloper`、`cacheTtl`、`webSearchTool`、`nativeTools`，以及满足下述可信路由约束的`baseUrl`、`endpoint`、`provider`。
 
 ## 约束(构建期强校验,违反即报错终止)
 

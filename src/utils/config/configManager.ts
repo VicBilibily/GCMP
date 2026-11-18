@@ -1055,6 +1055,9 @@ export class ConfigManager {
                     `  Model ${modelOverride.id}: override useInstructions = ${modelOverride.useInstructions}`
                 );
             }
+            if (modelOverride.useRoleDeveloper !== undefined) {
+                target.useRoleDeveloper = modelOverride.useRoleDeveloper;
+            }
             if (modelOverride.useWebSocket !== undefined) {
                 target.useWebSocket = modelOverride.useWebSocket;
             }

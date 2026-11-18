@@ -219,6 +219,8 @@ npm install -g @openai/codex@latest
 - **支持模型**：详见 [config/codex.json](src/providers/config/codex.json)。
 - **用量查询**：已支持状态栏显示 ChatGPT 订阅周期剩余用量，可查看订阅余量信息。
 - **独立代理设置**：可通过当前机器的 `gcmp.machineOverrides.codex.proxy` 单独指定 Codex 请求的代理地址，不影响其他机器。
+- **Responses 系统指令与缓存**：`useRoleDeveloper: true` 将系统指令放到 `input` 开头的 `developer` 消息，优先于 `useInstructions`，仅对 `openai-responses` 模式生效，模型须支持该角色。关闭或省略时，`useInstructions: true` 使用顶层 `instructions`，否则使用首条 `user` 消息，不再按型号自动选择。Codex 的 GPT-6.2 Sol / Astra 预置显式开启 `useRoleDeveloper`，使重复指令有机会参与缓存；其他兼容模型可自行开启。模型编辑器高级设置中提供对应复选框，也可通过自定义模型或模型覆盖配置。用户通过 `extraBody.instructions` 配置的当次指导仍保留在顶层。历史消息、工具结果与工具定义应尽量保持稳定，具体规则见 [OpenAI 缓存说明](https://developers.openai.com/api/docs/guides/prompt-caching)。这不保证固定的缓存命中率。
+- **推理状态诊断**：服务端返回 `input_transformations` 时，输出日志中的 `Responses API reasoning removals` 按原因统计被移除的推理项，例如 `prefix_mismatch`；仅输出原因和数量，不输出原始推理项。仅有正常的 `turn_boundary` 时使用 Debug 级别，其他移除原因使用 Warning 级别。
 
 ```json
 {

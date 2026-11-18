@@ -202,9 +202,10 @@ export class ModelEditor {
         model.maxInputTokens = data.maxInputTokens || 12800;
         model.maxOutputTokens = data.maxOutputTokens || 8192;
 
-        // 仅当 sdkMode 为 openai-responses 时才更新 useInstructions
+        // 仅当 sdkMode 为 openai-responses 时才更新系统指令选项
         if (data.sdkMode === 'openai-responses') {
             model.useInstructions = data.useInstructions ?? false;
+            model.useRoleDeveloper = data.useRoleDeveloper ?? false;
         } else {
             if (!model.useInstructions) {
                 model.useInstructions = undefined;
@@ -397,6 +398,7 @@ export class ModelEditor {
             imageInput: model?.capabilities?.imageInput || false,
             serviceTier: normalizeCompatibleServiceTiers(model?.serviceTier) || [],
             useInstructions: model?.useInstructions,
+            useRoleDeveloper: model?.useRoleDeveloper,
             useWebSocket: model?.useWebSocket,
             cacheTtl: model?.cacheTtl || '',
             webSearchTool: model?.webSearchTool ? true : undefined,

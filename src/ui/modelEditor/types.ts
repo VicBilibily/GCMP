@@ -51,6 +51,7 @@ export interface ModelFormData {
     imageInput: boolean;
     serviceTier: ServiceTier[];
     useInstructions: boolean | undefined;
+    useRoleDeveloper?: boolean;
     useWebSocket?: boolean;
     cacheTtl: CacheTtl;
     webSearchTool: boolean | undefined;

@@ -158,7 +158,9 @@ suite('anthropicConverter', () => {
                             const processed = process(part as vscode.LanguageModelResponsePart, {
                                 statefulCredentialId: identity.credentialId
                             });
-                            if (processed) output.push(processed);
+                            if (processed) {
+                                output.push(processed);
+                            }
                         }
                     }
                 });
