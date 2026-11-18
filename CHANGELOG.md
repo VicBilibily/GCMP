@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.7] - 2026-11-18
+
+### 新增
+
+- **Responses 系统指令传递**：模型编辑器与模型配置新增 `useRoleDeveloper` 选项。开启后，将系统指令放在 `input` 的首条 `developer` 消息中，使稳定指令可以参与提示缓存；关闭后，仍由 `useInstructions` 决定使用顶层 `instructions` 或首条 `user` 消息。
+- **Responses 推理状态诊断**：服务端返回 `input_transformations` 时，按原因统计被移除的推理项，例如前缀不匹配；日志不记录原始推理内容。
+
+### 修复
+
+- **远程模型清单兼容**：缓存加载或刷新时，同名远程模型未提供 `useRoleDeveloper` 布尔值则保留内置设置，避免旧清单意外关闭该选项；远程显式设置的 `false` 仍可关闭，用户模型覆盖仍优先。
+
+### 备注
+
+- **OpenAI 提示缓存规则**：从 GPT-6.2 起，Responses API 将顶层 `instructions` 放在 `input` 之后。即使其余输入命中缓存，这部分指令仍按未缓存输入计费。OpenAI 建议将可复用指令放在 `input` 的首条 `developer` 消息中，顶层 `instructions` 留给仅在本轮生效的指导。参见 [OpenAI 提示缓存指南](https://developers.openai.com/api/docs/guides/prompt-caching)。
+
+---
+
+### Added
+
+- **Responses system instruction placement**: Added `useRoleDeveloper` to the model editor and model configuration. When enabled, system instructions become the first `developer` message in `input`, making stable instructions eligible for prompt caching. When disabled, `useInstructions` still selects between top-level `instructions` and the first `user` message.
+- **Responses reasoning diagnostics**: When the server returns `input_transformations`, removed reasoning items are counted by reason, such as a prefix mismatch. The original reasoning content is not logged.
+
+### Fixed
+
+- **Remote model catalog compatibility**: On cache load or refresh, a matching remote model without a boolean `useRoleDeveloper` value retains the bundled setting, preventing older catalogs from disabling it unintentionally. An explicit remote `false` can still disable it, and user overrides retain precedence.
+
+### Notes
+
+- **OpenAI prompt caching rules**: Starting with GPT-6.2, the Responses API places top-level `instructions` after `input`. Those tokens are billed as uncached input even when the rest of the prompt hits the cache. OpenAI recommends putting reusable instructions in the first `developer` message in `input` and reserving top-level `instructions` for guidance specific to the current turn. See the [OpenAI prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching).
+
 ## [0.29.6] - 2026-11-02
 
 ### 修复
