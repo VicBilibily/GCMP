@@ -4,69 +4,57 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "Ling-3.2-flash",
+            "name": "Ling-3.2-flash",
+            "tooltip": "蚂蚁百灵最新一代原生多模态模型，560B 参数 25B 激活，1M 上下文窗口，原生支持图像、文本与视频输入，重点强化复杂视觉理解、多模态长程 Agent、3D 理解与交互、医疗多模态四大能力。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 786432,
+            "maxOutputTokens": 262144,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "Ling-3.1-flash",
+            "name": "Ling-3.1-flash",
+            "tooltip": "蚂蚁百灵新一代长流程混合推理模型，560B 参数 25B 激活，1M 上下文窗口，面向日常办公、长周期软件研发与复杂 Agent 任务，多轮工具调用中可保持目标一致并自我纠错，支持思考/非思考无缝切换。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 786432,
+            "maxOutputTokens": 262144,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.3, 0.9, 0.06], "RMB": [2, 6, 0.4] }
+        },
+        {
             "id": "Ling-3.0-flash",
             "name": "Ling-3.0-flash",
             "tooltip": "蚂蚁百灵 Ling 3.0 系列高性价比模型，124B 参数 5.1B 激活，原生 256K 上下文，支持思考/非思考无缝切换，工具调用与 Agent 长程工作流稳定性显著增强，适合高并发与低延迟场景。",
             "sdkMode": "anthropic",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
+            "maxInputTokens": 229376,
+            "maxOutputTokens": 32768,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.5, 1.5, 0.05] }
+            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.5, 1.5, 0.1] }
         },
         {
             "id": "Ling-3.0-flash-VL",
             "name": "Ling-3.0-flash-VL",
-            "tooltip": "蚂蚁百灵首个原生多模态混合推理模型，124B 参数 5.5B 激活，原生支持图像与文本输入，256K 上下文，引入视觉反馈闭环，适合前端代码生成、GUI 自动化与专业报告解读等场景。",
+            "tooltip": "蚂蚁百灵首个原生多模态混合推理模型，124B 参数 5.5B 激活，原生支持图像、文本与视频输入，256K 上下文，引入视觉反馈闭环，适合前端代码生成、GUI 自动化与专业报告解读等场景。",
             "sdkMode": "anthropic",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
+            "maxInputTokens": 229376,
+            "maxOutputTokens": 32768,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.5, 1.5, 0.05] }
+            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.5, 1.5, 0.1] }
         },
         {
             "id": "Ling-3.0-tiny",
             "name": "Ling-3.0-tiny",
             "tooltip": "蚂蚁百灵轻量级混合推理 MoE 模型，7.9B 参数仅 1.3B 激活，支持思考/非思考切换与工具调用，低时延低成本，兼顾端侧部署与实时交互场景。",
             "sdkMode": "anthropic",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
+            "maxInputTokens": 229376,
+            "maxOutputTokens": 32768,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "Ling-2.6-1T",
-            "name": "Ling-2.6-1T",
-            "tooltip": "蚂蚁百灵 MoE 架构旗舰通用模型，1T 参数 63B 激活，支持 1M 超长上下文（API 开放 256K），强化编码与 Agent 能力，兼容主流 Agent 框架。",
-            "sdkMode": "anthropic",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.3, 2.5, 0.06], "RMB": [4.5, 18, 0.45] }
-        },
-        {
-            "id": "Ling-2.6-flash",
-            "name": "Ling-2.6-flash",
-            "tooltip": "蚂蚁百灵 MoE 高性价比模型，104B 参数 7.4B 激活，原生 256K 上下文，完整工具调用与 Agent 协作能力，适合高并发在线服务。",
-            "sdkMode": "anthropic",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.1, 0.3, 0.02], "RMB": [0.6, 1.8, 0.06] }
-        },
-        {
-            "id": "Ring-2.6-1T",
-            "name": "Ring-2.6-1T",
-            "tooltip": "蚂蚁百灵万亿参数深度推理模型，63B 激活，256K 上下文，支持 high/xhigh 推理强度调节，侧重 Agent 工作流、工具调用与长周期任务执行。",
-            "sdkMode": "anthropic",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["high", "xhigh"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.3, 2.5, 0.06], "RMB": [4.5, 18, 0.45] }
         }
     ]
 }
