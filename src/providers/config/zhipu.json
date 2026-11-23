@@ -4,6 +4,21 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "glm-5.4",
+            "name": "GLM-5.4 (CodingPlan)",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://open.bigmodel.cn/api/v1",
+            "tooltip": "GLM-5.4已经上线Coding Plan。过去三个月，我们同时激进的Scaling Loop和模型大小，大家首先看到的是Loop Transformer带来的惊喜。GLM-5.4新增视觉能力与更强的泛Coding能力。V2、V3及团队版用户使用GLM-5.4模型额度已提升至1.5倍，将模型名设置为glm-5.4即可。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
+        },
+        {
             "id": "glm-5.3",
             "name": "GLM-5.3 (CodingPlan)",
             "sdkMode": "openai-responses",
