@@ -4,7 +4,7 @@ import type { ModelConfig } from '../../../types/sharedTypes';
 import { Logger } from '../../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../../stateful/statefulMarker';
-import { shouldInjectReasoningPlaceholder } from '../../reasoningPlaceholder';
+import { REASONING_PLACEHOLDER_TEXT, shouldInjectReasoningPlaceholder } from '../../reasoningPlaceholder';
 import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../../types';
 import type { OpenAIProviderContext } from '../shared/providerContext';
 import { isImageMimeType, isImageMimeCategory, createDataUrl } from '../shared/images';
@@ -370,7 +370,7 @@ export class OpenAIChatMessageConverter {
                 thinkingContent = markerReasoning.completeThinking;
                 Logger.trace(`Restored reasoning_content from StatefulMarker: ${thinkingContent.length} chars`);
             } else if (shouldInjectReasoningPlaceholder({ providerKey: this.provider, modelConfig })) {
-                thinkingContent = ' '; // 保底占位，避免兼容接口因为字段缺失直接报错
+                thinkingContent = REASONING_PLACEHOLDER_TEXT; // 保底占位，避免兼容接口因为字段缺失直接报错
                 Logger.trace('StatefulMarker thinking not found, using placeholder to fill reasoning_content');
             }
         }

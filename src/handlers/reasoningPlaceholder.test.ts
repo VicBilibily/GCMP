@@ -48,6 +48,23 @@ test('DeepSeek-V4 requires placeholder injection', () => {
     assert.equal(shouldInjectReasoningPlaceholder({ modelConfig: { model: 'deepseek-v4-flash' } }), true);
 });
 
+test('DeepSeek 官方提供商与 deepseek-flash 需要占位', () => {
+    assert.equal(shouldInjectReasoningPlaceholder({ providerKey: 'deepseek', modelConfig: {} }), true);
+    assert.equal(
+        shouldInjectReasoningPlaceholder({
+            providerKey: 'compatible',
+            modelConfig: { id: 'deepseek-flash', model: 'deepseek-flash' }
+        }),
+        true
+    );
+    assert.equal(
+        shouldInjectReasoningPlaceholder({
+            modelConfig: { id: 'custom-model', baseUrl: 'https://api.deepseek.com/v1' }
+        }),
+        true
+    );
+});
+
 test('unrelated models do not inject placeholder', () => {
     assert.equal(
         shouldInjectReasoningPlaceholder({
