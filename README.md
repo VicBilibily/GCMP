@@ -6,11 +6,9 @@
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
 > [!IMPORTANT]
-> **维护模式与 EOL**：VS Code 已转向 Copilot harness。[VS Code 1.146 公告](https://code.visualstudio.com/updates/v1_146#_copilot-harness-and-deprecation-of-the-local-harness)已宣布弃用 Local harness，并计划于 **2027 年 2 月**移除。
->
-> 因此，GCMP 即日起**不再新增功能**，仅保留基本维护，直至 Local harness 移除时结束生命周期（EOL）。
+> **维护状态更新**：VS Code [1.146 公告](https://code.visualstudio.com/updates/v1_146#_copilot-harness-and-deprecation-of-the-local-harness)已弃用 Local harness，并计划于 **2027 年 2 月**移除。
 
-> **后续方向**：从本项目的使用与维护需求来看，Copilot harness 与现有 Local 模式生态之间尚缺乏平滑、兼容的迁移路径。因此，GCMP **不再跟进 Copilot harness 的适配**，后续计划转向 **DeepSeek Harness**。
+> **当前进度**：鉴于其他 harness 均未能很好地嵌入 IDE 工作流，GCMP **已恢复项目维护**，目前正在实现 **Copilot Harness 模式兼容**。兼容完成前，Local Agent 仍是稳定使用方式；适配进度与已知限制将随版本更新说明同步。
 
 通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。
 目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵、讯飞星辰、LongCat 等**原生大模型**提供商。
@@ -37,7 +35,7 @@
 
 VS Code 在后台使用模型执行标题生成、提交信息创建、搜索、意图检测等**实用任务**。GCMP 不会覆盖 VS Code 或其他插件的默认设置。辅助模型未完整配置且未启用跟随主模型时，启动引导会提示手动配置 `chat.utilityModel` 和 `chat.utilitySmallModel`，或由你确认将 `chat.byokUtilityModelDefault` 设为 `mainAgent`。GCMP 的提交消息生成、视觉分析等功能仍需单独选择模型。
 
-GCMP 不再跟进 Copilot harness 的适配；在 Local harness 移除前，如需继续使用 GCMP，建议选择 Local Agent。仅在相关全局偏好未设置时显示引导，也可通过「设置辅助偏好」手动调整。
+GCMP 正在进行 Copilot Harness 模式兼容实现；兼容完成前，如需稳定使用，建议选择 Local Agent。仅在相关全局偏好未设置时显示引导，也可通过「设置辅助偏好」手动调整。
 
 > 💡 **快速配置入口**：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单点击「设置辅助偏好」，即可打开可视化面板统一配置下列全部模型；也可通过命令面板执行 `GCMP: 设置辅助偏好`。
 

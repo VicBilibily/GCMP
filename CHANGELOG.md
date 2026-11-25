@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.29.8] - 2026-11-25
+
+### 修复
+
+- **DeepSeek 思考回传**：Responses 通道对 DeepSeek 严格回显端点改为只回传明文 `reasoning_text`，不再回传端点不予识别的 `encrypted_content`；停留在工具调用轮次时，思考内容被宿主剥离则补非空占位，避免整轮 400 导致会话卡死。 [#466](https://github.com/VicBilibily/GCMP/issues/466)
+- **思考占位判定**：占位与明文回放改为依据最终请求体中的 `reasoning.effort`、`thinking.type` 和 `enable_thinking` 判定，模型设置、`extraBody` 覆盖、`extraBody: null` 删除及辅助请求降级下的结果与最终请求一致；DeepSeek 系识别改用生效的提供商、模型名与 `baseUrl`，覆盖兼容提供商中映射为 DeepSeek 的模型。
+- **思考明文回放**：非严格回显端点在思考内容被宿主剥离时，仍从会话标记回放明文 reasoning，避免多轮工具调用丢失思考上下文。
+
+---
+
+### Fixed
+
+- **DeepSeek reasoning replay**: The Responses channel now sends only plaintext `reasoning_text` to strict-replay DeepSeek endpoints and no longer sends `encrypted_content`, which those endpoints do not recognize. When a turn stops on a tool call and the host strips its thinking, a non-empty placeholder is injected instead, preventing a 400 that stalls the session. [#466](https://github.com/VicBilibily/GCMP/issues/466)
+- **Reasoning placeholder decision**: Placeholder and plaintext replay decisions now follow the final request body (`reasoning.effort`, `thinking.type`, `enable_thinking`), so results match the outgoing request under model settings, `extraBody` overrides, `extraBody: null` removals, and sub-request downgrades. DeepSeek family detection now uses the effective provider, model name, and `baseUrl`, covering models mapped to DeepSeek behind a compatible provider.
+- **Plaintext reasoning replay**: Non-strict endpoints now replay plaintext reasoning from the session marker when the host strips thinking content, preserving thinking context across tool-call turns.
+
 ## [0.29.7] - 2026-11-18
 
 ### 新增
