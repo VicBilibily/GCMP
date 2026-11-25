@@ -311,6 +311,29 @@ test('前缀排除可被 models 手动登记覆盖', () => {
     assert.ok(plan.entries.some(entry => entry.action === 'add' && entry.remoteId === 'gpt-5.5'));
     assert.equal(plan.warnings.filter(warning => warning.includes('gpt-5.6')).length, 0);
 });
+test('子串排除：静默跳过新增，不产生待配置警告', () => {
+    const config = makeConfig([]);
+    const plan = planSource({
+        sourceId: 'test',
+        policy: makePolicy({ excludedModelIdSubstrings: ['decision', 'embedding'] }),
+        remote: [
+            { id: 'gemini-decision-1' },
+            { id: 'gpt-6-luna-decision' },
+            { id: 'text-embedding-3-small' },
+            { id: 'kimi-k3' }
+        ],
+        config,
+        defaults
+    });
+    assert.equal(plan.entries.length, 0);
+    assert.equal(plan.warnings.filter(warning => warning.startsWith('排除')).length, 0);
+    assert.equal(
+        plan.warnings.filter(warning => warning.includes('decision') || warning.includes('embedding')).length,
+        0
+    );
+    assert.ok(plan.warnings.some(warning => warning.includes('待配置：kimi-k3（')));
+});
+
 test('后缀排除：静默跳过新增，不误伤仅包含该子串的模型', () => {
     const config = makeConfig([
         { id: 'mimo-v2.5-free', sdkMode: 'openai-sse', maxInputTokens: 1000, maxOutputTokens: 100 }

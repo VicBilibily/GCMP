@@ -51,20 +51,6 @@
             "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
-            "id": "glm-5.2-go",
-            "name": "GLM-5.2 (Go)",
-            "model": "glm-5.2",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/inference/go/openai/v1",
-            "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.2 是面向长任务时代的旗舰模型，Go 套餐可用 256K 上下文。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["high", "max", "none"],
-            "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.26]
-        },
-        {
             "id": "gpt-5.6-luna-go",
             "name": "GPT-5.6-Luna (Go)",
             "model": "gpt-5.6-luna",
@@ -131,21 +117,6 @@
             "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.95, 4.0, 0.19]
-        },
-        {
-            "id": "longcat-2.0-go",
-            "name": "LongCat-2.0 (Go)",
-            "model": "longcat-2.0",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/inference/go/openai/v1",
-            "tooltip": "OpenCode Go 套餐 - LongCat-2.0，高性能 Agentic 模型，1M 上下文。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.006]
         },
         {
             "id": "mimo-v2.6-pro-go",
@@ -473,6 +444,21 @@
             "reasoningEffort": ["xhigh", "high", "low"],
             "reasoningDefault": "xhigh",
             "tokenPricing": [1.5, 4.5, 0.075, 1.875]
+        },
+        {
+            "id": "longcat-2.5-go",
+            "name": "LongCat-2.5 (Go)",
+            "model": "longcat-2.5",
+            "baseUrl": "https://opencode.ai/inference/go/openai/v1",
+            "tooltip": "OpenCode Go 套餐 — LongCat-2.5。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "thinkingFormat": "object",
+            "tokenPricing": [0.3, 1.2, 0.006]
         }
     ]
 }

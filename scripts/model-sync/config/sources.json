@@ -35,9 +35,11 @@
         // Anthropic / Gemini 系条目端点不同源，由 modelRules 命中归属
         "localBaseUrl": "https://opencode.ai/inference/go/openai/v1",
         "excludedModelIds": [],
-        "excludedModelIdPrefixes": ["minimax-m2.5", "deepseek-flash", "glm-5.1", "qwen3.6"],
+        "excludedModelIdPrefixes": ["deepseek-flash", "glm-5.1", "qwen3.6", "jev-"],
         // 免费模型不入预置，-free 后缀一律过滤
         "excludedModelIdSuffixes": ["-free", "-alpha"],
+        // decision（决策/打分模型）与 embedding（向量模型）不是对话模型，不入预置
+        "excludedModelIdSubstrings": ["decision", "embedding"],
         "defaults": {
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/inference/go/openai/v1"
@@ -76,6 +78,11 @@
             "gemini-4-argon": { "ref": "google/gemini-4-argon" },
             "step-5-preview": { "ref": "stepfun/step-5-preview" },
             "kimi-k3.1-pro": { "ref": "moonshotai/kimi-k3.1-pro" },
+            "longcat-2.5": {
+                "ref": "meituan/longcat-2.5",
+                // 远端清单无定价，按 OpenCode Go 官网价目表（Cached Write 为 —）
+                "overrides": { "thinkingFormat": "object", "tokenPricing": [0.3, 1.2, 0.006] }
+            },
             "hy4": { "ref": "tencent/hy4" },
             "minimax-m3.1-flash": {
                 "ref": "minimax/minimax-m3.1-flash",

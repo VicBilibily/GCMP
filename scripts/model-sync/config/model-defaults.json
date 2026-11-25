@@ -496,6 +496,10 @@
         "longcat-2.0": {
             "name": "LongCat-2.0",
             "template": ["1m", "text", "think"]
+        },
+        "longcat-2.5": {
+            "name": "LongCat-2.5",
+            "template": ["1m", "vision", "think"]
         }
     },
     "baidu": {

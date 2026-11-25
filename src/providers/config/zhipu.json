@@ -8,7 +8,7 @@
             "name": "GLM-5.4 (CodingPlan)",
             "sdkMode": "openai-responses",
             "baseUrl": "https://open.bigmodel.cn/api/v1",
-            "tooltip": "GLM-5.4已经上线Coding Plan。过去三个月，我们同时激进的Scaling Loop和模型大小，大家首先看到的是Loop Transformer带来的惊喜。GLM-5.4新增视觉能力与更强的泛Coding能力。V2、V3及团队版用户使用GLM-5.4模型额度已提升至1.5倍，将模型名设置为glm-5.4即可。",
+            "tooltip": "GLM-5.4 是智谱首款采用 Loop Transformer 架构的旗舰模型，新增视觉理解能力，并将编程拓展到视频制作、游戏开发、3D 建模和机械设计。在支持工具调用的环境中，开发者可以给出分镜、参考图或设计要求，让模型编写代码、调用专业软件，并根据运行结果继续修改作品。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,

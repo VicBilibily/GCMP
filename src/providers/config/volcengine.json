@@ -184,6 +184,22 @@
             "tokenPricing": { "RMB": [6, 30, 1.2] }
         },
         {
+            "id": "ark-plan-glm-5.4",
+            "name": "GLM-5.4 (AgentPlan)",
+            "model": "glm-5.4",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。GLM-5.4 新增视觉理解能力，支持文本与图片输入，采用 MoE 混合专家稀疏架构，面向长程 Agent 与多文件复杂开发任务深度优化，代码生成与调试能力更强。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [8, 28, 2] }
+        },
+        {
             "id": "ark-plan-glm-5.3",
             "name": "GLM-5.3 (AgentPlan)",
             "model": "glm-5.3",

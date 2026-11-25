@@ -301,6 +301,11 @@ function validateSources(sources: SourcesFile): void {
                 throw new Error(`${sourceId}: excludedModelIdSuffixes 必须是非空字符串`);
             }
         }
+        for (const fragment of policy.excludedModelIdSubstrings ?? []) {
+            if (typeof fragment !== 'string' || fragment.length === 0) {
+                throw new Error(`${sourceId}: excludedModelIdSubstrings 必须是非空字符串`);
+            }
+        }
         for (const rule of policy.modelRules ?? []) {
             const prefixes = [rule.idPrefix, ...(rule.idPrefixes ?? [])].filter(
                 (prefix): prefix is string => typeof prefix === 'string'

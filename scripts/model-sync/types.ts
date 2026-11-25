@@ -75,6 +75,8 @@ export interface SourcePolicy {
     excludedModelIdPrefixes?: string[];
     /** 按 ID 后缀默认跳过新增（语义同前缀排除），如 "-free" 过滤免费模型。 */
     excludedModelIdSuffixes?: string[];
+    /** 按 ID 子串默认跳过新增（语义同前缀排除），如 "embedding" 过滤向量模型。 */
+    excludedModelIdSubstrings?: string[];
     defaults?: Record<string, unknown>;
     models?: Record<string, SourceModelPolicy>;
     /** 按远端 ID 前缀批量套用的人工调整；idPrefix/idPrefixes 至少其一，多条命中按序叠加，models 精确登记最后胜出。 */

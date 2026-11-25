@@ -153,11 +153,14 @@ export function planSource(input: {
     const base = resolveSourceBase(policy);
     const excluded = new Set(policy.excludedModelIds ?? []);
     const excludedPrefixes = policy.excludedModelIdPrefixes ?? [];
+    const excludedSubstrings = policy.excludedModelIdSubstrings ?? [];
     // 以 $ 结尾表示精确匹配（避免 "glm-5" 误伤 "glm-5.3"）
-    const prefixExcluded = (id: string): boolean =>
+    const silentlyExcluded = (id: string): boolean =>
         excludedPrefixes.some(pattern =>
             pattern.endsWith('$') ? id === pattern.slice(0, -1) : id.startsWith(pattern)
-        ) || (policy.excludedModelIdSuffixes ?? []).some(suffix => id.endsWith(suffix));
+        ) ||
+        excludedSubstrings.some(fragment => id.includes(fragment)) ||
+        (policy.excludedModelIdSuffixes ?? []).some(suffix => id.endsWith(suffix));
     const matchedExcluded = new Set<string>();
     const extraRegistered = new Set(Object.keys(policy.extra ?? {}));
 
@@ -210,8 +213,8 @@ export function planSource(input: {
         if (excluded.has(item.id) || extraRegistered.has(item.id)) {
             continue;
         }
-        // 前缀/后缀排除仅拦截默认上架，models 手动登记者照常纳入
-        if (prefixExcluded(item.id) && !policy.models?.[item.id]) {
+        // 前缀/子串/后缀排除仅拦截默认上架，models 手动登记者照常纳入
+        if (silentlyExcluded(item.id) && !policy.models?.[item.id]) {
             continue;
         }
         const local = existing.get(item.id);
