@@ -219,7 +219,7 @@ export class OpenAIResponsesMessageConverter {
                  * 因此该通道不回传密文项，逐轮回传明文；思考已丢失时补非空占位。
                  */
                 const markerThinking =
-                    injectReasoningPlaceholder ?
+                    injectReasoningPlaceholder || replayPlainThinking ?
                         (this.getCompleteThinkingFromMarker(message.content) ?? '').trim()
                     :   '';
                 const plainThinking = joinedThinking || markerThinking;

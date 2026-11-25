@@ -29,7 +29,7 @@ export function shouldInjectReasoningPlaceholder(context: ReasoningPlaceholderCo
     const baseUrl = `${context.modelConfig?.baseUrl || ''}`.toLowerCase();
 
     return (
-        isDeepSeekFamily({ providerKey, modelId, baseUrl }) ||
+        isDeepSeekFamily(context) ||
         providerKey === 'xiaomimimo' ||
         providerKey === 'xiaomimimo-token' ||
         modelId.startsWith('mimo-') ||
@@ -42,11 +42,15 @@ export function shouldInjectReasoningPlaceholder(context: ReasoningPlaceholderCo
  * DeepSeek 全系（官方直连或兼容中转）在思考模式下都要求回传非空 reasoning 明文，
  * 缺失时以 400 拒绝整轮请求，因此按 provider / baseUrl / 模型名前缀识别。
  */
-function isDeepSeekFamily(params: { providerKey: string; modelId: string; baseUrl: string }): boolean {
+export function isDeepSeekFamily(context: ReasoningPlaceholderContext): boolean {
+    const providerKey = `${context.modelConfig?.provider || context.providerKey || ''}`.toLowerCase();
+    const modelId = `${context.modelConfig?.model || context.modelConfig?.id || ''}`.toLowerCase();
+    const baseUrl = `${context.modelConfig?.baseUrl || ''}`.toLowerCase();
+
     return (
-        params.providerKey === 'deepseek' ||
-        params.baseUrl.includes('api.deepseek.com') ||
-        params.modelId.startsWith('deepseek-') ||
-        params.modelId.includes('deepseek-v4')
+        providerKey === 'deepseek' ||
+        baseUrl.includes('api.deepseek.com') ||
+        modelId.startsWith('deepseek-') ||
+        modelId.includes('deepseek-v4')
     );
 }

@@ -743,6 +743,75 @@ test('Responses 空工具图片明确说明无法投递且不产生图片消息'
     });
 });
 
+test('非严格回显端点在 ThinkingPart 被剥离时仍从 marker 回放明文', async () => {
+    const { OpenAIResponsesMessageConverter } = await getConverterModule();
+    const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+    const result = converter.convertMessagesToOpenAIResponses(
+        [
+            {
+                role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    createMarkerPart({
+                        provider: 'compatible',
+                        modelId: 'glm-5.3',
+                        sdkMode: 'openai-responses',
+                        sessionId: 'session-1',
+                        responseId: 'response-1',
+                        completeThinking: '完整思考'
+                    }),
+                    new vscodeMock.LanguageModelTextPart('answer')
+                ]
+            }
+        ] as never,
+        { id: 'glm-5.3', model: 'glm-5.3', provider: 'compatible' } as never,
+        { provider: 'compatible', modelId: 'glm-5.3' }
+    );
+
+    assert.deepEqual(result.messages, [
+        { type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: '完整思考' }] },
+        {
+            type: 'message',
+            role: 'assistant',
+            status: 'completed',
+            content: [{ type: 'output_text', text: 'answer' }]
+        }
+    ]);
+});
+
+for (const modelConfig of [
+    { id: 'gpt-5.4' },
+    { id: 'glm-5.3', extraBody: { include: null } },
+    { id: 'glm-5.3', extraBody: { include: [] } }
+]) {
+    test(`marker 明文回退保留回放限制: ${JSON.stringify(modelConfig)}`, async () => {
+        const { OpenAIResponsesMessageConverter } = await getConverterModule();
+        const converter = new OpenAIResponsesMessageConverter(handlerStub, 'Test');
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscodeMock.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        createMarkerPart({
+                            provider: 'compatible',
+                            modelId: modelConfig.id,
+                            sdkMode: 'openai-responses',
+                            sessionId: 'session-1',
+                            responseId: 'response-1',
+                            completeThinking: '完整思考'
+                        })
+                    ]
+                }
+            ] as never,
+            modelConfig as never,
+            { provider: 'compatible', modelId: modelConfig.id }
+        );
+
+        assert.deepEqual(result.messages, []);
+    });
+}
+
 const deepSeekConfig = {
     id: 'deepseek-flash',
     model: 'deepseek-flash',

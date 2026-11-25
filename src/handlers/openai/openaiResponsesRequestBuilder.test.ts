@@ -1,6 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
 
 const require = createRequire(import.meta.url);
 const NodeModule = require('node:module') as {
@@ -9,11 +10,22 @@ const NodeModule = require('node:module') as {
     };
 };
 
+const vscodeMock = {
+    LanguageModelChatMessageRole: { Assistant: 'assistant', System: 'system', User: 'user' },
+    LanguageModelThinkingPart: class {
+        constructor(public value: string | string[]) {}
+    },
+    LanguageModelTextPart: class {
+        constructor(public value: string) {}
+    }
+};
+
 let builderModulePromise:
     | Promise<{
           applyResponsesSystemMessage: typeof import('./openaiResponsesRequestBuilder').applyResponsesSystemMessage;
           initializeResponsesRequestBody: typeof import('./openaiResponsesRequestBuilder').initializeResponsesRequestBody;
           OpenAIResponsesRequestBuilder: typeof import('./openaiResponsesRequestBuilder').OpenAIResponsesRequestBuilder;
+          OpenAIResponsesMessageConverter: typeof import('./openaiResponsesMessageConverter').OpenAIResponsesMessageConverter;
       }>
     | undefined;
 
@@ -25,14 +37,19 @@ async function getBuilderModule() {
     const originalRequire = NodeModule.prototype.require;
     NodeModule.prototype.require = function (id: string): unknown {
         if (id === 'vscode') {
-            return {};
+            return vscodeMock;
+        }
+        if (id.endsWith('/utils/runtime/logger')) {
+            return { Logger: { trace() {}, debug() {}, info() {}, warn() {}, error() {} } };
         }
         return originalRequire.call(this, id);
     };
 
-    builderModulePromise = import('./openaiResponsesRequestBuilder').finally(() => {
-        NodeModule.prototype.require = originalRequire;
-    });
+    builderModulePromise = import('./openaiResponsesRequestBuilder')
+        .then(async builder => ({ ...builder, ...(await import('./openaiResponsesMessageConverter')) }))
+        .finally(() => {
+            NodeModule.prototype.require = originalRequire;
+        });
 
     return builderModulePromise;
 }
@@ -820,7 +837,7 @@ test('DeepSeek 思考模式请求向消息转换传递 reasoning 占位策略', 
         captured.map(
             args => (args[3] as { injectReasoningPlaceholder?: boolean } | undefined)?.injectReasoningPlaceholder
         ),
-        [true, false, false]
+        [true, false, true]
     );
 });
 
@@ -852,3 +869,241 @@ test('非严格回显模型不启用 reasoning 占位策略', async () => {
         false
     );
 });
+
+const reasoningReplayCases: Array<{
+    name: string;
+    settings: ModelChatResponseOptions;
+    providerKey?: string;
+    modelConfig?: Partial<Pick<ModelConfig, 'id' | 'model' | 'provider' | 'baseUrl'>>;
+    extraBody?: Record<string, unknown>;
+    effortOnly?: boolean;
+    requestKind?: string;
+    effort?: string;
+    thinking?: string;
+    inject: boolean;
+}> = [
+    { name: '默认开启', settings: {}, inject: true },
+    { name: 'high', settings: { reasoningEffort: 'high' }, effort: 'high', thinking: 'enabled', inject: true },
+    { name: 'none', settings: { reasoningEffort: 'none' }, effort: 'none', thinking: 'disabled', inject: false },
+    {
+        name: 'minimal',
+        settings: { reasoningEffort: 'minimal' },
+        effort: 'minimal',
+        thinking: 'disabled',
+        inject: true
+    },
+    {
+        name: 'effort-only minimal',
+        settings: { reasoningEffort: 'minimal' },
+        effortOnly: true,
+        effort: 'minimal',
+        inject: true
+    },
+    {
+        name: 'high 覆盖 disabled',
+        settings: { thinking: 'disabled', reasoningEffort: 'high' },
+        effort: 'high',
+        thinking: 'enabled',
+        inject: true
+    },
+    {
+        name: 'extraBody none',
+        settings: {},
+        extraBody: { reasoning: { effort: 'none' } },
+        effort: 'none',
+        inject: false
+    },
+    {
+        name: 'extraBody disabled',
+        settings: {},
+        extraBody: { thinking: { type: 'disabled' } },
+        thinking: 'disabled',
+        inject: true
+    },
+    { name: 'extraBody enable_thinking=false', settings: {}, extraBody: { enable_thinking: false }, inject: true },
+    {
+        name: 'settings disabled 不关闭 Responses 思考',
+        settings: { thinking: 'disabled' },
+        thinking: 'disabled',
+        inject: true
+    },
+    {
+        name: 'high 覆盖 extraBody none',
+        settings: { reasoningEffort: 'high' },
+        extraBody: { reasoning: { effort: 'none' } },
+        effort: 'high',
+        thinking: 'enabled',
+        inject: true
+    },
+    {
+        name: 'none 覆盖 extraBody high',
+        settings: { reasoningEffort: 'none' },
+        extraBody: { reasoning: { effort: 'high' } },
+        effort: 'none',
+        thinking: 'disabled',
+        inject: false
+    },
+    {
+        name: '辅助请求降级',
+        settings: { reasoningEffort: 'high' },
+        requestKind: 'chat-title',
+        effort: 'none',
+        thinking: 'disabled',
+        inject: false
+    },
+    {
+        name: 'extraBody null 删除 reasoning',
+        settings: { reasoningEffort: 'high' },
+        extraBody: { reasoning: null },
+        thinking: 'enabled',
+        inject: true
+    },
+    {
+        name: 'extraBody null 删除 none 后恢复默认思考',
+        settings: { reasoningEffort: 'none' },
+        extraBody: { reasoning: null },
+        thinking: 'disabled',
+        inject: true
+    },
+    {
+        name: 'extraBody null 删除 thinking',
+        settings: { reasoningEffort: 'none' },
+        extraBody: { thinking: null },
+        effort: 'none',
+        inject: false
+    },
+    {
+        name: 'effort-only 清除 extraBody disabled',
+        settings: {},
+        extraBody: { thinking: { type: 'disabled' } },
+        effortOnly: true,
+        inject: true
+    },
+    {
+        name: 'extraBody minimal',
+        settings: {},
+        extraBody: { reasoning: { effort: 'minimal' } },
+        effort: 'minimal',
+        inject: true
+    },
+    {
+        name: '仅 providerKey 识别 DeepSeek',
+        settings: {},
+        providerKey: 'DeepSeek',
+        modelConfig: { id: 'custom-model', provider: undefined },
+        extraBody: { thinking: { type: 'disabled' } },
+        thinking: 'disabled',
+        inject: true
+    },
+    {
+        name: '模型 provider 覆盖兼容提供商',
+        settings: {},
+        providerKey: 'compatible',
+        modelConfig: { id: 'custom-model', provider: 'DeepSeek' },
+        extraBody: { enable_thinking: false },
+        inject: true
+    },
+    {
+        name: '仅官方 URL 识别 DeepSeek',
+        settings: { thinking: 'disabled' },
+        providerKey: 'compatible',
+        modelConfig: { id: 'custom-model', baseUrl: 'https://API.DEEPSEEK.COM/v1' },
+        thinking: 'disabled',
+        inject: true
+    },
+    {
+        name: '仅模型名前缀识别 DeepSeek',
+        settings: {},
+        providerKey: 'compatible',
+        modelConfig: { id: 'DeepSeek-flash' },
+        extraBody: { enable_thinking: false },
+        inject: true
+    },
+    {
+        name: '映射后的 DeepSeek 模型在删除 none 后恢复默认思考',
+        settings: { reasoningEffort: 'none' },
+        providerKey: 'compatible',
+        modelConfig: { id: 'custom-model', model: 'vendor/DeepSeek-V4-Pro' },
+        extraBody: { reasoning: null },
+        thinking: 'disabled',
+        inject: true
+    },
+    {
+        name: 'MiMo 默认仍补占位',
+        settings: {},
+        providerKey: 'xiaomimimo',
+        modelConfig: { id: 'mimo-v2.5-pro' },
+        inject: true
+    },
+    {
+        name: 'MiMo 保持 thinking disabled 语义',
+        settings: {},
+        providerKey: 'xiaomimimo',
+        modelConfig: { id: 'mimo-v2.5-pro' },
+        extraBody: { thinking: { type: 'disabled' } },
+        thinking: 'disabled',
+        inject: false
+    },
+    {
+        name: 'MiMo 保持 enable_thinking=false 语义',
+        settings: {},
+        providerKey: 'xiaomimimo',
+        modelConfig: { id: 'mimo-v2.5-pro' },
+        extraBody: { enable_thinking: false },
+        inject: false
+    }
+];
+
+for (const scenario of reasoningReplayCases) {
+    test(`Responses reasoning 回放与最终请求一致: ${scenario.name}`, async () => {
+        const { OpenAIResponsesRequestBuilder, OpenAIResponsesMessageConverter } = await getBuilderModule();
+        const providerKey = scenario.providerKey ?? 'deepseek';
+        const modelId = scenario.modelConfig?.id ?? 'deepseek-flash';
+        const converter = new OpenAIResponsesMessageConverter(
+            { isImageMimeType: () => false, createDataUrl: () => '' } as never,
+            'Test Provider'
+        );
+        const builder = new OpenAIResponsesRequestBuilder('Test Provider', converter, providerKey);
+        const { requestBody } = builder.build({
+            model: { id: modelId, name: 'Test Model' } as never,
+            modelConfig: {
+                id: modelId,
+                provider: providerKey,
+                sdkMode: 'openai-responses',
+                thinking: ['enabled', 'disabled'],
+                reasoningEffort: ['high', 'minimal', 'none'],
+                thinkingFormat: scenario.effortOnly ? 'effort-only' : undefined,
+                extraBody: scenario.extraBody,
+                ...scenario.modelConfig
+            } as never,
+            messages: [
+                { role: 'assistant', content: [{ callId: 'call-1', name: 'lookup', input: {} }] },
+                { role: 'user', content: [{ callId: 'call-1', content: [new vscodeMock.LanguageModelTextPart('ok')] }] }
+            ] as never,
+            options: {
+                modelConfiguration: scenario.settings,
+                modelOptions: { requestKind: scenario.requestKind },
+                tools: [{ name: 'lookup', inputSchema: { type: 'object', properties: {} } }]
+            } as never,
+            sessionId: 'session-123'
+        });
+        const input = requestBody.input as Array<{ type: string; call_id?: string }>;
+
+        assert.deepEqual(requestBody.reasoning, scenario.effort ? { effort: scenario.effort } : undefined);
+        assert.deepEqual(requestBody.thinking, scenario.thinking ? { type: scenario.thinking } : undefined);
+        assert.equal(requestBody.enable_thinking, scenario.extraBody?.enable_thinking);
+        assert.deepEqual(
+            input.map(item => item.type),
+            scenario.inject ?
+                ['reasoning', 'function_call', 'function_call_output']
+            :   ['function_call', 'function_call_output']
+        );
+        assert.deepEqual(
+            input.filter(item => item.type === 'reasoning'),
+            scenario.inject ?
+                [{ type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: ' ' }] }]
+            :   []
+        );
+        assert.equal(input.at(-1)?.call_id, input.find(item => item.type === 'function_call')?.call_id);
+    });
+}
