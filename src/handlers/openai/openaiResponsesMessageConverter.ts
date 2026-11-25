@@ -5,6 +5,7 @@ import type { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../stateful/statefulMarker';
+import { REASONING_PLACEHOLDER_TEXT } from '../reasoningPlaceholder';
 import { GCMP_SYSTEM_MESSAGE_NAME, isStatefulMarkerMimeType } from '../types';
 import { isImageMimeCategory, type openAIImages } from './shared/images';
 import { filterResponsesExtraBodyParams } from './responses/requestParameters';
@@ -51,6 +52,18 @@ interface RequestOrigin {
     modelId: string;
 }
 
+/**
+ * 明文 reasoning 回放策略。
+ *
+ * `injectReasoningPlaceholder`：模型处于思考模式且属于严格回显端点（DeepSeek / MiMo）时为 true。
+ * 这些端点只认明文 `reasoning_text`，且要求带工具调用循环的轮次回传非空思考内容：
+ * - 不回传 `encrypted_content`（端点不识别，反而会让校验判定该轮缺少 reasoning）；
+ * - 思考内容被剥离（子代理、压缩、跨模型续接）后补非空占位，否则整轮请求 400。
+ */
+export interface ResponsesReasoningReplayOptions {
+    injectReasoningPlaceholder?: boolean;
+}
+
 function isDataPart(part: unknown): part is vscode.LanguageModelDataPart {
     return typeof part === 'object' && part !== null && 'mimeType' in part && 'data' in part;
 }
@@ -76,7 +89,8 @@ export class OpenAIResponsesMessageConverter {
     convertMessagesToOpenAIResponses(
         messages: readonly vscode.LanguageModelChatMessage[],
         modelConfig: ModelConfig | undefined,
-        requestOrigin: RequestOrigin
+        requestOrigin: RequestOrigin,
+        reasoningReplay: ResponsesReasoningReplayOptions = {}
     ): { systemMessage: string; messages: ResponseInputItem[] } {
         const out: ResponseInputItem[] = [];
         const pendingToolCallIds = new Set<string>();
@@ -112,6 +126,7 @@ export class OpenAIResponsesMessageConverter {
             requestModel: modelConfig?.model || modelConfig?.id || '',
             extraBody: modelConfig?.extraBody
         });
+        const injectReasoningPlaceholder = reasoningReplay.injectReasoningPlaceholder === true;
         const currentOrigin = requestOrigin;
 
         for (const [messageIndex, message] of messages.entries()) {
@@ -195,34 +210,62 @@ export class OpenAIResponsesMessageConverter {
             const joinedThinking = thinkingParts.join('').trim();
 
             if (role === 'assistant') {
-                let emittedEncrypted = false;
-                if (replayEncryptedReasoning) {
-                    // 密文通道：回传密文 reasoning 项；可见 ThinkingPart 为展示用摘要，模型不消费，不回传
-                    // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
-                    const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
-                        encryptedReasonings,
-                        markerReasonings
-                    ).filter(item => isEncryptedReasoningOriginMatch(item, currentOrigin));
-                    for (const { encryptedContent, reasoningId } of mergedEncryptedReasonings) {
-                        const reasoningItem: Record<string, unknown> = {
+                /**
+                 * 严格回显端点（DeepSeek 等）在思考模式下只认明文 reasoning_text：
+                 * - encrypted_content 不被识别，反而会让校验判定该轮「缺少 reasoning」
+                 *   （官方文档：reasoning 的 summary / encrypted_content 不支持）；
+                 * - 只要出现工具调用循环，最后一轮 assistant 必须带非空 reasoning_text，
+                 *   否则整轮 400（子代理、压缩、跨模型续接都会让思考内容被剥离）。
+                 * 因此该通道不回传密文项，逐轮回传明文；思考已丢失时补非空占位。
+                 */
+                const markerThinking =
+                    injectReasoningPlaceholder ?
+                        (this.getCompleteThinkingFromMarker(message.content) ?? '').trim()
+                    :   '';
+                const plainThinking = joinedThinking || markerThinking;
+                if (injectReasoningPlaceholder) {
+                    if (plainThinking) {
+                        out.push({
                             type: 'reasoning' as const,
                             summary: [],
-                            encrypted_content: encryptedContent
-                        };
-                        if (isResponsesReasoningId(reasoningId)) {
-                            reasoningItem.id = reasoningId;
-                        }
-                        out.push(reasoningItem as unknown as ResponseReasoningItem);
-                        emittedEncrypted = true;
+                            content: [{ type: 'reasoning_text' as const, text: plainThinking }]
+                        } as unknown as ResponseReasoningItem);
+                    } else if (toolCalls.length > 0 || joinedText) {
+                        // 该轮仍有输出（文本或工具调用）却没有可用思考内容：补非空占位
+                        out.push({
+                            type: 'reasoning' as const,
+                            summary: [],
+                            content: [{ type: 'reasoning_text' as const, text: REASONING_PLACEHOLDER_TEXT }]
+                        } as unknown as ResponseReasoningItem);
+                        Logger.trace(
+                            `${this.displayName} Responses API: injected reasoning placeholder for assistant turn without replayed thinking`
+                        );
                     }
-                }
-                if (!emittedEncrypted && replayPlainThinking) {
-                    // 明文通道（DeepSeek 等无密文端点）：思维链文本以明文 reasoning 项回传，
-                    // 端点将明文 content 归并到相邻 assistant 消息
-                    const markerThinking = (this.getCompleteThinkingFromMarker(message.content) ?? '').trim();
-                    // 可见 ThinkingPart 内容优先；被完全剥离时回退 marker 持久化文本
-                    const plainThinking = joinedThinking || markerThinking;
-                    if (plainThinking) {
+                } else {
+                    let emittedEncrypted = false;
+                    if (replayEncryptedReasoning) {
+                        // 密文通道：回传密文 reasoning 项；可见 ThinkingPart 为展示用摘要，模型不消费，不回传
+                        // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
+                        const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
+                            encryptedReasonings,
+                            markerReasonings
+                        ).filter(item => isEncryptedReasoningOriginMatch(item, currentOrigin));
+                        for (const { encryptedContent, reasoningId } of mergedEncryptedReasonings) {
+                            const reasoningItem: Record<string, unknown> = {
+                                type: 'reasoning' as const,
+                                summary: [],
+                                encrypted_content: encryptedContent
+                            };
+                            if (isResponsesReasoningId(reasoningId)) {
+                                reasoningItem.id = reasoningId;
+                            }
+                            out.push(reasoningItem as unknown as ResponseReasoningItem);
+                            emittedEncrypted = true;
+                        }
+                    }
+                    if (!emittedEncrypted && replayPlainThinking && plainThinking) {
+                        // 明文通道：思维链文本以明文 reasoning 项回传，端点将明文 content 归并到相邻 assistant 消息
+                        // 可见 ThinkingPart 内容优先；被完全剥离时回退 marker 持久化文本
                         out.push({
                             type: 'reasoning' as const,
                             summary: [],

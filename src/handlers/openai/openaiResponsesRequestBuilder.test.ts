@@ -782,3 +782,73 @@ test('Compatible Responses 原样发送 auto 服务等级', async () => {
 
     assert.equal(requestBody.service_tier, 'auto');
 });
+
+test('DeepSeek 思考模式请求向消息转换传递 reasoning 占位策略', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const captured: unknown[][] = [];
+    const builder = new OpenAIResponsesRequestBuilder(
+        'DeepSeek',
+        {
+            convertMessagesToOpenAIResponses: (...args: unknown[]) => {
+                captured.push(args);
+                return { systemMessage: '', messages: [] };
+            },
+            convertToolsToResponses: () => []
+        } as never,
+        'deepseek'
+    );
+
+    const build = (modelConfiguration: Record<string, unknown>) =>
+        builder.build({
+            model: { id: 'deepseek-flash', name: 'DeepSeek-Flash' } as never,
+            modelConfig: {
+                id: 'deepseek-flash',
+                model: 'deepseek-flash',
+                provider: 'deepseek',
+                sdkMode: 'openai-responses'
+            } as never,
+            messages: [],
+            options: { modelConfiguration } as never,
+            sessionId: 'session-123'
+        });
+
+    build({ reasoningEffort: 'high' });
+    build({ reasoningEffort: 'none' });
+    build({ thinking: 'disabled' });
+
+    assert.deepEqual(
+        captured.map(
+            args => (args[3] as { injectReasoningPlaceholder?: boolean } | undefined)?.injectReasoningPlaceholder
+        ),
+        [true, false, false]
+    );
+});
+
+test('非严格回显模型不启用 reasoning 占位策略', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const captured: unknown[][] = [];
+    const builder = new OpenAIResponsesRequestBuilder(
+        'Test Provider',
+        {
+            convertMessagesToOpenAIResponses: (...args: unknown[]) => {
+                captured.push(args);
+                return { systemMessage: '', messages: [] };
+            },
+            convertToolsToResponses: () => []
+        } as never,
+        'openai'
+    );
+
+    builder.build({
+        model: { id: 'gpt-5.4', name: 'GPT-5.4' } as never,
+        modelConfig: { id: 'gpt-5.4', model: 'gpt-5.4', provider: 'openai', sdkMode: 'openai-responses' } as never,
+        messages: [],
+        options: { modelConfiguration: { reasoningEffort: 'high' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.equal(
+        (captured[0][3] as { injectReasoningPlaceholder?: boolean } | undefined)?.injectReasoningPlaceholder,
+        false
+    );
+});
